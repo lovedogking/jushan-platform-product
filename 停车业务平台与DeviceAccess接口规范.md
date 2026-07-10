@@ -1,1199 +1,1127 @@
-# 停车业务平台与 Device Access 接口规范
+# 停车业务平台与 Device Access 接口规范（真机实现合并版）
 
-> 文档版本：V1.0  
-> 接口主版本：v1  
-> 文档状态：开发基线，待双方评审冻结  
+> 文档版本：V1.0-MERGED  
+> 当前接口版本：Device Access API v0.1  
+> 文档状态：当前真机联调基线  
 > 适用系统：停车业务平台、Device Access 设备接入服务  
-> 首期设备范围：臻识 C5H 车牌识别相机及其继电器控制的道闸  
-> 后续扩展范围：信路通及其他厂商相机、独立道闸控制器  
-> 编制日期：2026-07-10
+> 当前设备范围：臻识 C5H 车牌识别相机及其继电器控制的道闸  
+> 当前协议：停车业务平台通过 HTTP 调用 Device Access；Device Access 内部通过 MQTT 与设备通信  
+> 编制日期：2026-07-10  
+> 冲突处理原则：两份原始文档内容不一致时，以《Device Access 真机验证接口》描述的已实现行为为准
 
 ---
 
 ## 目录
 
 1. [文档目的](#1-文档目的)
-2. [适用范围](#2-适用范围)
-3. [术语与参与方](#3-术语与参与方)
-4. [职责边界](#4-职责边界)
-5. [总体架构](#5-总体架构)
-6. [接口设计原则](#6-接口设计原则)
-7. [版本与兼容策略](#7-版本与兼容策略)
-8. [公共标识规则](#8-公共标识规则)
-9. [公共数据规范](#9-公共数据规范)
-10. [服务认证与安全规范](#10-服务认证与安全规范)
-11. [HTTP 接口总览](#11-http-接口总览)
-12. [平台向 Device Access 下发命令](#12-平台向-device-access-下发命令)
-13. [查询命令执行状态](#13-查询命令执行状态)
-14. [查询设备实时状态](#14-查询设备实时状态)
-15. [通知 Device Access 刷新配置](#15-通知-device-access-刷新配置)
-16. [Device Access 获取设备配置](#16-device-access-获取设备配置)
-17. [Device Access 解析设备绑定关系](#17-device-access-解析设备绑定关系)
-18. [申请图片上传凭证](#18-申请图片上传凭证)
-19. [RabbitMQ 事件总览](#19-rabbitmq-事件总览)
-20. [统一事件信封](#20-统一事件信封)
-21. [车牌识别事件](#21-车牌识别事件)
-22. [设备上线事件](#22-设备上线事件)
-23. [设备离线事件](#23-设备离线事件)
-24. [设备心跳事件](#24-设备心跳事件)
-25. [道闸状态变更事件](#25-道闸状态变更事件)
-26. [设备告警事件](#26-设备告警事件)
-27. [命令执行结果事件](#27-命令执行结果事件)
-28. [图片补传完成事件](#28-图片补传完成事件)
-29. [配置应用结果事件](#29-配置应用结果事件)
-30. [设备能力模型](#30-设备能力模型)
-31. [相机与道闸建模](#31-相机与道闸建模)
-32. [命令生命周期](#32-命令生命周期)
-33. [事件幂等与命令幂等](#33-事件幂等与命令幂等)
-34. [消息顺序、重试与死信](#34-消息顺序重试与死信)
-35. [图片处理规范](#35-图片处理规范)
-36. [配置同步规范](#36-配置同步规范)
-37. [错误码规范](#37-错误码规范)
-38. [超时、限流和容量约束](#38-超时限流和容量约束)
-39. [日志、追踪与监控](#39-日志追踪与监控)
-40. [数据安全与隐私](#40-数据安全与隐私)
-41. [关键业务时序](#41-关键业务时序)
-42. [联调环境要求](#42-联调环境要求)
-43. [契约测试与验收用例](#43-契约测试与验收用例)
-44. [双方开发任务拆分](#44-双方开发任务拆分)
-45. [变更管理流程](#45-变更管理流程)
-46. [第一阶段不包含的内容](#46-第一阶段不包含的内容)
-47. [臻识协议映射附录](#47-臻识协议映射附录)
-48. [信路通协议映射附录](#48-信路通协议映射附录)
-49. [评审与签署](#49-评审与签署)
+2. [合并及优先级规则](#2-合并及优先级规则)
+3. [当前已实现范围](#3-当前已实现范围)
+4. [术语与职责边界](#4-术语与职责边界)
+5. [当前总体架构](#5-当前总体架构)
+6. [基础地址与公共响应](#6-基础地址与公共响应)
+7. [设备标识规则](#7-设备标识规则)
+8. [开闸接口](#8-开闸接口)
+9. [校时接口](#9-校时接口)
+10. [查询设备状态接口](#10-查询设备状态接口)
+11. [当前错误码](#11-当前错误码)
+12. [超时、重试与幂等](#12-超时重试与幂等)
+13. [在线状态判定](#13-在线状态判定)
+14. [停车业务平台接入规则](#14-停车业务平台接入规则)
+15. [日志、审计与监控](#15-日志审计与监控)
+16. [安全与部署边界](#16-安全与部署边界)
+17. [当前接口验收用例](#17-当前接口验收用例)
+18. [原 V1.0 设计与当前实现差异](#18-原-v10-设计与当前实现差异)
+19. [后续目标设计](#19-rabbitmq-事件总览目标设计当前-v01-未实现)
 
 ---
 
 ## 1. 文档目的
 
-本文档用于定义停车业务平台与 Device Access 之间的稳定协作契约，包括：
+本文档将以下两份文档合并为一份统一规范：
 
-- 双方职责边界；
-- HTTP 接口；
-- RabbitMQ 事件；
-- 标识、状态和数据模型；
-- 服务认证；
-- 幂等、重试和顺序规则；
-- 图片上传与补传；
-- 配置同步；
-- 错误码；
-- 联调测试和验收标准。
+1. 《停车业务平台与 Device Access 接口规范 V1.0》；
+2. 《Device Access 真机验证接口》。
 
-本文档采用“契约优先”方式。双方在开始编码前确认本规范，后续分别实现停车业务平台和 Device Access。厂商协议差异仅在 Device Access 内部消化，不得向停车业务平台泄漏。
+合并后的文档同时承担两类作用：
 
-### 1.1 核心目标
+- **当前联调依据**：第 1～18 章描述 Device Access v0.1 已经实现并经过真机验证的接口，停车业务平台应按这些接口开发；
+- **后续演进参考**：第 19 章及以后保留原 V1.0 中 RabbitMQ、统一事件、统一命令、配置同步、对象存储等目标设计，但这些内容当前尚未由 Device Access v0.1 提供，不能作为现阶段已经可调用的接口。
 
-停车业务平台只处理统一设备能力，不关心：
-
-- 臻识、信路通或其他品牌名称；
-- 相机使用 MQTT、HTTP、TCP 还是 SDK；
-- 厂商原始 Topic；
-- 厂商原始字段；
-- 厂商错误码；
-- 道闸是否通过相机继电器控制。
-
-Device Access 不处理：
-
-- 停车记录创建；
-- 收费规则；
-- 月卡、白名单、黑名单；
-- 停车订单；
-- 微信支付；
-- 是否允许车辆放行的业务决策。
+当前联调必须以实际可运行行为为准，不得因为目标架构中存在某项设计，就假定 Device Access 已经实现该能力。
 
 ---
 
-## 2. 适用范围
+## 2. 合并及优先级规则
 
-### 2.1 第一阶段范围
+### 2.1 文档优先级
 
-第一阶段支持：
+当两份原始文档出现冲突时，按以下顺序处理：
 
-- 公有云部署；
-- Java 21 LTS；
-- Spring Boot 3.5.x；
-- HTTPS REST；
-- RabbitMQ；
-- EMQX；
-- 臻识 C5H；
-- 车牌识别；
-- 设备心跳；
-- 设备在线、离线；
-- 通过相机继电器执行开闸；
-- 远程关闸、常开、取消常开，具体以设备能力为准；
-- 触发抓拍；
-- 重启设备；
-- 同步时间；
-- 查询设备状态；
-- 设备告警；
+1. Device Access 真机验证接口中明确写明的接口路径、请求参数、返回字段和运行行为；
+2. Device Access 当前代码及真机实测行为；
+3. 本合并文档第 1～18 章；
+4. 原 V1.0 目标设计；
+5. 其他口头约定或未冻结草稿。
+
+### 2.2 已覆盖的冲突
+
+本合并版已按真机接口覆盖以下差异：
+
+| 项目 | 原 V1.0 目标设计 | 当前真机实现，最终采用 |
+|---|---|---|
+| 开闸入口 | `POST /api/v1/commands` | `POST /api/v1/devices/{deviceId}/gate/open` |
+| 校时入口 | 统一命令 `SYNC_TIME` | `POST /api/v1/devices/{deviceId}/time/sync` |
+| 命令返回 | `202 Accepted`，异步回执 | 同步等待设备回复并返回最终结果 |
+| 最终结果 | RabbitMQ `COMMAND_RESULT` | 当前 HTTP 响应 |
+| 设备标识 | 平台 `deviceId` 与厂商 `deviceSn` 分离 | 跨系统调用中的 `deviceId` 必须等于臻识设备 SN |
+| 命令幂等 | `commandId` 幂等 | 当前无幂等保护，每次请求都会执行 |
+| 服务认证 | HMAC-SHA256 | 当前接口未定义服务认证 |
+| 传输协议 | 生产 HTTPS | 当前 Base URL 为 HTTP |
+| 时间格式 | ISO 8601，带时区 | 当前响应使用 `yyyy-MM-dd HH:mm:ss` |
+| 在线阈值 | 配置化，示例 180 秒 | 当前固定为 30 秒无心跳视为离线 |
+| 设备心跳 | RabbitMQ 心跳事件 | 当前由 Device Access 内部维护，平台通过状态接口查询 |
+| RabbitMQ 事件 | 当前主链路 | v0.1 未在真机接口文档中提供 |
+| 配置同步 | 平台接口 + `configVersion` | v0.1 未提供 |
+| 图片上传 | 临时上传凭证 | v0.1 未提供 |
+
+### 2.3 未定义能力的处理
+
+真机接口未定义的能力一律按“当前未实现”处理，包括但不限于：
+
+- 车牌识别事件向停车业务平台上报；
+- RabbitMQ Exchange、Queue 和 Routing Key；
+- 命令查询接口；
+- 命令异步结果事件；
+- Device Access 配置刷新；
+- Device Access 主动拉取平台设备配置；
 - 图片上传和补传；
-- 离线事件补传；
-- 命令执行结果回传。
+- HMAC 服务间认证；
+- `commandId` 和 `eventId` 幂等；
+- Outbox、Inbox 和死信队列；
+- 关闸、常开、取消常开、抓拍和重启接口。
 
-### 2.2 设计容量
-
-- 初期按约 10 个停车场设计；
-- 预留扩展至 100 个停车场；
-- 每个停车场可包含多个入口、出口、车道、相机和逻辑道闸；
-- 第一阶段允许单实例部署，但契约和代码不得依赖单机内存状态。
-
-### 2.3 不在本文档中定义的内容
-
-- 厂商设备内部实现；
-- 停车业务平台内部数据库表结构；
-- Device Access 内部模块结构；
-- 微信支付接口；
-- 停车计费接口；
-- 小程序接口；
-- 运营端、总后台和岗亭端页面接口。
+上述能力必须在 Device Access 实际实现、双方联调通过并更新本规范后，才能进入正式调用链路。
 
 ---
 
-## 3. 术语与参与方
+## 3. 当前已实现范围
+
+### 3.1 已实现接口
+
+Device Access v0.1 当前提供三个接口：
+
+| 方法 | 路径 | 用途 | 当前语义 |
+|---|---|---|---|
+| POST | `/api/v1/devices/{deviceId}/gate/open` | 开闸 | 同步等待设备回复 |
+| POST | `/api/v1/devices/{deviceId}/time/sync` | 校时 | 同步等待设备回复 |
+| GET | `/api/v1/devices/{deviceId}/status` | 查询设备状态 | 返回当前缓存的心跳和道闸状态 |
+
+### 3.2 当前支持设备
+
+- 厂商：臻识；
+- 型号：C5H；
+- 道闸控制方式：相机继电器控制；
+- Device Access 与设备通信方式：MQTT；
+- 设备调用标识：臻识 C5H 的 `sn`。
+
+### 3.3 当前不保证的能力
+
+- 不保证接口幂等；
+- 不保证命令异步可靠投递；
+- 不提供命令记录查询；
+- 不提供跨实例一致性；
+- 不提供 RabbitMQ 业务事件；
+- 不提供平台配置同步；
+- 不提供对象存储图片上传；
+- 不提供服务间签名认证；
+- 不提供信路通正式适配；
+- 不提供完整离线补传。
+
+---
+
+## 4. 术语与职责边界
+
+### 4.1 术语
 
 | 名称 | 定义 |
 |---|---|
-| 厂商设备 | 臻识、信路通等品牌的相机、道闸或相关硬件 |
-| Device Access | 设备接入服务，负责厂商协议适配和实际设备控制 |
-| 停车业务平台 | 负责停车场、车道、停车记录、计费、订单、支付和放行决策的系统 |
-| 统一事件 | Device Access 将厂商原始报文标准化后的事件 |
-| 统一命令 | 停车业务平台向 Device Access 下发的品牌无关控制命令 |
-| 逻辑道闸 | 停车业务平台中的 GATE 设备对象，物理执行器可以是相机继电器 |
-| 执行设备 | 真正向物理硬件下发指令的设备，例如相机 |
-| 目标设备 | 业务上希望控制的设备，例如逻辑道闸 |
-| 设备配置版本 | 停车业务平台生成的设备绑定和连接配置版本 |
-| 离线补传 | 设备或 Device Access 在网络恢复后补发离线期间产生的事件 |
-| Outbox | 发送方在本地事务中持久化待发送事件的可靠投递表 |
-| Inbox | 消费方持久化已消费事件 ID 的幂等处理表 |
+| 停车业务平台 | 负责停车场、车道、停车记录、计费、订单、支付和放行决策 |
+| Device Access | 负责连接设备、解析厂商协议、发送 MQTT 命令并维护设备状态 |
+| 厂商设备 | 当前指臻识 C5H 相机及其继电器控制的道闸 |
+| `deviceId` | 当前 HTTP 路径参数，实际值必须是厂商设备 SN |
+| 平台设备主键 | 停车业务平台数据库内部设备 ID，不应直接替代当前接口的 `deviceId` |
+| 设备回复 | Device Access 下发 MQTT 命令后收到的厂商响应 |
+| 同步等待 | HTTP 请求保持等待，直到设备回复、设备拒绝、MQTT 不可用或 10 秒超时 |
 
----
+### 4.2 Device Access 当前职责
 
-## 4. 职责边界
+Device Access 当前负责：
 
-### 4.1 Device Access 职责
+1. 保存已接入设备信息；
+2. 维护 MQTT Broker 连接；
+3. 按设备 SN 查找设备；
+4. 向设备下发开闸命令；
+5. 向设备下发校时命令；
+6. 同步等待设备回复；
+7. 维护设备最后在线时间；
+8. 根据心跳计算在线状态；
+9. 维护道闸状态和道闸连接状态；
+10. 将设备错误转换为 HTTP 错误响应。
 
-Device Access 负责：
-
-1. 与厂商设备建立连接；
-2. MQTT、HTTP、TCP、SDK 等通信维护；
-3. 自动重连；
-4. 厂商协议解析；
-5. 厂商字段转换；
-6. 厂商 Topic 路由；
-7. 将原始识别结果转换为统一事件；
-8. 接收统一命令；
-9. 将统一命令转换为厂商命令；
-10. 实际下发开闸、关闸、抓拍、重启和校时；
-11. 识别设备心跳；
-12. 检测在线和离线；
-13. 设备侧初步重复消息过滤；
-14. 设备告警检测；
-15. 离线事件缓存；
-16. 网络恢复后补传；
-17. 命令执行结果回传；
-18. 获取抓拍图片；
-19. 上传对象存储；
-20. 保存厂商原始报文和调试日志；
-21. 保存命令幂等结果；
-22. 保存事件可靠投递状态。
-
-### 4.2 停车业务平台职责
+### 4.3 停车业务平台职责
 
 停车业务平台负责：
 
-1. 租户管理；
-2. 停车场管理；
-3. 入口、出口和车道管理；
-4. 设备元数据管理；
-5. 相机与逻辑道闸绑定；
-6. 设备配置版本管理；
-7. 接收统一事件；
-8. 事件二次幂等；
-9. 创建入场记录、出场记录和停车记录；
-10. 判断月卡、白名单、黑名单；
-11. 计算停车费；
-12. 创建停车订单；
-13. 处理支付；
-14. 决定是否允许开闸；
-15. 生成统一命令；
-16. 保存业务命令记录；
-17. 保存设备状态和告警；
-18. 提供图片临时上传凭证；
-19. 管理图片保留期限；
-20. 向管理端、岗亭端和小程序展示数据。
+1. 租户、停车场、车道和设备业务数据；
+2. 保存平台设备主键与厂商 SN 的映射；
+3. 判断车辆是否允许放行；
+4. 计费、订单和支付；
+5. 调用开闸接口；
+6. 处理开闸成功、拒绝、MQTT 不可达和超时；
+7. 查询和展示设备状态；
+8. 保存调用日志和人工操作审计；
+9. 对跨租户、跨停车场和跨车道操作进行后端校验；
+10. 在当前无设备侧幂等保护的情况下避免盲目重复开闸。
 
-### 4.3 明确禁止事项
+### 4.4 禁止事项
 
-Device Access 禁止：
+停车业务平台不得：
 
-- 自行判断月卡是否有效；
-- 自行判断订单是否已支付；
-- 自行计算停车费用；
-- 未收到平台命令时根据业务规则主动放行；
-- 直接写入停车业务平台数据库；
-- 将厂商原始字段直接作为平台业务字段；
-- 使用厂商序列号作为平台数据库主键。
+- 直接连接臻识设备 MQTT；
+- 在业务模块中自行拼装厂商 MQTT Topic；
+- 绕过 Device Access 直接向设备下发命令；
+- 使用未经映射校验的任意 SN 调用接口；
+- 因 HTTP 超时直接断定道闸未动作；
+- 对开闸请求进行无条件自动重试；
+- 将前端传入的设备 SN 直接透传给 Device Access；
+- 将 `deviceId` 名称误解为平台数据库主键。
 
-停车业务平台禁止：
+Device Access 不得：
 
-- 直接解析臻识或信路通原始协议；
-- 直接连接厂商相机；
-- 在业务代码中出现厂商 Topic；
-- 根据厂商错误码直接控制业务状态；
-- 绕过 Device Access 直接下发硬件命令。
+- 判断月卡、白名单、订单或支付状态；
+- 自行计算停车费；
+- 未经平台业务决策主动执行收费放行；
+- 直接写入停车业务平台数据库。
 
 ---
 
-## 5. 总体架构
+## 5. 当前总体架构
 
 ```text
 ┌─────────────────────────────┐
 │       停车业务平台           │
-│ 停车记录 / 计费 / 订单 / 支付 │
+│ 记录 / 计费 / 订单 / 支付     │
 └──────────────┬──────────────┘
-               │
-     HTTPS REST│命令、查询、配置
-               │
+               │ HTTP
+               │ 开闸 / 校时 / 状态查询
                ▼
 ┌─────────────────────────────┐
 │        Device Access         │
-│ 厂商适配 / 连接 / 控制 / 事件 │
+│ 设备注册 / MQTT / 状态 / 控制 │
 └──────────────┬──────────────┘
-               │
- MQTT/HTTP/TCP/SDK
-               │
+               │ MQTT
                ▼
 ┌─────────────────────────────┐
-│ 臻识 / 信路通相机与道闸       │
+│       臻识 C5H 相机           │
+│      相机继电器 → 道闸         │
 └─────────────────────────────┘
-
-Device Access ──RabbitMQ──> 停车业务平台
-Device Access ──对象存储──> 上传抓拍图片
 ```
 
-### 5.1 通信方向
+### 5.1 当前通信方向
 
-| 方向 | 协议 | 用途 |
+| 方向 | 协议 | 当前用途 |
 |---|---|---|
-| 停车业务平台 → Device Access | HTTPS REST | 下发命令、查询命令状态、查询设备状态、刷新配置 |
-| Device Access → 停车业务平台 | RabbitMQ | 上报识别、状态、告警、命令结果、图片补传结果 |
-| Device Access → 停车业务平台 | HTTPS REST | 拉取设备配置、解析设备绑定、申请图片上传凭证 |
-| Device Access → 对象存储 | HTTPS | 上传图片 |
-| Device Access ↔ 厂商设备 | MQTT/HTTP/TCP/SDK | 厂商协议通信 |
+| 停车业务平台 → Device Access | HTTP REST | 开闸、校时、查询状态 |
+| Device Access ↔ 臻识设备 | MQTT | 厂商命令、设备回复、心跳和状态 |
+| Device Access → 停车业务平台 | 未定义 | v0.1 未提供统一事件上报契约 |
+| Device Access → RabbitMQ | 未实现或未纳入当前契约 | 不得作为当前可用能力 |
+| Device Access → 对象存储 | 未实现或未纳入当前契约 | 不得作为当前可用能力 |
 
-### 5.2 数据库隔离
+### 5.2 数据所有权
 
-- 停车业务平台和 Device Access 使用独立数据库或独立 Schema；
-- 双方禁止直接访问对方数据库；
-- Device Access 可以保存设备连接、原始消息、命令、Outbox 等设备接入数据；
-- 停车业务平台是租户、停车场、车道、业务设备绑定关系的最终数据源。
-
----
-
-## 6. 接口设计原则
-
-1. 外部契约品牌中立；
-2. 所有接口版本化；
-3. 所有命令有唯一 `commandId`；
-4. 所有事件有唯一 `eventId`；
-5. HTTP 接口只返回受理结果，不将设备最终执行结果伪装为同步成功；
-6. 最终设备执行结果通过 `COMMAND_RESULT` 事件上报；
-7. RabbitMQ 采用至少一次投递；
-8. 消费者必须幂等；
-9. 图片不得以 Base64 形式进入 RabbitMQ；
-10. 未知字段必须忽略；
-11. 未知枚举必须降级为 `UNKNOWN`；
-12. 厂商私有字段仅放入 `extensions`；
-13. 平台业务逻辑不得依赖 `extensions`；
-14. 时间必须包含时区；
-15. 金额不属于本接口范围；
-16. 车牌、图片等敏感数据必须脱敏记录日志；
-17. 开闸类命令必须可审计；
-18. 配置变更必须有版本号；
-19. 设备离线补传必须保留原始发生时间；
-20. 双方必须实现契约测试。
+- 停车业务平台是租户、停车场、车道、业务设备绑定和停车业务的最终数据源；
+- Device Access 保存设备通信所需信息和运行状态；
+- 双方不得直接读写对方数据库；
+- 当前调用必须通过设备 SN 完成，但平台仍应保留自己的设备主键。
 
 ---
 
-## 7. 版本与兼容策略
+## 6. 基础地址与公共响应
 
-### 7.1 HTTP 版本
-
-统一使用：
+### 6.1 Base URL
 
 ```text
-/api/v1/...
+http://{host}:8081
 ```
 
-### 7.2 事件协议版本
-
-所有事件必须包含：
-
-```json
-{
-  "protocolVersion": "1.0",
-  "schemaVersion": "1.0.0"
-}
-```
-
-### 7.3 兼容规则
-
-以下变更允许在 v1 内进行：
-
-- 新增可选字段；
-- 新增事件类型；
-- 新增命令类型；
-- 新增枚举值，但消费者必须支持未知值降级；
-- 扩充 `extensions`。
-
-以下变更必须升级为 v2：
-
-- 删除字段；
-- 修改字段含义；
-- 修改字段类型；
-- 将可选字段改为必填；
-- 修改命令的业务语义；
-- 修改事件路由键的含义；
-- 修改鉴权签名算法；
-- 修改时间单位。
-
-### 7.4 未知字段策略
-
-- JSON 反序列化必须忽略未知字段；
-- 不得因新增字段导致消费失败；
-- 枚举无法识别时统一转换为 `UNKNOWN`；
-- 不允许使用严格字段白名单阻断同一主版本内的兼容扩展。
-
----
-
-## 8. 公共标识规则
-
-| 字段 | 类型 | 生成方 | 是否可变 | 说明 |
-|---|---|---|---|---|
-| `tenantId` | string | 停车业务平台 | 否 | 租户唯一 ID |
-| `parkingLotId` | string | 停车业务平台 | 否 | 停车场唯一 ID |
-| `laneId` | string | 停车业务平台 | 否 | 车道唯一 ID |
-| `deviceId` | string | 停车业务平台 | 否 | 平台内部设备唯一 ID |
-| `deviceCode` | string | 停车业务平台 | 可修改 | 人类可读业务编号 |
-| `deviceSn` | string | 厂商设备 | 通常不可修改 | 厂商原始序列号 |
-| `vendor` | string | 双方约定 | 否 | `ZHENSHI`、`XINLUTONG` 等 |
-| `eventId` | string | Device Access | 否 | 统一事件全局唯一 ID |
-| `vendorEventId` | string | 厂商设备 | 否 | 厂商原始消息 ID，可为空 |
-| `commandId` | string | 停车业务平台 | 否 | 统一命令全局唯一 ID |
-| `traceId` | string | 调用链发起方 | 否 | 全链路追踪 ID |
-| `requestId` | string | HTTP 请求发起方 | 否 | 单次 HTTP 请求 ID |
-| `sequenceNo` | int64 | Device Access | 单设备递增 | 事件排序和缺口检测 |
-| `configVersion` | int64 | 停车业务平台 | 递增 | 配置版本 |
-
-### 8.1 ID 格式建议
-
-推荐使用 ULID 或 UUIDv7：
+示例：
 
 ```text
-commandId: cmd_01JZ8R...
-eventId:   evt_01JZ8S...
-deviceId:  dev_01JZ8T...
-laneId:    lane_01JZ8U...
+http://127.0.0.1:8081
+http://device-access.internal:8081
 ```
 
-### 8.2 deviceId 与 deviceSn
-
-- `deviceId` 是平台主标识；
-- `deviceSn` 是厂商标识；
-- 一个 `deviceId` 在生命周期内只能关联一个当前 `deviceSn`；
-- 更换硬件时建议创建新 `deviceId` 或保留明确的替换历史；
-- 厂商 SN 不得直接作为业务主键。
-
-### 8.3 eventId 生成
-
-优先规则：
-
-1. 厂商存在稳定唯一消息 ID时，使用 `vendor + deviceSn + vendorEventId` 计算确定性哈希；
-2. 厂商没有唯一 ID 时，Device Access 生成 UUIDv7/ULID；
-3. 相同厂商原始事件重复接收时，必须生成相同 `eventId`；
-4. 离线补传不得重新生成新的 `eventId`。
-
----
-
-## 9. 公共数据规范
-
-### 9.1 字段命名
-
-- JSON：`camelCase`；
-- 数据库：由各系统自行决定，推荐 `snake_case`；
-- 枚举：大写下划线；
-- URL：小写中划线；
-- HTTP Header：标准中划线形式。
-
-### 9.2 时间格式
-
-跨系统接口统一使用 ISO 8601：
+### 6.2 Content-Type
 
 ```text
-2026-07-10T15:30:20.123+08:00
+Content-Type: application/json
 ```
 
-规则：
-
-- 必须包含时区；
-- 精度至少毫秒；
-- 禁止使用无时区的 `yyyy-MM-dd HH:mm:ss` 作为跨系统时间；
-- 厂商 Unix 秒、Unix 毫秒由 Device Access 转换；
-- `occurredAt` 表示设备实际发生时间；
-- `receivedAt` 表示 Device Access 接收时间；
-- `publishedAt` 表示事件发送到 RabbitMQ 前的时间。
-
-### 9.3 数值规范
-
-- `confidence`：`0.00` 到 `100.00`；
-- `sequenceNo`：64 位整数；
-- 文件大小：字节；
-- 超时时间：毫秒或秒，字段名必须带单位；
-- 经纬度：十进制度，可选；
-- 不允许使用字符串表达布尔值。
-
-### 9.4 null 规则
-
-- 必填字段不得为 null；
-- 厂商无法提供的可选字段可以省略；
-- 不建议显式传 `null`；
-- 空字符串不等于 null；
-- 车牌未知时不得传空车牌并伪装正常识别，应使用 `recognitionStatus`。
-
-### 9.5 字符编码
-
-- HTTP、RabbitMQ 消息统一 UTF-8；
-- `Content-Type: application/json; charset=utf-8`；
-- 车牌号保留原始中文字符；
-- 厂商 GBK/GB2312 报文由 Device Access 转码。
-
-### 9.6 HTTP 统一响应
+### 6.3 当前统一响应格式
 
 ```json
 {
   "code": 200,
   "message": "success",
   "data": {},
-  "requestId": "req_01JZ...",
-  "timestamp": "2026-07-10T15:30:20.123+08:00"
+  "timestamp": "2026-07-10 14:30:00"
 }
 ```
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `code` | integer | 是 | 业务状态码 |
-| `message` | string | 是 | 人类可读信息 |
-| `data` | object | 否 | 响应数据 |
-| `requestId` | string | 是 | 请求 ID |
-| `timestamp` | string | 是 | 响应时间 |
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `code` | integer | 当前业务结果码，通常与 HTTP 状态一致 |
+| `message` | string | 结果或错误说明 |
+| `data` | object/null | 返回数据 |
+| `timestamp` | string | 当前格式为 `yyyy-MM-dd HH:mm:ss` |
+
+### 6.4 客户端兼容要求
+
+当前部分设备接口示例可能未展示全部公共字段。停车业务平台客户端应：
+
+- 以 HTTP 状态和 `code` 共同判断结果；
+- 允许 `message`、`data` 或 `timestamp` 在异常情况下缺失；
+- 忽略未知新增字段；
+- 不依赖 JSON 字段顺序；
+- 使用 UTF-8 解析响应；
+- 对响应反序列化失败记录原始摘要，不记录敏感信息。
 
 ---
 
-## 10. 服务认证与安全规范
+## 7. 设备标识规则
 
-### 10.1 适用范围
+### 7.1 当前强制规则
 
-以下 HTTP 调用必须使用服务间认证：
-
-- 停车业务平台调用 Device Access；
-- Device Access 调用停车业务平台；
-- 图片上传凭证申请；
-- 配置拉取；
-- 命令状态查询。
-
-不得使用普通用户 Sa-Token 作为服务间认证凭证。
-
-### 10.2 传输安全
-
-生产环境必须：
-
-- 使用 HTTPS；
-- TLS 1.2 或以上；
-- 禁止明文 HTTP；
-- RabbitMQ 使用 TLS；
-- EMQX 优先使用 MQTTS；
-- 证书过期必须监控。
-
-### 10.3 请求头
-
-```text
-X-Client-Id: platform-service
-X-Timestamp: 1783678220123
-X-Nonce: 1f7e9e8f-...
-X-Signature: BASE64URL(...)
-X-Request-Id: req_01JZ...
-X-Trace-Id: trace_01JZ...
-```
-
-### 10.4 签名算法
-
-使用：
-
-```text
-HMAC-SHA256
-```
-
-规范化字符串：
-
-```text
-HTTP_METHOD\n
-NORMALIZED_PATH_AND_QUERY\n
-X_TIMESTAMP\n
-X_NONCE\n
-SHA256_HEX(REQUEST_BODY)
-```
+当前接口中的路径参数 `deviceId` 必须与臻识 C5H 的 `sn` 完全一致。
 
 示例：
 
 ```text
-POST
-/api/v1/commands
-1783678220123
-1f7e9e8f-xxxx
-8f14e45fceea167a5a36dedd4bea2543...
+a422cb58-6c62f055
 ```
 
-签名：
-
-```text
-Base64Url(HMAC_SHA256(clientSecret, canonicalString))
-```
-
-### 10.5 验证规则
-
-1. `X-Client-Id` 必须存在且启用；
-2. 时间戳允许误差 ±5 分钟；
-3. `Nonce` 有效期 10 分钟；
-4. 同一 `ClientId + Nonce` 只能使用一次；
-5. 请求体摘要必须匹配；
-6. 签名使用常量时间比较；
-7. 验证失败不得进入业务处理；
-8. 验证失败日志不得输出 Secret；
-9. 认证失败应返回统一错误码；
-10. 连续失败应触发限流和告警。
-
-### 10.6 密钥管理
-
-- Secret 不得写入 Git；
-- 使用环境变量、Docker Secret 或密钥管理服务；
-- 支持双密钥轮换；
-- 每个服务独立 ClientId；
-- 测试、预生产、生产使用不同密钥；
-- 离职或泄露后立即吊销；
-- 密钥至少每 180 天轮换一次。
-
-### 10.7 RabbitMQ 权限
-
-推荐 vhost：
-
-```text
-/device-access
-```
-
-账号权限：
-
-- Device Access：只允许发布 `device.events.v1`；
-- 停车业务平台：只允许消费平台队列；
-- 禁止使用 RabbitMQ 管理员账号运行应用；
-- 禁止跨环境共用 vhost；
-- 使用 TLS 和强密码；
-- 生产环境禁止 guest 远程登录。
-
----
-
-## 11. HTTP 接口总览
-
-### 11.1 Device Access 暴露的接口
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/api/v1/commands` | 下发统一设备命令 |
-| GET | `/api/v1/commands/{commandId}` | 查询命令状态 |
-| GET | `/api/v1/devices/{deviceId}/status` | 查询设备实时状态 |
-| POST | `/api/v1/config/refresh` | 通知刷新配置 |
-| GET | `/actuator/health/liveness` | 存活检查 |
-| GET | `/actuator/health/readiness` | 就绪检查 |
-
-### 11.2 停车业务平台暴露的接口
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/v1/device-configs/{deviceId}` | 获取指定设备配置 |
-| POST | `/api/v1/device-configs/resolve` | 按厂商 SN 解析平台绑定 |
-| POST | `/api/v1/device-configs/batch` | 批量获取配置 |
-| POST | `/api/v1/storage/upload-tickets` | 获取图片临时上传凭证 |
-| POST | `/api/v1/device-configs/{deviceId}/ack` | 确认配置应用结果 |
-
----
-
-## 12. 平台向 Device Access 下发命令
-
-### 12.1 接口
+调用示例：
 
 ```http
-POST /api/v1/commands
+POST /api/v1/devices/a422cb58-6c62f055/gate/open
 ```
 
-### 12.2 请求头
+### 7.2 平台数据模型建议
 
-除公共认证头外：
+停车业务平台至少保留：
+
+| 字段 | 说明 |
+|---|---|
+| `id` | 平台内部设备主键 |
+| `device_code` | 人类可读设备编码 |
+| `vendor` | 当前为 `ZHENSHI` |
+| `model` | 当前为 `C5H` |
+| `device_sn` | 厂商 SN，调用 Device Access 时使用 |
+| `tenant_id` | 租户 |
+| `parking_lot_id` | 停车场 |
+| `lane_id` | 车道 |
+| `enabled` | 是否启用 |
+| `device_access_base_url` | Device Access 地址或服务引用 |
+
+建议唯一约束：
 
 ```text
+UNIQUE(vendor, device_sn)
+```
+
+建议常用索引：
+
+```text
+INDEX(tenant_id, parking_lot_id, lane_id)
+INDEX(parking_lot_id, enabled)
+```
+
+### 7.3 调用前校验
+
+平台调用 Device Access 前必须校验：
+
+1. 当前操作人有权限；
+2. 设备属于当前租户；
+3. 设备属于当前停车场；
+4. 设备绑定当前车道；
+5. 设备已启用；
+6. `device_sn` 非空；
+7. 厂商和型号在当前 Device Access 支持范围内；
+8. 调用目标来自后端可信配置，而不是前端自由输入。
+
+---
+
+## 8. 开闸接口
+
+### 8.1 接口说明
+
+向指定臻识 C5H 相机下发开闸命令，并同步等待设备回复。
+
+```http
+POST /api/v1/devices/{deviceId}/gate/open
+```
+
+### 8.2 路径参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `deviceId` | string | 是 | 臻识 C5H 的设备 SN |
+
+### 8.3 请求体
+
+请求体为空。
+
+推荐请求：
+
+```http
+POST /api/v1/devices/a422cb58-6c62f055/gate/open
 Content-Type: application/json
 ```
 
-### 12.3 请求体
+可以不发送 body；如调用框架要求，可发送空 JSON：
 
 ```json
-{
-  "commandId": "cmd_01JZ8RXX4DDM9K0G6J1FZZZZZZ",
-  "commandType": "OPEN_GATE",
-  "targetDeviceId": "dev_gate_001",
-  "executorDeviceId": "dev_camera_001",
-  "tenantId": "tenant_001",
-  "parkingLotId": "park_001",
-  "laneId": "lane_exit_001",
-  "requestedAt": "2026-07-10T15:30:20.123+08:00",
-  "expireAt": "2026-07-10T15:30:30.123+08:00",
-  "priority": "NORMAL",
-  "reasonCode": "PAID_EXIT",
-  "businessRef": {
-    "parkingRecordId": "record_001",
-    "orderId": "order_001",
-    "operatorId": null
-  },
-  "parameters": {
-    "relayChannel": 1,
-    "pulseDurationMs": 500
-  }
-}
+{}
 ```
 
-### 12.4 字段定义
+### 8.4 成功响应
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `commandId` | string | 是 | 平台生成，命令幂等键 |
-| `commandType` | enum | 是 | 命令类型 |
-| `targetDeviceId` | string | 是 | 业务目标设备 |
-| `executorDeviceId` | string | 否 | 实际执行设备；相机继电器控制道闸时必填 |
-| `tenantId` | string | 是 | 租户 ID |
-| `parkingLotId` | string | 是 | 停车场 ID |
-| `laneId` | string | 否 | 车道 ID |
-| `requestedAt` | string | 是 | 请求时间 |
-| `expireAt` | string | 是 | 过期时间 |
-| `priority` | enum | 是 | `LOW/NORMAL/HIGH/EMERGENCY` |
-| `reasonCode` | enum | 是 | 命令原因 |
-| `businessRef` | object | 否 | 业务关联对象，Device Access 仅透传和审计 |
-| `parameters` | object | 否 | 命令参数 |
-
-### 12.5 命令类型
-
-| commandType | 说明 | 目标设备类型 |
-|---|---|---|
-| `OPEN_GATE` | 开闸 | GATE |
-| `CLOSE_GATE` | 关闸 | GATE |
-| `KEEP_GATE_OPEN` | 常开 | GATE |
-| `CANCEL_GATE_OPEN` | 取消常开 | GATE |
-| `CAPTURE` | 触发抓拍 | CAMERA |
-| `REBOOT` | 重启设备 | CAMERA/GATE |
-| `SYNC_TIME` | 同步设备时间 | CAMERA/GATE |
-| `QUERY_STATUS` | 查询状态 | CAMERA/GATE |
-| `UPDATE_CONFIG` | 应用指定配置版本 | CAMERA/GATE |
-
-### 12.6 reasonCode
-
-| reasonCode | 说明 |
-|---|---|
-| `PAID_EXIT` | 已支付车辆出场 |
-| `MONTH_CARD` | 月卡车辆 |
-| `WHITELIST` | 白名单车辆 |
-| `MANUAL_RELEASE` | 岗亭人工放行 |
-| `TEST` | 联调测试 |
-| `EMERGENCY` | 紧急放行 |
-| `DEVICE_MAINTENANCE` | 设备维护 |
-| `OTHER` | 其他 |
-
-### 12.7 命令参数
-
-#### OPEN_GATE
-
-```json
-{
-  "relayChannel": 1,
-  "pulseDurationMs": 500
-}
-```
-
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
-|---|---|---|---|---|
-| `relayChannel` | integer | 否 | 设备配置值 | 继电器通道 |
-| `pulseDurationMs` | integer | 否 | 500 | 脉冲持续时间，范围 100~5000 |
-
-#### CLOSE_GATE
-
-```json
-{
-  "relayChannel": 1
-}
-```
-
-#### KEEP_GATE_OPEN
-
-```json
-{
-  "durationSeconds": 3600
-}
-```
-
-- `durationSeconds` 为空表示持续常开，直到收到取消常开；
-- Device Access 必须根据能力判断是否支持。
-
-#### CAPTURE
-
-```json
-{
-  "imageType": "FULL",
-  "uploadRequired": true
-}
-```
-
-#### REBOOT
-
-```json
-{
-  "delaySeconds": 0
-}
-```
-
-#### SYNC_TIME
-
-```json
-{
-  "targetTime": "2026-07-10T15:30:20.123+08:00",
-  "timezone": "Asia/Shanghai"
-}
-```
-
-#### QUERY_STATUS
-
-```json
-{
-  "scopes": ["CONNECTIVITY", "GATE", "FIRMWARE"]
-}
-```
-
-### 12.8 成功受理响应
-
-HTTP 状态：`202 Accepted`
-
-```json
-{
-  "code": 202,
-  "message": "accepted",
-  "data": {
-    "commandId": "cmd_01JZ8RXX4DDM9K0G6J1FZZZZZZ",
-    "status": "ACCEPTED",
-    "acceptedAt": "2026-07-10T15:30:20.220+08:00"
-  },
-  "requestId": "req_01JZ...",
-  "timestamp": "2026-07-10T15:30:20.220+08:00"
-}
-```
-
-### 12.9 同 commandId 重复请求
-
-#### 请求体完全一致
-
-返回历史状态，不重复执行：
-
-```json
-{
-  "code": 200,
-  "message": "duplicate command, historical result returned",
-  "data": {
-    "commandId": "cmd_01JZ...",
-    "status": "SUCCEEDED",
-    "duplicate": true
-  },
-  "requestId": "req_01JZ...",
-  "timestamp": "2026-07-10T15:31:00.000+08:00"
-}
-```
-
-#### 请求体不一致
-
-HTTP 状态：`409 Conflict`
-
-业务码：`409001`
-
-### 12.10 受理语义
-
-`202 Accepted` 仅表示：
-
-- 请求通过认证；
-- 参数合法；
-- 命令已持久化；
-- Device Access 将执行或排队执行。
-
-`202` 不表示物理设备已经完成动作。最终结果以 `COMMAND_RESULT` 事件为准。
-
-### 12.11 命令有效期
-
-- Device Access 收到命令时如果 `expireAt` 已过期，必须拒绝；
-- 已排队命令在执行前再次检查 `expireAt`；
-- 过期命令状态为 `REJECTED`；
-- 过期命令不得发送到设备。
-
----
-
-## 13. 查询命令执行状态
-
-### 13.1 接口
-
-```http
-GET /api/v1/commands/{commandId}
-```
-
-### 13.2 响应
+设备返回成功时：
 
 ```json
 {
   "code": 200,
   "message": "success",
   "data": {
-    "commandId": "cmd_01JZ...",
-    "commandType": "OPEN_GATE",
-    "status": "SUCCEEDED",
-    "targetDeviceId": "dev_gate_001",
-    "executorDeviceId": "dev_camera_001",
-    "acceptedAt": "2026-07-10T15:30:20.220+08:00",
-    "startedAt": "2026-07-10T15:30:20.300+08:00",
-    "completedAt": "2026-07-10T15:30:21.100+08:00",
-    "retryCount": 0,
-    "vendorCode": "200",
-    "vendorMessage": "success",
-    "lastError": null
+    "success": true,
+    "deviceCode": 200,
+    "message": "Gate opened"
   },
-  "requestId": "req_01JZ...",
-  "timestamp": "2026-07-10T15:30:21.200+08:00"
+  "timestamp": "2026-07-10 14:30:00"
 }
 ```
 
-### 13.3 查询一致性
+平台处理：
 
-- 该接口用于补偿查询；
-- 平台正常流程仍以 RabbitMQ `COMMAND_RESULT` 为准；
-- 如果事件丢失或平台重启，可主动查询；
-- 命令记录至少保留 90 天。
+- 将本次设备调用标记为成功；
+- 保存设备返回码和消息；
+- 记录业务原因、操作人、车辆、订单和停车记录；
+- 注意：HTTP 成功代表 Device Access 收到设备成功回复，不等价于平台可以省略业务审计。
+
+### 8.5 设备拒绝
+
+设备返回非 200：
+
+```json
+{
+  "code": 500,
+  "message": "Device returned error code: 500",
+  "data": null,
+  "timestamp": "2026-07-10 14:30:00"
+}
+```
+
+平台处理：
+
+- 标记开闸失败；
+- 不得生成“已成功开闸”状态；
+- 显示设备错误信息；
+- 生成设备异常记录或告警；
+- 允许岗亭人工兜底。
+
+### 8.6 设备不存在
+
+```json
+{
+  "code": 404,
+  "message": "Device not found: a422cb58-6c62f055",
+  "data": null,
+  "timestamp": "2026-07-10 14:30:00"
+}
+```
+
+平台处理：
+
+- 检查平台保存的 `device_sn`；
+- 检查 Device Access 是否已录入该设备；
+- 禁止通过反复尝试不同 SN 进行枚举；
+- 记录配置错误。
+
+### 8.7 MQTT 未连接
+
+```json
+{
+  "code": 503,
+  "message": "MQTT is not connected, cannot send command",
+  "data": null,
+  "timestamp": "2026-07-10 14:30:00"
+}
+```
+
+平台处理：
+
+- 标记 Device Access 当前无法向设备下发命令；
+- 展示通信不可用；
+- 可以在确认 MQTT 恢复后重试；
+- 自动重试开闸前必须考虑重复动作风险。
+
+### 8.8 命令超时
+
+Device Access 内部等待设备回复的超时时间为 10 秒。
+
+```json
+{
+  "code": 500,
+  "message": "Command failed: ...",
+  "data": null,
+  "timestamp": "2026-07-10 14:30:10"
+}
+```
+
+超时只表示 Device Access 在 10 秒内没有确认设备回复，不保证设备一定没有动作。
+
+平台不得因为超时立即无条件再次开闸。应先：
+
+1. 查询设备状态；
+2. 检查现场道闸；
+3. 由岗亭人员确认；
+4. 确认安全后再执行人工重试。
 
 ---
 
-## 14. 查询设备实时状态
+## 9. 校时接口
 
-### 14.1 接口
+### 9.1 接口说明
+
+将 Device Access 当前时间同步到指定设备。
+
+```http
+POST /api/v1/devices/{deviceId}/time/sync
+```
+
+### 9.2 路径参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `deviceId` | string | 是 | 臻识 C5H 的设备 SN |
+
+### 9.3 请求体
+
+请求体为空。
+
+```http
+POST /api/v1/devices/a422cb58-6c62f055/time/sync
+Content-Type: application/json
+```
+
+### 9.4 成功响应
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "success": true,
+    "deviceCode": 200,
+    "message": "Time synced"
+  },
+  "timestamp": "2026-07-10 14:30:00"
+}
+```
+
+### 9.5 失败响应
+
+校时接口使用与开闸相同的主要错误：
+
+- `404`：设备不存在；
+- `503`：MQTT 未连接；
+- `500`：设备错误、内部错误或 10 秒超时。
+
+### 9.6 使用要求
+
+- 校时属于运维操作；
+- 仅设备运维人员或授权管理员可执行；
+- 记录操作人、设备、时间和结果；
+- 当前请求不支持传入目标时间，实际同步时间由 Device Access 决定；
+- 不得按原 V1.0 的 `SYNC_TIME` 统一命令格式调用。
+
+---
+
+## 10. 查询设备状态接口
+
+### 10.1 接口说明
+
+查询设备在线状态、最后在线时间、道闸状态和道闸连接状态。
 
 ```http
 GET /api/v1/devices/{deviceId}/status
 ```
 
-### 14.2 响应
+### 10.2 路径参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `deviceId` | string | 是 | 臻识 C5H 的设备 SN |
+
+### 10.3 成功响应
 
 ```json
 {
   "code": 200,
   "message": "success",
   "data": {
-    "deviceId": "dev_camera_001",
-    "deviceCode": "CAMERA-001",
-    "deviceSn": "C5H-SN-001",
-    "deviceType": "CAMERA",
-    "vendor": "ZHENSHI",
-    "onlineStatus": "ONLINE",
-    "gateStatus": "CLOSED",
-    "lastHeartbeatAt": "2026-07-10T15:30:10.000+08:00",
-    "lastEventAt": "2026-07-10T15:30:20.123+08:00",
-    "statusObservedAt": "2026-07-10T15:30:21.000+08:00",
-    "firmwareVersion": "TBD",
-    "networkLatencyMs": 42,
-    "capabilities": [
-      "PLATE_RECOGNITION",
-      "GATE_OPEN",
-      "CAPTURE",
-      "REBOOT",
-      "TIME_SYNC"
-    ],
-    "lastError": null
-  },
-  "requestId": "req_01JZ...",
-  "timestamp": "2026-07-10T15:30:21.100+08:00"
-}
-```
-
-### 14.3 状态新鲜度
-
-- `statusObservedAt` 距当前时间超过配置阈值时，平台应显示“状态可能过期”；
-- Device Access 不得将历史缓存状态伪装为实时状态；
-- 心跳超时阈值由设备配置给出；
-- 未收到心跳但 MQTT 连接存在时，可以返回 `DEGRADED`。
-
----
-
-## 15. 通知 Device Access 刷新配置
-
-### 15.1 接口
-
-```http
-POST /api/v1/config/refresh
-```
-
-### 15.2 请求
-
-```json
-{
-  "requestId": "cfg_req_01JZ...",
-  "reason": "DEVICE_BINDING_CHANGED",
-  "deviceIds": ["dev_camera_001", "dev_gate_001"],
-  "expectedConfigVersion": 18,
-  "requestedAt": "2026-07-10T15:30:20.123+08:00"
-}
-```
-
-### 15.3 响应
-
-HTTP 状态：`202 Accepted`
-
-```json
-{
-  "code": 202,
-  "message": "refresh accepted",
-  "data": {
-    "requestId": "cfg_req_01JZ...",
-    "acceptedDeviceIds": ["dev_camera_001", "dev_gate_001"],
-    "rejected": []
-  },
-  "requestId": "req_01JZ...",
-  "timestamp": "2026-07-10T15:30:20.300+08:00"
-}
-```
-
-### 15.4 处理流程
-
-1. Device Access 接收刷新请求；
-2. 持久化刷新任务；
-3. 调用平台配置接口拉取最新配置；
-4. 校验配置版本；
-5. 应用配置；
-6. 发布 `DEVICE_CONFIG_APPLIED` 事件；
-7. 失败时记录并重试。
-
----
-
-## 16. Device Access 获取设备配置
-
-### 16.1 接口
-
-停车业务平台暴露：
-
-```http
-GET /api/v1/device-configs/{deviceId}
-```
-
-### 16.2 响应
-
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "configVersion": 18,
-    "effectiveAt": "2026-07-10T15:00:00.000+08:00",
-    "tenantId": "tenant_001",
-    "parkingLotId": "park_001",
-    "laneId": "lane_exit_001",
-    "deviceId": "dev_camera_001",
-    "deviceCode": "CAMERA-001",
-    "deviceSn": "C5H-SN-001",
-    "deviceType": "CAMERA",
-    "vendor": "ZHENSHI",
+    "deviceId": "a422cb58-6c62f055",
+    "deviceName": "东门入口摄像头",
+    "brand": "ZHENSHI",
     "model": "C5H",
-    "direction": "EXIT",
-    "enabled": true,
-    "critical": true,
-    "executorDeviceId": null,
-    "capabilities": [
-      "PLATE_RECOGNITION",
-      "GATE_OPEN",
-      "CAPTURE",
-      "REBOOT",
-      "TIME_SYNC"
-    ],
-    "connection": {
-      "protocol": "MQTT",
-      "brokerRef": "emqx-primary",
-      "upstreamTopicPatterns": [
-        "TBD_BY_VENDOR_MAPPING"
-      ],
-      "downstreamTopicPatterns": [
-        "TBD_BY_VENDOR_MAPPING"
-      ],
-      "credentialRef": "secret/device/C5H-SN-001"
-    },
-    "heartbeat": {
-      "enabled": true,
-      "intervalSeconds": 60,
-      "offlineThresholdSeconds": 180
-    },
-    "imagePolicy": {
-      "uploadEnabled": true,
-      "maxSizeBytes": 10485760,
-      "allowedContentTypes": ["image/jpeg"]
-    },
-    "vendorOptions": {}
+    "online": true,
+    "lastOnlineTime": "2026-07-10 14:29:55",
+    "gateStatus": 1,
+    "gateConnectStatus": 1
   },
-  "requestId": "req_01JZ...",
-  "timestamp": "2026-07-10T15:30:20.200+08:00"
+  "timestamp": "2026-07-10 14:30:00"
 }
 ```
 
-### 16.3 配置字段说明
+### 10.4 字段说明
+
+| 字段 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `deviceId` | string | 否 | 当前为设备 SN |
+| `deviceName` | string | 否 | Device Access 中保存的设备名称 |
+| `brand` | string | 否 | 当前固定为 `ZHENSHI` |
+| `model` | string | 否 | 当前固定为 `C5H` |
+| `online` | boolean | 否 | 30 秒内有心跳则为 true |
+| `lastOnlineTime` | string | 是 | 最后在线时间，从未上线时为 null |
+| `gateStatus` | integer | 是 | `0` 关到位、`1` 开到位、`2` 中间状态 |
+| `gateConnectStatus` | integer | 是 | `0` 未连接、`1` 已连接 |
+
+### 10.5 状态枚举
+
+`gateStatus`：
+
+| 值 | 含义 |
+|---|---|
+| `0` | 关到位 |
+| `1` | 开到位 |
+| `2` | 开关过程或中间状态 |
+| `null` | 尚未收到过道闸状态 |
+
+`gateConnectStatus`：
+
+| 值 | 含义 |
+|---|---|
+| `0` | 道闸未连接 |
+| `1` | 道闸已连接 |
+| `null` | 尚未收到过连接状态 |
+
+### 10.6 设备不存在
+
+```json
+{
+  "code": 404,
+  "message": "Device not found: xxx",
+  "data": null,
+  "timestamp": "2026-07-10 14:30:00"
+}
+```
+
+### 10.7 平台展示建议
+
+平台可转换为以下展示状态：
+
+| 条件 | 展示 |
+|---|---|
+| `online=true` 且 `gateConnectStatus=1` | 在线 |
+| `online=true` 且 `gateConnectStatus=0` | 相机在线，道闸未连接 |
+| `online=false` | 离线 |
+| `lastOnlineTime=null` | 从未上线 |
+| `gateStatus=null` | 道闸状态未知 |
+| 接口调用失败 | Device Access 状态不可用 |
+
+平台不得把“Device Access 接口可访问”误认为“设备在线”。
+
+---
+
+## 11. 当前错误码
+
+| HTTP 状态码 / code | 含义 | 平台处理建议 |
+|---|---|---|
+| `200` | 成功 | 正常处理 |
+| `404` | 设备不存在 | 检查设备 SN 和 Device Access 注册信息 |
+| `503` | MQTT Broker 不可达或未连接 | 等待自动重连，确认恢复后再操作 |
+| `500` | 内部错误、设备拒绝或命令超时 | 根据 `message` 判断并记录 |
+| 连接超时 | Device Access 地址不可达 | 检查网络、服务和端口 |
+| 反序列化失败 | 返回格式异常 | 保存响应摘要并告警 |
+
+### 11.1 当前错误模型限制
+
+当前 `500` 同时承载多种情况：
+
+- 厂商设备返回错误码；
+- 命令执行异常；
+- 等待设备回复超时；
+- Device Access 内部异常。
+
+因此平台当前必须结合 `message` 进行分类，但不得在核心业务中依赖完整英文文本永久判断错误类型。后续应由 Device Access 增加稳定业务错误码。
+
+---
+
+## 12. 超时、重试与幂等
+
+### 12.1 Device Access 内部超时
+
+开闸和校时内部等待设备回复的超时时间：
+
+```text
+10 秒
+```
+
+### 12.2 平台 HTTP 超时建议
+
+为了接收 Device Access 的 10 秒超时响应，平台客户端建议：
+
+```yaml
+device-access:
+  connect-timeout-ms: 3000
+  read-timeout-ms: 12000
+```
+
+生产环境可根据真实网络调整，但 `read-timeout` 不应小于 Device Access 内部命令超时。
+
+### 12.3 当前幂等事实
+
+当前开闸和校时接口没有幂等保护：
+
+- 每次调用都会向设备执行一次；
+- 不支持 `commandId`；
+- 不支持查询历史命令；
+- 不支持重复请求返回历史结果；
+- HTTP 客户端、网关或业务层不得自动重放写请求。
+
+### 12.4 开闸重试规则
+
+开闸重试必须遵循安全优先：
+
+1. `404`：不重试，先修复配置；
+2. `503`：等待 MQTT 恢复，不立即高频重试；
+3. `500` 且明确设备拒绝：不自动重试；
+4. `500` 且超时：状态不确定，先现场确认；
+5. 网络断开：状态不确定，先查询状态或人工确认；
+6. 仅在确认前一次未导致危险或重复动作后，再进行人工重试。
+
+### 12.5 校时重试规则
+
+校时不涉及车辆放行，可在 MQTT 恢复后进行有限次数重试，但仍需：
+
+- 设置最大次数；
+- 设置固定间隔；
+- 记录每次结果；
+- 避免无限循环。
+
+---
+
+## 13. 在线状态判定
+
+### 13.1 当前判定规则
+
+- 设备正常心跳间隔约为 5 秒；
+- 30 秒内收到心跳：`online=true`；
+- 连续 30 秒未收到心跳：`online=false`；
+- 在线状态由 Device Access 计算；
+- 停车业务平台不自行使用本地时间重新推算当前接口中的 `online`。
+
+### 13.2 状态接口轮询
+
+当前没有设备状态事件推送时，可由平台轮询：
+
+- 设备列表页：建议 15～30 秒；
+- 单设备详情页：建议 5～10 秒；
+- 岗亭关键设备：建议 5～10 秒；
+- 后台批量任务应限流，避免对每台设备无控制并发请求。
+
+### 13.3 平台状态持久化
+
+平台可保存最近查询结果：
+
+- `online`；
+- `last_online_time`；
+- `gate_status`；
+- `gate_connect_status`；
+- `status_checked_at`；
+- `status_query_success`；
+- `last_query_error`。
+
+缓存状态必须标注采集时间，避免将过期数据展示为实时状态。
+
+---
+
+## 14. 停车业务平台接入规则
+
+### 14.1 推荐客户端接口
+
+```java
+public interface DeviceAccessClient {
+
+    DeviceCommandResult openGate(String deviceSn);
+
+    DeviceCommandResult syncTime(String deviceSn);
+
+    DeviceStatusResult getStatus(String deviceSn);
+}
+```
+
+平台业务层不得直接拼接 URL，应通过统一客户端调用。
+
+### 14.2 开闸应用流程
+
+```text
+出口识别或人工操作
+        ↓
+平台校验租户、停车场、车道、设备
+        ↓
+平台判断月卡、白名单、支付或人工放行规则
+        ↓
+创建本地设备调用记录
+        ↓
+POST /api/v1/devices/{deviceSn}/gate/open
+        ↓
+同步等待结果
+        ├── 200：记录成功
+        ├── 404：配置错误
+        ├── 503：通信不可用
+        └── 500/超时：结果失败或不确定，人工兜底
+```
+
+### 14.3 本地调用记录
+
+建议平台增加设备调用记录，至少包含：
 
 | 字段 | 说明 |
 |---|---|
-| `configVersion` | 平台递增配置版本 |
-| `effectiveAt` | 配置生效时间 |
-| `critical` | 是否为停车场关键设备 |
-| `capabilities` | 平台允许使用的能力集合 |
-| `connection.protocol` | 厂商通信协议 |
-| `credentialRef` | 凭证引用，不直接返回明文 Secret |
-| `vendorOptions` | 厂商私有配置，平台业务不得读取 |
+| `id` | 调用记录 ID |
+| `tenant_id` | 租户 |
+| `parking_lot_id` | 停车场 |
+| `lane_id` | 车道 |
+| `platform_device_id` | 平台设备主键 |
+| `device_sn` | 实际调用 SN |
+| `operation_type` | `OPEN_GATE`、`SYNC_TIME`、`QUERY_STATUS` |
+| `business_ref_type` | 停车记录、订单、人工操作等 |
+| `business_ref_id` | 关联业务 ID |
+| `operator_id` | 操作人 |
+| `request_at` | 请求时间 |
+| `response_at` | 响应时间 |
+| `http_status` | HTTP 状态 |
+| `result_code` | 响应 code |
+| `result_message` | 响应说明 |
+| `result_status` | `SUCCESS`、`FAILED`、`UNCERTAIN` |
+| `request_trace_id` | 平台追踪 ID |
+| `retry_of` | 重试来源，可空 |
 
-### 16.4 凭证规则
+### 14.4 结果分类
 
-- 配置接口不返回对象存储主密钥；
-- 不建议返回厂商明文密码；
-- `credentialRef` 由 Device Access 在安全存储中解析；
-- 若必须在线下发敏感凭证，应使用独立加密配置接口，不在 V1 普通响应中返回。
+| 场景 | 平台结果 |
+|---|---|
+| HTTP 200 且 `data.success=true` | `SUCCESS` |
+| 404 | `FAILED_CONFIGURATION` |
+| 503 | `FAILED_COMMUNICATION` |
+| 500 且明确设备拒绝 | `FAILED_DEVICE` |
+| 500 且命令超时 | `UNCERTAIN` |
+| 平台客户端读取超时 | `UNCERTAIN` |
+| 连接 Device Access 失败 | `FAILED_SERVICE_UNAVAILABLE` 或 `UNCERTAIN` |
 
----
+### 14.5 岗亭人工兜底
 
-## 17. Device Access 解析设备绑定关系
+当前接口无可靠异步确认和幂等机制，真实停车场必须保留：
 
-### 17.1 使用场景
-
-当 Device Access 首次收到未知 `deviceSn` 的厂商消息时，调用平台接口解析绑定关系。
-
-### 17.2 接口
-
-```http
-POST /api/v1/device-configs/resolve
-```
-
-### 17.3 请求
-
-```json
-{
-  "vendor": "ZHENSHI",
-  "deviceSn": "C5H-SN-001",
-  "model": "C5H",
-  "sourceProtocol": "MQTT",
-  "observedAt": "2026-07-10T15:30:20.123+08:00"
-}
-```
-
-### 17.4 成功响应
-
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "registered": true,
-    "enabled": true,
-    "deviceId": "dev_camera_001",
-    "deviceCode": "CAMERA-001",
-    "tenantId": "tenant_001",
-    "parkingLotId": "park_001",
-    "laneId": "lane_entry_001",
-    "configVersion": 18
-  },
-  "requestId": "req_01JZ...",
-  "timestamp": "2026-07-10T15:30:20.200+08:00"
-}
-```
-
-### 17.5 未注册设备
-
-HTTP 状态：`404 Not Found`
-
-业务码：`404001`
-
-Device Access 行为：
-
-- 不生成停车业务事件；
-- 保存厂商原始消息；
-- 记录“未知设备”告警；
-- 不自动创建平台设备；
-- 不执行来自该设备的控制请求。
+- 人工确认道闸状态；
+- 现场手动开闸；
+- 人工放行原因；
+- 操作审计；
+- 异常记录；
+- 禁止仅依赖自动开闸作为唯一离场手段。
 
 ---
 
-## 18. 申请图片上传凭证
+## 15. 日志、审计与监控
 
-### 18.1 接口
+### 15.1 平台调用日志
 
-```http
-POST /api/v1/storage/upload-tickets
+应记录：
+
+- Trace ID；
+- 业务操作类型；
+- 平台设备 ID；
+- 脱敏后的设备 SN；
+- 停车场和车道；
+- 请求开始时间；
+- 响应耗时；
+- HTTP 状态；
+- `code`；
+- 结果分类；
+- 异常类型。
+
+不得记录：
+
+- 用户支付敏感数据；
+- 完整认证密钥；
+- 无必要的完整车牌；
+- 未来加入的签名密钥。
+
+### 15.2 关键指标
+
+建议监控：
+
+```text
+device_access_http_requests_total
+device_access_http_request_duration
+device_access_open_gate_success_total
+device_access_open_gate_failed_total
+device_access_open_gate_uncertain_total
+device_access_mqtt_unavailable_total
+device_access_device_not_found_total
+device_access_command_timeout_total
+device_access_status_online_total
+device_access_status_offline_total
 ```
 
-### 18.2 请求
+### 15.3 告警建议
 
-```json
-{
-  "eventId": "evt_01JZ...",
-  "deviceId": "dev_camera_001",
-  "tenantId": "tenant_001",
-  "parkingLotId": "park_001",
-  "fileName": "capture.jpg",
-  "contentType": "image/jpeg",
-  "sizeBytes": 328192,
-  "sha256": "4b227777d4dd1fc61c6f884f48641d02..."
-}
-```
+以下场景应告警：
 
-### 18.3 响应
-
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "uploadMethod": "PUT",
-    "uploadUrl": "https://object-storage.example.com/...signed...",
-    "objectKey": "parking/tenant_001/park_001/2026/07/10/evt_01JZ.jpg",
-    "headers": {
-      "Content-Type": "image/jpeg"
-    },
-    "expiresAt": "2026-07-10T15:35:20.000+08:00"
-  },
-  "requestId": "req_01JZ...",
-  "timestamp": "2026-07-10T15:30:20.200+08:00"
-}
-```
-
-### 18.4 约束
-
-- 上传凭证有效期建议 5 分钟；
-- 仅允许上传指定 objectKey；
-- 最大文件 10MB；
-- 第一阶段仅允许 JPEG；
-- `sha256` 必须在上传前计算；
-- 平台不得返回对象存储主账号密钥；
-- 上传失败不阻塞车牌事件发送。
+- Device Access 地址不可达；
+- MQTT 连续不可用；
+- 关键出口设备离线；
+- 开闸连续失败；
+- 单设备频繁超时；
+- 大量设备同时离线；
+- 配置中的 SN 在 Device Access 中不存在；
+- 道闸连接状态为 0。
 
 ---
 
-## 19. RabbitMQ 事件总览
+## 16. 安全与部署边界
+
+### 16.1 当前实现状态
+
+当前真机验证接口使用：
+
+```text
+http://{host}:8081
+```
+
+当前接口文档未定义：
+
+- HMAC；
+- Token；
+- mTLS；
+- IP 白名单；
+- Nonce；
+- 请求时间戳；
+- 防重放。
+
+因此该接口适合开发或受控内网联调，不应直接裸露到公网。
+
+### 16.2 当前最低安全要求
+
+在 Device Access 未实现应用层认证前，部署至少满足：
+
+1. Device Access 端口仅内网可访问；
+2. 通过安全组或防火墙限制调用源；
+3. 不允许浏览器端直接调用 Device Access；
+4. 所有调用由停车业务平台后端发起；
+5. Nginx 或网关不得开放匿名公网访问；
+6. 对开闸接口设置平台侧权限和频率限制；
+7. 保存人工开闸审计；
+8. 测试、预生产和生产网络隔离；
+9. 不使用 RabbitMQ、EMQX 管理员账号运行应用；
+10. 生产前补充 HTTPS 或可信内网加密通道。
+
+### 16.3 后续安全目标
+
+原 V1.0 中的以下设计保留为后续目标：
+
+- HTTPS；
+- HMAC-SHA256；
+- `X-Client-Id`；
+- `X-Timestamp`；
+- `X-Nonce`；
+- `X-Signature`；
+- 防重放；
+- 双密钥轮换；
+- RabbitMQ TLS 和最小权限。
+
+这些能力在 Device Access 实现前，不得写入平台代码并假定服务端已支持。
+
+---
+
+## 17. 当前接口验收用例
+
+### 17.1 开闸测试
+
+| 编号 | 场景 | 操作 | 预期 |
+|---|---|---|---|
+| G01 | 正常开闸 | 在线设备调用开闸 | HTTP 200，`success=true` |
+| G02 | 设备不存在 | 使用未录入 SN | HTTP/code 404 |
+| G03 | MQTT 未连接 | 断开 Broker 后调用 | HTTP/code 503 |
+| G04 | 设备拒绝 | 制造设备错误回复 | HTTP/code 500 |
+| G05 | 无设备回复 | 设备不回复 | 约 10 秒后返回 500 |
+| G06 | 重复调用 | 连续调用两次 | 两次均执行，不具备幂等 |
+| G07 | 跨停车场操作 | 使用无权限设备 | 平台在调用前拒绝 |
+| G08 | 调用超时 | 平台读超时 | 结果标记 `UNCERTAIN`，不得盲目重试 |
+| G09 | 审计 | 岗亭人工开闸 | 保存操作人、原因和结果 |
+| G10 | 现场核验 | HTTP 成功 | 道闸实际动作与返回一致 |
+
+### 17.2 校时测试
+
+| 编号 | 场景 | 预期 |
+|---|---|---|
+| T01 | 正常校时 | HTTP 200，`Time synced` |
+| T02 | 设备不存在 | 404 |
+| T03 | MQTT 未连接 | 503 |
+| T04 | 命令超时 | 约 10 秒后 500 |
+| T05 | 权限不足 | 平台侧拒绝调用 |
+| T06 | 审计记录 | 保存操作人和结果 |
+
+### 17.3 状态测试
+
+| 编号 | 场景 | 预期 |
+|---|---|---|
+| S01 | 设备持续心跳 | `online=true` |
+| S02 | 超过 30 秒无心跳 | `online=false` |
+| S03 | 从未上线 | `lastOnlineTime=null` |
+| S04 | 道闸关闭 | `gateStatus=0` |
+| S05 | 道闸打开 | `gateStatus=1` |
+| S06 | 道闸运动中 | `gateStatus=2` |
+| S07 | 未收到道闸状态 | `gateStatus=null` |
+| S08 | 道闸未连接 | `gateConnectStatus=0` |
+| S09 | 道闸已连接 | `gateConnectStatus=1` |
+| S10 | 设备不存在 | 404 |
+
+### 17.4 联调需要固定的信息
+
+双方开始平台接入前至少确认：
+
+```text
+1. Device Access 联调 Base URL
+2. 测试相机 SN
+3. 设备名称
+4. 相机所在停车场
+5. 相机所在车道
+6. 入口或出口方向
+7. MQTT Broker 联通状态
+8. 开闸测试安全时段
+9. 可人工观察道闸的现场人员
+10. Device Access 日志查看方式
+```
+
+---
+
+## 18. 原 V1.0 设计与当前实现差异
+
+### 18.1 当前可以直接开发
+
+平台当前可以开发：
+
+- Device Access HTTP Client；
+- 设备 SN 映射；
+- 开闸调用；
+- 校时调用；
+- 设备状态查询；
+- 平台侧权限校验；
+- 平台侧调用记录；
+- 超时和异常分类；
+- 岗亭人工兜底；
+- 状态轮询和监控。
+
+### 18.2 当前不能按原设计开发联调
+
+以下原 V1.0 能力尚无真实服务端接口，不应进入实际联调调用：
+
+- `POST /api/v1/commands`；
+- `GET /api/v1/commands/{commandId}`；
+- `POST /api/v1/config/refresh`；
+- `GET /api/v1/device-configs/{deviceId}`；
+- `POST /api/v1/device-configs/resolve`；
+- `POST /api/v1/storage/upload-tickets`；
+- RabbitMQ `device.events.v1`；
+- `PLATE_RECOGNIZED`；
+- `COMMAND_RESULT`；
+- `DEVICE_CONFIG_APPLIED`；
+- `commandId` 幂等；
+- Outbox / Inbox；
+- DLQ；
+- HMAC 请求签名。
+
+平台可以预留接口和表结构，但不得将这些能力标记为“已完成”或用于当前真机验收。
+
+### 18.3 当前最大缺口
+
+停车业务主链路需要“设备识别车辆后主动上报平台”，但 Device Access v0.1 真机接口文档只定义了平台主动调用的控制和状态接口，尚未定义车牌识别上报契约。
+
+在进入完整的：
+
+```text
+车辆识别 → 入场记录 → 计费 → 支付 → 出场识别 → 开闸
+```
+
+联调前，设备侧必须补充并确认至少一种识别事件上报方式：
+
+- RabbitMQ；
+- HTTP 回调；
+- 其他双方冻结的可靠事件通道。
+
+事件至少应包含：
+
+- 唯一事件标识；
+- 设备 SN；
+- 发生时间；
+- 车牌号；
+- 入口或出口方向；
+- 识别置信度；
+- 图片引用或图片获取方式；
+- 原始厂商消息标识；
+- 重复消息处理规则。
+
+### 18.4 演进建议
+
+建议按以下顺序演进：
+
+1. 保持当前三个 v0.1 接口稳定；
+2. 补充车牌识别事件上报；
+3. 增加稳定业务错误码；
+4. 增加服务间认证；
+5. 增加平台设备 ID 与设备 SN 的明确映射；
+6. 增加 `commandId` 幂等；
+7. 将同步命令逐步演进为受理与最终结果分离；
+8. 增加 RabbitMQ、Outbox、Inbox 和 DLQ；
+9. 增加配置同步；
+10. 增加图片上传和补传。
+
+---
+
+# 第二部分：后续目标设计
+
+> **重要说明**
+>
+> 以下内容来自原《停车业务平台与 Device Access 接口规范 V1.0》，用于描述后续目标架构和演进方向。
+>
+> 当前 Device Access API v0.1 尚未提供这些接口或事件。以下章节中的“必须”“第一阶段”“接口”等表述，均应理解为“目标版本实现后生效”，不得覆盖第 1～18 章的当前真机接口。
+>
+> 若目标设计与当前真机接口存在任何冲突，仍以第 1～18 章为准。目标能力只有在 Device Access 实际实现、双方契约测试通过并更新文档状态后，才转为正式开发基线。
+
+
+## 19. RabbitMQ 事件总览（目标设计，当前 v0.1 未实现）
 
 ### 19.1 Exchange
 
@@ -1271,7 +1199,7 @@ x-trace-id: trace_01JZ...
 
 ---
 
-## 20. 统一事件信封
+## 20. 统一事件信封（目标设计，当前 v0.1 未实现）
 
 所有事件采用统一信封：
 
@@ -1316,7 +1244,7 @@ x-trace-id: trace_01JZ...
 
 ---
 
-## 21. 车牌识别事件
+## 21. 车牌识别事件（目标设计，当前 v0.1 未实现）
 
 ### 21.1 Routing Key
 
@@ -1471,7 +1399,7 @@ Device Access 必须：
 
 ---
 
-## 22. 设备上线事件
+## 22. 设备上线事件（目标设计，当前 v0.1 未实现）
 
 ### 22.1 Routing Key
 
@@ -1508,7 +1436,7 @@ DEVICE_ONLINE
 
 ---
 
-## 23. 设备离线事件
+## 23. 设备离线事件（目标设计，当前 v0.1 未实现）
 
 ### 23.1 Routing Key
 
@@ -1557,7 +1485,7 @@ UNKNOWN
 
 ---
 
-## 24. 设备心跳事件
+## 24. 设备心跳事件（目标设计，当前 v0.1 未实现）
 
 ### 24.1 Routing Key
 
@@ -1594,7 +1522,7 @@ DEVICE_HEARTBEAT
 
 ---
 
-## 25. 道闸状态变更事件
+## 25. 道闸状态变更事件（目标设计，当前 v0.1 未实现）
 
 ### 25.1 Routing Key
 
@@ -1642,7 +1570,7 @@ UNKNOWN
 
 ---
 
-## 26. 设备告警事件
+## 26. 设备告警事件（目标设计，当前 v0.1 未实现）
 
 ### 26.1 Routing Key
 
@@ -1716,7 +1644,7 @@ VENDOR_PROTOCOL_ERROR
 
 ---
 
-## 27. 命令执行结果事件
+## 27. 命令执行结果事件（目标设计，当前 v0.1 未实现）
 
 ### 27.1 Routing Key
 
@@ -1794,7 +1722,7 @@ REJECTED
 
 ---
 
-## 28. 图片补传完成事件
+## 28. 图片补传完成事件（目标设计，当前 v0.1 未实现）
 
 ### 28.1 Routing Key
 
@@ -1833,7 +1761,7 @@ IMAGE_UPLOADED
 
 ---
 
-## 29. 配置应用结果事件
+## 29. 配置应用结果事件（目标设计，当前 v0.1 未实现）
 
 ### 29.1 Routing Key
 
@@ -1878,7 +1806,7 @@ IGNORED_OLDER_VERSION
 
 ---
 
-## 30. 设备能力模型
+## 30. 设备能力模型（目标设计，当前 v0.1 未实现）
 
 ### 30.1 能力枚举
 
@@ -1916,7 +1844,7 @@ DEVICE_ALARM
 
 ---
 
-## 31. 相机与道闸建模
+## 31. 相机与道闸建模（目标设计，当前 v0.1 未实现）
 
 ### 31.1 逻辑模型
 
@@ -1961,7 +1889,7 @@ GATE
 
 ---
 
-## 32. 命令生命周期
+## 32. 命令生命周期（目标设计，当前 v0.1 未实现）
 
 ```text
 RECEIVED
@@ -2004,7 +1932,7 @@ SUCCEEDED / FAILED / TIMEOUT
 
 ---
 
-## 33. 事件幂等与命令幂等
+## 33. 事件幂等与命令幂等（目标设计，当前 v0.1 未实现）
 
 ### 33.1 事件幂等
 
@@ -2065,7 +1993,7 @@ Device Access 生成统一事件时：
 
 ---
 
-## 34. 消息顺序、重试与死信
+## 34. 消息顺序、重试与死信（目标设计，当前 v0.1 未实现）
 
 ### 34.1 顺序
 
@@ -2130,7 +2058,7 @@ Device Access 调用平台配置和上传凭证接口：
 
 ---
 
-## 35. 图片处理规范
+## 35. 图片处理规范（目标设计，当前 v0.1 未实现）
 
 ### 35.1 职责
 
@@ -2176,7 +2104,7 @@ Device Access 调用平台配置和上传凭证接口：
 
 ---
 
-## 36. 配置同步规范
+## 36. 配置同步规范（目标设计，当前 v0.1 未实现）
 
 ### 36.1 数据所有权
 
@@ -2226,7 +2154,7 @@ Device Access 可以缓存配置，但必须：
 
 ---
 
-## 37. 错误码规范
+## 37. 错误码规范（目标设计，当前 v0.1 未实现）
 
 ### 37.1 成功码
 
@@ -2316,7 +2244,7 @@ Device Access 可以缓存配置，但必须：
 
 ---
 
-## 38. 超时、限流和容量约束
+## 38. 超时、限流和容量约束（目标设计，当前 v0.1 未实现）
 
 ### 38.1 HTTP 超时
 
@@ -2369,7 +2297,7 @@ Device Access 可以缓存配置，但必须：
 
 ---
 
-## 39. 日志、追踪与监控
+## 39. 日志、追踪与监控（目标设计，当前 v0.1 未实现）
 
 ### 39.1 TraceId
 
@@ -2442,7 +2370,7 @@ Liveness 只检查进程是否存活，不应因单个外部依赖短暂失败�
 
 ---
 
-## 40. 数据安全与隐私
+## 40. 数据安全与隐私（目标设计，当前 v0.1 未实现）
 
 ### 40.1 敏感数据
 
@@ -2473,7 +2401,7 @@ Liveness 只检查进程是否存活，不应因单个外部依赖短暂失败�
 
 ---
 
-## 41. 关键业务时序
+## 41. 关键业务时序（目标设计，当前 v0.1 未实现）
 
 ### 41.1 车辆识别上报
 
@@ -2564,7 +2492,7 @@ sequenceDiagram
 
 ---
 
-## 42. 联调环境要求
+## 42. 联调环境要求（目标设计，当前 v0.1 未实现）
 
 ### 42.1 环境
 
@@ -2616,7 +2544,7 @@ ClientId
 
 ---
 
-## 43. 契约测试与验收用例
+## 43. 契约测试与验收用例（目标设计，当前 v0.1 未实现）
 
 ### 43.1 HTTP 契约测试
 
@@ -2724,7 +2652,7 @@ ClientId
 
 ---
 
-## 44. 双方开发任务拆分
+## 44. 双方开发任务拆分（目标设计，当前 v0.1 未实现）
 
 ### 44.1 停车业务平台任务
 
@@ -2782,7 +2710,7 @@ ClientId
 
 ---
 
-## 45. 变更管理流程
+## 45. 变更管理流程（目标设计，当前 v0.1 未实现）
 
 ### 45.1 变更申请内容
 
@@ -2830,7 +2758,7 @@ docs/device-contract/
 
 ---
 
-## 46. 第一阶段不包含的内容
+## 46. 第一阶段不包含的内容（目标设计，当前 v0.1 未实现）
 
 第一阶段不实现：
 
@@ -2852,7 +2780,7 @@ docs/device-contract/
 
 ---
 
-## 47. 臻识协议映射附录
+## 47. 臻识协议映射附录（目标设计，当前 v0.1 未实现）
 
 > 本附录属于厂商实现映射，不改变平台统一契约。真机到位后补齐实际字段和 Topic。
 
@@ -2930,7 +2858,7 @@ docs/device-contract/
 
 ---
 
-## 48. 信路通协议映射附录
+## 48. 信路通协议映射附录（目标设计，当前 v0.1 未实现）
 
 > 信路通资料未到位，本附录保留结构，不阻塞 v1 统一契约。
 
@@ -2965,7 +2893,7 @@ docs/device-contract/
 
 ---
 
-## 49. 评审与签署
+## 49. 评审与签署（目标设计，当前 v0.1 未实现）
 
 ### 49.1 评审检查项
 
@@ -2998,7 +2926,7 @@ docs/device-contract/
 
 ---
 
-# 附录 A：最小开发基线
+# 目标设计附录 A：最小开发基线
 
 双方开始编码前至少共同确认：
 
@@ -3015,7 +2943,7 @@ docs/device-contract/
 10. 开闸联调安全时间段
 ```
 
-# 附录 B：建议的默认配置
+# 目标设计附录 B：建议的默认配置
 
 ```yaml
 contract:
@@ -3054,7 +2982,7 @@ rabbitmq:
     - 300
 ```
 
-# 附录 C：双方必须生成的配套机器可读文件
+# 目标设计附录 C：双方必须生成的配套机器可读文件
 
 本 Markdown 评审通过后，应基于本规范同步生成：
 
