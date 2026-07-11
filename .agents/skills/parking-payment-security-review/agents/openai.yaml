@@ -1,0 +1,4 @@
+interface:
+  display_name: "Parking Payment Security Review"
+  short_description: "Review callback money refund and gate security boundaries"
+  default_prompt: "Use $parking-payment-security-review to audit this parking payment flow."
