@@ -22,11 +22,8 @@ Page({
     if (app.globalData.token) {
       this.setData({ loading: false })
     } else {
-      app.checkLogin().then(() => {
-        this.setData({ loading: false })
-      }).catch(() => {
-        this.setData({ loading: false })
-      })
+      // 无 Token 时保持未登录状态，不主动发起登录请求
+      this.setData({ loading: false })
     }
   },
 

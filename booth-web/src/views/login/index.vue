@@ -36,7 +36,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { UserOutlined, LockOutlined } from '@ant-design/icons-vue'
-import request from '@/utils/request'
+import { login as loginApi } from '@/api/auth'
 
 const TOKEN_KEY = 'jushan_access_token'
 
@@ -47,28 +47,28 @@ const errorMsg = ref('')
 
 const formState = reactive({ username: '', password: '' })
 
-interface LoginResult {
-  accessToken: string
-  tokenType: string
-  expiresInSeconds: number
-  user: {
-    userId: string
-    username: string
-    displayName: string
-    roles: string[]
-    permissions: string[]
+/**
+ * 写入 Token 前校验 accessToken 是非空字符串。
+ * 不满足时抛错，不写 localStorage，不进入已登录状态。
+ */
+function validateAndSetToken(accessToken: unknown): string {
+  if (typeof accessToken !== 'string' || accessToken.trim().length === 0) {
+    throw new Error('服务端返回的 accessToken 无效')
   }
+  const trimmed = accessToken.trim()
+  localStorage.setItem(TOKEN_KEY, trimmed)
+  return trimmed
 }
 
 async function handleSubmit() {
   loading.value = true
   errorMsg.value = ''
   try {
-    const result = await request.post<LoginResult>('/auth/login', {
+    const result = await loginApi({
       username: formState.username,
       password: formState.password,
     })
-    localStorage.setItem(TOKEN_KEY, result.accessToken)
+    validateAndSetToken(result.accessToken)
     const redirect = (route.query.redirect as string) || '/monitor'
     router.push(redirect)
   } catch (e: any) {

@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -21,6 +22,7 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -104,15 +106,44 @@ public class GlobalExceptionHandler {
     // ==================== 业务异常 ====================
 
     /**
-     * 处理业务异常，直接透传 ErrorCode。
+     * 协议级错误码 → HTTP 状态码映射。
+     * <p>
+     * 只有携带明确协议语义的错误码才映射为对应 HTTP 状态；
+     * 其余普通业务错误码保持 HTTP 200。
+     */
+    private static final Map<Integer, HttpStatus> PROTOCOL_STATUS_MAP = Map.of(
+            400, HttpStatus.BAD_REQUEST,
+            401, HttpStatus.UNAUTHORIZED,
+            403, HttpStatus.FORBIDDEN,
+            404, HttpStatus.NOT_FOUND,
+            409, HttpStatus.CONFLICT,
+            429, HttpStatus.TOO_MANY_REQUESTS
+    );
+
+    /**
+     * 根据业务错误码解析 HTTP 状态。
+     * 协议级错误码（400/401/403/404/409/429）映射为对应 HTTP 状态，
+     * 其余返回 200。
+     */
+    static HttpStatus resolveHttpStatus(int code) {
+        return PROTOCOL_STATUS_MAP.getOrDefault(code, HttpStatus.OK);
+    }
+
+    /**
+     * 处理业务异常。
+     * <p>
+     * 错误码为 400/401/403/404/409/429 时返回对应 HTTP 状态码，
+     * 其余普通业务错误码返回 HTTP 200 + code 非 0。
      */
     @ExceptionHandler(BusinessException.class)
-    @ResponseStatus(HttpStatus.OK)
-    public R<Void> handleBusinessException(BusinessException ex, HttpServletRequest request) {
-        log.warn("[业务异常] uri={} code={} message={}",
-                request.getRequestURI(), ex.getCode(), ex.getMessage());
-        return R.<Void>fail(ex.getErrorCode(), ex.getMessage())
+    public ResponseEntity<R<Void>> handleBusinessException(BusinessException ex,
+                                                            HttpServletRequest request) {
+        HttpStatus status = resolveHttpStatus(ex.getCode());
+        log.warn("[业务异常] uri={} code={} httpStatus={} message={}",
+                request.getRequestURI(), ex.getCode(), status.value(), ex.getMessage());
+        R<Void> body = R.<Void>fail(ex.getErrorCode(), ex.getMessage())
                 .traceId(MDC.get(TraceIdFilter.MDC_KEY));
+        return ResponseEntity.status(status).body(body);
     }
 
     // ==================== Spring 内置异常 ====================

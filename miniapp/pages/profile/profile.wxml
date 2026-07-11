@@ -12,9 +12,9 @@
     <!-- 用户信息卡片 -->
     <view class="card">
       <view class="profile-header">
-        <view class="avatar">{{nickname.charAt(0).toUpperCase() || 'U'}}</view>
+        <view class="avatar">{{displayName.charAt(0).toUpperCase() || 'U'}}</view>
         <view class="profile-info">
-          <text class="nickname">{{nickname}}</text>
+          <text class="nickname">{{displayName}}</text>
           <text class="phone">{{phone || '未绑定手机号'}}</text>
         </view>
       </view>

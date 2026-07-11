@@ -7,6 +7,38 @@
 const app = getApp()
 
 /**
+ * 安全解析响应体。
+ * 处理 JSON 对象、空响应、字符串响应等情况。
+ */
+function safeParseBody(data) {
+  if (data === null || data === undefined) {
+    return null
+  }
+  if (typeof data === 'object') {
+    return data
+  }
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data)
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+/**
+ * 构造统一错误对象，保留 message/code/status/traceId。
+ */
+function createApiError(message, code, status, traceId) {
+  const error = new Error(message)
+  error.code = code
+  error.status = status
+  error.traceId = traceId
+  return error
+}
+
+/**
  * 基础请求
  */
 function request(options) {
@@ -26,27 +58,79 @@ function request(options) {
       data: options.data || {},
       header,
       success(res) {
-        // 业务成功码为 0
-        if (res.statusCode >= 200 && res.statusCode < 300 && res.data.code === 0) {
-          resolve(res.data.data)
-        } else if (res.statusCode === 401 || res.data.code === 401) {
-          // Token 过期，清除登录态
+        const statusCode = res.statusCode
+        const body = safeParseBody(res.data)
+
+        // 2xx 成功响应
+        if (statusCode >= 200 && statusCode < 300) {
+          // 有合法 JSON body 且 code===0
+          if (body && body.code === 0) {
+            resolve(body.data)
+            return
+          }
+          // 有合法 JSON body 但业务失败
+          if (body && body.code !== undefined) {
+            handleErrorResponse(body, statusCode, reject)
+            return
+          }
+          // 无 body 或 body 无 code 字段：视为成功但无数据
+          resolve(null)
+          return
+        }
+
+        // 非 2xx HTTP 响应
+        if (statusCode === 401) {
+          // 清除登录态
           app.logout()
-          wx.showToast({ title: '登录已过期', icon: 'none' })
-          reject(new Error('未授权'))
+          const err = createApiError(
+            (body && body.message) || '未登录或登录已过期',
+            body && body.code,
+            statusCode,
+            body && body.traceId,
+          )
+          reject(err)
+          return
+        }
+
+        if (statusCode === 403) {
+          // 403 不清除 Token
+          const err = createApiError(
+            (body && body.message) || '无权限访问',
+            body && body.code,
+            statusCode,
+            body && body.traceId,
+          )
+          reject(err)
+          return
+        }
+
+        // 其他非 2xx：尝试解析 body
+        if (body) {
+          handleErrorResponse(body, statusCode, reject)
         } else {
-          const msg = res.data?.message || '请求失败'
-          const traceId = res.data?.traceId
-          wx.showToast({ title: traceId ? `${msg}（${traceId}）` : msg, icon: 'none' })
-          reject(new Error(msg))
+          reject(createApiError('请求失败', undefined, statusCode))
         }
       },
       fail(err) {
-        wx.showToast({ title: '网络连接失败', icon: 'none' })
-        reject(err)
+        // 网络失败 / 超时
+        reject(createApiError(
+          err.errMsg || '网络连接失败',
+          undefined,
+          0,
+        ))
       },
     })
   })
+}
+
+/**
+ * 处理错误响应 body（JSON 格式）。
+ */
+function handleErrorResponse(body, statusCode, reject) {
+  const msg = body.message || '请求失败'
+  const traceId = body.traceId
+  const code = body.code
+  reject(createApiError(msg, code, statusCode, traceId))
 }
 
 /**

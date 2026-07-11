@@ -37,9 +37,13 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { ReloadOutlined, LogoutOutlined } from '@ant-design/icons-vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
+import { logout as logoutApi } from '@/api/auth'
+
+const TOKEN_KEY = 'jushan_access_token'
 
 const router = useRouter()
 const wsConnected = ref(false)
+const loggingOut = ref(false)
 const currentTime = ref(dayjs().format('YYYY-MM-DD HH:mm:ss'))
 
 let timer: ReturnType<typeof setInterval> | null = null
@@ -58,9 +62,18 @@ function handleRefresh() {
   router.go(0)
 }
 
-function handleLogout() {
-  localStorage.removeItem('jushan_access_token')
-  router.push('/login')
+async function handleLogout() {
+  if (loggingOut.value) return
+  loggingOut.value = true
+  try {
+    // 尝试调用远程 logout
+    await logoutApi()
+  } catch {
+    // 即使远程 logout 失败，也清理本地状态
+  } finally {
+    localStorage.removeItem(TOKEN_KEY)
+    router.push('/login')
+  }
 }
 </script>
 

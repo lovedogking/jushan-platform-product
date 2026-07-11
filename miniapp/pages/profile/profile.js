@@ -5,7 +5,7 @@
 Page({
   data: {
     isLoggedIn: false,
-    nickname: '',
+    displayName: '',
     phone: '',
   },
 
@@ -14,7 +14,7 @@ Page({
     if (app.globalData.token && app.globalData.ownerInfo) {
       this.setData({
         isLoggedIn: true,
-        nickname: app.globalData.ownerInfo.nickname || '车主',
+        displayName: app.globalData.ownerInfo.displayName || '车主',
         phone: app.globalData.ownerInfo.phone || '',
       })
     }

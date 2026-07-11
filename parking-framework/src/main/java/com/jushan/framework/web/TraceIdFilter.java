@@ -38,18 +38,29 @@ public class TraceIdFilter extends OncePerRequestFilter {
     /** 入站 TraceId 合法字符：字母、数字、连字符、下划线 */
     private static final String TRACE_ID_PATTERN = "[a-zA-Z0-9_-]+";
 
+    /**
+     * 校验入站 TraceId 是否合法。
+     * <p>
+     * 合法条件：非空、长度 ≤64、仅包含字母数字连字符下划线。
+     *
+     * @param traceId 入站 TraceId
+     * @return true 表示合法可复用
+     */
+    static boolean isValidTraceId(String traceId) {
+        if (traceId == null || traceId.isBlank()) {
+            return false;
+        }
+        return traceId.length() <= MAX_TRACE_ID_LENGTH
+                && traceId.matches(TRACE_ID_PATTERN);
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                      HttpServletResponse response,
                                      FilterChain filterChain) throws ServletException, IOException {
         // 优先使用上游传入的 traceId（如网关或 Nginx 传入），否则生成新的
         String traceId = request.getHeader(TRACE_ID_HEADER);
-        if (traceId != null && !traceId.isBlank()) {
-            // 入站校验：拒绝超长、含非法字符的 traceId（防止日志注入/注入攻击）
-            if (traceId.length() > MAX_TRACE_ID_LENGTH || !traceId.matches(TRACE_ID_PATTERN)) {
-                traceId = UUID.randomUUID().toString().replace("-", "");
-            }
-        } else {
+        if (!isValidTraceId(traceId)) {
             traceId = UUID.randomUUID().toString().replace("-", "");
         }
 

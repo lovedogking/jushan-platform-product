@@ -1,9 +1,8 @@
 /**
  * 智慧停车 - 车主端微信小程序
  * 全局入口
- * R01 冻结契约：jushan_access_token、code===0、message 字段
+ * R01 冻结契约：jushan_access_token、code===0、message 字段、displayName
  */
-
 const TOKEN_KEY = 'jushan_access_token'
 const OWNER_INFO_KEY = 'ownerInfo'
 
@@ -26,53 +25,21 @@ App({
     const menuButton = wx.getMenuButtonBoundingClientRect()
     this.globalData.navBarHeight = (menuButton.top - sysInfo.statusBarHeight) * 2 + menuButton.height
 
-    // 尝试从本地存储恢复登录态
+    // 仅从本地存储恢复登录态，不主动发起登录请求
     const token = wx.getStorageSync(TOKEN_KEY)
-    const ownerInfo = wx.getStorageSync(OWNER_INFO_KEY)
-    if (token) {
+    if (token && typeof token === 'string' && token.trim().length > 0) {
       this.globalData.token = token
-      this.globalData.ownerInfo = ownerInfo
-    }
-  },
-
-  /**
-   * 检查登录态，未登录则自动登录
-   */
-  checkLogin() {
-    return new Promise((resolve, reject) => {
-      if (this.globalData.token) {
-        resolve(this.globalData.token)
-        return
+      // 迁移旧字段：读取 ownerInfo 并统一为 displayName
+      const ownerInfo = wx.getStorageSync(OWNER_INFO_KEY)
+      if (ownerInfo) {
+        // 兼容旧字段 nickname → displayName
+        if (!ownerInfo.displayName && ownerInfo.nickname) {
+          ownerInfo.displayName = ownerInfo.nickname
+        }
+        this.globalData.ownerInfo = ownerInfo
       }
-      wx.login({
-        success: (loginRes) => {
-          if (!loginRes.code) {
-            reject(new Error('wx.login 失败'))
-            return
-          }
-          wx.request({
-            url: `${this.globalData.apiBaseUrl}/api/auth/wechat-login`,
-            method: 'POST',
-            data: { code: loginRes.code },
-            success: (res) => {
-              // 业务成功码为 0
-              if (res.statusCode >= 200 && res.statusCode < 300 && res.data && res.data.code === 0) {
-                const { accessToken, user } = res.data.data || {}
-                this.globalData.token = accessToken
-                this.globalData.ownerInfo = user
-                wx.setStorageSync(TOKEN_KEY, accessToken)
-                wx.setStorageSync(OWNER_INFO_KEY, user)
-                resolve(accessToken)
-              } else {
-                reject(new Error(res.data?.message || '登录失败'))
-              }
-            },
-            fail: reject,
-          })
-        },
-        fail: reject,
-      })
-    })
+    }
+    // 没有 Token 时保持未登录状态，不主动发起登录请求
   },
 
   /**
