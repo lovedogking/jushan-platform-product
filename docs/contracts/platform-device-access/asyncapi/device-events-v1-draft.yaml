@@ -11,7 +11,13 @@ info:
     **本文件中的 RabbitMQ 配置仅为草案提案，不代表生产已部署。所有 channel/topic/Routing Key 均为 PROPOSED。**
   version: 1.0.0-draft
   x-document-status: DRAFT_FOR_JOINT_REVIEW
-  x-channel-decision-status: PROPOSED
+  x-channel-decision-status: ACCEPTED
+  x-platform-review-status: ACCEPTED
+  x-device-access-review-status: ACCEPTED
+  x-implementation-status: NOT_IMPLEMENTED_AS_A_COMPLETE_CONTRACT
+  x-freeze-status: NOT_READY_FOR_FREEZE
+  x-platform-review-date: "2026-07-11"
+  x-device-access-review-date: "2026-07-11"
   contact:
     name: Platform & Device Access Joint Review
 

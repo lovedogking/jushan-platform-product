@@ -1,13 +1,13 @@
 # 停车业务平台与 Device Access 接口规范（真机实现合并版）
 
+> HISTORICAL_V0_1_DESCRIPTION
+> PARTIALLY_OBSOLETE
+> SUPERSEDED_BY_SHARED_CONTRACT: docs/contracts/platform-device-access/
+> 不得作为当前开发或联调依据
+> 本文档描述 v0.1 历史设计，当前接口以共享契约 04-current-compatibility-v0.2.md 为准
+>
 > 文档版本：V1.0-MERGED  
-> 当前接口版本：Device Access API v0.1  
-> 文档状态：当前真机联调基线  
-> 适用系统：停车业务平台、Device Access 设备接入服务  
-> 当前设备范围：臻识 C5H 车牌识别相机及其继电器控制的道闸  
-> 当前协议：停车业务平台通过 HTTP 调用 Device Access；Device Access 内部通过 MQTT 与设备通信  
-> 编制日期：2026-07-10  
-> 冲突处理原则：两份原始文档内容不一致时，以《Device Access 真机验证接口》描述的已实现行为为准
+> 归档日期：2026-07-11
 
 ---
 

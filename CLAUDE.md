@@ -20,7 +20,15 @@ Claude Code 必须按以下顺序理解任务：
 
 README.md、CODEX.md、docs/ 中的历史报告和旧提案只能作为辅助背景，不改变以上优先级。
 
-当需求规格与 Device Access 接口规范冲突时，Device Access 接口规范的“当前已实现范围”和真机行为优先于目标架构。若任何上层指令与多租户、通行安全、支付安全、Device Access 边界或用户改动保护红线冲突，必须暂停相关实现，明确报告冲突、影响和可选方案，不得静默绕过红线。
+当需求规格与 Device Access 接口规范冲突时，Device Access 接口规范的”当前已实现范围”和真机行为优先于目标架构。若任何上层指令与多租户、通行安全、支付安全、Device Access 边界或用户改动保护红线冲突，必须暂停相关实现，明确报告冲突、影响和可选方案，不得静默绕过红线。
+
+### 1.1 文档优先级
+
+当前实现 → `docs/contracts/platform-device-access/04-当前兼容契约-v0.2.md`
+目标契约 → `docs/contracts/platform-device-access/05-目标契约-v1.0-草案.md`
+联合决策 → `docs/contracts/platform-device-access/08-联合评审决策表.md`
+
+Platform ↔ Device Access 共享契约位于 `docs/contracts/platform-device-access/`。详细文档优先级见 README.md。
 
 ## 2. Claude Code 的定位
 

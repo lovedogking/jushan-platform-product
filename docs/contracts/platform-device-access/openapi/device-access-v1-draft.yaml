@@ -12,6 +12,11 @@ info:
   version: 1.0.0-draft
   x-document-status: DRAFT_FOR_JOINT_REVIEW
   x-implementation-status: NOT_IMPLEMENTED_AS_A_COMPLETE_CONTRACT
+  x-platform-review-status: ACCEPTED
+  x-device-access-review-status: ACCEPTED
+  x-platform-review-date: "2026-07-11"
+  x-device-access-review-date: "2026-07-11"
+  x-freeze-status: NOT_READY_FOR_FREEZE
   contact:
     name: Platform & Device Access Joint Review
 servers:
