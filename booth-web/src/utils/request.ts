@@ -3,10 +3,13 @@ import { message } from 'ant-design-vue'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
 
+const TOKEN_KEY = 'jushan_access_token'
+
 interface ApiResponse<T = any> {
   code: number
-  msg: string
+  message: string
   data: T
+  traceId: string
 }
 
 const service: AxiosInstance = axios.create({
@@ -18,7 +21,7 @@ const service: AxiosInstance = axios.create({
 service.interceptors.request.use(
   (config) => {
     NProgress.start()
-    const token = localStorage.getItem('booth_token')
+    const token = localStorage.getItem(TOKEN_KEY)
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -27,32 +30,55 @@ service.interceptors.request.use(
   (error) => { NProgress.done(); return Promise.reject(error) }
 )
 
+// 防止并发 401 重复跳转
+let isRedirectingLogin = false
+
 service.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => {
     NProgress.done()
     const { data } = response
-    if (data.code === 200) return data.data
+    // 业务成功码为 0
+    if (data.code === 0) return data.data
+    // 业务层 401 → 清除 token + 跳转登录
     if (data.code === 401) {
-      localStorage.removeItem('booth_token')
-      window.location.href = '/login'
-      return Promise.reject(new Error(data.msg || '未授权'))
+      if (!isRedirectingLogin) {
+        isRedirectingLogin = true
+        localStorage.removeItem(TOKEN_KEY)
+        window.location.href = '/login'
+      }
+      const err = new Error(data.message || '未授权') as any
+      err.traceId = data.traceId
+      return Promise.reject(err)
     }
-    message.error(data.msg || '请求失败')
-    return Promise.reject(new Error(data.msg || '请求失败'))
+    message.error(data.message || '请求失败')
+    const err = new Error(data.message || '请求失败') as any
+    err.traceId = data.traceId
+    return Promise.reject(err)
   },
   (error) => {
     NProgress.done()
     const { response } = error
     if (response) {
+      const traceId = response.data?.traceId
       switch (response.status) {
         case 401:
-          message.error('登录已过期，请重新登录')
-          localStorage.removeItem('booth_token')
-          window.location.href = '/login'
+          if (!isRedirectingLogin) {
+            isRedirectingLogin = true
+            message.error('登录已过期，请重新登录')
+            localStorage.removeItem(TOKEN_KEY)
+            window.location.href = '/login'
+          }
           break
-        case 403: message.error('没有权限访问'); break
-        case 500: message.error('服务器内部错误'); break
-        default: message.error(response.data?.msg || '请求失败')
+        case 403:
+          message.error('没有权限访问')
+          break
+        case 500: {
+          const serverMsg = response.data?.message || '服务器内部错误'
+          message.error(traceId ? `${serverMsg}（traceId: ${traceId}）` : serverMsg)
+          break
+        }
+        default:
+          message.error(response.data?.message || '请求失败')
       }
     } else {
       message.error('网络连接失败，请检查网络')

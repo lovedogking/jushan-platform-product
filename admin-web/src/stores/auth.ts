@@ -4,7 +4,7 @@ import type { UserInfo } from '@/types'
 import { login as loginApi, logout as logoutApi, getUserInfo } from '@/api/auth'
 import router from '@/router'
 
-const TOKEN_KEY = 'parking_token'
+const TOKEN_KEY = 'jushan_access_token'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string>(localStorage.getItem(TOKEN_KEY) || '')
@@ -13,15 +13,16 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isLoggedIn = computed(() => !!token.value)
   const username = computed(() => userInfo.value?.username || '')
-  const nickname = computed(() => userInfo.value?.nickname || userInfo.value?.username || '')
+  const displayName = computed(() => userInfo.value?.displayName || userInfo.value?.username || '')
 
   async function login(username: string, password: string) {
     loading.value = true
     try {
       const res = await loginApi({ username, password })
-      token.value = res.token
-      localStorage.setItem(TOKEN_KEY, res.token)
-      await fetchUserInfo()
+      // 登录成功后从 data 中提取 token 和用户信息
+      token.value = res.accessToken
+      localStorage.setItem(TOKEN_KEY, res.accessToken)
+      userInfo.value = res.user
       return res
     } finally {
       loading.value = false
@@ -44,7 +45,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await logoutApi()
     } catch {
-      // ignore
+      // 即使后端退出接口失败，也应清理前端登录态
     } finally {
       token.value = ''
       userInfo.value = null
@@ -59,5 +60,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { token, userInfo, loading, isLoggedIn, username, nickname, login, logout, fetchUserInfo, init }
+  return { token, userInfo, loading, isLoggedIn, username, displayName, login, logout, fetchUserInfo, init }
 })

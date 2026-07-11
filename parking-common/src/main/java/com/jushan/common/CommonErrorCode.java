@@ -12,7 +12,7 @@ package com.jushan.common;
 public enum CommonErrorCode implements ErrorCode {
 
     /** 操作成功 */
-    SUCCESS(0, "操作成功"),
+    SUCCESS(0, "success"),
 
     /** 参数校验失败 */
     PARAM_ERROR(400, "参数错误"),

@@ -51,7 +51,7 @@ public class GlobalExceptionHandler {
      * 提取 field → message 列表作为 errors 详情。
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    @ResponseStatus(HttpStatus.OK)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public R<Void> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
                                                  HttpServletRequest request) {
         List<FieldErrorDetail> errors = ex.getBindingResult().getFieldErrors()
@@ -69,7 +69,7 @@ public class GlobalExceptionHandler {
      * 处理 @Validated 在 Controller 类级别触发的校验失败。
      */
     @ExceptionHandler(ConstraintViolationException.class)
-    @ResponseStatus(HttpStatus.OK)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public R<Void> handleConstraintViolation(ConstraintViolationException ex,
                                               HttpServletRequest request) {
         List<FieldErrorDetail> errors = ex.getConstraintViolations()
@@ -93,7 +93,7 @@ public class GlobalExceptionHandler {
             MethodArgumentTypeMismatchException.class,
             HttpMessageNotReadableException.class
     })
-    @ResponseStatus(HttpStatus.OK)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public R<Void> handleServletParamException(Exception ex, HttpServletRequest request) {
         log.warn("[请求参数错误] uri={} type={} message={}",
                 request.getRequestURI(), ex.getClass().getSimpleName(), ex.getMessage());
@@ -121,7 +121,7 @@ public class GlobalExceptionHandler {
      * 处理 404 — 资源不存在 / 接口不存在。
      */
     @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
-    @ResponseStatus(HttpStatus.OK)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
     public R<Void> handleNotFound(Exception ex, HttpServletRequest request) {
         log.warn("[404] uri={}", request.getRequestURI());
         return R.<Void>fail(CommonErrorCode.NOT_FOUND)
@@ -132,7 +132,7 @@ public class GlobalExceptionHandler {
      * 处理 405 — 请求方法不支持。
      */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    @ResponseStatus(HttpStatus.OK)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
     public R<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex,
                                              HttpServletRequest request) {
         log.warn("[405] uri={} method={}", request.getRequestURI(), request.getMethod());
@@ -147,7 +147,7 @@ public class GlobalExceptionHandler {
      * 返回统一错误信息，内部日志记录完整堆栈，<strong>不向前端泄露</strong>。
      */
     @ExceptionHandler(Exception.class)
-    @ResponseStatus(HttpStatus.OK)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public R<Void> handleException(Exception ex, HttpServletRequest request) {
         log.error("[系统异常] uri={} type={} message={}",
                 request.getRequestURI(), ex.getClass().getName(), ex.getMessage(), ex);

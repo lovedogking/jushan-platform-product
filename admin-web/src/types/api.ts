@@ -1,9 +1,9 @@
-// 统一响应格式
+// 统一响应格式（与后端 R<T> 对齐）
 export interface ApiResponse<T = any> {
   code: number
-  msg: string
+  message: string
   data: T
-  timestamp?: number
+  traceId: string
 }
 
 // 分页请求参数
@@ -27,23 +27,28 @@ export interface LoginParams {
   password: string
 }
 
-// 登录返回
+// 登录返回（与后端 /api/auth/login 响应 data 对齐）
 export interface LoginResult {
-  token: string
-  userId: number
-  username: string
-  nickname?: string
-  avatar?: string
+  accessToken: string
+  tokenType: string
+  expiresInSeconds: number
+  user: LoginUser
 }
 
-// 用户信息
-export interface UserInfo {
-  userId: number
+// 登录用户
+export interface LoginUser {
+  userId: string
   username: string
-  nickname?: string
-  avatar?: string
-  phone?: string
-  email?: string
-  status?: number
-  createTime?: string
+  displayName: string
+  roles: string[]
+  permissions: string[]
+}
+
+// 当前会话用户（与后端 /api/auth/session 响应 data 对齐）
+export interface UserInfo {
+  userId: string
+  username: string
+  displayName: string
+  roles: string[]
+  permissions: string[]
 }

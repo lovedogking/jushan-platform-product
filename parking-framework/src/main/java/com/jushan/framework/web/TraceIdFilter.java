@@ -32,13 +32,24 @@ public class TraceIdFilter extends OncePerRequestFilter {
     /** MDC 键名，与 logback pattern 中的 %X{traceId} 对齐 */
     public static final String MDC_KEY = "traceId";
 
+    /** 入站 TraceId 最大长度，防止超长字符串攻击 */
+    private static final int MAX_TRACE_ID_LENGTH = 64;
+
+    /** 入站 TraceId 合法字符：字母、数字、连字符、下划线 */
+    private static final String TRACE_ID_PATTERN = "[a-zA-Z0-9_-]+";
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                      HttpServletResponse response,
                                      FilterChain filterChain) throws ServletException, IOException {
         // 优先使用上游传入的 traceId（如网关或 Nginx 传入），否则生成新的
         String traceId = request.getHeader(TRACE_ID_HEADER);
-        if (traceId == null || traceId.isBlank()) {
+        if (traceId != null && !traceId.isBlank()) {
+            // 入站校验：拒绝超长、含非法字符的 traceId（防止日志注入/注入攻击）
+            if (traceId.length() > MAX_TRACE_ID_LENGTH || !traceId.matches(TRACE_ID_PATTERN)) {
+                traceId = UUID.randomUUID().toString().replace("-", "");
+            }
+        } else {
             traceId = UUID.randomUUID().toString().replace("-", "");
         }
 

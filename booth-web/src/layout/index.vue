@@ -59,7 +59,7 @@ function handleRefresh() {
 }
 
 function handleLogout() {
-  localStorage.removeItem('booth_token')
+  localStorage.removeItem('jushan_access_token')
   router.push('/login')
 }
 </script>

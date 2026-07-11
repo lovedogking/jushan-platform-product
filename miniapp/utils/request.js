@@ -1,6 +1,7 @@
 /**
  * 微信小程序请求封装
  * 基于 wx.request 的 Promise 包装，自动注入 Token 和统一错误处理
+ * R01 冻结契约：code===0 成功、message 字段、traceId 保留、jushan_access_token
  */
 
 const app = getApp()
@@ -25,7 +26,8 @@ function request(options) {
       data: options.data || {},
       header,
       success(res) {
-        if (res.statusCode === 200 && res.data.code === 200) {
+        // 业务成功码为 0
+        if (res.statusCode >= 200 && res.statusCode < 300 && res.data.code === 0) {
           resolve(res.data.data)
         } else if (res.statusCode === 401 || res.data.code === 401) {
           // Token 过期，清除登录态
@@ -33,8 +35,10 @@ function request(options) {
           wx.showToast({ title: '登录已过期', icon: 'none' })
           reject(new Error('未授权'))
         } else {
-          wx.showToast({ title: res.data?.msg || '请求失败', icon: 'none' })
-          reject(new Error(res.data?.msg || '请求失败'))
+          const msg = res.data?.message || '请求失败'
+          const traceId = res.data?.traceId
+          wx.showToast({ title: traceId ? `${msg}（${traceId}）` : msg, icon: 'none' })
+          reject(new Error(msg))
         }
       },
       fail(err) {

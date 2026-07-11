@@ -1,5 +1,6 @@
 package com.jushan.common;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.io.Serializable;
 
@@ -27,7 +28,6 @@ import java.io.Serializable;
  * @author Jushan Platform
  * @since 1.0.0
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class R<T> implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -38,13 +38,14 @@ public class R<T> implements Serializable {
     /** 提示信息 */
     private String message;
 
-    /** 响应数据 */
+    /** 响应数据，无数据时为 null（始终序列化） */
     private T data;
 
-    /** 请求追踪 ID */
+    /** 请求追踪 ID（始终序列化） */
     private String traceId;
 
-    /** 错误详情（仅校验失败等场景使用） */
+    /** 错误详情（仅校验失败等场景使用，null 时不序列化） */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private Object errors;
 
     // ==================== 构造器 ====================
@@ -147,7 +148,8 @@ public class R<T> implements Serializable {
 
     // ==================== 便捷方法 ====================
 
-    /** 是否成功 */
+    /** 是否成功（不序列化到响应体，仅 Java 内部使用） */
+    @JsonIgnore
     public boolean isSuccess() {
         return this.code == CommonErrorCode.SUCCESS.getCode();
     }

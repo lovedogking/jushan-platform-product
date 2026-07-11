@@ -31,27 +31,34 @@ service.interceptors.request.use(
   }
 )
 
+// 防止并发 401 重复跳转
+let isRedirectingLogin = false
+
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => {
     NProgress.done()
     const { data } = response
     const silentError = (response.config as AxiosRequestConfig & { silentError?: boolean }).silentError
-    // code 为 200 表示成功
-    if (data.code === 200) {
+    // 业务成功码为 0
+    if (data.code === 0) {
       return data.data
     }
-    // 401 未授权 → 清除 token + 跳转登录页
+    // 业务层未授权码 401 → 清除 token + 跳转登录页
     if (data.code === 401) {
       const authStore = useAuthStore()
       authStore.logout()
-      return Promise.reject(new Error(data.msg || '未授权'))
+      const err = new Error(data.message || '未授权') as any
+      err.traceId = data.traceId
+      return Promise.reject(err)
     }
-    // 业务错误
+    // 业务错误（保留 traceId 供上层使用）
     if (!silentError) {
-      message.error(data.msg || '请求失败')
+      message.error(data.message || '请求失败')
     }
-    return Promise.reject(new Error(data.msg || '请求失败'))
+    const err = new Error(data.message || '请求失败') as any
+    err.traceId = data.traceId
+    return Promise.reject(err)
   },
   (error) => {
     NProgress.done()
@@ -60,12 +67,16 @@ service.interceptors.response.use(
     }
     const { response } = error
     if (response) {
+      const traceId = response.data?.traceId
       switch (response.status) {
         case 401:
-          message.error('登录已过期，请重新登录')
-          const authStore = useAuthStore()
-          authStore.logout()
-          router.push('/login')
+          if (!isRedirectingLogin) {
+            isRedirectingLogin = true
+            message.error('登录已过期，请重新登录')
+            const authStore = useAuthStore()
+            authStore.logout()
+            router.push('/login').finally(() => { isRedirectingLogin = false })
+          }
           break
         case 403:
           message.error('没有权限访问')
@@ -73,11 +84,13 @@ service.interceptors.response.use(
         case 404:
           message.error('请求资源不存在')
           break
-        case 500:
-          message.error('服务器内部错误')
+        case 500: {
+          const serverMsg = response.data?.message || '服务器内部错误'
+          message.error(traceId ? `${serverMsg}（traceId: ${traceId}）` : serverMsg)
           break
+        }
         default:
-          message.error(response.data?.msg || '请求失败')
+          message.error(response.data?.message || '请求失败')
       }
     } else {
       message.error('网络连接失败，请检查网络')

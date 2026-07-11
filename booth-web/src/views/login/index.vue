@@ -22,6 +22,9 @@
         </a-button>
       </a-form>
 
+      <!-- 错误提示 -->
+      <a-alert v-if="errorMsg" type="error" :message="errorMsg" show-icon class="login-error" />
+
       <div class="login-footer">
         岗亭端为停车场现场工作人员使用，具备实时监控、人工放行、设备查看等能力。
       </div>
@@ -32,24 +35,45 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { message } from 'ant-design-vue'
 import { UserOutlined, LockOutlined } from '@ant-design/icons-vue'
+import request from '@/utils/request'
+
+const TOKEN_KEY = 'jushan_access_token'
 
 const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
+const errorMsg = ref('')
 
 const formState = reactive({ username: '', password: '' })
 
+interface LoginResult {
+  accessToken: string
+  tokenType: string
+  expiresInSeconds: number
+  user: {
+    userId: string
+    username: string
+    displayName: string
+    roles: string[]
+    permissions: string[]
+  }
+}
+
 async function handleSubmit() {
   loading.value = true
+  errorMsg.value = ''
   try {
-    // T12 实现真实登录后替换为 API 调用
-    await new Promise(resolve => setTimeout(resolve, 800))
-    localStorage.setItem('booth_token', 'placeholder_token')
-    message.success('登录成功')
+    const result = await request.post<LoginResult>('/auth/login', {
+      username: formState.username,
+      password: formState.password,
+    })
+    localStorage.setItem(TOKEN_KEY, result.accessToken)
     const redirect = (route.query.redirect as string) || '/monitor'
     router.push(redirect)
+  } catch (e: any) {
+    const traceInfo = e.traceId ? `（traceId: ${e.traceId}）` : ''
+    errorMsg.value = (e.message || '登录失败') + traceInfo
   } finally {
     loading.value = false
   }
@@ -95,6 +119,10 @@ async function handleSubmit() {
   height: 44px;
   font-weight: 650;
   margin-top: 8px;
+}
+
+.login-error {
+  margin-top: 16px;
 }
 
 .login-footer {

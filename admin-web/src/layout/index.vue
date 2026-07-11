@@ -178,7 +178,7 @@ const tabsStore = useTabsStore()
 const routeKey = ref(route.fullPath)
 const isFullscreen = ref(false)
 
-const nickname = computed(() => authStore.nickname)
+const nickname = computed(() => authStore.displayName)
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const currentMenus = computed(() => appStore.currentMenus)
 const tabs = computed(() => tabsStore.tabs)

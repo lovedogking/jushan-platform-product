@@ -3,6 +3,7 @@ package com.jushan.boot.controller;
 import com.jushan.common.R;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,7 +43,7 @@ class DemoControllerTest {
         mockMvc.perform(get("/demo/ok"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.message").value("操作成功"))
+                .andExpect(jsonPath("$.message").value("success"))
                 .andExpect(jsonPath("$.data").value("Hello, Jushan Platform!"))
                 .andExpect(jsonPath("$.traceId").isNotEmpty());
     }
@@ -55,7 +56,7 @@ class DemoControllerTest {
         mockMvc.perform(post("/demo/param-error")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"\"}"))   // 空名称触发 @NotBlank
-                .andExpect(status().isOk())
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("参数校验失败"))
                 .andExpect(jsonPath("$.errors").isArray())
@@ -67,7 +68,7 @@ class DemoControllerTest {
     void shouldReturnParamErrorWhenBodyMissing() throws Exception {
         mockMvc.perform(post("/demo/param-error")
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.traceId").isNotEmpty());
     }
@@ -87,18 +88,34 @@ class DemoControllerTest {
     // ==================== ④ 未知异常 ====================
 
     @Test
-    @DisplayName("未知异常 → code=9999, 不泄露堆栈")
+    @DisplayName("未知异常 → code=9999, 不泄露堆栈, 返回 HTTP 500")
     void shouldReturnInternalError() throws Exception {
         mockMvc.perform(get("/demo/unknown-error"))
-                .andExpect(status().isOk())
+                .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value(9999))
                 .andExpect(jsonPath("$.message").value("系统繁忙，请稍后重试"))
-                .andExpect(jsonPath("$.traceId").isNotEmpty())
-                // 确认不返回堆栈
-                .andExpect(jsonPath("$.data").doesNotExist());
+                .andExpect(jsonPath("$.traceId").isNotEmpty());
     }
 
-    // ==================== ⑤ TraceId 一致性 ====================
+    // ==================== ⑤ 契约约束 ====================
+
+    @Test
+    @DisplayName("响应体中不存在 msg 字段（禁止兼容旧字段名）")
+    void shouldNotContainMsgField() throws Exception {
+        mockMvc.perform(get("/demo/ok"))
+                .andExpect(jsonPath("$.msg").doesNotExist());
+        mockMvc.perform(get("/demo/business-error"))
+                .andExpect(jsonPath("$.msg").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("无数据响应 data 字段存在且为 null")
+    void shouldContainDataFieldEvenWhenNull() throws Exception {
+        mockMvc.perform(get("/demo/business-error"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"data\":null")));
+    }
+
+    // ==================== ⑥ TraceId 一致性 ====================
 
     @Test
     @DisplayName("同一次请求响应头和响应体 traceId 非空")
@@ -107,5 +124,15 @@ class DemoControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.traceId").isNotEmpty())
                 .andExpect(header().exists("X-Trace-Id"));
+    }
+
+    @Test
+    @DisplayName("请求结束后 MDC 被清理，不污染后续线程")
+    void traceIdShouldBeClearedAfterRequest() throws Exception {
+        mockMvc.perform(get("/demo/ok"))
+                .andExpect(status().isOk());
+        // MDC 在 finally 块中已清理，不应有残留
+        org.junit.jupiter.api.Assertions.assertNull(MDC.get("traceId"),
+                "MDC 应在请求结束后被清理");
     }
 }
