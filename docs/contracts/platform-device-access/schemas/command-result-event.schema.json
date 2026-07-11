@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jushan/contracts/platform-device-access/schemas/command-result-event.schema.json",
+  "title": "CommandResultEventPayload",
+  "description": "COMMAND_RESULT 事件 payload（DRAFT FOR JOINT REVIEW）",
+  "type": "object",
+  "required": [
+    "commandId",
+    "commandType",
+    "targetDeviceId",
+    "executorDeviceId",
+    "status",
+    "traceId"
+  ],
+  "properties": {
+    "commandId": { "type": "string", "minLength": 1 },
+    "commandType": {
+      "type": "string",
+      "enum": ["OPEN_GATE", "CLOSE_GATE", "SNAPSHOT", "REBOOT", "SYNC_TIME"]
+    },
+    "targetDeviceId": { "type": "string" },
+    "executorDeviceId": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["ACCEPTED", "EXECUTING", "SUCCEEDED", "FAILED", "TIMEOUT", "REJECTED", "UNCERTAIN", "EXPIRED"]
+    },
+    "acceptedAt": { "type": "string", "format": "date-time" },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "retryCount": { "type": "integer", "minimum": 0 },
+    "vendorCode": { "type": "string" },
+    "vendorMessage": { "type": "string" },
+    "resultData": { "type": "object" },
+    "errorCode": { "type": ["string", "null"] },
+    "errorMessage": { "type": ["string", "null"] },
+    "traceId": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jushan/contracts/platform-device-access/schemas/error-response.schema.json",
+  "title": "ErrorResponse",
+  "description": "Platform ↔ Device Access 服务间错误响应（独立于平台前端 code=0 与 DA 当前 code=200）（DRAFT FOR JOINT REVIEW）",
+  "type": "object",
+  "required": ["code", "message", "traceId", "timestamp"],
+  "properties": {
+    "code": {
+      "type": "integer",
+      "description": "6 位业务错误码（成功用 0）",
+      "examples": [400001, 401003, 404001, 422002, 503001]
+    },
+    "message": { "type": "string", "minLength": 1 },
+    "data": { "type": ["object", "null"] },
+    "requestId": { "type": "string" },
+    "traceId": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

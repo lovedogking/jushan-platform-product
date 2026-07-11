@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jushan/contracts/platform-device-access/schemas/command-request.schema.json",
+  "title": "CommandRequest",
+  "description": "Platform → Device Access 统一命令请求（DRAFT FOR JOINT REVIEW）",
+  "type": "object",
+  "required": [
+    "commandId",
+    "commandType",
+    "targetDeviceId",
+    "executorDeviceId",
+    "parkingLotId",
+    "deviceSn",
+    "issuedAt",
+    "expiresAt",
+    "traceId"
+  ],
+  "properties": {
+    "commandId": { "type": "string", "minLength": 1 },
+    "commandType": {
+      "type": "string",
+      "enum": ["OPEN_GATE", "CLOSE_GATE", "SNAPSHOT", "REBOOT", "SYNC_TIME"]
+    },
+    "targetDeviceId": { "type": "string", "description": "逻辑目标设备（道闸）ID" },
+    "executorDeviceId": { "type": "string", "description": "实际执行设备（相机）ID" },
+    "parkingLotId": { "type": "string", "minLength": 1 },
+    "laneId": { "type": "string" },
+    "deviceSn": { "type": "string", "minLength": 1, "description": "厂商 SN，DA 定位设备" },
+    "issuedAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "operatorType": { "type": "string", "enum": ["SYSTEM", "OPERATOR"] },
+    "operatorId": { "type": "string" },
+    "reason": { "type": "string", "description": "如 PAID_EXIT/MANUAL/MONTHLY_CARD" },
+    "payload": { "type": "object", "additionalProperties": true },
+    "traceId": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

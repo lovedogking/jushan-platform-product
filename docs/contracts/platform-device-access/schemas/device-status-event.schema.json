@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jushan/contracts/platform-device-access/schemas/device-status-event.schema.json",
+  "title": "DeviceStatusEventPayload",
+  "description": "DEVICE_ONLINE / DEVICE_OFFLINE / DEVICE_HEARTBEAT / GATE_STATUS_CHANGED 事件 payload（DRAFT FOR JOINT REVIEW）",
+  "type": "object",
+  "properties": {
+    "previousStatus": { "type": "string" },
+    "currentStatus": { "type": "string" },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "HEARTBEAT_TIMEOUT",
+        "MQTT_DISCONNECTED",
+        "TCP_DISCONNECTED",
+        "HTTP_UNREACHABLE",
+        "DEVICE_WILL_MESSAGE",
+        "MANUAL_DISABLED",
+        "AUTH_FAILED",
+        "MQTT_CONNECTED",
+        "UNKNOWN"
+      ]
+    },
+    "connectedAt": { "type": "string", "format": "date-time" },
+    "lastHeartbeatAt": { "type": "string", "format": "date-time" },
+    "offlineDetectedAt": { "type": "string", "format": "date-time" },
+    "heartbeatAt": { "type": "string", "format": "date-time" },
+    "onlineStatus": { "type": "string", "enum": ["ONLINE", "OFFLINE", "UNKNOWN"] },
+    "firmwareVersion": { "type": "string", "nullable": true },
+    "ipAddress": { "type": "string", "nullable": true },
+    "gateDeviceId": { "type": "string" },
+    "executorDeviceId": { "type": "string" },
+    "gateStatus": {
+      "type": "string",
+      "enum": ["OPEN", "CLOSED", "OPENING", "CLOSING", "KEEP_OPEN", "FAULT", "UNKNOWN"]
+    },
+    "source": { "type": "string", "enum": ["DEVICE_REPORT", "DERIVED"] },
+    "changedAt": { "type": "string", "format": "date-time" },
+    "detail": { "type": "string" }
+  },
+  "additionalProperties": false
+}

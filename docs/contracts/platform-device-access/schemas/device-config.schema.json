@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jushan/contracts/platform-device-access/schemas/device-config.schema.json",
+  "title": "DeviceConfig",
+  "description": "Platform → Device Access 设备配置同步（推荐方案 C：通知 + 拉取）（DRAFT FOR JOINT REVIEW）",
+  "type": "object",
+  "required": [
+    "platformDeviceId",
+    "deviceSn",
+    "vendor",
+    "model",
+    "parkingLotId",
+    "laneId",
+    "direction",
+    "enabled",
+    "capabilities",
+    "configVersion"
+  ],
+  "properties": {
+    "platformDeviceId": { "type": "string", "minLength": 1 },
+    "deviceSn": { "type": "string", "minLength": 1 },
+    "vendor": { "type": "string", "minLength": 1 },
+    "model": { "type": "string", "minLength": 1 },
+    "parkingLotId": { "type": "string", "minLength": 1 },
+    "laneId": { "type": "string", "minLength": 1 },
+    "direction": { "type": "string", "enum": ["ENTRY", "EXIT", "UNKNOWN"] },
+    "enabled": { "type": "boolean" },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "PLATE_RECOGNITION",
+          "GATE_OPEN",
+          "GATE_CLOSE",
+          "GATE_KEEP_OPEN",
+          "CAPTURE",
+          "REBOOT",
+          "TIME_SYNC",
+          "STATUS_QUERY",
+          "OFFLINE_UPLOAD",
+          "IMAGE_UPLOAD",
+          "GATE_STATUS_REPORT",
+          "DEVICE_ALARM"
+        ]
+      }
+    },
+    "executorMapping": {
+      "type": "object",
+      "description": "逻辑道闸 → 执行相机映射",
+      "properties": {
+        "logicalGateDeviceId": { "type": "string" },
+        "executorDeviceId": { "type": "string" },
+        "relayChannel": { "type": "integer" }
+      }
+    },
+    "heartbeatThresholdSeconds": { "type": "integer", "minimum": 10, "maximum": 600 },
+    "imagePolicy": {
+      "type": "object",
+      "properties": {
+        "maxSizeBytes": { "type": "integer", "maximum": 10485760 },
+        "allowedContentTypes": { "type": "array", "items": { "type": "string" } },
+        "retainDays": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "configVersion": { "type": "integer", "minimum": 0, "description": "单调递增" }
+  },
+  "additionalProperties": false
+}

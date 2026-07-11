@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jushan/contracts/platform-device-access/schemas/device-alarm-event.schema.json",
+  "title": "DeviceAlarmEventPayload",
+  "description": "DEVICE_ALARM 事件 payload（DRAFT FOR JOINT REVIEW）",
+  "type": "object",
+  "required": ["alarmId", "alarmCode", "severity", "recovered"],
+  "properties": {
+    "alarmId": { "type": "string", "minLength": 1 },
+    "alarmCode": {
+      "type": "string",
+      "enum": [
+        "DEVICE_OFFLINE",
+        "HEARTBEAT_TIMEOUT",
+        "MQTT_DISCONNECTED",
+        "DEVICE_AUTH_FAILED",
+        "COMMAND_FAILED",
+        "COMMAND_TIMEOUT",
+        "IMAGE_UPLOAD_FAILED",
+        "CONFIG_APPLY_FAILED",
+        "TIME_DRIFT",
+        "UNKNOWN_DEVICE",
+        "VENDOR_PROTOCOL_ERROR",
+        "LOCAL_CACHE_FULL"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["INFO", "WARNING", "ERROR", "CRITICAL"]
+    },
+    "title": { "type": "string" },
+    "message": { "type": "string" },
+    "recoverable": { "type": "boolean" },
+    "recovered": { "type": "boolean" },
+    "recoveredAt": { "type": "string", "format": "date-time", "nullable": true },
+    "vendorCode": { "type": ["string", "null"] },
+    "firstOccurredAt": { "type": "string", "format": "date-time" },
+    "lastOccurredAt": { "type": "string", "format": "date-time" },
+    "occurrenceCount": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}

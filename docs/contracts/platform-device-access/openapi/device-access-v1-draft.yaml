@@ -1,0 +1,516 @@
+openapi: 3.0.3
+info:
+  title: Device Access API (v1 draft)
+  description: |
+    Platform ↔ Device Access 目标 HTTP 接口契约草案。
+    状态：DRAFT FOR JOINT REVIEW。所有接口为 PROPOSED，待双方评审与真机联调。
+    服务间认证推荐 HMAC-SHA256（见 05-目标契约-v1.0-草案 §2）。
+    当前 v0.2 兼容接口（校时/状态/设备 CRUD）见 04-当前兼容契约-v0.2.md，
+    过渡期与本统一接口并存。
+
+    **本文件所有接口均未实现。** 不可让读者误以为 Device Access 服务端已提供这些端点。
+  version: 1.0.0-draft
+  x-document-status: DRAFT_FOR_JOINT_REVIEW
+  x-implementation-status: NOT_IMPLEMENTED_AS_A_COMPLETE_CONTRACT
+  contact:
+    name: Platform & Device Access Joint Review
+servers:
+  - url: https://device-access.internal
+    description: 生产（HTTPS，待定）
+  - url: http://127.0.0.1:8081
+    description: 联调（当前 v0.2 Base URL）
+
+tags:
+  - name: Commands
+    description: 统一命令入口（目标主方案）
+  - name: DeviceStatus
+    description: 设备状态查询
+  - name: DeviceCapability
+    description: 设备能力查询
+  - name: ConfigSync
+    description: 配置同步（推荐方案 C：通知 + 拉取）
+
+paths:
+  /api/v1/commands:
+    post:
+      tags: [Commands]
+      summary: 创建命令（统一入口）
+      description: |
+        推荐的统一命令入口。返回 202 表示已受理，不代表设备动作成功。
+        命令最终结果通过 COMMAND_RESULT 事件投递（见 asyncapi）。
+        commandId 幂等：重复 commandId 且摘要一致返回历史结果；不一致 409001。
+      operationId: createCommand
+      parameters:
+        - $ref: '#/components/parameters/XClientId'
+        - $ref: '#/components/parameters/XTimestamp'
+        - $ref: '#/components/parameters/XNonce'
+        - $ref: '#/components/parameters/XSignature'
+        - $ref: '#/components/parameters/XTraceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandRequest'
+      responses:
+        '202':
+          description: 已受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: commandId 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/MqttUnavailable'
+
+  /api/v1/commands/{commandId}:
+    get:
+      tags: [Commands]
+      summary: 查询命令状态
+      operationId: getCommand
+      parameters:
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/XClientId'
+        - $ref: '#/components/parameters/XTimestamp'
+        - $ref: '#/components/parameters/XNonce'
+        - $ref: '#/components/parameters/XSignature'
+        - $ref: '#/components/parameters/XTraceId'
+      responses:
+        '200':
+          description: 命令当前状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 命令不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/devices/{deviceSn}/status:
+    get:
+      tags: [DeviceStatus]
+      summary: 查询设备状态
+      description: 返回 connectivityStatus（在线/离线）、lastHeartbeatAt、gateStatus、healthStatus。
+      operationId: getDeviceStatus
+      parameters:
+        - $ref: '#/components/parameters/DeviceSn'
+        - $ref: '#/components/parameters/XClientId'
+        - $ref: '#/components/parameters/XTimestamp'
+        - $ref: '#/components/parameters/XNonce'
+        - $ref: '#/components/parameters/XSignature'
+        - $ref: '#/components/parameters/XTraceId'
+      responses:
+        '200':
+          description: 设备状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceStatusResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/devices/{deviceSn}/capabilities:
+    get:
+      tags: [DeviceCapability]
+      summary: 查询设备能力
+      description: 返回设备实际支持的能力，用于平台校验“授权能力 ≤ 实际能力”。
+      operationId: getDeviceCapabilities
+      parameters:
+        - $ref: '#/components/parameters/DeviceSn'
+        - $ref: '#/components/parameters/XClientId'
+        - $ref: '#/components/parameters/XTimestamp'
+        - $ref: '#/components/parameters/XNonce'
+        - $ref: '#/components/parameters/XSignature'
+        - $ref: '#/components/parameters/XTraceId'
+      responses:
+        '200':
+          description: 设备能力
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceCapabilityResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/config/refresh:
+    post:
+      tags: [ConfigSync]
+      summary: 配置刷新通知（推荐方案 C）
+      description: |
+        Platform 推送刷新通知，Device Access 随后通过
+        GET /api/v1/device-configs/{deviceSn} 拉取最新配置。
+        返回 202 表示已收到通知。
+      operationId: notifyConfigRefresh
+      parameters:
+        - $ref: '#/components/parameters/XClientId'
+        - $ref: '#/components/parameters/XTimestamp'
+        - $ref: '#/components/parameters/XNonce'
+        - $ref: '#/components/parameters/XSignature'
+        - $ref: '#/components/parameters/XTraceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigRefreshRequest'
+      responses:
+        '202':
+          description: 已收到通知
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigRefreshAccepted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  parameters:
+    DeviceSn:
+      name: deviceSn
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 厂商设备 SN（调用 DA 时使用，非平台主键）。
+    CommandId:
+      name: commandId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 命令唯一标识。
+    XClientId:
+      name: X-Client-Id
+      in: header
+      required: true
+      schema:
+        type: string
+    XTimestamp:
+      name: X-Timestamp
+      in: header
+      required: true
+      schema:
+        type: string
+    XNonce:
+      name: X-Nonce
+      in: header
+      required: true
+      schema:
+        type: string
+    XSignature:
+      name: X-Signature
+      in: header
+      required: true
+      schema:
+        type: string
+    XTraceId:
+      name: X-Trace-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 64
+
+  responses:
+    BadRequest:
+      description: 参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 认证失败
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: 无权限/范围不一致
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unprocessable:
+      description: 设备/能力状态不允许
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: 限流
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: 内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    MqttUnavailable:
+      description: MQTT 不可用
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    CommandRequest:
+      type: object
+      required: [commandId, commandType, targetDeviceId, executorDeviceId, parkingLotId, deviceSn, issuedAt, expiresAt, traceId]
+      properties:
+        commandId:
+          type: string
+          example: cmd_01JZ8S2V3K7FX2W8
+        commandType:
+          type: string
+          enum: [OPEN_GATE, CLOSE_GATE, SNAPSHOT, REBOOT, SYNC_TIME]
+        targetDeviceId:
+          type: string
+          description: 逻辑目标设备（道闸）ID
+        executorDeviceId:
+          type: string
+          description: 实际执行设备（相机）ID
+        parkingLotId:
+          type: string
+        laneId:
+          type: string
+        deviceSn:
+          type: string
+          description: 厂商 SN，DA 内部定位设备
+        issuedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        operatorType:
+          type: string
+          enum: [SYSTEM, OPERATOR]
+        operatorId:
+          type: string
+        reason:
+          type: string
+          description: 业务原因，如 PAID_EXIT/MANUAL/MONTHLY_CARD
+        payload:
+          type: object
+          additionalProperties: true
+        traceId:
+          type: string
+
+    CommandAccepted:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: accepted
+        data:
+          type: object
+          properties:
+            commandId:
+              type: string
+            status:
+              type: string
+              enum: [RECEIVED, ACCEPTED]
+            acceptedAt:
+              type: string
+              format: date-time
+        requestId:
+          type: string
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    CommandRecord:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            commandId:
+              type: string
+            commandType:
+              type: string
+            status:
+              type: string
+              enum: [RECEIVED, ACCEPTED, EXECUTING, SUCCEEDED, FAILED, TIMEOUT, REJECTED, UNCERTAIN, EXPIRED]
+            acceptedAt:
+              type: string
+              format: date-time
+            completedAt:
+              type: string
+              format: date-time
+            retryCount:
+              type: integer
+            vendorCode:
+              type: string
+            errorCode:
+              type: string
+              nullable: true
+            errorMessage:
+              type: string
+              nullable: true
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    DeviceStatusResult:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            deviceSn:
+              type: string
+            deviceCode:
+              type: string
+            vendor:
+              type: string
+            model:
+              type: string
+            connectivityStatus:
+              type: string
+              enum: [ONLINE, OFFLINE, UNKNOWN]
+            healthStatus:
+              type: string
+              enum: [NORMAL, FAULT, UNKNOWN]
+            lastHeartbeatAt:
+              type: string
+              format: date-time
+              nullable: true
+            gateStatus:
+              type: string
+              enum: [OPEN, CLOSED, OPENING, CLOSING, KEEP_OPEN, FAULT, UNKNOWN]
+              nullable: true
+            configVersion:
+              type: integer
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    DeviceCapabilityResult:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        data:
+          type: object
+          properties:
+            deviceSn:
+              type: string
+            capabilities:
+              type: array
+              items:
+                type: string
+                enum: [PLATE_RECOGNITION, GATE_OPEN, GATE_CLOSE, GATE_KEEP_OPEN, CAPTURE, REBOOT, TIME_SYNC, STATUS_QUERY, OFFLINE_UPLOAD, IMAGE_UPLOAD, GATE_STATUS_REPORT, DEVICE_ALARM]
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    ConfigRefreshRequest:
+      type: object
+      required: [deviceSn, configVersion]
+      properties:
+        deviceSn:
+          type: string
+        configVersion:
+          type: integer
+        traceId:
+          type: string
+
+    ConfigRefreshAccepted:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: accepted
+        data:
+          type: object
+          nullable: true
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required: [code, message, traceId, timestamp]
+      properties:
+        code:
+          type: integer
+          description: 6 位业务错误码
+          example: 422002
+        message:
+          type: string
+        data:
+          nullable: true
+        requestId:
+          type: string
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
