@@ -1,0 +1,59 @@
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.avatar {
+  width: 88rpx;
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 36rpx;
+  font-weight: 700;
+  background: linear-gradient(135deg, #1677ff, #165dff);
+  border-radius: 50%;
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.nickname {
+  color: var(--text);
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.phone {
+  color: var(--muted);
+  font-size: 26rpx;
+}
+
+.menu-card {
+  padding: 0 24rpx;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28rpx 0;
+  font-size: 28rpx;
+  color: var(--text);
+  border-bottom: 1rpx solid var(--border);
+}
+
+.menu-item:last-child {
+  border-bottom: 0;
+}
+
+.menu-arrow {
+  color: var(--muted);
+  font-size: 32rpx;
+  font-weight: 300;
+}

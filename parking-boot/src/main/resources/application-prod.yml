@@ -1,0 +1,82 @@
+# =============================================================================
+# 智慧停车 SaaS 平台 — 生产配置骨架
+# =============================================================================
+# 所有敏感值通过环境变量注入，不设置默认值 → 缺失时启动失败关闭。
+# 非敏感值可在此文件设置合理默认值。
+# =============================================================================
+# 部署前必须设置的环境变量见项目根目录 .env.example。
+# =============================================================================
+
+# ---- 服务端口（可通过 SERVER_PORT 覆盖） ----
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+
+  # ---- 数据源 ----
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+      idle-timeout: 300000
+      connection-timeout: 10000
+
+  # ---- Flyway 数据库迁移 ----
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    clean-disabled: true
+
+  # ---- Redis ----
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX:8}
+          max-idle: ${REDIS_POOL_MAX:8}
+          min-idle: 0
+
+  # ---- RabbitMQ ----
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+
+# ---- Sa-Token ----
+sa-token:
+  token-name: ${SA_TOKEN_NAME:Authorization}
+  timeout: ${SA_TOKEN_TIMEOUT:86400}
+  active-timeout: ${SA_TOKEN_ACTIVE_TIMEOUT:1800}
+  is-concurrent: true
+  is-share: false
+  token-style: tik
+  is-log: false
+  is-print: false
+
+# ---- Actuator 生产安全模式 ----
+management:
+  endpoint:
+    health:
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# ---- 生产日志 ----
+logging:
+  level:
+    root: WARN
+    com.jushan: INFO
+  # 生产环境建议使用文件追加器，由运维侧配置 logback-spring.xml

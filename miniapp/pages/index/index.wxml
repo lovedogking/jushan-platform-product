@@ -1,0 +1,30 @@
+<view class="page">
+  <!-- 欢迎卡片 -->
+  <view class="card" wx:if="{{!loading}}">
+    <view class="welcome-section">
+      <text class="welcome-title">欢迎使用智慧停车</text>
+      <text class="welcome-desc">绑定车牌后，可查看当前停车状态、在线缴费、购买月卡等。</text>
+    </view>
+    <view class="quick-actions">
+      <button class="btn-primary btn-full" bindtap="goToPlateManage">管理车牌</button>
+    </view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="empty-state" wx:if="{{!loading && !hasActiveOrder}}">
+    <text class="empty-title">暂无进行中的停车记录</text>
+    <text class="empty-desc">您的车辆当前不在任何已接入停车场中，或尚未绑定车牌。</text>
+  </view>
+
+  <!-- 加载中 -->
+  <view class="empty-state" wx:if="{{loading}}">
+    <text class="empty-title">加载中...</text>
+  </view>
+
+  <!-- 底部提示 -->
+  <view class="card" style="text-align: center; margin-top: 32rpx;">
+    <text style="color: #6b7a90; font-size: 24rpx; line-height: 1.6;">
+      小程序车主端将在后续任务是实现完整的停车缴费、月卡购买、优惠券和欠费补缴功能。
+    </text>
+  </view>
+</view>

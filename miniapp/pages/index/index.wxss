@@ -1,0 +1,25 @@
+.welcome-section {
+  text-align: center;
+  margin-bottom: 32rpx;
+}
+
+.welcome-title {
+  display: block;
+  color: var(--text);
+  font-size: 34rpx;
+  font-weight: 700;
+  margin-bottom: 12rpx;
+}
+
+.welcome-desc {
+  display: block;
+  color: var(--muted);
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}

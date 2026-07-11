@@ -1,0 +1,69 @@
+# =============================================================================
+# 智慧停车 SaaS 平台 — 本地开发配置（模板）
+# =============================================================================
+# 用法：复制本文件为 application-local.yml（已 gitignore），按需修改。
+#   cp parking-boot/src/main/resources/application-local.yml.example \
+#      parking-boot/src/main/resources/application-local.yml
+# =============================================================================
+# 此文件仅包含本地开发的非敏感默认值。
+# 生产环境敏感配置（DB 密码、Redis 密码、支付密钥等）禁止填入此处。
+# =============================================================================
+# Docker Compose 用户：
+#   直接使用 application-docker.yml profile 即可，无需修改本文件。
+# =============================================================================
+
+spring:
+
+  # ---- 数据源（本机 MySQL，端口 3306） ----
+  # datasource:
+  #   url: jdbc:mysql://localhost:3306/jushan_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai
+  #   username: root
+  #   password: root
+  #   driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # ---- Flyway ----
+  # flyway:
+  #   enabled: true
+  #   locations: classpath:db/migration
+  #   baseline-on-migrate: true
+
+  # ---- Redis（本机 Redis，端口 6379） ----
+  # data:
+  #   redis:
+  #     host: localhost
+  #     port: 6379
+  #     password:
+  #     database: 0
+  #     timeout: 3000ms
+  #     lettuce:
+  #       pool:
+  #         max-active: 8
+  #         max-idle: 8
+  #         min-idle: 0
+  #         max-wait: -1ms
+
+  # ---- RabbitMQ（待启用后取消注释） ----
+  # rabbitmq:
+  #   host: localhost
+  #   port: 5672
+  #   username: guest
+  #   password: guest
+
+# ---- Sa-Token —— Redis 会话（可选） ----
+# sa-token:
+#   alone-redis:
+#     host: localhost
+#     port: 6379
+#     password:
+#     database: 1
+
+# ---- Actuator 本地开发宽松模式 ----
+management:
+  endpoint:
+    health:
+      show-details: always
+
+# ---- 本地日志 ----
+logging:
+  level:
+    com.jushan: DEBUG

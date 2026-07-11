@@ -54,8 +54,8 @@ Claude Code 不得擅自：
 
 1. AGENTS.md；
 2. 用户当前指令和当前任务书；
-3. 平台侧需求规格说明书.md；
-4. 停车业务平台与DeviceAccess接口规范.md；
+3. docs/需求文档/平台侧需求规格说明书.md；
+4. docs/需求文档/停车业务平台与DeviceAccess接口规范.md；
 5. README.md、CODEX.md 和 docs/ 中与任务有关的文件（存在才读取）；
 6. 相关 Controller、Application Service、Domain/Service、Client、Mapper、Entity、DTO、VO；
 7. 相关测试、数据库迁移、配置和前端调用代码。

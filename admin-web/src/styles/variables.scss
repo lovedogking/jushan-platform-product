@@ -1,0 +1,48 @@
+// 主题色
+$primary-color: #165dff;
+$primary-color-light: #eaf3ff;
+$primary-color-dark: #102a43;
+$info-color: #64748b;
+$success-color: #00b578;
+$success-color-dark: #00875a;
+$warning-color: #f59e0b;
+$error-color: #dc2626;
+$wechat-color: #00b578;
+
+// 文本颜色
+$text-color: #111827;
+$text-color-secondary: #64748b;
+$text-color-disabled: #94a3b8;
+
+// 背景颜色
+$bg-color: #f3f6fa;
+$bg-color-light: #ffffff;
+$table-header-bg: #f6f8fb;
+$table-row-hover-bg: #f8fafc;
+
+// 边框颜色
+$border-color: #d8e1ea;
+$border-color-split: #e5e7eb;
+
+// 布局尺寸
+$header-height: 56px;
+$sidebar-width: 216px;
+$sidebar-collapsed-width: 48px;
+
+// 圆角
+$border-radius-base: 8px;
+$border-radius-sm: 6px;
+$border-radius-lg: 10px;
+$border-radius-full: 999px;
+
+// 阴影
+$box-shadow-base: 0 4px 12px rgba(15, 23, 42, 0.06);
+$box-shadow-card: 0 10px 24px rgba(15, 23, 42, 0.06);
+$box-shadow-button: 0 8px 18px rgba(22, 93, 255, 0.22);
+
+// 间距
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 12px;
+$spacing-lg: 16px;
+$spacing-xl: 20px;

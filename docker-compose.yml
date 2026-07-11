@@ -1,0 +1,167 @@
+# =============================================================================
+# 智慧停车 SaaS 平台 — Docker Compose 本地开发环境
+# =============================================================================
+# 包含：MySQL 8.0、Redis 7、RabbitMQ 4.x、Nginx 反向代理
+# 后端 Spring Boot 和前端 Vite dev server 在宿主机运行，不在此 Compose 中。
+#
+# 快速开始：
+#   # 1. 复制并编辑环境变量
+#   cp .env.example .env
+#
+#   # 2. 启动所有服务
+#   docker compose up -d
+#
+#   # 3. 查看服务状态
+#   docker compose ps
+#
+#   # 4. 查看日志
+#   docker compose logs -f
+#
+#   # 5. 停止并清理
+#   docker compose down
+#
+#   # 6. 停止并清理数据卷（重置数据库）
+#   docker compose down -v
+# =============================================================================
+
+name: jushan-platform
+
+services:
+  # ===========================================================================
+  # MySQL 8.0 — 主数据库
+  # ===========================================================================
+  mysql:
+    image: mysql:8.0
+    container_name: jushan-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-jushan_platform}
+      MYSQL_USER: ${DB_USERNAME:-jushan}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-jushan_dev}
+      TZ: Asia/Shanghai
+    ports:
+      # 映射到非标准端口避免与宿主机已有 MySQL 冲突
+      - "${DB_PORT:-3307}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 首次启动时自动执行初始化 SQL（可选）
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - jushan-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+      - --max-connections=200
+      - --default-authentication-plugin=mysql_native_password
+
+  # ===========================================================================
+  # RabbitMQ 4.x Management — 异步消息
+  # ===========================================================================
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: jushan-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+    ports:
+      # AMQP 协议端口（后端连接）
+      - "${RABBITMQ_AMQP_PORT:-5672}:5672"
+      # Management 管理后台端口
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - jushan-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ===========================================================================
+  # Redis 7 — 缓存 & 会话存储
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: jushan-redis
+    restart: unless-stopped
+    ports:
+      # 映射到非标准端口避免与宿主机已有 Redis 冲突
+      - "${REDIS_PORT:-6378}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - jushan-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    command:
+      - redis-server
+      - --appendonly yes
+      - --maxmemory 256mb
+      - --maxmemory-policy allkeys-lru
+
+  # ===========================================================================
+  # Nginx — 反向代理 & 静态资源
+  # ===========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: jushan-nginx
+    restart: unless-stopped
+    ports:
+      # 使用 8088 避免与宿主机 80 端口冲突
+      - "${NGINX_PORT:-8088}:80"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      # 前端静态资源目录（生产构建产物，开发阶段可暂不挂载）
+      # - ./admin-web/dist:/usr/share/nginx/html/admin:ro
+      # - ./booth-web/dist:/usr/share/nginx/html/booth:ro
+    networks:
+      - jushan-net
+    extra_hosts:
+      # 允许容器通过 host.docker.internal 访问宿主机上运行的 Spring Boot
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+# =============================================================================
+# 数据卷
+# =============================================================================
+volumes:
+  mysql-data:
+    driver: local
+    name: jushan-mysql-data
+  redis-data:
+    driver: local
+    name: jushan-redis-data
+  rabbitmq-data:
+    driver: local
+    name: jushan-rabbitmq-data
+
+# =============================================================================
+# 网络
+# =============================================================================
+networks:
+  jushan-net:
+    driver: bridge
+    name: jushan-net

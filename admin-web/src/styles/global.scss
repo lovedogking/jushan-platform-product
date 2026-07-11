@@ -1,0 +1,235 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  font-size: 14px;
+  color: $text-color;
+  background-color: $bg-color;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root {
+  --admin-primary: #{$primary-color};
+  --admin-primary-light: #{$primary-color-light};
+  --admin-primary-dark: #{$primary-color-dark};
+  --admin-bg: #{$bg-color};
+  --admin-text: #{$text-color};
+  --admin-text-secondary: #{$text-color-secondary};
+  --admin-border: #{$border-color};
+  --admin-table-header: #{$table-header-bg};
+  --admin-success: #{$success-color};
+  --admin-warning: #{$warning-color};
+  --admin-danger: #{$error-color};
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+
+  &:hover {
+    background: #94a3b8;
+  }
+}
+
+// 通用卡片样式
+.page-card {
+  background: $bg-color-light;
+  border-radius: $border-radius-base;
+  border: 1px solid $border-color;
+  box-shadow: $box-shadow-card;
+  padding: $spacing-lg;
+}
+
+// 页面容器
+.page-container {
+  padding: 14px 16px 16px;
+  min-height: 100%;
+}
+
+// 页面标题
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+
+  .page-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: $text-color;
+  }
+}
+
+// 搜索区域
+.search-card {
+  margin-bottom: $spacing-md;
+
+  .ant-card-body {
+    padding: 14px 16px 6px;
+  }
+
+  .ant-form-inline .ant-form-item {
+    margin: 0 12px 8px 0;
+  }
+}
+
+// 表格操作栏
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $spacing-md;
+
+  .toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+  }
+
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+  }
+}
+
+// 空状态
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+  color: $text-color-secondary;
+}
+
+.ant-card {
+  border-radius: $border-radius-base;
+  border-color: $border-color;
+  box-shadow: $box-shadow-card;
+
+  .ant-card-body {
+    padding: 16px;
+  }
+}
+
+.ant-table-wrapper {
+  .ant-table {
+    color: #1f2937;
+    border-radius: $border-radius-sm;
+  }
+
+  .ant-table-thead > tr > th {
+    background: $table-header-bg;
+    color: #334155;
+    font-weight: 600;
+    border-bottom-color: $border-color;
+    white-space: nowrap;
+  }
+
+  .ant-table-tbody > tr > td {
+    border-bottom-color: $border-color;
+    white-space: nowrap;
+    word-break: keep-all;
+  }
+
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    padding: 10px 12px;
+  }
+
+  .ant-table-tbody > tr:hover > td {
+    background: $table-row-hover-bg;
+  }
+}
+
+.ant-btn {
+  border-radius: 999px;
+}
+
+.ant-btn-primary {
+  background: $primary-color;
+  border-color: transparent;
+  box-shadow: $box-shadow-button;
+
+  &:hover,
+  &:focus {
+    background: #0f4fe6;
+    border-color: transparent;
+  }
+}
+
+.ant-btn-default:not(:disabled) {
+  color: #334155;
+  background: #fff;
+  border-color: $border-color;
+
+  &:hover,
+  &:focus {
+    color: $primary-color;
+    background: #f8fbff;
+    border-color: rgba(22, 93, 255, 0.35);
+  }
+}
+
+.ant-switch.ant-switch-checked {
+  background: $success-color;
+
+  &:hover:not(.ant-switch-disabled) {
+    background: $success-color-dark;
+  }
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select-selector,
+.ant-picker,
+.ant-input-number {
+  border-radius: $border-radius-sm !important;
+}
+
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-affix-wrapper-focused,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused,
+.ant-input-number-focused {
+  border-color: $primary-color !important;
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.12) !important;
+}
+
+.ant-form-item-label > label {
+  color: #475569;
+  font-weight: 600;
+}
+
+.ant-tag {
+  border-radius: 999px;
+  font-weight: 650;
+}
+
+// NProgress 样式调整
+#nprogress {
+  .bar {
+    background: $primary-color !important;
+  }
+}

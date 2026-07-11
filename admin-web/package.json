@@ -1,0 +1,37 @@
+{
+  "name": "admin-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
+    "format": "prettier --write \"src/**/*.{js,ts,vue,scss,css,json}\""
+  },
+  "dependencies": {
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0",
+    "pinia": "^2.1.7",
+    "axios": "^1.6.8",
+    "ant-design-vue": "^4.1.2",
+    "@ant-design/icons-vue": "^7.0.1",
+    "dayjs": "^1.11.10",
+    "nprogress": "^0.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "vite": "^5.2.0",
+    "typescript": "^5.4.3",
+    "vue-tsc": "^2.0.7",
+    "@types/node": "^20.11.30",
+    "@types/nprogress": "^0.2.3",
+    "sass": "^1.72.0",
+    "unplugin-auto-import": "^0.17.5",
+    "unplugin-vue-components": "^0.26.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@parcel/watcher", "core-js", "esbuild", "vue-demi"]
+  }
+}

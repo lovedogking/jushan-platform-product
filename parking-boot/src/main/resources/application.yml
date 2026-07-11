@@ -1,0 +1,93 @@
+# =============================================================================
+# 智慧停车 SaaS 平台 — 通用配置（所有 Profile 共享）
+# =============================================================================
+# 敏感配置（密钥、商户号、回调地址等）禁止写入此文件。
+# 生产环境所有敏感值通过环境变量注入，本地开发使用 application-local.yml。
+# =============================================================================
+
+spring:
+  application:
+    name: jushan-platform
+  profiles:
+    active: local
+
+  # ---- Web MVC ----
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
+
+  # ---- 数据源（默认 local 环境使用本地 MySQL，生产/测试由对应 profile 覆盖） ----
+  datasource:
+    url: jdbc:mysql://localhost:3306/jushan_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 300000
+      connection-timeout: 10000
+
+  # ---- Flyway 数据库迁移 ----
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    clean-disabled: true
+
+  # ---- Redis（local 环境默认连接本地） ----
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+# ---- 服务端口 ----
+server:
+  port: 8080
+
+# ---- Sa-Token 基础配置 ----
+sa-token:
+  token-name: Authorization
+  timeout: 86400
+  active-timeout: 1800
+  is-concurrent: true
+  is-share: false
+  token-style: tik
+  is-log: false
+  is-print: false
+
+# ---- Actuator 健康检查（基础） ----
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    readinessstate:
+      enabled: true
+    livenessstate:
+      enabled: true
+
+# ---- 日志 ----
+logging:
+  level:
+    root: INFO
+    com.jushan: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId}] %-5level %logger{36} - %msg%n"

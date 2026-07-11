@@ -1,0 +1,87 @@
+# =============================================================================
+# 智慧停车 SaaS 平台 — Docker Compose 开发环境配置
+# =============================================================================
+# 使用方式：
+#   1. 先启动 Docker 基础设施：docker compose up -d mysql redis
+#   2. 以 docker profile 启动后端：
+#      ./mvnw spring-boot:run -Dspring-boot.run.profiles=docker
+#      或在 IDE 中设置 Active profiles: docker
+#   3. 如需 Nginx 反向代理入口：docker compose up -d
+#      访问 http://localhost:8088/api/...
+# =============================================================================
+
+spring:
+
+  # ---- 数据源（通过 Docker 端口映射连接） ----
+  datasource:
+    url: jdbc:mysql://localhost:${DB_PORT:3307}/jushan_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:jushan}
+    password: ${DB_PASSWORD:jushan_dev}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 300000
+      connection-timeout: 10000
+
+  # ---- Flyway ----
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  # ---- Redis（通过 Docker 端口映射连接） ----
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6378}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+  # ---- RabbitMQ ----
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+
+# ---- Sa-Token —— Redis 会话 ----
+sa-token:
+  token-name: Authorization
+  timeout: 86400
+  active-timeout: 1800
+  is-concurrent: true
+  is-share: false
+  token-style: tik
+  is-log: false
+  is-print: false
+  # Docker 环境下 Redis 已可用，使用 Redis 存储会话
+  alone-redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT_INT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: 1
+
+# ---- Actuator ----
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+# ---- 日志 ----
+logging:
+  level:
+    root: INFO
+    com.jushan: DEBUG
