@@ -20,7 +20,7 @@ spring:
 
   # ---- 数据源（默认 local 环境使用本地 MySQL，生产/测试由对应 profile 覆盖） ----
   datasource:
-    url: jdbc:mysql://localhost:3306/jushan_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    url: jdbc:mysql://localhost:3306/jushan_platform?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: root
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -58,6 +58,7 @@ server:
 # ---- Sa-Token 基础配置 ----
 sa-token:
   token-name: Authorization
+  token-prefix: Bearer
   timeout: 86400
   active-timeout: 1800
   is-concurrent: true
@@ -65,6 +66,11 @@ sa-token:
   token-style: tik
   is-log: false
   is-print: false
+  # P0 安全：仅从 Header 读取 Token，关闭 Cookie/Body 来源
+  # Sa-Token 1.42.0 默认 is-read-cookie=true
+  is-read-header: true
+  is-read-cookie: false
+  is-read-body: false
 
 # ---- Actuator 健康检查（基础） ----
 management:
@@ -83,6 +89,14 @@ management:
       enabled: true
     livenessstate:
       enabled: true
+
+# ---- Device Access 客户端（T23） ----
+# 生产环境通过环境变量覆盖：JUSHAN_DEVICE_ACCESS_BASE_URL / CONNECT_TIMEOUT / READ_TIMEOUT
+jushan:
+  device-access:
+    base-url: http://localhost:8081
+    connect-timeout: 3000
+    read-timeout: 12000
 
 # ---- 日志 ----
 logging:

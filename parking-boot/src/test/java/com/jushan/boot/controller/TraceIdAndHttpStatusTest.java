@@ -1,5 +1,6 @@
 package com.jushan.boot.controller;
 
+import com.jushan.boot.test.TestcontainersBaseTest;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.common.R;
@@ -9,9 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,18 +23,58 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TraceId 校验 与 BusinessException HTTP 状态映射 测试。
  * <p>
  * 覆盖 R01-F 要求的 TraceId 合法性、连续请求不污染、HTTP 状态码映射。
+ * <p>
+ * <strong>FIX-07：</strong>使用完整 Spring Boot 上下文（Testcontainers MySQL）。
+ * TestErrorController 通过 {@code @TestConfiguration} 注册。
  */
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("test")
-@TestPropertySource(properties = {
-    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,cn.dev33.satoken.dao.SaTokenDaoForRedisTemplate,org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration"
-})
 @DisplayName("TraceId 校验 与 HTTP 状态映射")
-class TraceIdAndHttpStatusTest {
+class TraceIdAndHttpStatusTest extends TestcontainersBaseTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    /**
+     * 测试专用 Controller — 仅用于触发各类 BusinessException。
+     * <p>
+     * 通过 {@code @RestController} 被组件扫描自动注册到全局上下文中。
+     * 映射 {@code /test/*} 路径，不与业务 Controller 冲突。
+     * 不得在生产代码中复刻。
+     */
+    @RestController
+    @RequestMapping("/demo")
+    static class TestErrorController {
+
+        @GetMapping("/error-400")
+        public R<Void> error400() {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "参数错误");
+        }
+
+        @GetMapping("/error-401")
+        public R<Void> error401() {
+            throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "未登录或登录已过期");
+        }
+
+        @GetMapping("/error-403")
+        public R<Void> error403() {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN, "无权限访问");
+        }
+
+        @GetMapping("/error-404")
+        public R<Void> error404() {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "请求的资源不存在");
+        }
+
+        @GetMapping("/error-409")
+        public R<Void> error409() {
+            throw new BusinessException(409, "资源冲突");
+        }
+
+        @GetMapping("/error-429")
+        public R<Void> error429() {
+            throw new BusinessException(429, "请求过于频繁");
+        }
+    }
 
     // ==================== TraceId 合法入站 ====================
 
@@ -83,11 +121,9 @@ class TraceIdAndHttpStatusTest {
             mockMvc.perform(get("/demo/ok")
                             .header("X-Trace-Id", longTraceId))
                     .andExpect(status().isOk())
-                    .andExpect(header().string("X-Trace-Id",
-                            not(longTraceId)))
+                    .andExpect(header().string("X-Trace-Id", not(longTraceId)))
                     .andExpect(jsonPath("$.traceId").isNotEmpty())
-                    .andExpect(jsonPath("$.traceId").value(
-                            not(longTraceId)));
+                    .andExpect(jsonPath("$.traceId").value(not(longTraceId)));
         }
 
         @Test
@@ -98,11 +134,9 @@ class TraceIdAndHttpStatusTest {
             mockMvc.perform(get("/demo/ok")
                             .header("X-Trace-Id", badTraceId))
                     .andExpect(status().isOk())
-                    .andExpect(header().string("X-Trace-Id",
-                            not(badTraceId)))
+                    .andExpect(header().string("X-Trace-Id", not(badTraceId)))
                     .andExpect(jsonPath("$.traceId").isNotEmpty())
-                    .andExpect(jsonPath("$.traceId").value(
-                            not(badTraceId)));
+                    .andExpect(jsonPath("$.traceId").value(not(badTraceId)));
         }
 
         @Test
@@ -111,8 +145,7 @@ class TraceIdAndHttpStatusTest {
             mockMvc.perform(get("/demo/ok")
                             .header("X-Trace-Id", ""))
                     .andExpect(status().isOk())
-                    .andExpect(header().string("X-Trace-Id",
-                            not("")))
+                    .andExpect(header().string("X-Trace-Id", not("")))
                     .andExpect(jsonPath("$.traceId").isNotEmpty());
         }
 
@@ -191,7 +224,7 @@ class TraceIdAndHttpStatusTest {
         @Test
         @DisplayName("code=400 → HTTP 400")
         void code400ShouldMapToHttp400() throws Exception {
-            mockMvc.perform(get("/test/error-400"))
+            mockMvc.perform(get("/demo/error-400"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value(400))
                     .andExpect(jsonPath("$.message").value("参数错误"))
@@ -201,7 +234,7 @@ class TraceIdAndHttpStatusTest {
         @Test
         @DisplayName("code=401 → HTTP 401")
         void code401ShouldMapToHttp401() throws Exception {
-            mockMvc.perform(get("/test/error-401"))
+            mockMvc.perform(get("/demo/error-401"))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.code").value(401))
                     .andExpect(jsonPath("$.message").value("未登录或登录已过期"))
@@ -211,7 +244,7 @@ class TraceIdAndHttpStatusTest {
         @Test
         @DisplayName("code=403 → HTTP 403")
         void code403ShouldMapToHttp403() throws Exception {
-            mockMvc.perform(get("/test/error-403"))
+            mockMvc.perform(get("/demo/error-403"))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.code").value(403))
                     .andExpect(jsonPath("$.message").value("无权限访问"))
@@ -221,7 +254,7 @@ class TraceIdAndHttpStatusTest {
         @Test
         @DisplayName("code=404 → HTTP 404")
         void code404ShouldMapToHttp404() throws Exception {
-            mockMvc.perform(get("/test/error-404"))
+            mockMvc.perform(get("/demo/error-404"))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.code").value(404))
                     .andExpect(jsonPath("$.message").value("请求的资源不存在"))
@@ -231,7 +264,7 @@ class TraceIdAndHttpStatusTest {
         @Test
         @DisplayName("code=409 → HTTP 409")
         void code409ShouldMapToHttp409() throws Exception {
-            mockMvc.perform(get("/test/error-409"))
+            mockMvc.perform(get("/demo/error-409"))
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value(409))
                     .andExpect(jsonPath("$.traceId").isNotEmpty());
@@ -240,7 +273,7 @@ class TraceIdAndHttpStatusTest {
         @Test
         @DisplayName("code=429 → HTTP 429")
         void code429ShouldMapToHttp429() throws Exception {
-            mockMvc.perform(get("/test/error-429"))
+            mockMvc.perform(get("/demo/error-429"))
                     .andExpect(status().isTooManyRequests())
                     .andExpect(jsonPath("$.code").value(429))
                     .andExpect(jsonPath("$.traceId").isNotEmpty());
@@ -258,54 +291,13 @@ class TraceIdAndHttpStatusTest {
         @Test
         @DisplayName("响应不泄露异常类名或堆栈")
         void shouldNotLeakInternalDetails() throws Exception {
-            mockMvc.perform(get("/test/error-400"))
+            mockMvc.perform(get("/demo/error-400"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.message").value(
                             not(org.hamcrest.Matchers.containsString("Exception"))))
                     .andExpect(jsonPath("$.message").value(
                             not(org.hamcrest.Matchers.containsString("BusinessException"))))
                     .andExpect(jsonPath("$.traceId").isNotEmpty());
-        }
-    }
-
-    // ==================== 测试专用 Controller ====================
-
-    /**
-     * 测试专用 Controller — 仅用于触发各类 BusinessException。
-     * 不得在生产代码中复刻。
-     */
-    @RestController
-    @RequestMapping("/test")
-    static class TestErrorController {
-
-        @GetMapping("/error-400")
-        public R<Void> error400() {
-            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "参数错误");
-        }
-
-        @GetMapping("/error-401")
-        public R<Void> error401() {
-            throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "未登录或登录已过期");
-        }
-
-        @GetMapping("/error-403")
-        public R<Void> error403() {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN, "无权限访问");
-        }
-
-        @GetMapping("/error-404")
-        public R<Void> error404() {
-            throw new BusinessException(CommonErrorCode.NOT_FOUND, "请求的资源不存在");
-        }
-
-        @GetMapping("/error-409")
-        public R<Void> error409() {
-            throw new BusinessException(409, "资源冲突");
-        }
-
-        @GetMapping("/error-429")
-        public R<Void> error429() {
-            throw new BusinessException(429, "请求过于频繁");
         }
     }
 }

@@ -38,12 +38,12 @@ public class WsAuthHandshakeInterceptor implements HandshakeInterceptor {
     private static final Logger log = LoggerFactory.getLogger(WsAuthHandshakeInterceptor.class);
 
     /**
-     * 是否允许未认证连接（T12 登录实现后改为 false）。
+     * 是否允许未认证连接。
      * <p>
-     * 当前为 true 以支持 T09 基础设施验证；
-     * 后续改为 false 后，所有未认证 WebSocket 连接将被拒绝。
+     * <strong>P0 安全修复（FIX-03）</strong>：T12 登录已实现，不再允许匿名 WebSocket 连接。
+     * 所有非公开业务 WebSocket 必须在握手时校验有效登录态。
      */
-    private static final boolean ALLOW_UNAUTHENTICATED = true;
+    private static final boolean ALLOW_UNAUTHENTICATED = false;
 
     static final String TOKEN_PARAM = "token";
     static final String AUTH_HEADER = "Authorization";
@@ -81,6 +81,28 @@ public class WsAuthHandshakeInterceptor implements HandshakeInterceptor {
         // 写入认证信息到握手属性
         attributes.put(WsSessionContext.KEY_LOGIN_ID, loginId);
         attributes.put(WsSessionContext.KEY_SESSION_ID, request.getURI().getPath());
+
+        // FIX-03：从 User-Session 读取租户上下文，使通道拦截器可进行数据范围校验
+        try {
+            Long userId = Long.valueOf(loginId.toString());
+            cn.dev33.satoken.session.SaSession userSession =
+                    StpUtil.getSessionByLoginId(userId, false);
+            if (userSession != null) {
+                Object tenantIdObj = userSession.get(
+                        com.jushan.framework.auth.TenantContext.SESSION_KEY_TENANT_ID);
+                Object userTypeObj = userSession.get(
+                        com.jushan.framework.auth.TenantContext.SESSION_KEY_USER_TYPE);
+                if (tenantIdObj != null) {
+                    attributes.put(WsSessionContext.KEY_TENANT_ID, tenantIdObj);
+                }
+                if (userTypeObj != null) {
+                    attributes.put(WsSessionContext.KEY_USER_TYPE, userTypeObj);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("WebSocket 握手阶段读取租户上下文失败: loginId={} error={}",
+                    loginId, e.getMessage());
+        }
 
         return true;
     }

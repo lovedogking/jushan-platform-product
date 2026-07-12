@@ -14,7 +14,7 @@ spring:
 
   # ---- 数据源（通过 Docker 端口映射连接） ----
   datasource:
-    url: jdbc:mysql://localhost:${DB_PORT:3307}/jushan_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://localhost:${DB_PORT:3307}/jushan_platform?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: ${DB_USERNAME:jushan}
     password: ${DB_PASSWORD:jushan_dev}
     driver-class-name: com.mysql.cj.jdbc.Driver

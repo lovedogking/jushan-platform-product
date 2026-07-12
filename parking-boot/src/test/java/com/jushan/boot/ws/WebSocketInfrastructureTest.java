@@ -1,11 +1,13 @@
 package com.jushan.boot.ws;
 
 import com.jushan.boot.ParkingApplication;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.http.MediaType;
 import org.springframework.messaging.converter.StringMessageConverter;
 import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
@@ -22,16 +24,24 @@ import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * WebSocket 基础设施集成测试。
+ * WebSocket 基础设施集成测试（FIX-03）。
  * <p>
- * 通过 STOMP over WebSocket 端到端验证连接、鉴权框架和订阅。
+ * 通过 STOMP over WebSocket 端到端验证<b>认证后</b>连接、鉴权和订阅。
+ * T12 登录已实现，匿名 WebSocket 连接不再放行。
+ * <p>
  * 附带 MySQL + RabbitMQ 容器，满足完整基础设施依赖。
  */
 @SpringBootTest(
@@ -41,16 +51,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 @Testcontainers
 @TestPropertySource(properties = {
-    // 移除 test profile 中 RabbitMQ 的排除，由 Testcontainers 提供
     "spring.autoconfigure.exclude=",
-    // 启用平台内部 MQ 配置
     "jushan.mq.rabbit.enabled=true"
 })
-@DisplayName("WebSocket 基础设施集成测试")
+@DisplayName("WebSocket 基础设施集成测试（FIX-03：认证后连接）")
 class WebSocketInfrastructureTest {
 
     @LocalServerPort
     private int port;
+
+    private String adminToken;
 
     @Container
     @ServiceConnection
@@ -61,13 +71,30 @@ class WebSocketInfrastructureTest {
     @ServiceConnection
     static final RabbitMQContainer RABBITMQ = new RabbitMQContainer("rabbitmq:4-management-alpine");
 
-    // ==================== ① STOMP 连接 ====================
+    @BeforeEach
+    void setUp() throws Exception {
+        // 登录获取 token 用于 WebSocket 认证
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/auth/login"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        "{\"username\":\"admin\",\"password\":\"admin123\"}"))
+                .build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        String body = response.body();
+        int start = body.indexOf("\"accessToken\":\"") + 15;
+        int end = body.indexOf("\"", start);
+        adminToken = body.substring(start, end);
+    }
+
+    // ==================== ① 认证 STOMP 连接 ====================
 
     @Test
-    @DisplayName("STOMP 连接 — WebSocket 端点可访问并建立连接")
+    @DisplayName("认证 STOMP 连接 — 有效 token 可建立 WebSocket 连接")
     void shouldConnectToStompEndpoint() throws Exception {
         WebSocketStompClient stompClient = createStompClient();
-        String url = "http://localhost:" + port + "/ws";
+        String url = "http://localhost:" + port + "/ws?token=" + adminToken;
         CountDownLatch connectedLatch = new CountDownLatch(1);
 
         StompSessionHandlerAdapter handler = new StompSessionHandlerAdapter() {
@@ -84,11 +111,11 @@ class WebSocketInfrastructureTest {
         session.disconnect();
     }
 
-    // ==================== ② STOMP 未认证连接（当前阶段放行） ====================
+    // ==================== ② 未认证连接拒绝（FIX-03） ====================
 
     @Test
-    @DisplayName("未认证连接 — 当前阶段不应拒绝（T12 后改为拒绝）")
-    void shouldAllowUnauthenticatedConnectionInCurrentPhase() throws Exception {
+    @DisplayName("未认证连接拒绝 — T12 后匿名 WebSocket 连接应被拒绝")
+    void shouldRejectUnauthenticatedConnection() throws Exception {
         WebSocketStompClient stompClient = createStompClient();
         String url = "http://localhost:" + port + "/ws";
 
@@ -100,18 +127,19 @@ class WebSocketInfrastructureTest {
             }
         };
 
-        StompSession session = stompClient.connectAsync(url, handler).get(5, TimeUnit.SECONDS);
-        assertThat(session.isConnected()).as("当前阶段未认证也应可连接").isTrue();
-        session.disconnect();
+        // FIX-03：匿名连接应被拒绝
+        assertThatThrownBy(() -> stompClient.connectAsync(url, handler).get(5, TimeUnit.SECONDS))
+                .as("匿名 WebSocket 连接应被拒绝")
+                .isInstanceOf(ExecutionException.class);
     }
 
-    // ==================== ③ STOMP 订阅 ====================
+    // ==================== ③ 认证后订阅公共 topic ====================
 
     @Test
-    @DisplayName("STOMP 订阅 — 允许订阅公共 topic")
+    @DisplayName("认证后 STOMP 订阅 — 允许订阅公共 topic")
     void shouldAllowSubscriptionToPublicTopic() throws Exception {
         WebSocketStompClient stompClient = createStompClient();
-        String url = "http://localhost:" + port + "/ws";
+        String url = "http://localhost:" + port + "/ws?token=" + adminToken;
 
         CountDownLatch connectedLatch = new CountDownLatch(1);
         StompSessionHandlerAdapter handler = new StompSessionHandlerAdapter() {
@@ -144,14 +172,14 @@ class WebSocketInfrastructureTest {
     @Test
     @DisplayName("SockJS — info 端点可用")
     void shouldProvideSockJsEndpoint() throws Exception {
-        java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
-        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                .uri(java.net.URI.create("http://localhost:" + port + "/ws/info"))
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/ws/info"))
                 .GET()
                 .build();
 
-        java.net.http.HttpResponse<String> response = client.send(
-                request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = client.send(
+                request, HttpResponse.BodyHandlers.ofString());
 
         assertThat(response.statusCode()).isEqualTo(200);
     }

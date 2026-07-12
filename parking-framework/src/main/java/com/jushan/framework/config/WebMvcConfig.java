@@ -10,6 +10,11 @@ import org.springframework.core.Ordered;
  * Web MVC 通用配置。
  * <p>
  * 注册 TraceIdFilter 等全局过滤器。
+ * <p>
+ * <strong>P0 安全修复</strong>：TenantContextFilter 已移除注册。
+ * 租户上下文装配的唯一权威链路现在是 {@code TenantContextInterceptor}（在
+ * {@code TenantContextConfig} 中注册为 Spring MVC Interceptor），
+ * 在 SaInterceptor 鉴权通过后从 User-Session 读取可信上下文。
  *
  * @author Jushan Platform
  * @since 1.0.0

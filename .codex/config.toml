@@ -1,0 +1,19 @@
+[agents.repo_explorer]
+description = "只读定位仓库结构、调用链、配置、迁移和测试入口。"
+config_file = "agents/repo_explorer.toml"
+
+[agents.reviewer]
+description = "只读审查正确性、边界条件、兼容性和测试缺口。"
+config_file = "agents/reviewer.toml"
+
+[agents.security_reviewer]
+description = "只读审查认证、授权、多租户、支付、敏感数据和危险操作。"
+config_file = "agents/security_reviewer.toml"
+
+[agents.test_analyst]
+description = "只读分析测试覆盖、遗漏场景、验证命令和验收证据。"
+config_file = "agents/test_analyst.toml"
+
+[agents.hard_debugger]
+description = "只读定位跨模块、并发、事务和状态机复杂根因。"
+config_file = "agents/hard_debugger.toml"

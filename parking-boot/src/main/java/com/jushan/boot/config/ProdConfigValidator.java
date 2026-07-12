@@ -57,6 +57,24 @@ public class ProdConfigValidator implements ApplicationRunner {
         // ---- Sa-Token ----
         checkRequired("sa-token.token-name", "Token 名称", missing);
 
+        // ---- 安全：管理员初始密码（FIX-04） ----
+        String initialAdminPassword = env.getProperty("app.initial-admin-password");
+        if (initialAdminPassword == null || initialAdminPassword.isBlank()) {
+            missing.add("管理员初始密码 (app.initial-admin-password)");
+        }
+
+        // ---- Device Access（FIX-14） ----
+        String daBaseUrl = env.getProperty("jushan.device-access.base-url");
+        if (daBaseUrl == null || daBaseUrl.isBlank()) {
+            missing.add("Device Access 地址 (jushan.device-access.base-url)");
+        } else if (daBaseUrl.equals("http://localhost:8081")) {
+            missing.add("Device Access 地址不能使用开发默认值 (jushan.device-access.base-url)");
+        }
+        checkRequiredRange("jushan.device-access.connect-timeout", "Device Access 连接超时",
+                1000, 30000, missing);
+        checkRequiredRange("jushan.device-access.read-timeout", "Device Access 读取超时",
+                1000, 30000, missing);
+
         // ---- 以下校验在对应模块启用后取消注释 ----
         // T42: checkRequired("wx.pay.mch-id", "微信支付商户号", missing);
 
@@ -73,6 +91,23 @@ public class ProdConfigValidator implements ApplicationRunner {
         String value = env.getProperty(property);
         if (value == null || value.isBlank()) {
             missing.add(description + " (" + property + ")");
+        }
+    }
+
+    private void checkRequiredRange(String property, String description,
+                                     int min, int max, List<String> missing) {
+        String value = env.getProperty(property);
+        if (value == null || value.isBlank()) {
+            missing.add(description + " (" + property + ")");
+            return;
+        }
+        try {
+            int intValue = Integer.parseInt(value.trim());
+            if (intValue < min || intValue > max) {
+                missing.add(description + " 超出范围 [" + min + ", " + max + "] (" + property + "=" + intValue + ")");
+            }
+        } catch (NumberFormatException e) {
+            missing.add(description + " 格式无效 (" + property + "=" + value + ")");
         }
     }
 }

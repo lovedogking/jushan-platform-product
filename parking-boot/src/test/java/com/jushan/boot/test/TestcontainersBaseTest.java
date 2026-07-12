@@ -43,5 +43,7 @@ public abstract class TestcontainersBaseTest {
     @ServiceConnection
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>(MYSQL_IMAGE)
             .withDatabaseName("jushan_platform_test")
-            .withCommand("--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci");
+            .withCommand("--character-set-server=utf8mb4",
+                         "--collation-server=utf8mb4_unicode_ci",
+                         "--max_connections=500");
 }

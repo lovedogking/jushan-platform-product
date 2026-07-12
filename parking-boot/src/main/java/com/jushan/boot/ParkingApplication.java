@@ -12,6 +12,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  *   <li>{@code com.jushan.common} — 通用类型</li>
  *   <li>各业务模块（后续按需引入）</li>
  * </ul>
+ * <p>
+ * <strong>P0 安全修复（FIX-07）：</strong>
+ * {@code @MapperScan} 已移至 {@code MyBatisConfig}（条件化），
+ * 轻量级测试可通过 {@code jushan.scan-mappers=false} 排除 MyBatis 依赖。
  *
  * @author Jushan Platform
  * @since 1.0.0

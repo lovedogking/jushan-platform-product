@@ -45,6 +45,7 @@
     <modules>
         <module>parking-common</module>
         <module>parking-framework</module>
+        <module>parking-system</module>
         <module>parking-boot</module>
     </modules>
 
@@ -60,6 +61,11 @@
             <dependency>
                 <groupId>com.jushan</groupId>
                 <artifactId>parking-framework</artifactId>
+                <version>${jushan.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jushan</groupId>
+                <artifactId>parking-system</artifactId>
                 <version>${jushan.version}</version>
             </dependency>
 

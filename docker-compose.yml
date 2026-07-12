@@ -1,7 +1,7 @@
 # =============================================================================
 # 智慧停车 SaaS 平台 — Docker Compose 本地开发环境
 # =============================================================================
-# 包含：MySQL 8.0、Redis 7、RabbitMQ 4.x、Nginx 反向代理
+# 包含：MySQL 8.4、Redis 7、RabbitMQ 4.x、Nginx 反向代理
 # 后端 Spring Boot 和前端 Vite dev server 在宿主机运行，不在此 Compose 中。
 #
 # 快速开始：
@@ -28,10 +28,10 @@ name: jushan-platform
 
 services:
   # ===========================================================================
-  # MySQL 8.0 — 主数据库
+  # MySQL 8.4 — 主数据库（FIX-17：对齐需求指定版本）
   # ===========================================================================
   mysql:
-    image: mysql:8.0
+    image: mysql:8.4
     container_name: jushan-mysql
     restart: unless-stopped
     environment:
@@ -60,7 +60,6 @@ services:
       - --collation-server=utf8mb4_unicode_ci
       - --default-time-zone=+08:00
       - --max-connections=200
-      - --default-authentication-plugin=mysql_native_password
 
   # ===========================================================================
   # RabbitMQ 4.x Management — 异步消息

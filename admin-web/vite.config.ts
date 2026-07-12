@@ -32,13 +32,27 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },
   css: {
     preprocessorOptions: {
       scss: {
-        additionalData: `@import "@/styles/variables.scss";`,
+        // FIX-18：@import 在 Sass 2.0 已弃用，改用 @use ... as *
+        additionalData: `@use "@/styles/variables.scss" as *;`,
+      },
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // FIX-18：手动分包减少主包体积
+        manualChunks: {
+          'vendor-vue': ['vue', 'vue-router', 'pinia'],
+          'vendor-ui': ['ant-design-vue', '@ant-design/icons-vue'],
+          'vendor-utils': ['axios', 'dayjs', 'nprogress'],
+        },
       },
     },
   },

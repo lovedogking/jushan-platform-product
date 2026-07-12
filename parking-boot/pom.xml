@@ -21,6 +21,22 @@
             <groupId>com.jushan</groupId>
             <artifactId>parking-framework</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.jushan</groupId>
+            <artifactId>parking-system</artifactId>
+        </dependency>
+
+        <!-- MyBatis-Plus（MapperScan 等） -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+        </dependency>
+
+        <!-- MyBatis-Plus JSqlParser（分页 COUNT 查询支持） -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser</artifactId>
+        </dependency>
 
         <!-- Spring Boot Actuator（健康检查等） -->
         <dependency>
@@ -53,6 +69,14 @@
         </dependency>
 
         <!-- ===== 测试 ===== -->
+
+        <!-- WireMock — Device Access HTTP Mock（T23） -->
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>3.9.1</version>
+            <scope>test</scope>
+        </dependency>
 
         <!-- Testcontainers + Spring Boot 集成 -->
         <dependency>

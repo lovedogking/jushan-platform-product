@@ -81,14 +81,31 @@ public class WsChannelAuthInterceptor implements ChannelInterceptor {
     // ==================== 内部处理 ====================
 
     private void handleConnect(StompHeaderAccessor accessor) {
-        // 从握手属性回填上下文
+        // 从握手属性回填上下文（FIX-03：包含租户信息）
         Map<String, Object> sessionAttrs = accessor.getSessionAttributes();
         if (sessionAttrs != null) {
             Object loginId = sessionAttrs.get(WsSessionContext.KEY_LOGIN_ID);
             if (loginId != null) {
                 WsSessionContext.setLoginId(loginId);
                 WsSessionContext.setSessionId(accessor.getSessionId());
-                log.debug("WebSocket CONNECT: loginId={} sessionId={}", loginId, accessor.getSessionId());
+
+                // 回填租户上下文（FIX-03）
+                Object tenantId = sessionAttrs.get(WsSessionContext.KEY_TENANT_ID);
+                if (tenantId != null) {
+                    if (tenantId instanceof Long l) {
+                        WsSessionContext.setTenantId(l);
+                    } else if (tenantId instanceof Number n) {
+                        WsSessionContext.setTenantId(n.longValue());
+                    }
+                }
+                Object userType = sessionAttrs.get(WsSessionContext.KEY_USER_TYPE);
+                if (userType != null) {
+                    WsSessionContext.setUserType(userType.toString());
+                }
+
+                log.debug("WebSocket CONNECT: loginId={} tenantId={} userType={} sessionId={}",
+                        loginId, WsSessionContext.getTenantId(),
+                        userType, accessor.getSessionId());
             }
         }
     }
@@ -101,23 +118,47 @@ public class WsChannelAuthInterceptor implements ChannelInterceptor {
             return;
         }
 
-        // 公共目标允许订阅
+        // 公共目标允许订阅（无需认证）
         for (String pub : PUBLIC_DESTINATIONS) {
             if (destination.startsWith(pub)) {
                 return;
             }
         }
 
-        // 租户/停车场私有目标：T12/T16 实现后在此处校验数据范围
-        // 例如：
-        //   Long currentTenantId = WsSessionContext.getTenantId();
-        //   Long targetLotId = parseParkingLotId(destination);
-        //   validateParkingLotAccess(currentTenantId, targetLotId);
+        // FIX-03：私有目标必须认证后才允许订阅
+        if (WsSessionContext.getLoginId() == null) {
+            log.warn("WebSocket 未认证用户尝试订阅私有目标: destination={}", destination);
+            throw new org.springframework.messaging.MessageDeliveryException(
+                    "未认证用户不允许订阅私有主题");
+        }
     }
 
     private void handleSend(StompHeaderAccessor accessor) {
         String destination = accessor.getDestination();
         log.debug("WebSocket SEND: destination={} sessionId={}", destination, accessor.getSessionId());
+
+        // FIX-03：禁止客户端向服务端业务主题发送消息
+        // 当前阶段业务不需要客户端 SEND 到服务端，明确禁止
+        if (destination != null && !isPublicDestination(destination)) {
+            Object loginId = WsSessionContext.getLoginId();
+            if (loginId == null) {
+                log.warn("WebSocket 未认证用户尝试发送消息到: destination={}", destination);
+                throw new org.springframework.messaging.MessageDeliveryException(
+                        "未认证用户不允许发送消息");
+            }
+        }
+    }
+
+    /**
+     * 判断目标是否为公共主题（无需认证即可访问）。
+     */
+    private boolean isPublicDestination(String destination) {
+        for (String pub : PUBLIC_DESTINATIONS) {
+            if (destination.startsWith(pub)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void handleDisconnect(StompHeaderAccessor accessor) {

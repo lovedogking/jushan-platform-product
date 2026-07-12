@@ -7,6 +7,7 @@ import com.jushan.common.R;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -14,7 +15,11 @@ import org.springframework.web.bind.annotation.*;
  * <p>
  * 覆盖四种响应类型：正常、参数校验失败、业务异常、未知异常。
  * 仅供 T05 验收使用，后续真实业务 Controller 在此基础上开发。
+ * <p>
+ * <strong>P0 安全修复（FIX-16）</strong>：
+ * 限定为 dev/test Profile，生产环境不注册。
  */
+@Profile({"dev", "test"})
 @RestController
 @RequestMapping("/demo")
 public class DemoController {

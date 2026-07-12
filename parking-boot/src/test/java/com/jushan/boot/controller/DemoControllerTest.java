@@ -1,15 +1,13 @@
 package com.jushan.boot.controller;
 
+import com.jushan.boot.test.TestcontainersBaseTest;
 import com.jushan.common.R;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -21,16 +19,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>
  * 验证全局异常处理是否正确将异常转换为统一 {@link R} 响应。
  * <p>
- * 本测试不需要数据库，通过显式排除 DataSource 自动配置减少启动开销。
+ * <strong>FIX-07：</strong>
+ * 使用完整 Spring Boot 上下文（Testcontainers MySQL），与项目其他集成测试一致。
+ * {@code /demo/**} 路径在 SaTokenConfig 中已排除鉴权，无需登录。
  */
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("test")
-@TestPropertySource(properties = {
-    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,cn.dev33.satoken.dao.SaTokenDaoForRedisTemplate,org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration"
-})
 @DisplayName("DemoController — 四类响应测试")
-class DemoControllerTest {
+class DemoControllerTest extends TestcontainersBaseTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -55,7 +50,7 @@ class DemoControllerTest {
     void shouldReturnParamError() throws Exception {
         mockMvc.perform(post("/demo/param-error")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"\"}"))   // 空名称触发 @NotBlank
+                        .content("{\"name\":\"\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("参数校验失败"))
@@ -131,7 +126,6 @@ class DemoControllerTest {
     void traceIdShouldBeClearedAfterRequest() throws Exception {
         mockMvc.perform(get("/demo/ok"))
                 .andExpect(status().isOk());
-        // MDC 在 finally 块中已清理，不应有残留
         org.junit.jupiter.api.Assertions.assertNull(MDC.get("traceId"),
                 "MDC 应在请求结束后被清理");
     }

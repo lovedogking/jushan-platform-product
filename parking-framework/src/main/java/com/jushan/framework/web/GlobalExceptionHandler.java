@@ -146,6 +146,50 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
+    // ==================== Sa-Token 认证/授权异常 ====================
+
+    /**
+     * 处理未登录异常（Sa-Token NotLoginException）。
+     * <p>
+     * 返回 HTTP 401 + UNAUTHORIZED 错误码。
+     */
+    @ExceptionHandler(cn.dev33.satoken.exception.NotLoginException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public R<Void> handleNotLoginException(cn.dev33.satoken.exception.NotLoginException ex,
+                                            HttpServletRequest request) {
+        log.warn("[未登录] uri={} message={}", request.getRequestURI(), ex.getMessage());
+        return R.<Void>fail(CommonErrorCode.UNAUTHORIZED)
+                .traceId(MDC.get(TraceIdFilter.MDC_KEY));
+    }
+
+    /**
+     * 处理无权限异常（Sa-Token NotPermissionException）。
+     * <p>
+     * 返回 HTTP 403 + FORBIDDEN 错误码。T13 细化权限后使用。
+     */
+    @ExceptionHandler(cn.dev33.satoken.exception.NotPermissionException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public R<Void> handleNotPermissionException(cn.dev33.satoken.exception.NotPermissionException ex,
+                                                 HttpServletRequest request) {
+        log.warn("[无权限] uri={} permission={}", request.getRequestURI(), ex.getPermission());
+        return R.<Void>fail(CommonErrorCode.FORBIDDEN)
+                .traceId(MDC.get(TraceIdFilter.MDC_KEY));
+    }
+
+    /**
+     * 处理无角色异常（Sa-Token NotRoleException）。
+     * <p>
+     * 返回 HTTP 403 + FORBIDDEN 错误码。
+     */
+    @ExceptionHandler(cn.dev33.satoken.exception.NotRoleException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public R<Void> handleNotRoleException(cn.dev33.satoken.exception.NotRoleException ex,
+                                           HttpServletRequest request) {
+        log.warn("[无角色] uri={} role={}", request.getRequestURI(), ex.getRole());
+        return R.<Void>fail(CommonErrorCode.FORBIDDEN)
+                .traceId(MDC.get(TraceIdFilter.MDC_KEY));
+    }
+
     // ==================== Spring 内置异常 ====================
 
     /**

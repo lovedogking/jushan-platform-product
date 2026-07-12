@@ -1,22 +1,17 @@
 package com.jushan.boot;
 
+import com.jushan.boot.test.TestcontainersBaseTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * 最小上下文加载测试。
  * <p>
  * 验证 Spring 容器可正常启动，模块依赖方向正确。
- * 排除数据库等外部依赖，仅验证 Bean 装配和模块依赖。
+ * <p>
+ * <strong>FIX-07：</strong>使用完整 Spring Boot 上下文（Testcontainers MySQL）。
+ * 与项目其他集成测试一致，确保 Bean 装配和模块依赖验证可靠。
  */
-@SpringBootTest
-@ActiveProfiles("test")
-@TestPropertySource(properties = {
-    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,cn.dev33.satoken.dao.SaTokenDaoForRedisTemplate,org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration"
-})
-class ParkingApplicationTests {
+class ParkingApplicationTests extends TestcontainersBaseTest {
 
     @Test
     void contextLoads() {
