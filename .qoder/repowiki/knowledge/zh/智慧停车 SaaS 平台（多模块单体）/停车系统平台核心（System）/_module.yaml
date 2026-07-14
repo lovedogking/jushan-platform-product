@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: parking_system
+title: 停车系统平台核心（System）
+scope:
+    - parking-system/src/main/java/com/jushan/system/
+source_files: []
+depends_on: []
+related_to: []

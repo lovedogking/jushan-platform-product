@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: booth_web
+title: 岗亭端监控 Web 应用
+scope:
+    - booth-web/
+source_files: []
+depends_on: []
+related_to:
+    - path: parking_system/monitor_alert
+    - path: parking_system/tenant_auth

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
+    "type-check": "vue-tsc --noEmit",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
     "format": "prettier --write \"src/**/*.{js,ts,vue,scss,css,json}\""
@@ -21,6 +22,12 @@
     "nprogress": "^0.2.0"
   },
   "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-plugin-vue": "^9.23.0",
+    "@vue/eslint-config-typescript": "^13.0.0",
+    "@vue/eslint-config-prettier": "^9.0.0",
+    "@rushstack/eslint-patch": "^1.10.1",
+    "prettier": "^3.2.5",
     "@vitejs/plugin-vue": "^5.0.4",
     "vite": "^5.2.0",
     "typescript": "^5.4.3",

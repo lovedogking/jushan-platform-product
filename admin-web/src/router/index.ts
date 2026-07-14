@@ -9,6 +9,12 @@ export const constantRoutes: RouteRecordRaw[] = [
     meta: { title: '登录' },
   },
   {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/register/index.vue'),
+    meta: { title: '租户注册' },
+  },
+  {
     path: '/',
     name: 'Layout',
     component: () => import('@/layout/index.vue'),
@@ -31,15 +37,22 @@ export const constantRoutes: RouteRecordRaw[] = [
       {
         path: 'parking-lots',
         name: 'ParkingLots',
-        component: () => import('@/views/parking-lot/index.vue'),
+        component: () => import('@/views/parking/ParkingLotManage.vue'),
         meta: { title: '停车场管理', icon: 'CarOutlined' },
       },
-      // FIX-11：车道管理
+      // Sprint 2：区域管理
+      {
+        path: 'parking-zones',
+        name: 'ParkingZones',
+        component: () => import('@/views/parking/ParkingZoneManage.vue'),
+        meta: { title: '区域管理', icon: 'AppstoreOutlined' },
+      },
+      // FIX-11：通道管理
       {
         path: 'parking-lanes',
         name: 'ParkingLanes',
-        component: () => import('@/views/parking-lane/index.vue'),
-        meta: { title: '车道管理', icon: 'BranchesOutlined' },
+        component: () => import('@/views/parking/ParkingLaneManage.vue'),
+        meta: { title: '通道管理', icon: 'BranchesOutlined' },
       },
       // FIX-11：设备管理
       {
@@ -61,6 +74,41 @@ export const constantRoutes: RouteRecordRaw[] = [
         name: 'AuditLogs',
         component: () => import('@/views/audit-log/index.vue'),
         meta: { title: '审计日志', icon: 'FileTextOutlined' },
+      },
+      // T34：收费规则管理
+      {
+        path: 'billing-rules',
+        name: 'BillingRules',
+        component: () => import('@/views/billing-rule/index.vue'),
+        meta: { title: '收费规则', icon: 'DollarOutlined', cache: true },
+      },
+      // Sprint 3：费用试算
+      {
+        path: 'fee-calculator',
+        name: 'FeeCalculator',
+        component: () => import('@/views/billing-rule/FeeCalculator.vue'),
+        meta: { title: '费用试算', icon: 'CalculatorOutlined' },
+      },
+      // Sprint 1：公司管理
+      {
+        path: 'companies',
+        name: 'Companies',
+        component: () => import('@/views/company/CompanyManage.vue'),
+        meta: { title: '公司管理', icon: 'ApartmentOutlined', permission: 'company:view', cache: true },
+      },
+      // Sprint 1：管理员账号
+      {
+        path: 'admin-accounts',
+        name: 'AdminAccounts',
+        component: () => import('@/views/account/AdminAccountManage.vue'),
+        meta: { title: '账号管理', icon: 'UserOutlined', permission: 'account:view', cache: true },
+      },
+      // Sprint 1：自定义角色
+      {
+        path: 'custom-roles',
+        name: 'CustomRoles',
+        component: () => import('@/views/account/CustomRoleManage.vue'),
+        meta: { title: '角色管理', icon: 'IdcardOutlined', permission: 'role:view', cache: true },
       },
       // FIX-11：代理模式
       {
@@ -96,7 +144,7 @@ const router = createRouter({
   routes: constantRoutes,
 })
 
-const WHITE_LIST = ['/login']
+const WHITE_LIST = ['/login', '/register']
 
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
@@ -118,6 +166,17 @@ router.beforeEach(async (to, _from, next) => {
 
   if (!authStore.userInfo) {
     await authStore.fetchUserInfo()
+    if (!authStore.isLoggedIn) {
+      next(`/login?redirect=${to.path}`)
+      return
+    }
+  }
+
+  // 校验路由权限
+  const requiredPermission = to.meta?.permission as string | undefined
+  if (requiredPermission && !authStore.hasPermission(requiredPermission)) {
+    next('/403')
+    return
   }
 
   next()

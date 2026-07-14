@@ -1,6 +1,6 @@
 package com.jushan.system.controller;
 
-import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.jushan.platform.infra.security.RequirePermission;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.jushan.common.R;
 import com.jushan.system.dto.TenantAuditRequest;
@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
  * @since 1.0.0
  */
 @RestController
-@RequestMapping("/admin/tenants")
+@RequestMapping("/api/admin/tenants")
 public class TenantController {
 
     private final TenantService tenantService;
@@ -38,7 +38,7 @@ public class TenantController {
      * @param status 状态筛选（可选：PENDING_REVIEW / ENABLED / DISABLED / REJECTED）
      */
     @GetMapping
-    @SaCheckPermission("tenant:read")
+    @RequirePermission("tenant:read")
     public R<IPage<TenantVO>> list(@RequestParam(defaultValue = "1") int page,
                                     @RequestParam(defaultValue = "20") int size,
                                     @RequestParam(required = false) String status) {
@@ -52,7 +52,7 @@ public class TenantController {
      * 权限：tenant:read
      */
     @GetMapping("/{id}")
-    @SaCheckPermission("tenant:read")
+    @RequirePermission("tenant:read")
     public R<TenantVO> detail(@PathVariable Long id) {
         TenantVO vo = tenantService.getTenant(id);
         return R.ok(vo);
@@ -72,7 +72,7 @@ public class TenantController {
      * </ul>
      */
     @PostMapping("/{id}/audit")
-    @SaCheckPermission("tenant:write")
+    @RequirePermission("tenant:write")
     public R<Void> audit(@PathVariable Long id, @Valid @RequestBody TenantAuditRequest request) {
         tenantService.audit(id, request);
         return R.ok();

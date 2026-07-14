@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jushan.platform.modules.account.mapper.SysRolePermissionMapper">
+
+    <!-- 通用查询映射 -->
+    <resultMap id="BaseResultMap" type="com.jushan.platform.modules.account.entity.SysRolePermission">
+        <id column="id" property="id"/>
+        <result column="role_id" property="roleId"/>
+        <result column="permission_code" property="permissionCode"/>
+        <result column="permission_type" property="permissionType"/>
+        <result column="data_scope" property="dataScope"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <!-- 根据角色 ID 查询权限矩阵 -->
+    <select id="selectByRoleId" resultMap="BaseResultMap">
+        SELECT *
+        FROM sys_role_permission
+        WHERE role_id = #{roleId}
+          AND deleted_at IS NULL
+        ORDER BY permission_code ASC
+    </select>
+
+    <!-- 根据角色 ID 列表查询权限编码 -->
+    <select id="selectPermissionCodesByRoleIds" resultType="java.lang.String">
+        SELECT DISTINCT permission_code
+        FROM sys_role_permission
+        WHERE deleted_at IS NULL
+        <if test="roleIds != null and roleIds.size() > 0">
+            AND role_id IN
+            <foreach collection="roleIds" item="roleId" open="(" separator="," close=")">
+                #{roleId}
+            </foreach>
+        </if>
+        ORDER BY permission_code ASC
+    </select>
+
+    <!-- 根据角色 ID 物理删除权限矩阵 -->
+    <delete id="deleteByRoleId">
+        DELETE FROM sys_role_permission WHERE role_id = #{roleId}
+    </delete>
+
+</mapper>

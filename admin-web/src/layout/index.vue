@@ -166,6 +166,7 @@ import {
   SettingOutlined,
   WalletOutlined,
   CarOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons-vue'
 import { useAuthStore, useAppStore, NAV_ITEMS, MENU_MAP, useTabsStore } from '@/stores'
 
@@ -195,7 +196,7 @@ const cachedViews = ref<string[]>(['Dashboard'])
 
 const iconMap: Record<string, any> = {
   DashboardOutlined, HomeOutlined, SwapOutlined, ShopOutlined,
-  ApiOutlined, ThunderboltOutlined, CarOutlined, FileTextOutlined,
+  ApiOutlined, ThunderboltOutlined, CarOutlined, AppstoreOutlined, FileTextOutlined,
   UserOutlined, TeamOutlined, DollarOutlined, IdcardOutlined,
   AlertOutlined, ApartmentOutlined, AuditOutlined, BellOutlined,
   SettingOutlined, WalletOutlined,

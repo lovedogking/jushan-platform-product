@@ -6,6 +6,7 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
@@ -81,6 +82,22 @@ public class RabbitMqConfig {
         return BindingBuilder.bind(deadLetterQueue())
                 .to(deadLetterExchange())
                 .with(MqConstants.ROUTING_KEY_DLX);
+    }
+
+    // ==================== 识别事件队列（T28 引入，T29 添加消费者） ====================
+
+    @Bean
+    public Queue recognitionEventQueue() {
+        return QueueBuilder.durable(MqConstants.QUEUE_RECOGNITION_EVENT)
+                .withArguments(deadLetterArgs())
+                .build();
+    }
+
+    @Bean
+    public Binding recognitionEventBinding() {
+        return BindingBuilder.bind(recognitionEventQueue())
+                .to(platformInternalExchange())
+                .with(MqConstants.ROUTING_KEY_RECOGNITION_EVENT);
     }
 
     // ==================== 消息序列化 ====================

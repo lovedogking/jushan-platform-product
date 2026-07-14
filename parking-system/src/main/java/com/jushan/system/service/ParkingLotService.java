@@ -7,15 +7,17 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.framework.auth.DataScope;
-import com.jushan.framework.auth.TenantContext;
+import com.jushan.common.auth.TenantContext;
 import com.jushan.system.dto.CreateParkingLotRequest;
 import com.jushan.system.dto.ParkingLotCapacityRequest;
 import com.jushan.system.dto.ParkingLotStatusRequest;
 import com.jushan.system.dto.UpdateParkingLotRequest;
+import com.jushan.system.entity.Company;
 import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.entity.ParkingLotCapacityLog;
 import com.jushan.system.entity.ParkingLotStatusLog;
 import com.jushan.system.entity.Tenant;
+import com.jushan.system.mapper.CompanyMapper;
 import com.jushan.system.mapper.ParkingLotCapacityLogMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.ParkingLotStatusLogMapper;
@@ -28,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -80,24 +83,42 @@ public class ParkingLotService {
     private static final String DEFAULT_MANUAL_RELEASE_POLICY = "ADMIN_ONLY";
     /** 离线策略默认值 */
     private static final String DEFAULT_OFFLINE_POLICY = "ALLOW_ENTRY_EXIT";
+    /** 重复入场策略默认值 */
+    private static final String DEFAULT_DUPLICATE_ENTRY_POLICY = "REJECT";
 
     private final ParkingLotMapper parkingLotMapper;
     private final ParkingLotCapacityLogMapper capacityLogMapper;
     private final ParkingLotStatusLogMapper statusLogMapper;
     private final TenantMapper tenantMapper;
+    private final CompanyMapper companyMapper;
     private final ParkingLotScopeResolver scopeResolver;
     private final ReadinessCheckService readinessCheckService;
+
+    /**
+     * 解析当前租户ID，正确处理平台用户。
+     * <p>
+     * 平台用户（super_admin、platform_operator）无租户绑定，返回 null。
+     * 租户用户返回其 tenantId。
+     */
+    private Long resolveTenantId() {
+        if (TenantContext.isPlatformUser()) {
+            return null;
+        }
+        return TenantContext.requireTenantId();
+    }
 
     public ParkingLotService(ParkingLotMapper parkingLotMapper,
                              ParkingLotCapacityLogMapper capacityLogMapper,
                              ParkingLotStatusLogMapper statusLogMapper,
                              TenantMapper tenantMapper,
+                             CompanyMapper companyMapper,
                              ParkingLotScopeResolver scopeResolver,
                              ReadinessCheckService readinessCheckService) {
         this.parkingLotMapper = parkingLotMapper;
         this.capacityLogMapper = capacityLogMapper;
         this.statusLogMapper = statusLogMapper;
         this.tenantMapper = tenantMapper;
+        this.companyMapper = companyMapper;
         this.scopeResolver = scopeResolver;
         this.readinessCheckService = readinessCheckService;
     }
@@ -115,15 +136,24 @@ public class ParkingLotService {
      */
     @Transactional
     public ParkingLotVO create(CreateParkingLotRequest request) {
-        Long tenantId = DataScope.requireTenantUser();
+        Long tenantId = resolveTenantId();
+        if (tenantId == null) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "平台用户请通过代操作模式进入目标租户后创建停车场");
+        }
         DataScope.requireCustomerAdmin();
 
         // 校验租户状态
         Tenant tenant = tenantMapper.selectById(tenantId);
         DataScope.validateTenantEnabled(tenant != null ? tenant.getStatus() : null);
 
+        // 校验并设置所属公司
+        Company company = resolveCompany(request.getCompanyId(), tenantId);
+
         ParkingLot lot = new ParkingLot();
         lot.setTenantId(tenantId);
+        lot.setCompanyId(company.getId());
+        lot.setGroupId(company.getLevel() == 1 ? company.getId() : company.getParentId());
         lot.setName(request.getName().trim());
         lot.setAddress(defaultString(request.getAddress(), ""));
         lot.setContactPhone(defaultString(request.getContactPhone(), ""));
@@ -143,13 +173,7 @@ public class ParkingLotService {
         lot.setFreeExitMinutes(defaultInt(request.getFreeExitMinutes(), DEFAULT_FREE_EXIT_MINUTES));
         lot.setManualReleasePolicy(defaultString(request.getManualReleasePolicy(), DEFAULT_MANUAL_RELEASE_POLICY));
         lot.setOfflinePolicy(defaultString(request.getOfflinePolicy(), DEFAULT_OFFLINE_POLICY));
-
-        // 停用默认为开启状态（所有能力保留）
-        lot.setDisableNewEntries(1);
-        lot.setDisablePayment(1);
-        lot.setDisableExit(1);
-        lot.setDisableAutoGate(0);
-        lot.setDisableOnlyConfig(1);
+        lot.setDuplicateEntryPolicy(defaultString(request.getDuplicateEntryPolicy(), DEFAULT_DUPLICATE_ENTRY_POLICY));
 
         lot.setCreatedAt(LocalDateTime.now());
         lot.setUpdatedAt(LocalDateTime.now());
@@ -175,11 +199,21 @@ public class ParkingLotService {
     @Transactional
     public ParkingLotVO update(Long lotId, UpdateParkingLotRequest request) {
         ParkingLot lot = getParkingLotWithAuth(lotId);
+        Long tenantId = resolveTenantId();
+        // 平台用户使用停车场自身的 tenantId 进行数据校验
+        Long effectiveTenantId = tenantId != null ? tenantId : lot.getTenantId();
 
         LambdaUpdateWrapper<ParkingLot> wrapper = new LambdaUpdateWrapper<ParkingLot>()
                 .eq(ParkingLot::getId, lotId);
 
         boolean hasUpdate = false;
+        if (request.getCompanyId() != null) {
+            Company company = resolveCompany(request.getCompanyId(), effectiveTenantId);
+            wrapper.set(ParkingLot::getCompanyId, company.getId());
+            wrapper.set(ParkingLot::getGroupId,
+                    company.getLevel() == 1 ? company.getId() : company.getParentId());
+            hasUpdate = true;
+        }
         if (request.getName() != null) {
             wrapper.set(ParkingLot::getName, request.getName().trim());
             hasUpdate = true;
@@ -224,9 +258,18 @@ public class ParkingLotService {
             wrapper.set(ParkingLot::getOfflinePolicy, request.getOfflinePolicy().trim());
             hasUpdate = true;
         }
+        if (request.getDuplicateEntryPolicy() != null) {
+            wrapper.set(ParkingLot::getDuplicateEntryPolicy, request.getDuplicateEntryPolicy().trim());
+            hasUpdate = true;
+        }
 
         if (!hasUpdate) {
             return toVO(lot);
+        }
+
+        // 更新前校验：不允许通过部分更新把 company_id 改为空或跨租户
+        if (request.getCompanyId() != null) {
+            wrapper.ne(ParkingLot::getCompanyId, 0);
         }
 
         wrapper.set(ParkingLot::getUpdatedAt, LocalDateTime.now());
@@ -255,10 +298,11 @@ public class ParkingLotService {
      * @return 分页结果
      */
     public IPage<ParkingLotVO> list(int page, int size, String status) {
-        Long tenantId = TenantContext.requireTenantId();
+        // 解析租户范围：平台用户可查看所有租户的停车场
+        Long tenantId = resolveTenantId();
 
         LambdaQueryWrapper<ParkingLot> wrapper = new LambdaQueryWrapper<ParkingLot>()
-                .eq(ParkingLot::getTenantId, tenantId)
+                .eq(tenantId != null, ParkingLot::getTenantId, tenantId)
                 .eq(status != null && !status.isBlank(), ParkingLot::getStatus, status)
                 .orderByDesc(ParkingLot::getCreatedAt);
 
@@ -317,7 +361,7 @@ public class ParkingLotService {
             // 平台用户（含 super_admin 和 platform_operator）：允许
         } else if (TenantContext.isTenantUser()) {
             // 租户用户：必须是 customer_admin（此角色有 parking:disable 权限）
-            // 不需要额外代码检查，由 Controller 层的 @SaCheckPermission("parking:disable") 保证
+            // 不需要额外代码检查，由 Controller 层的 @RequirePermission("parking:disable") 保证
         } else {
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "未登录或会话已过期");
         }
@@ -371,25 +415,6 @@ public class ParkingLotService {
                 .set(ParkingLot::getUpdatedAt, LocalDateTime.now())
                 .eq(ParkingLot::getId, lotId)
                 .eq(ParkingLot::getStatus, beforeStatus);
-
-        // 停用时更新保留范围
-        if (ACTION_DISABLED.equals(action)) {
-            if (request.getDisableNewEntries() != null) {
-                wrapper.set(ParkingLot::getDisableNewEntries, request.getDisableNewEntries());
-            }
-            if (request.getDisablePayment() != null) {
-                wrapper.set(ParkingLot::getDisablePayment, request.getDisablePayment());
-            }
-            if (request.getDisableExit() != null) {
-                wrapper.set(ParkingLot::getDisableExit, request.getDisableExit());
-            }
-            if (request.getDisableAutoGate() != null) {
-                wrapper.set(ParkingLot::getDisableAutoGate, request.getDisableAutoGate());
-            }
-            if (request.getDisableOnlyConfig() != null) {
-                wrapper.set(ParkingLot::getDisableOnlyConfig, request.getDisableOnlyConfig());
-            }
-        }
 
         boolean updated = parkingLotMapper.update(null, wrapper) > 0;
         if (!updated) {
@@ -481,7 +506,7 @@ public class ParkingLotService {
      * 客户管理员通过全量范围；受限角色需在 employee_parking_lot 中有授权记录。
      */
     private ParkingLot getParkingLotWithAuth(Long lotId) {
-        ParkingLot lot = parkingLotMapper.selectById(lotId);
+        ParkingLot lot = parkingLotMapper.selectByIdIgnoreTenant(lotId);
         if (lot == null) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "停车场不存在");
         }
@@ -545,6 +570,8 @@ public class ParkingLotService {
         ParkingLotVO vo = new ParkingLotVO();
         vo.setId(lot.getId());
         vo.setTenantId(lot.getTenantId());
+        vo.setCompanyId(lot.getCompanyId());
+        vo.setGroupId(lot.getGroupId());
         vo.setName(lot.getName());
         vo.setAddress(lot.getAddress());
         vo.setContactPhone(lot.getContactPhone());
@@ -560,14 +587,35 @@ public class ParkingLotService {
         vo.setFreeExitMinutes(lot.getFreeExitMinutes());
         vo.setManualReleasePolicy(lot.getManualReleasePolicy());
         vo.setOfflinePolicy(lot.getOfflinePolicy());
-        vo.setDisableNewEntries(lot.getDisableNewEntries());
-        vo.setDisablePayment(lot.getDisablePayment());
-        vo.setDisableExit(lot.getDisableExit());
-        vo.setDisableAutoGate(lot.getDisableAutoGate());
-        vo.setDisableOnlyConfig(lot.getDisableOnlyConfig());
+        vo.setDuplicateEntryPolicy(lot.getDuplicateEntryPolicy());
         vo.setCreatedAt(lot.getCreatedAt());
         vo.setUpdatedAt(lot.getUpdatedAt());
+
+        // 回填公司名称
+        if (lot.getCompanyId() != null) {
+            Company company = companyMapper.selectById(lot.getCompanyId());
+            if (company != null && company.getDeletedAt() == null) {
+                vo.setCompanyName(company.getName());
+            }
+        }
         return vo;
+    }
+
+    /**
+     * 解析并校验停车场所属公司。
+     */
+    private Company resolveCompany(Long companyId, Long tenantId) {
+        if (companyId == null) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "所属公司不能为空");
+        }
+        Company company = companyMapper.selectById(companyId);
+        if (company == null || company.getDeletedAt() != null) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "所属公司不存在");
+        }
+        if (!Objects.equals(company.getTenantId(), tenantId)) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN, "所属公司不属于本租户");
+        }
+        return company;
     }
 
     private static String defaultString(String value, String defaultValue) {

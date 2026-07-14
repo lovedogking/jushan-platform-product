@@ -13,6 +13,9 @@ public class ParkingLotVO {
 
     private Long id;
     private Long tenantId;
+    private Long companyId;
+    private Long groupId;
+    private String companyName;
     private String name;
     private String address;
     private String contactPhone;
@@ -28,11 +31,7 @@ public class ParkingLotVO {
     private Integer freeExitMinutes;
     private String manualReleasePolicy;
     private String offlinePolicy;
-    private Integer disableNewEntries;
-    private Integer disablePayment;
-    private Integer disableExit;
-    private Integer disableAutoGate;
-    private Integer disableOnlyConfig;
+    private String duplicateEntryPolicy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -43,6 +42,15 @@ public class ParkingLotVO {
 
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+
+    public Long getCompanyId() { return companyId; }
+    public void setCompanyId(Long companyId) { this.companyId = companyId; }
+
+    public Long getGroupId() { return groupId; }
+    public void setGroupId(Long groupId) { this.groupId = groupId; }
+
+    public String getCompanyName() { return companyName; }
+    public void setCompanyName(String companyName) { this.companyName = companyName; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -89,20 +97,8 @@ public class ParkingLotVO {
     public String getOfflinePolicy() { return offlinePolicy; }
     public void setOfflinePolicy(String offlinePolicy) { this.offlinePolicy = offlinePolicy; }
 
-    public Integer getDisableNewEntries() { return disableNewEntries; }
-    public void setDisableNewEntries(Integer disableNewEntries) { this.disableNewEntries = disableNewEntries; }
-
-    public Integer getDisablePayment() { return disablePayment; }
-    public void setDisablePayment(Integer disablePayment) { this.disablePayment = disablePayment; }
-
-    public Integer getDisableExit() { return disableExit; }
-    public void setDisableExit(Integer disableExit) { this.disableExit = disableExit; }
-
-    public Integer getDisableAutoGate() { return disableAutoGate; }
-    public void setDisableAutoGate(Integer disableAutoGate) { this.disableAutoGate = disableAutoGate; }
-
-    public Integer getDisableOnlyConfig() { return disableOnlyConfig; }
-    public void setDisableOnlyConfig(Integer disableOnlyConfig) { this.disableOnlyConfig = disableOnlyConfig; }
+    public String getDuplicateEntryPolicy() { return duplicateEntryPolicy; }
+    public void setDuplicateEntryPolicy(String duplicateEntryPolicy) { this.duplicateEntryPolicy = duplicateEntryPolicy; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

@@ -1,6 +1,6 @@
 package com.jushan.system.controller;
 
-import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.jushan.platform.infra.security.RequirePermission;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.jushan.common.R;
 import com.jushan.system.dto.CreateDeviceRequest;
@@ -36,7 +36,7 @@ import java.util.Map;
  * @since 1.0.0
  */
 @RestController
-@RequestMapping("/admin/devices")
+@RequestMapping("/api/admin/devices")
 public class DeviceController {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceController.class);
@@ -61,7 +61,7 @@ public class DeviceController {
      * @param deviceType   设备类型筛选（可选：CAMERA / GATE）
      */
     @GetMapping
-    @SaCheckPermission("device:read")
+    @RequirePermission("device:read")
     public R<IPage<DeviceVO>> list(@RequestParam(defaultValue = "1") int page,
                                     @RequestParam(defaultValue = "20") int size,
                                     @RequestParam(required = false) Long parkingLotId,
@@ -77,7 +77,7 @@ public class DeviceController {
      * 权限：device:read
      */
     @GetMapping("/{id}")
-    @SaCheckPermission("device:read")
+    @RequirePermission("device:read")
     public R<DeviceVO> detail(@PathVariable Long id) {
         DeviceVO vo = deviceService.get(id);
         return R.ok(vo);
@@ -89,7 +89,7 @@ public class DeviceController {
      * 权限：device:manage
      */
     @PostMapping
-    @SaCheckPermission("device:manage")
+    @RequirePermission("device:manage")
     public R<DeviceVO> create(@Valid @RequestBody CreateDeviceRequest request) {
         DeviceVO vo = deviceService.create(request);
         log.info("创建设备成功: deviceId={}, parkingLotId={}, name={}, code={}",
@@ -103,7 +103,7 @@ public class DeviceController {
      * 权限：device:manage
      */
     @PutMapping("/{id}")
-    @SaCheckPermission("device:manage")
+    @RequirePermission("device:manage")
     public R<DeviceVO> update(@PathVariable Long id, @Valid @RequestBody UpdateDeviceRequest request) {
         DeviceVO vo = deviceService.update(id, request);
         log.info("更新设备成功: deviceId={}", id);
@@ -119,7 +119,7 @@ public class DeviceController {
      * @param body 包含 action 字段：ENABLED / DISABLED
      */
     @PostMapping("/{id}/status")
-    @SaCheckPermission("device:manage")
+    @RequirePermission("device:manage")
     public R<Void> updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
         String action = body.get("action");
         deviceService.updateStatus(id, action);
@@ -138,7 +138,7 @@ public class DeviceController {
      * @param body 包含 laneId 字段
      */
     @PostMapping("/{id}/bind-lane")
-    @SaCheckPermission("device:manage")
+    @RequirePermission("device:manage")
     public R<DeviceVO> bindLane(@PathVariable Long id, @RequestBody Map<String, Long> body) {
         Long laneId = body.get("laneId");
         if (laneId == null) {
@@ -155,7 +155,7 @@ public class DeviceController {
      * 权限：device:manage
      */
     @DeleteMapping("/{id}/bind-lane")
-    @SaCheckPermission("device:manage")
+    @RequirePermission("device:manage")
     public R<DeviceVO> unbindLane(@PathVariable Long id) {
         DeviceVO vo = deviceService.unbindLane(id);
         log.info("设备解绑车道成功: deviceId={}", id);
@@ -171,7 +171,7 @@ public class DeviceController {
      * @param body 包含 executorDeviceId 字段
      */
     @PostMapping("/{id}/executor")
-    @SaCheckPermission("device:manage")
+    @RequirePermission("device:manage")
     public R<DeviceVO> setExecutor(@PathVariable Long id, @RequestBody Map<String, Long> body) {
         Long executorDeviceId = body.get("executorDeviceId");
         if (executorDeviceId == null) {
@@ -190,7 +190,7 @@ public class DeviceController {
      * 权限：device:read
      */
     @GetMapping("/vendors")
-    @SaCheckPermission("device:read")
+    @RequirePermission("device:read")
     public R<List<DeviceVendor>> listVendors() {
         List<DeviceVendor> vendors = deviceService.listVendors();
         return R.ok(vendors);
@@ -204,7 +204,7 @@ public class DeviceController {
      * @param vendorId 厂商 ID（可选）
      */
     @GetMapping("/models")
-    @SaCheckPermission("device:read")
+    @RequirePermission("device:read")
     public R<List<DeviceModel>> listModels(@RequestParam(required = false) Long vendorId) {
         List<DeviceModel> models = deviceService.listModels(vendorId);
         return R.ok(models);
@@ -225,7 +225,7 @@ public class DeviceController {
      * @param body 包含 reason 字段（操作原因）
      */
     @PostMapping("/{id}/sync-time")
-    @SaCheckPermission("device:manage")
+    @RequirePermission("device:manage")
     public R<TimeSyncResultDTO> syncTime(@PathVariable Long id, @RequestBody Map<String, String> body) {
         String reason = body != null ? body.getOrDefault("reason", "") : "";
         TimeSyncResultDTO result = deviceService.syncTime(id, reason);
@@ -247,7 +247,7 @@ public class DeviceController {
      * @param id 平台设备 ID
      */
     @PostMapping("/{id}/query-status")
-    @SaCheckPermission("device:manage")
+    @RequirePermission("device:manage")
     public R<DeviceStatusVO> queryStatus(@PathVariable Long id) {
         DeviceStatusVO vo = deviceService.queryStatus(id);
         log.info("设备状态查询完成: deviceId={}, online={}, querySuccess={}",
@@ -266,7 +266,7 @@ public class DeviceController {
      * @param body 包含 deviceIds 数组
      */
     @PostMapping("/query-status-batch")
-    @SaCheckPermission("device:manage")
+    @RequirePermission("device:manage")
     public R<List<DeviceStatusVO>> queryStatusBatch(@RequestBody Map<String, List<Long>> body) {
         List<Long> deviceIds = body.get("deviceIds");
         if (deviceIds == null || deviceIds.isEmpty()) {
@@ -288,7 +288,7 @@ public class DeviceController {
      * @param id 平台设备 ID
      */
     @GetMapping("/{id}/status")
-    @SaCheckPermission("device:read")
+    @RequirePermission("device:read")
     public R<DeviceStatusVO> getStatusSnapshot(@PathVariable Long id) {
         DeviceStatusVO vo = deviceService.getLatestSnapshot(id);
         return R.ok(vo);
@@ -302,7 +302,7 @@ public class DeviceController {
      * @param body 包含 deviceIds 数组
      */
     @PostMapping("/status-snapshots")
-    @SaCheckPermission("device:read")
+    @RequirePermission("device:read")
     public R<List<DeviceStatusVO>> getStatusSnapshots(@RequestBody Map<String, List<Long>> body) {
         List<Long> deviceIds = body.get("deviceIds");
         if (deviceIds == null || deviceIds.isEmpty()) {

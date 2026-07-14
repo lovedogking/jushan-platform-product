@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jushan.platform.modules.company.mapper.SysCompanyMapper">
+
+    <!-- 查询租户下的公司树形结构（使用 MySQL 8.0 递归 CTE） -->
+    <select id="selectTreeByTenantId" resultType="com.jushan.platform.modules.company.entity.SysCompany">
+        WITH RECURSIVE company_tree AS (
+            SELECT *
+            FROM sys_company
+            WHERE parent_id = 0
+              AND tenant_id = #{tenantId}
+              AND deleted_at IS NULL
+            UNION ALL
+            SELECT c.*
+            FROM sys_company c
+            INNER JOIN company_tree ct ON c.parent_id = ct.id
+            WHERE c.tenant_id = #{tenantId}
+              AND c.deleted_at IS NULL
+        )
+        SELECT *
+        FROM company_tree
+        ORDER BY sort_order ASC, id ASC
+    </select>
+
+    <!-- 统计指定公司下未删除的管理员账号数量 -->
+    <select id="countAdminAccountByCompanyId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM sys_admin_account
+        WHERE company_id = #{companyId}
+          AND deleted_at IS NULL
+    </select>
+
+</mapper>

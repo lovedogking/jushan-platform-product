@@ -1,6 +1,6 @@
 package com.jushan.system.controller;
 
-import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.jushan.platform.infra.security.RequirePermission;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.jushan.common.R;
 import com.jushan.system.service.AuditService;
@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
  * @since 1.0.0
  */
 @RestController
-@RequestMapping("/admin/audit-logs")
+@RequestMapping("/api/admin/audit-logs")
 public class AuditController {
 
     private final AuditService auditService;
@@ -50,7 +50,7 @@ public class AuditController {
      * @param endTime    结束时间（可选，ISO 格式）
      */
     @GetMapping
-    @SaCheckPermission("tenant:read")
+    @RequirePermission("tenant:read")
     public R<IPage<AuditLogVO>> list(@RequestParam(defaultValue = "1") int page,
                                       @RequestParam(defaultValue = "20") int size,
                                       @RequestParam(required = false) Long tenantId,
@@ -70,7 +70,7 @@ public class AuditController {
      * 权限：tenant:read
      */
     @GetMapping("/{id}")
-    @SaCheckPermission("tenant:read")
+    @RequirePermission("tenant:read")
     public R<AuditLogVO> detail(@PathVariable Long id) {
         return R.ok(auditService.getAuditLog(id));
     }

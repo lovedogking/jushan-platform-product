@@ -19,6 +19,7 @@ import org.springframework.web.socket.messaging.WebSocketStompClient;
 import org.springframework.web.socket.sockjs.client.SockJsClient;
 import org.springframework.web.socket.sockjs.client.Transport;
 import org.springframework.web.socket.sockjs.client.WebSocketTransport;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -71,20 +72,27 @@ class WebSocketInfrastructureTest {
     @ServiceConnection
     static final RabbitMQContainer RABBITMQ = new RabbitMQContainer("rabbitmq:4-management-alpine");
 
+    @Container
+    @ServiceConnection("redis")
+    static final GenericContainer<?> REDIS = new GenericContainer<>("redis:7-alpine")
+            .withExposedPorts(6379);
+
     @BeforeEach
     void setUp() throws Exception {
         // 登录获取 token 用于 WebSocket 认证
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + "/auth/login"))
+                .uri(URI.create("http://localhost:" + port + "/api/v1/auth/login"))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(
-                        "{\"username\":\"admin\",\"password\":\"admin123\"}"))
+                        "{\"username\":\"super_admin\",\"password\":\"admin123\"}"))
                 .build();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).as("登录应成功").isEqualTo(200);
         String body = response.body();
-        int start = body.indexOf("\"accessToken\":\"") + 15;
+        int start = body.indexOf("\"token\":\"") + 9;
         int end = body.indexOf("\"", start);
+        assertThat(start).as("响应中应包含 token").isGreaterThan(8);
         adminToken = body.substring(start, end);
     }
 

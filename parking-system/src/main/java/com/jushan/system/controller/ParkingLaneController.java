@@ -1,6 +1,6 @@
 package com.jushan.system.controller;
 
-import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.jushan.platform.infra.security.RequirePermission;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.jushan.common.R;
 import com.jushan.system.dto.CreateLaneRequest;
@@ -30,7 +30,7 @@ import java.util.Map;
  * @since 1.0.0
  */
 @RestController
-@RequestMapping("/admin/lanes")
+@RequestMapping("/api/admin/lanes")
 public class ParkingLaneController {
 
     private static final Logger log = LoggerFactory.getLogger(ParkingLaneController.class);
@@ -53,7 +53,7 @@ public class ParkingLaneController {
      * @param direction    方向筛选（可选：ENTRY / EXIT / MIXED）
      */
     @GetMapping
-    @SaCheckPermission("parking:read")
+    @RequirePermission("parking:read")
     public R<IPage<ParkingLaneVO>> list(@RequestParam(defaultValue = "1") int page,
                                          @RequestParam(defaultValue = "20") int size,
                                          @RequestParam(required = false) Long parkingLotId,
@@ -69,7 +69,7 @@ public class ParkingLaneController {
      * 权限：parking:read
      */
     @GetMapping("/{id}")
-    @SaCheckPermission("parking:read")
+    @RequirePermission("parking:read")
     public R<ParkingLaneVO> detail(@PathVariable Long id) {
         ParkingLaneVO vo = laneService.get(id);
         return R.ok(vo);
@@ -81,7 +81,7 @@ public class ParkingLaneController {
      * 权限：parking:write
      */
     @PostMapping
-    @SaCheckPermission("parking:write")
+    @RequirePermission("parking:write")
     public R<ParkingLaneVO> create(@Valid @RequestBody CreateLaneRequest request) {
         ParkingLaneVO vo = laneService.create(request);
         log.info("创建车道成功: laneId={}, parkingLotId={}, name={}, direction={}",
@@ -95,7 +95,7 @@ public class ParkingLaneController {
      * 权限：parking:write
      */
     @PutMapping("/{id}")
-    @SaCheckPermission("parking:write")
+    @RequirePermission("parking:write")
     public R<ParkingLaneVO> update(@PathVariable Long id, @Valid @RequestBody UpdateLaneRequest request) {
         ParkingLaneVO vo = laneService.update(id, request);
         log.info("更新车道成功: laneId={}", id);
@@ -111,7 +111,7 @@ public class ParkingLaneController {
      * @param body   包含 action 字段：ENABLED / DISABLED
      */
     @PostMapping("/{id}/status")
-    @SaCheckPermission("parking:write")
+    @RequirePermission("parking:write")
     public R<Void> updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
         String action = body.get("action");
         laneService.updateStatus(id, action);

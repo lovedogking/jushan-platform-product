@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: parking_system/external_client
+title: 外部设备访问客户端与识别事件总线
+scope:
+    - parking-system/src/main/java/com/jushan/system/client/
+    - parking-system/src/main/java/com/jushan/system/event/
+source_files: []
+depends_on: []
+related_to:
+    - path: parking_system/parking_operations

@@ -113,7 +113,7 @@
         <a-form-item label="目标车道">
           <a-select v-model:value="selectedLaneId" placeholder="请选择车道">
             <a-select-option v-for="l in laneOptions" :key="l.id" :value="l.id">
-              {{ l.name }} ({{ l.direction === 'ENTRY' ? '入口' : l.direction === 'EXIT' ? '出口' : '混合' }})
+              {{ l.name }} ({{ l.type === 1 ? '入口' : l.type === 2 ? '出口' : '双向' }})
             </a-select-option>
           </a-select>
         </a-form-item>
@@ -169,7 +169,7 @@ import {
   type DeviceVO, type DeviceStatusVO, type DeviceVendor, type DeviceModel,
 } from '@/api/device'
 import { getParkingLots, type ParkingLotVO } from '@/api/parking-lot'
-import { getLanes, type ParkingLaneVO } from '@/api/parking-lane'
+import { getParkingLanes, type ParkingLaneVO } from '@/api/parking-lane'
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
@@ -265,10 +265,10 @@ async function loadSnapshots(deviceIds: number[]) {
 
 async function loadOptions() {
   const [lotsRes, vendorsRes] = await Promise.all([
-    getParkingLots({ page: 1, size: 100 }),
+    getParkingLots({ current: 1, size: 100 }),
     getVendors(),
   ])
-  parkingLotOptions.value = lotsRes.records.filter(l => l.status === 'ENABLED')
+  parkingLotOptions.value = lotsRes.records.filter(l => l.status === 1)
   vendorOptions.value = vendorsRes
 }
 
@@ -358,7 +358,7 @@ async function handleBindLane(record: any) {
   selectedLaneId.value = undefined
   // 加载同停车场已启用车道
   try {
-    const res = await getLanes({ page: 1, size: 50, parkingLotId: record.parkingLotId, status: 'ENABLED' })
+    const res = await getParkingLanes({ current: 1, size: 50, lotId: record.parkingLotId, status: 1 })
     laneOptions.value = res.records
   } catch { laneOptions.value = [] }
   laneModalOpen.value = true

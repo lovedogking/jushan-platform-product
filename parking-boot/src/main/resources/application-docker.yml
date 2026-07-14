@@ -11,7 +11,6 @@
 # =============================================================================
 
 spring:
-
   # ---- 数据源（通过 Docker 端口映射连接） ----
   datasource:
     url: jdbc:mysql://localhost:${DB_PORT:3307}/jushan_platform?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
@@ -35,7 +34,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6378}
-      password: ${REDIS_PASSWORD:}
+      password: ${REDIS_PASSWORD:jushan_dev}
       database: 0
       timeout: 3000ms
       lettuce:
@@ -53,35 +52,26 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
     virtual-host: ${RABBITMQ_VHOST:/}
 
-# ---- Sa-Token —— Redis 会话 ----
-sa-token:
-  token-name: Authorization
-  timeout: 86400
-  active-timeout: 1800
-  is-concurrent: true
-  is-share: false
-  token-style: tik
-  is-log: false
-  is-print: false
-  # Docker 环境下 Redis 已可用，使用 Redis 存储会话
-  alone-redis:
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT_INT:6379}
-    password: ${REDIS_PASSWORD:}
-    database: 1
-
 # ---- Actuator ----
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
+    prometheus:
+      enabled: true
 
 # ---- 日志 ----
 logging:
   level:
     root: INFO
     com.jushan: DEBUG
+    com.baomidou.mybatisplus: DEBUG
+    org.apache.ibatis: DEBUG
+
+# ---- P云支付 Mock 模式（本地开发联调） ----
+pyun:
+  mock: true

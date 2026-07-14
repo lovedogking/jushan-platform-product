@@ -1,34 +1,26 @@
 package com.jushan.framework.ws;
 
-import cn.dev33.satoken.stp.StpUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.util.StringUtils;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import java.util.Base64;
 import java.util.Map;
 
 /**
  * WebSocket 握手鉴权拦截器。
- * <p>
- * 在 WebSocket 升级握手阶段验证 Sa-Token 会话：
- * <ul>
- *   <li>从握手请求中提取 token 参数或 header</li>
- *   <li>验证 token 有效性并获取登录用户</li>
- *   <li>未认证连接直接拒绝握手</li>
- *   <li>认证成功后将登录信息写入握手属性，供后续消息拦截器使用</li>
- * </ul>
- * <p>
- * <strong>Token 提取优先级</strong>：
- * <ol>
- *   <li>URL 查询参数 {@code token}</li>
- *   <li>握手请求头 {@code Authorization}</li>
- * </ol>
- * <p>
- * <strong>T12 之前</strong>：当前未实现登录，所有连接均放行（保留 hook 占位）。
- * 后续 T12 实现登录后，将{@code ALLOW_UNAUTHENTICATED} 改为 {@code false} 即可启用。
+ *
+ * 在 WebSocket 升级握手阶段从 JWT Token 中解析用户标识和租户上下文，
+ * 认证成功后将信息写入握手属性，供后续消息拦截器使用。
+ *
+ * Token 提取优先级：
+ *   1. URL 查询参数 {@code token}
+ *   2. 握手请求头 {@code Authorization}
  *
  * @author Jushan Platform
  * @since 1.0.0
@@ -37,74 +29,73 @@ public class WsAuthHandshakeInterceptor implements HandshakeInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(WsAuthHandshakeInterceptor.class);
 
-    /**
-     * 是否允许未认证连接。
-     * <p>
-     * <strong>P0 安全修复（FIX-03）</strong>：T12 登录已实现，不再允许匿名 WebSocket 连接。
-     * 所有非公开业务 WebSocket 必须在握手时校验有效登录态。
-     */
-    private static final boolean ALLOW_UNAUTHENTICATED = false;
-
     static final String TOKEN_PARAM = "token";
     static final String AUTH_HEADER = "Authorization";
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Map<String, Object> attributes) {
         String token = extractToken(request);
 
-        if (token == null || token.isBlank()) {
-            if (ALLOW_UNAUTHENTICATED) {
-                log.debug("WebSocket 握手无 token，当前阶段放行: uri={}", request.getURI());
-                return true;
-            }
+        if (!StringUtils.hasText(token)) {
             log.warn("WebSocket 握手被拒绝：未提供 token, uri={}", request.getURI());
             return false;
         }
 
-        // 验证 token
-        Object loginId;
-        try {
-            loginId = StpUtil.getLoginIdByToken(token);
-        } catch (Exception e) {
-            if (ALLOW_UNAUTHENTICATED) {
-                log.warn("WebSocket token 验证失败，当前阶段放行: uri={} error={}",
-                        request.getURI(), e.getMessage());
-                return true;
-            }
+        JwtPayload jwtPayload = resolveJwtPayload(token);
+        if (jwtPayload == null || jwtPayload.userId == null) {
             log.warn("WebSocket 握手被拒绝：token 无效, uri={}", request.getURI());
             return false;
         }
 
-        log.debug("WebSocket 握手认证成功: loginId={} uri={}", loginId, request.getURI());
-
-        // 写入认证信息到握手属性
-        attributes.put(WsSessionContext.KEY_LOGIN_ID, loginId);
+        attributes.put(WsSessionContext.KEY_LOGIN_ID, jwtPayload.userId);
         attributes.put(WsSessionContext.KEY_SESSION_ID, request.getURI().getPath());
-
-        // FIX-03：从 User-Session 读取租户上下文，使通道拦截器可进行数据范围校验
-        try {
-            Long userId = Long.valueOf(loginId.toString());
-            cn.dev33.satoken.session.SaSession userSession =
-                    StpUtil.getSessionByLoginId(userId, false);
-            if (userSession != null) {
-                Object tenantIdObj = userSession.get(
-                        com.jushan.framework.auth.TenantContext.SESSION_KEY_TENANT_ID);
-                Object userTypeObj = userSession.get(
-                        com.jushan.framework.auth.TenantContext.SESSION_KEY_USER_TYPE);
-                if (tenantIdObj != null) {
-                    attributes.put(WsSessionContext.KEY_TENANT_ID, tenantIdObj);
-                }
-                if (userTypeObj != null) {
-                    attributes.put(WsSessionContext.KEY_USER_TYPE, userTypeObj);
-                }
-            }
-        } catch (Exception e) {
-            log.warn("WebSocket 握手阶段读取租户上下文失败: loginId={} error={}",
-                    loginId, e.getMessage());
+        if (jwtPayload.tenantId != null) {
+            attributes.put(WsSessionContext.KEY_TENANT_ID, jwtPayload.tenantId);
         }
-
+        if (jwtPayload.userType != null) {
+            attributes.put(WsSessionContext.KEY_USER_TYPE, jwtPayload.userType);
+        }
+        log.debug("WebSocket 握手 JWT 认证成功: userId={} tenantId={} uri={}",
+                jwtPayload.userId, jwtPayload.tenantId, request.getURI());
         return true;
+    }
+
+    /**
+     * 解析 JWT payload（不校验签名，签名由前置 Spring Security 过滤器统一校验）。
+     *
+     * @param token JWT Token
+     * @return payload 对象，解析失败返回 null
+     */
+    private JwtPayload resolveJwtPayload(String token) {
+        if (token.chars().filter(ch -> ch == '.').count() != 2) {
+            return null;
+        }
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length != 3) {
+                return null;
+            }
+            String payloadJson = new String(base64UrlDecode(parts[1]));
+            Map<String, Object> payload = objectMapper.readValue(payloadJson, Map.class);
+            JwtPayload result = new JwtPayload();
+            Object sub = payload.get("sub");
+            result.userId = sub != null ? Long.valueOf(sub.toString()) : null;
+            Object tenantId = payload.get("tenantId");
+            result.tenantId = tenantId != null ? Long.valueOf(tenantId.toString()) : null;
+            result.userType = payload.get("userType") != null ? payload.get("userType").toString() : null;
+            return result;
+        } catch (Exception e) {
+            log.debug("JWT payload 解析失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private byte[] base64UrlDecode(String input) {
+        String padded = input + "=".repeat((4 - input.length() % 4) % 4);
+        return Base64.getUrlDecoder().decode(padded);
     }
 
     @Override
@@ -131,9 +122,19 @@ public class WsAuthHandshakeInterceptor implements HandshakeInterceptor {
         // 2) 握手请求头 Authorization
         var authHeaders = request.getHeaders().get(AUTH_HEADER);
         if (authHeaders != null && !authHeaders.isEmpty()) {
-            return authHeaders.get(0);
+            String header = authHeaders.get(0);
+            if (header.startsWith("Bearer ")) {
+                return header.substring(7);
+            }
+            return header;
         }
 
         return null;
+    }
+
+    private static class JwtPayload {
+        Long userId;
+        Long tenantId;
+        String userType;
     }
 }

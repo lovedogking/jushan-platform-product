@@ -3,7 +3,7 @@ package com.jushan.system.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
-import com.jushan.framework.auth.TenantContext;
+import com.jushan.common.auth.TenantContext;
 import com.jushan.system.entity.EmployeeParkingLot;
 import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.mapper.EmployeeParkingLotMapper;
@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
  * <strong>数据范围规则</strong>：
  * <ul>
  *   <li>平台用户（super_admin / platform_operator）：全平台所有停车场</li>
- *   <li>代理模式（平台代操作）：目标租户全部停车场</li>
  *   <li>客户管理员（customer_admin）：本租户全部停车场</li>
  *   <li>受限角色（parking_manager / device_maintenance / finance / booth_operator）：
  *       仅 {@code employee_parking_lot} 表中明确授权的停车场</li>
@@ -87,13 +86,7 @@ public class ParkingLotScopeResolver {
             return null;
         }
 
-        // 2. 代理模式：目标租户全量
-        if (ctx.isProxy()) {
-            log.debug("代理模式：平台用户 {} 代操作租户 {}", ctx.proxyOperatorId(), ctx.proxyTargetTenantId());
-            return null;
-        }
-
-        // 3. 租户用户
+        // 2. 租户用户
         Long tenantId = ctx.tenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED,
@@ -102,13 +95,13 @@ public class ParkingLotScopeResolver {
 
         List<String> roles = parseRoles(ctx.roles());
 
-        // 4. 客户管理员：本租户全部停车场
+        // 3. 客户管理员：本租户全部停车场
         if (hasAnyRole(roles, FULL_TENANT_ACCESS_ROLES)) {
             log.debug("全量租户角色（{}），返回本租户全部停车场", roles);
             return null;
         }
 
-        // 5. 受限角色：从 employee_parking_lot 查询授权
+        // 4. 受限角色：从 employee_parking_lot 查询授权
         Long userId = ctx.userId();
         if (userId == null) {
             log.warn("受限角色但 userId 为空，返回空集合: roles={}", roles);
@@ -196,7 +189,7 @@ public class ParkingLotScopeResolver {
     }
 
     /**
-     * 判断当前是否为全量访问角色（平台用户 / 代理模式 / 客户管理员）。
+     * 判断当前是否为全量访问角色（平台用户 / 客户管理员）。
      * <p>
      * 供调用方在列表查询中决定是否需要添加停车场 IN 过滤条件。
      *

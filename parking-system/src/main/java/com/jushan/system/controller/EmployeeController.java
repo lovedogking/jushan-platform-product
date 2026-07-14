@@ -1,6 +1,6 @@
 package com.jushan.system.controller;
 
-import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.jushan.platform.infra.security.RequirePermission;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.jushan.common.R;
 import com.jushan.system.dto.CreateEmployeeRequest;
@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
  * @since 1.0.0
  */
 @RestController
-@RequestMapping("/admin/employees")
+@RequestMapping("/api/admin/employees")
 public class EmployeeController {
 
     private static final Logger log = LoggerFactory.getLogger(EmployeeController.class);
@@ -44,7 +44,7 @@ public class EmployeeController {
      * @param status 状态筛选（可选：ENABLED / DISABLED）
      */
     @GetMapping
-    @SaCheckPermission("user:read")
+    @RequirePermission("user:read")
     public R<IPage<EmployeeVO>> list(@RequestParam(defaultValue = "1") int page,
                                       @RequestParam(defaultValue = "20") int size,
                                       @RequestParam(required = false) String status) {
@@ -58,7 +58,7 @@ public class EmployeeController {
      * 权限：user:read
      */
     @GetMapping("/{id}")
-    @SaCheckPermission("user:read")
+    @RequirePermission("user:read")
     public R<EmployeeVO> detail(@PathVariable Long id) {
         EmployeeVO vo = employeeService.getEmployee(id);
         return R.ok(vo);
@@ -70,7 +70,7 @@ public class EmployeeController {
      * 权限：user:write
      */
     @PostMapping
-    @SaCheckPermission("user:write")
+    @RequirePermission("user:write")
     public R<EmployeeVO> create(@Valid @RequestBody CreateEmployeeRequest request) {
         EmployeeVO vo = employeeService.createEmployee(request);
         log.info("创建员工成功: employeeId={}, role={}", vo.getId(), vo.getRoleCode());
@@ -83,7 +83,7 @@ public class EmployeeController {
      * 权限：user:write
      */
     @PutMapping("/{id}")
-    @SaCheckPermission("user:write")
+    @RequirePermission("user:write")
     public R<EmployeeVO> update(@PathVariable Long id, @Valid @RequestBody UpdateEmployeeRequest request) {
         EmployeeVO vo = employeeService.updateEmployee(id, request);
         log.info("更新员工成功: employeeId={}", id);
@@ -96,7 +96,7 @@ public class EmployeeController {
      * 权限：user:write
      */
     @PostMapping("/{id}/reset-password")
-    @SaCheckPermission("user:write")
+    @RequirePermission("user:write")
     public R<Void> resetPassword(@PathVariable Long id, @Valid @RequestBody ResetPasswordRequest request) {
         employeeService.resetPassword(id, request);
         log.info("重置员工密码成功: employeeId={}", id);
@@ -112,7 +112,7 @@ public class EmployeeController {
      * @param action 操作类型：ENABLED / DISABLED
      */
     @PostMapping("/{id}/status")
-    @SaCheckPermission("user:write")
+    @RequirePermission("user:write")
     public R<Void> updateStatus(@PathVariable Long id, @RequestParam String action) {
         employeeService.updateStatus(id, action);
         log.info("更新员工状态成功: employeeId={}, action={}", id, action);

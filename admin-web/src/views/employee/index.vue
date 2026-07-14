@@ -141,8 +141,8 @@ async function fetchData() {
 }
 
 async function loadParkingLots() {
-  const res = await getParkingLots({ page: 1, size: 100 })
-  parkingLotOptions.value = res.records.filter(l => l.status === 'ENABLED')
+  const res = await getParkingLots({ current: 1, size: 100 })
+  parkingLotOptions.value = res.records.filter(l => l.status === 1)
 }
 
 function handleQuery() { pagination.current = 1; fetchData() }

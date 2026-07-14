@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jushan.platform.modules.log.mapper.SysBusinessLogMapper">
+
+    <!-- 插入业务操作日志 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_business_log (
+            tenant_id,
+            operator_id,
+            operator_name,
+            ip,
+            operation_type,
+            operation_object,
+            object_id,
+            before_value,
+            after_value,
+            result,
+            error_msg,
+            created_at
+        ) VALUES (
+            #{tenantId},
+            #{operatorId},
+            #{operatorName},
+            #{ip},
+            #{operationType},
+            #{operationObject},
+            #{objectId},
+            #{beforeValue},
+            #{afterValue},
+            #{result},
+            #{errorMsg},
+            #{createdAt}
+        )
+    </insert>
+
+</mapper>

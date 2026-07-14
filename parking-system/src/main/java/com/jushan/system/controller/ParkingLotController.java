@@ -1,6 +1,6 @@
 package com.jushan.system.controller;
 
-import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.jushan.platform.infra.security.RequirePermission;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.jushan.common.R;
 import com.jushan.system.dto.CreateParkingLotRequest;
@@ -33,7 +33,7 @@ import org.springframework.web.bind.annotation.*;
  * @since 1.0.0
  */
 @RestController
-@RequestMapping("/admin/parking-lots")
+@RequestMapping("/api/admin/parking-lots")
 public class ParkingLotController {
 
     private static final Logger log = LoggerFactory.getLogger(ParkingLotController.class);
@@ -57,7 +57,7 @@ public class ParkingLotController {
      * @param status 状态筛选（可选：ENABLED / DISABLED）
      */
     @GetMapping
-    @SaCheckPermission("parking:read")
+    @RequirePermission("parking:read")
     public R<IPage<ParkingLotVO>> list(@RequestParam(defaultValue = "1") int page,
                                         @RequestParam(defaultValue = "20") int size,
                                         @RequestParam(required = false) String status) {
@@ -71,7 +71,7 @@ public class ParkingLotController {
      * 权限：parking:read
      */
     @GetMapping("/{id}")
-    @SaCheckPermission("parking:read")
+    @RequirePermission("parking:read")
     public R<ParkingLotVO> detail(@PathVariable Long id) {
         ParkingLotVO vo = parkingLotService.get(id);
         return R.ok(vo);
@@ -83,7 +83,7 @@ public class ParkingLotController {
      * 权限：parking:write（仅客户管理员）
      */
     @PostMapping
-    @SaCheckPermission("parking:write")
+    @RequirePermission("parking:write")
     public R<ParkingLotVO> create(@Valid @RequestBody CreateParkingLotRequest request) {
         ParkingLotVO vo = parkingLotService.create(request);
         log.info("创建停车场成功: parkingLotId={}, name={}", vo.getId(), vo.getName());
@@ -96,7 +96,7 @@ public class ParkingLotController {
      * 权限：parking:write
      */
     @PutMapping("/{id}")
-    @SaCheckPermission("parking:write")
+    @RequirePermission("parking:write")
     public R<ParkingLotVO> update(@PathVariable Long id, @Valid @RequestBody UpdateParkingLotRequest request) {
         ParkingLotVO vo = parkingLotService.update(id, request);
         log.info("更新停车场成功: parkingLotId={}", id);
@@ -114,7 +114,7 @@ public class ParkingLotController {
      * @param request 状态变更请求（action: ENABLED / DISABLED）
      */
     @PostMapping("/{id}/status")
-    @SaCheckPermission("parking:disable")
+    @RequirePermission("parking:disable")
     public R<Void> updateStatus(@PathVariable Long id, @Valid @RequestBody ParkingLotStatusRequest request) {
         parkingLotService.updateStatus(id, request);
         log.info("停车场状态变更成功: parkingLotId={}, action={}", id, request.getAction());
@@ -132,7 +132,7 @@ public class ParkingLotController {
      * @param request 容量变更请求（fieldName: total_spaces / remaining_spaces, value, reason）
      */
     @PostMapping("/{id}/capacity")
-    @SaCheckPermission("parking:write")
+    @RequirePermission("parking:write")
     public R<Void> updateCapacity(@PathVariable Long id, @Valid @RequestBody ParkingLotCapacityRequest request) {
         parkingLotService.updateCapacity(id, request);
         log.info("停车场容量变更成功: parkingLotId={}, field={}, value={}",
@@ -155,7 +155,7 @@ public class ParkingLotController {
      * @return 就绪检查结果（含详细检查项列表）
      */
     @GetMapping("/{id}/readiness")
-    @SaCheckPermission("parking:read")
+    @RequirePermission("parking:read")
     public R<ParkingLotReadinessVO> checkReadiness(@PathVariable Long id) {
         ParkingLotReadinessVO vo = readinessCheckService.check(id);
         log.info("就绪检查完成: parkingLotId={}, ready={}, blockers={}, warnings={}",

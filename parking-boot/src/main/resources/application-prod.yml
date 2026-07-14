@@ -12,7 +12,6 @@ server:
   port: ${SERVER_PORT:8080}
 
 spring:
-
   # ---- 数据源 ----
   datasource:
     url: ${DB_URL}
@@ -53,26 +52,24 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
     virtual-host: ${RABBITMQ_VHOST:/}
 
-# ---- Sa-Token ----
-sa-token:
-  token-name: ${SA_TOKEN_NAME:Authorization}
-  timeout: ${SA_TOKEN_TIMEOUT:86400}
-  active-timeout: ${SA_TOKEN_ACTIVE_TIMEOUT:1800}
-  is-concurrent: true
-  is-share: false
-  token-style: tik
-  is-log: false
-  is-print: false
-
 # ---- Actuator 生产安全模式 ----
 management:
   endpoint:
     health:
       show-details: never
+    prometheus:
+      enabled: true
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
+
+# ---- springdoc-openapi 生产环境关闭 ----
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
 
 # ---- 生产日志 ----
 logging:

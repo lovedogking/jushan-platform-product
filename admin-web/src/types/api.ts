@@ -4,6 +4,7 @@ export interface ApiResponse<T = any> {
   message: string
   data: T
   traceId: string
+  errors?: any
 }
 
 // 分页请求参数
@@ -12,7 +13,7 @@ export interface PageParams {
   pageSize?: number
 }
 
-// 分页返回结果
+// 分页返回结果（与后端 MyBatis-Plus IPage 对齐）
 export interface PageResult<T> {
   records: T[]
   total: number
@@ -27,28 +28,28 @@ export interface LoginParams {
   password: string
 }
 
-// 登录返回（与后端 /api/auth/login 响应 data 对齐）
+// 登录返回（与后端 /api/v1/auth/login 响应 data 对齐）
 export interface LoginResult {
-  accessToken: string
-  tokenType: string
-  expiresInSeconds: number
-  user: LoginUser
+  token: string
+  refreshToken: string
+  userInfo: LoginUser
+  permissions: string[]
 }
 
 // 登录用户
 export interface LoginUser {
-  userId: string
+  userId: number
   username: string
-  displayName: string
-  roles: string[]
-  permissions: string[]
+  realName: string
+  level: number
+  tenantId?: number
 }
 
-// 当前会话用户（与后端 /api/auth/session 响应 data 对齐）
+// 当前会话用户（与后端 /api/v1/auth/userinfo 响应 data 对齐）
 export interface UserInfo {
-  userId: string
+  userId: number
   username: string
-  displayName: string
-  roles: string[]
-  permissions: string[]
+  realName: string
+  level: number
+  tenantId?: number
 }

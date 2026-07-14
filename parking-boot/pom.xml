@@ -16,10 +16,10 @@
     <description>应用启动入口、自动装配、健康检查、跨模块组件扫描</description>
 
     <dependencies>
-        <!-- 内部模块（framework 传递依赖 common） -->
+        <!-- 内部模块（infrastructure 传递依赖 common） -->
         <dependency>
             <groupId>com.jushan</groupId>
-            <artifactId>parking-framework</artifactId>
+            <artifactId>parking-infrastructure</artifactId>
         </dependency>
         <dependency>
             <groupId>com.jushan</groupId>
@@ -42,6 +42,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Micrometer Prometheus Registry（P002：Device Access 指标暴露） -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
 
         <!-- Spring Boot JDBC（JdbcTemplate、HikariCP 等数据库基础能力） -->
@@ -103,6 +109,21 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>rabbitmq</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- REST Assured (Jakarta-compatible) -->
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <version>5.5.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Awaitility for async assertions -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
 

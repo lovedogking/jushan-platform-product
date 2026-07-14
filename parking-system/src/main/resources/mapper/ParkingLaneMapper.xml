@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jushan.platform.modules.parking.mapper.ParkingLaneMapper">
+
+    <select id="selectListByLotIdAndZoneId" resultType="com.jushan.platform.modules.parking.entity.ParkingLane">
+        SELECT *
+        FROM parking_lane
+        WHERE lot_id = #{lotId}
+        <if test="zoneId != null">
+            AND zone_id = #{zoneId}
+        </if>
+        AND deleted_at IS NULL
+        ORDER BY type, created_at DESC
+    </select>
+
+</mapper>

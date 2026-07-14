@@ -70,8 +70,8 @@ service.interceptors.response.use(
     NProgress.done()
     const { data, config } = response
     const silentError = (config as AxiosRequestConfig & { silentError?: boolean }).silentError
-    // 业务成功码为 0
-    if (data.code === 0) {
+    // 业务成功码为 200（与后端 CommonErrorCode.SUCCESS 对齐）
+    if (data.code === 200) {
       return data.data
     }
     // 业务错误（保留 traceId 供上层使用）

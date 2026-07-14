@@ -33,18 +33,20 @@
 
         <!-- 第三方依赖版本 -->
         <mybatis-plus.version>3.5.9</mybatis-plus.version>
-        <sa-token.version>1.42.0</sa-token.version>
         <flyway.version>10.22.0</flyway.version>
         <hutool.version>5.8.35</hutool.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <testcontainers.version>1.20.6</testcontainers.version>
+
+        <!-- Micrometer 版本由 Spring Boot 父 POM 管理，无需显式声明 -->
     </properties>
 
     <!-- =============== 子模块列表 =============== -->
     <modules>
         <module>parking-common</module>
         <module>parking-framework</module>
+        <module>parking-infrastructure</module>
         <module>parking-system</module>
         <module>parking-boot</module>
     </modules>
@@ -56,6 +58,11 @@
             <dependency>
                 <groupId>com.jushan</groupId>
                 <artifactId>parking-common</artifactId>
+                <version>${jushan.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jushan</groupId>
+                <artifactId>parking-infrastructure</artifactId>
                 <version>${jushan.version}</version>
             </dependency>
             <dependency>
@@ -81,18 +88,6 @@
                 <version>${mybatis-plus.version}</version>
             </dependency>
 
-            <!-- ===== Sa-Token ===== -->
-            <dependency>
-                <groupId>cn.dev33</groupId>
-                <artifactId>sa-token-spring-boot3-starter</artifactId>
-                <version>${sa-token.version}</version>
-            </dependency>
-            <!-- Sa-Token Redis 集成（会话存入 Redis） -->
-            <dependency>
-                <groupId>cn.dev33</groupId>
-                <artifactId>sa-token-redis-jackson</artifactId>
-                <version>${sa-token.version}</version>
-            </dependency>
             <!-- ===== Flyway ===== -->
             <dependency>
                 <groupId>org.flywaydb</groupId>
@@ -133,6 +128,13 @@
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-pool2</artifactId>
                 <version>2.12.1</version>
+            </dependency>
+
+            <!-- ===== springdoc-openapi（API 文档自动生成） ===== -->
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>2.6.0</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

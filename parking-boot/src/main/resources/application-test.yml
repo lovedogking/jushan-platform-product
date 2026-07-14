@@ -48,22 +48,6 @@ jushan:
     connect-timeout: 3000
     read-timeout: 12000
 
-# ---- Sa-Token ----
-sa-token:
-  token-name: Authorization
-  token-prefix: Bearer
-  timeout: 86400
-  active-timeout: 1800
-  is-concurrent: true
-  is-share: false
-  token-style: tik
-  is-log: false
-  is-print: false
-  # P0 安全：仅从 Header 读取 Token，关闭 Cookie/Body 来源
-  is-read-header: true
-  is-read-cookie: false
-  is-read-body: false
-
 # ---- Actuator 测试模式 ----
 management:
   endpoint:

@@ -62,6 +62,11 @@ public final class WsSessionContext {
         return null;
     }
 
+    public static String getUserType() {
+        Object v = get(KEY_USER_TYPE);
+        return v != null ? v.toString() : null;
+    }
+
     public static String getSessionId() {
         Object v = get(KEY_SESSION_ID);
         return v != null ? v.toString() : null;

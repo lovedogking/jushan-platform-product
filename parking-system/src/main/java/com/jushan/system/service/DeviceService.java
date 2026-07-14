@@ -7,19 +7,21 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.framework.auth.DataScope;
-import com.jushan.framework.auth.TenantContext;
+import com.jushan.common.auth.TenantContext;
 import com.jushan.system.client.DeviceAccessClient;
 import com.jushan.system.client.dto.DeviceStatusDTO;
 import com.jushan.system.client.dto.TimeSyncResultDTO;
 import com.jushan.system.dto.CreateDeviceRequest;
 import com.jushan.system.dto.UpdateDeviceRequest;
 import com.jushan.system.entity.Device;
+import com.jushan.system.entity.DeviceCommandAudit;
 import com.jushan.system.entity.DeviceModel;
 import com.jushan.system.entity.DeviceStatusSnapshot;
 import com.jushan.system.entity.DeviceVendor;
 import com.jushan.system.entity.ParkingLane;
 import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.entity.SysAuditLog;
+import com.jushan.system.mapper.DeviceCommandAuditMapper;
 import com.jushan.system.mapper.DeviceMapper;
 import com.jushan.system.mapper.DeviceModelMapper;
 import com.jushan.system.mapper.DeviceStatusSnapshotMapper;
@@ -74,6 +76,22 @@ public class DeviceService {
     public static final String STATUS_ENABLED = "ENABLED";
     public static final String STATUS_DISABLED = "DISABLED";
 
+    /** 设备命令类型（P001） */
+    public static final String COMMAND_TYPE_OPEN_GATE = "OPEN_GATE";
+
+    /** 命令来源（P001） */
+    public static final String SOURCE_MANUAL = "MANUAL";
+    public static final String SOURCE_SYSTEM = "SYSTEM";
+    public static final String SOURCE_AUTO_EXIT = "AUTO_EXIT";
+
+    /** 命令审计状态（P001） */
+    public static final String AUDIT_STATUS_PENDING = "PENDING";
+    public static final String AUDIT_STATUS_SUCCESS = "SUCCESS";
+    public static final String AUDIT_STATUS_FAILED = "FAILED";
+    public static final String AUDIT_STATUS_UNCERTAIN = "UNCERTAIN";
+    public static final String AUDIT_STATUS_REJECTED = "REJECTED";
+    public static final String AUDIT_STATUS_NOT_IMPLEMENTED = "NOT_IMPLEMENTED";
+
     /** 设备类型 */
     private static final List<String> VALID_DEVICE_TYPES = List.of("CAMERA", "GATE");
 
@@ -92,6 +110,7 @@ public class DeviceService {
     private final DeviceAccessClient deviceAccessClient;
     private final DeviceStatusSnapshotMapper snapshotMapper;
     private final SysAuditLogMapper auditLogMapper;
+    private final DeviceCommandAuditMapper commandAuditMapper;
     private final ParkingLotScopeResolver scopeResolver;
 
     public DeviceService(DeviceMapper deviceMapper,
@@ -102,6 +121,7 @@ public class DeviceService {
                          DeviceAccessClient deviceAccessClient,
                          DeviceStatusSnapshotMapper snapshotMapper,
                          SysAuditLogMapper auditLogMapper,
+                         DeviceCommandAuditMapper commandAuditMapper,
                          ParkingLotScopeResolver scopeResolver) {
         this.deviceMapper = deviceMapper;
         this.vendorMapper = vendorMapper;
@@ -111,6 +131,7 @@ public class DeviceService {
         this.deviceAccessClient = deviceAccessClient;
         this.snapshotMapper = snapshotMapper;
         this.auditLogMapper = auditLogMapper;
+        this.commandAuditMapper = commandAuditMapper;
         this.scopeResolver = scopeResolver;
     }
 
@@ -609,10 +630,7 @@ public class DeviceService {
         if (ctx != null) {
             audit.setOperatorId(ctx.userId() != null ? ctx.userId() : 0L);
             audit.setOperatorName("userId=" + (ctx.userId() != null ? ctx.userId() : "unknown"));
-            audit.setIsProxy(ctx.isProxy() ? 1 : 0);
-            if (ctx.isProxy()) {
-                audit.setTargetTenantId(ctx.proxyTargetTenantId());
-            }
+            audit.setIsProxy(0);
         } else {
             audit.setOperatorId(0L);
             audit.setOperatorName("system");
@@ -629,6 +647,125 @@ public class DeviceService {
         audit.setReason(reason != null ? reason : "");
 
         auditLogMapper.insert(audit);
+    }
+
+    // ==================== 开闸占位（P001） ====================
+
+    /**
+     * 开闸占位方法。
+     * <p>
+     * Device Access v0.2 中开闸为 {@code NOT_IMPLEMENTED_IN_V0.2}，本方法仅用于：
+     * <ol>
+     *   <li>校验设备权限、状态和能力范围</li>
+     *   <li>创建结构化 {@code device_command_audit} 审计记录</li>
+     *   <li>调用 {@link DeviceAccessClient#openGate(String)} 占位接口</li>
+     * </ol>
+     * 真实开闸逻辑需在 Device Access v1.0 契约冻结、真机验证（V04）完成后实现。
+     * <p>
+     * <strong>安全约束</strong>：
+     * <ul>
+     *   <li>禁止自动重试开闸</li>
+     *   <li>UNCERTAIN 状态必须人工确认</li>
+     *   <li>前端不得直接传入 device_sn</li>
+     * </ul>
+     *
+     * @param deviceId 平台设备 ID
+     * @param reason   操作原因
+     * @param source   操作来源（MANUAL / SYSTEM / AUTO_EXIT 等）
+     * @param previousCommandId 前次命令 ID（人工再次开闸时填写，可选）
+     */
+    public void openGatePlaceholder(Long deviceId, String reason, String source, String previousCommandId) {
+        Device device = getDeviceWithAuth(deviceId);
+
+        if (!STATUS_ENABLED.equals(device.getStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不能开闸");
+        }
+
+        ParkingLot lot = getParkingLotWithAuth(device.getParkingLotId());
+
+        // 当前仅 GATE 类型设备支持开闸占位；CAMERA 开闸由 executor mapping 在 v1.0 中明确
+        if (!"GATE".equals(device.getDeviceType())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "仅逻辑道闸（GATE）设备支持开闸占位");
+        }
+
+        String deviceSn = device.getDeviceSn();
+        LocalDateTime now = LocalDateTime.now();
+
+        // 构造审计记录（NOT_IMPLEMENTED）
+        DeviceCommandAudit audit = new DeviceCommandAudit();
+        audit.setTenantId(lot.getTenantId());
+        audit.setParkingLotId(device.getParkingLotId());
+        audit.setLaneId(device.getLaneId());
+        audit.setDeviceId(deviceId);
+        audit.setDeviceSn(deviceSn);
+        audit.setCommandType(COMMAND_TYPE_OPEN_GATE);
+        audit.setSource(defaultString(source, SOURCE_MANUAL));
+        audit.setReason(reason != null ? reason : "");
+        audit.setPreviousCommandId(previousCommandId);
+        audit.setStatus(AUDIT_STATUS_NOT_IMPLEMENTED);
+        audit.setUncertain(false);
+        audit.setRequestPayload(buildOpenGateRequestPayload(device, lot));
+        audit.setIssuedAt(now);
+        audit.setCompletedAt(now);
+        audit.setCreatedAt(now);
+        audit.setUpdatedAt(now);
+
+        // 操作人信息
+        TenantContext.Snapshot ctx = TenantContext.get();
+        if (ctx != null) {
+            audit.setOperatorId(ctx.userId());
+            audit.setOperatorName("userId=" + (ctx.userId() != null ? ctx.userId() : "unknown"));
+        } else {
+            audit.setOperatorId(0L);
+            audit.setOperatorName("system");
+        }
+
+        commandAuditMapper.insert(audit);
+
+        // 调用 Client 占位（v0.2 始终抛出 UnsupportedOperationException）
+        try {
+            deviceAccessClient.openGate(deviceSn);
+        } catch (UnsupportedOperationException e) {
+            // 占位预期异常：更新审计记录并抛出业务异常
+            audit.setErrorCode(String.valueOf(CommonErrorCode.UNSUPPORTED_OPERATION.getCode()));
+            audit.setErrorMessage(e.getMessage());
+            audit.setUpdatedAt(LocalDateTime.now());
+            commandAuditMapper.updateById(audit);
+
+            log.warn("开闸占位：Device Access v0.2 未实现开闸，已记录审计: deviceId={}, auditId={}",
+                    deviceId, audit.getId());
+
+            throw new BusinessException(CommonErrorCode.UNSUPPORTED_OPERATION,
+                    "开闸接口在 Device Access v0.2 中未实现（NOT_IMPLEMENTED_IN_V0.2），待 v1.0 契约冻结后启用");
+        }
+    }
+
+    /**
+     * 构造开闸请求上下文 JSON（仅用于审计）。
+     */
+    private String buildOpenGateRequestPayload(Device device, ParkingLot lot) {
+        return "{\"deviceId\":" + device.getId()
+                + ",\"deviceSn\":\"" + escapeJson(device.getDeviceSn())
+                + "\",\"deviceName\":\"" + escapeJson(device.getName())
+                + "\",\"parkingLotId\":" + lot.getId()
+                + ",\"laneId\":" + (device.getLaneId() != null ? device.getLaneId() : "null")
+                + ",\"executorDeviceId\":" + (device.getExecutorDeviceId() != null ? device.getExecutorDeviceId() : "null")
+                + ",\"commandType\":\"" + COMMAND_TYPE_OPEN_GATE + "\"}";
+    }
+
+    /**
+     * 简单 JSON 字符串转义。
+     */
+    private String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     // ==================== 设备状态查询与快照（T24） ====================
@@ -902,7 +1039,7 @@ public class DeviceService {
      * 查询设备并校验停车场归属（通过停车场 → 租户链）。
      */
     private Device getDeviceWithAuth(Long deviceId) {
-        Device device = deviceMapper.selectById(deviceId);
+        Device device = deviceMapper.selectByIdIgnoreTenant(deviceId);
         if (device == null) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "设备不存在");
         }
@@ -918,7 +1055,7 @@ public class DeviceService {
      * 是否有权访问该停车场。设备运维等受限角色仅可访问授权停车场的设备。
      */
     private ParkingLot getParkingLotWithAuth(Long lotId) {
-        ParkingLot lot = parkingLotMapper.selectById(lotId);
+        ParkingLot lot = parkingLotMapper.selectByIdIgnoreTenant(lotId);
         if (lot == null) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "停车场不存在");
         }

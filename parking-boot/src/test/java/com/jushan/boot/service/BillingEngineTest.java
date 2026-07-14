@@ -1,0 +1,261 @@
+package com.jushan.boot.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jushan.common.BusinessException;
+import com.jushan.system.entity.BillingRule;
+import com.jushan.system.entity.BillingRuleVersion;
+import com.jushan.system.mapper.BillingRuleMapper;
+import com.jushan.system.mapper.BillingRuleVersionMapper;
+import com.jushan.system.service.BillingEngine;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDateTime;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+
+/**
+ * 计费引擎单元测试（P004 依赖 P006 计费能力）。
+ *
+ * @author Jushan Platform
+ * @since 1.0.0
+ */
+@ExtendWith(MockitoExtension.class)
+class BillingEngineTest {
+
+    @Mock
+    private BillingRuleMapper ruleMapper;
+
+    @Mock
+    private BillingRuleVersionMapper versionMapper;
+
+    private BillingEngine billingEngine;
+
+    @BeforeEach
+    void setUp() {
+        billingEngine = new BillingEngine(ruleMapper, versionMapper, new ObjectMapper());
+    }
+
+    @Test
+    @DisplayName("无生效规则时抛出业务异常")
+    void shouldThrowWhenNoActiveRule() {
+        when(versionMapper.selectOne(any())).thenReturn(null);
+
+        assertThatThrownBy(() -> billingEngine.calculateFee(1L,
+                LocalDateTime.now().minusHours(2), LocalDateTime.now()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("未配置生效");
+    }
+
+    @Test
+    @DisplayName("NO_FEE 规则费用为 0")
+    void shouldReturnZeroForNoFeeRule() {
+        BillingRule rule = rule(BillingRule.RULE_TYPE_NO_FEE);
+        BillingRuleVersion version = version(0, 0, 0, 0, 0, 0, 0);
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        int fee = billingEngine.calculateFee(1L,
+                LocalDateTime.now().minusHours(5), LocalDateTime.now());
+
+        assertThat(fee).isZero();
+    }
+
+    @Test
+    @DisplayName("FIXED 规则返回固定金额")
+    void shouldReturnFixedAmount() {
+        BillingRule rule = rule(BillingRule.RULE_TYPE_FIXED);
+        BillingRuleVersion version = version(0, 0, 0, 0, 0, 0, 0);
+        version.setFirstAmount(500);
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        int fee = billingEngine.calculateFee(1L,
+                LocalDateTime.now().minusHours(3), LocalDateTime.now());
+
+        assertThat(fee).isEqualTo(500);
+    }
+
+    @Test
+    @DisplayName("HOURLY 规则在免费时段内费用为 0")
+    void shouldReturnZeroWithinFreeMinutes() {
+        BillingRule rule = rule(BillingRule.RULE_TYPE_HOURLY);
+        BillingRuleVersion version = version(30, 60, 500, 30, 200, 0, 0);
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        int fee = billingEngine.calculateFee(1L,
+                LocalDateTime.now().minusMinutes(20), LocalDateTime.now());
+
+        assertThat(fee).isZero();
+    }
+
+    @Test
+    @DisplayName("HOURLY 规则收取首时段 + 后续单位费用")
+    void shouldChargeFirstPeriodAndUnits() {
+        BillingRule rule = rule(BillingRule.RULE_TYPE_HOURLY);
+        BillingRuleVersion version = version(15, 60, 500, 30, 200, 0, 0);
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        // 入场 2 小时 20 分钟前，免费 15 分钟，计费 125 分钟
+        // 首 60 分钟 500 分，剩余 65 分钟按 30 分钟单位向上取整 = 3 单位 = 600 分
+        int fee = billingEngine.calculateFee(1L,
+                LocalDateTime.now().minusMinutes(140), LocalDateTime.now());
+
+        assertThat(fee).isEqualTo(1100);
+    }
+
+    @Test
+    @DisplayName("HOURLY 规则受最大金额封顶")
+    void shouldCapAtMaxAmount() {
+        BillingRule rule = rule(BillingRule.RULE_TYPE_HOURLY);
+        BillingRuleVersion version = version(0, 60, 500, 30, 200, 0, 800);
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        int fee = billingEngine.calculateFee(1L,
+                LocalDateTime.now().minusHours(10), LocalDateTime.now());
+
+        assertThat(fee).isEqualTo(800);
+    }
+
+    @Test
+    @DisplayName("跨天停车按自然日单日封顶")
+    void shouldApplyDailyCapPerCalendarDay() {
+        BillingRule rule = rule(BillingRule.RULE_TYPE_HOURLY);
+        BillingRuleVersion version = version(0, 60, 500, 60, 300, 1000, 5000);
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        LocalDateTime entry = LocalDateTime.of(2026, 7, 10, 12, 0);
+        LocalDateTime exit = LocalDateTime.of(2026, 7, 11, 14, 0);
+        int fee = billingEngine.calculateFee(1L, entry, exit);
+
+        assertThat(fee).isEqualTo(2000);
+    }
+
+    @Test
+    @DisplayName("分时段计费按所在时段单价计算")
+    void shouldApplyTimeSegmentRates() {
+        BillingRule rule = rule(BillingRule.RULE_TYPE_HOURLY);
+        BillingRuleVersion version = versionWithTimeSegments(0, 60, 500, 60, 200,
+                new Segment("08:00", "20:00", 300),
+                new Segment("20:00", "08:00", 100));
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        LocalDateTime entry = LocalDateTime.of(2026, 7, 10, 8, 0);
+        LocalDateTime exit = LocalDateTime.of(2026, 7, 10, 21, 0);
+
+        int fee = billingEngine.calculateFee(1L, entry, exit);
+
+        assertThat(fee).isEqualTo(3900);
+    }
+
+    @Test
+    @DisplayName("分时段规则冲突时失败关闭")
+    void shouldFailCloseOnConflictingTimeSegments() {
+        BillingRule rule = rule(BillingRule.RULE_TYPE_HOURLY);
+        BillingRuleVersion version = versionWithTimeSegments(0, 0, 0, 60, 200,
+                new Segment("08:00", "20:00", 300),
+                new Segment("10:00", "22:00", 100));
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        LocalDateTime entry = LocalDateTime.of(2026, 7, 10, 11, 0);
+        LocalDateTime exit = LocalDateTime.of(2026, 7, 10, 12, 0);
+
+        assertThatThrownBy(() -> billingEngine.calculateFee(1L, entry, exit))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("分时段计费规则存在冲突");
+    }
+
+    @Test
+    @DisplayName("出场时间早于入场时间时抛异常")
+    void shouldRejectExitBeforeEntry() {
+        BillingRule rule = rule(BillingRule.RULE_TYPE_HOURLY);
+        BillingRuleVersion version = version(0, 60, 500, 30, 200, 0, 0);
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        LocalDateTime entry = LocalDateTime.now();
+        LocalDateTime exit = entry.minusHours(1);
+
+        assertThatThrownBy(() -> billingEngine.calculateFee(1L, entry, exit))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("出场时间早于入场时间");
+    }
+
+    @Test
+    @DisplayName("直接基于版本计算时不校验规则启用状态")
+    void shouldCalculateByVersionWithoutRuleCheck() {
+        BillingRuleVersion version = version(0, 60, 500, 30, 200, 0, 0);
+
+        LocalDateTime entry = LocalDateTime.of(2026, 7, 12, 10, 0, 0);
+        LocalDateTime exit = LocalDateTime.of(2026, 7, 12, 11, 0, 0);
+        int fee = billingEngine.calculateFee(version, BillingRule.RULE_TYPE_HOURLY, entry, exit);
+
+        assertThat(fee).isEqualTo(500);
+    }
+
+    private BillingRule rule(String ruleType) {
+        BillingRule rule = new BillingRule();
+        rule.setId(1L);
+        rule.setRuleType(ruleType);
+        rule.setStatus(BillingRule.STATUS_ENABLED);
+        return rule;
+    }
+
+    private BillingRuleVersion version(int freeMinutes, int firstPeriod, int firstAmount,
+                                        int unitPeriod, int unitAmount, int dailyCap, int maxAmount) {
+        BillingRuleVersion version = new BillingRuleVersion();
+        version.setId(1L);
+        version.setRuleId(1L);
+        version.setParkingLotId(1L);
+        version.setIsActive(1);
+        version.setFreeMinutes(freeMinutes);
+        version.setFirstPeriod(firstPeriod);
+        version.setFirstAmount(firstAmount);
+        version.setUnitPeriod(unitPeriod);
+        version.setUnitAmount(unitAmount);
+        version.setDailyCap(dailyCap);
+        version.setMaxAmount(maxAmount);
+        return version;
+    }
+
+    private BillingRuleVersion versionWithTimeSegments(int freeMinutes, int firstPeriod, int firstAmount,
+                                                        int unitPeriod, int unitAmount,
+                                                        Segment... segments) {
+        BillingRuleVersion version = version(freeMinutes, firstPeriod, firstAmount,
+                unitPeriod, unitAmount, 0, 0);
+        StringBuilder config = new StringBuilder();
+        config.append("{");
+        config.append("\"freeMinutes\":").append(freeMinutes).append(",");
+        config.append("\"firstPeriod\":").append(firstPeriod).append(",");
+        config.append("\"firstAmount\":").append(firstAmount).append(",");
+        config.append("\"unitPeriod\":").append(unitPeriod).append(",");
+        config.append("\"unitAmount\":").append(unitAmount).append(",");
+        config.append("\"timeSegments\":[");
+        for (int i = 0; i < segments.length; i++) {
+            Segment s = segments[i];
+            config.append("{\"startTime\":\"").append(s.start()).append("\",");
+            config.append("\"endTime\":\"").append(s.end()).append("\",");
+            config.append("\"unitAmount\":").append(s.unitAmount()).append("}");
+            if (i < segments.length - 1) config.append(",");
+        }
+        config.append("]}");
+        version.setConfig(config.toString());
+        return version;
+    }
+
+    private record Segment(String start, String end, int unitAmount) {
+    }
+}

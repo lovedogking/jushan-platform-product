@@ -41,6 +41,12 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    private final WsChannelAuthInterceptor channelAuthInterceptor;
+
+    public WebSocketConfig(WsChannelAuthInterceptor channelAuthInterceptor) {
+        this.channelAuthInterceptor = channelAuthInterceptor;
+    }
+
     /** STOMP 端点路径 */
     static final String STOMP_ENDPOINT = "/ws";
 
@@ -80,6 +86,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(new WsChannelAuthInterceptor());
+        registration.interceptors(channelAuthInterceptor);
     }
 }

@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
+    "format": "prettier --write \"src/**/*.{js,ts,vue,scss,css,json}\""
   },
   "dependencies": {
     "vue": "^3.4.21",
@@ -16,9 +18,16 @@
     "ant-design-vue": "^4.1.2",
     "@ant-design/icons-vue": "^7.0.1",
     "dayjs": "^1.11.10",
-    "nprogress": "^0.2.0"
+    "nprogress": "^0.2.0",
+    "@stomp/stompjs": "^7.0.0"
   },
   "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-plugin-vue": "^9.23.0",
+    "@vue/eslint-config-typescript": "^13.0.0",
+    "@vue/eslint-config-prettier": "9.0.0",
+    "@rushstack/eslint-patch": "^1.10.1",
+    "prettier": "^3.2.5",
     "@vitejs/plugin-vue": "^5.0.4",
     "vite": "^5.2.0",
     "typescript": "^5.4.3",

@@ -2,6 +2,7 @@ package com.jushan.framework.auth;
 
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
+import com.jushan.common.auth.TenantContext;
 
 import java.util.Collection;
 import java.util.Objects;

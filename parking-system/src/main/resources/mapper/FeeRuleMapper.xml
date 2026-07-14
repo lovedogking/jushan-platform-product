@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jushan.platform.modules.parking.mapper.FeeRuleMapper">
+
+    <select id="selectActiveByLotId" resultType="com.jushan.platform.modules.parking.entity.FeeRule">
+        SELECT *
+        FROM fee_rule
+        WHERE lot_id = #{lotId}
+          AND status = 1
+          AND deleted_at IS NULL
+          AND (effective_start IS NULL OR effective_start &lt;= NOW())
+          AND (effective_end IS NULL OR effective_end &gt;= NOW())
+        ORDER BY priority DESC, created_at ASC
+    </select>
+
+    <select id="selectByLotIdAndZoneId" resultType="com.jushan.platform.modules.parking.entity.FeeRule">
+        SELECT *
+        FROM fee_rule
+        WHERE lot_id = #{lotId}
+          AND deleted_at IS NULL
+        <if test="zoneId != null">
+            AND zone_id = #{zoneId}
+        </if>
+        <if test="zoneId == null">
+            AND zone_id IS NULL
+        </if>
+        ORDER BY priority DESC, created_at ASC
+    </select>
+
+</mapper>

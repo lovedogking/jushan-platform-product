@@ -21,6 +21,9 @@ public class ParkingLotCapacityLog implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 所属租户 ID */
+    private Long tenantId;
+
     /** 停车场 ID */
     private Long parkingLotId;
 
@@ -45,6 +48,9 @@ public class ParkingLotCapacityLog implements Serializable {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
     public Long getParkingLotId() { return parkingLotId; }
     public void setParkingLotId(Long parkingLotId) { this.parkingLotId = parkingLotId; }

@@ -1,7 +1,7 @@
 package com.jushan.system.service;
 
 import com.jushan.system.entity.SysUser;
-import com.jushan.system.mapper.SysRolePermissionMapper;
+import com.jushan.system.mapper.LegacySysRolePermissionMapper;
 import com.jushan.system.mapper.SysUserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,12 +27,12 @@ public class PermissionService {
     private static final Logger log = LoggerFactory.getLogger(PermissionService.class);
 
     private final SysUserMapper sysUserMapper;
-    private final SysRolePermissionMapper sysRolePermissionMapper;
+    private final LegacySysRolePermissionMapper legacyRolePermissionMapper;
 
     public PermissionService(SysUserMapper sysUserMapper,
-                             SysRolePermissionMapper sysRolePermissionMapper) {
+                             LegacySysRolePermissionMapper legacyRolePermissionMapper) {
         this.sysUserMapper = sysUserMapper;
-        this.sysRolePermissionMapper = sysRolePermissionMapper;
+        this.legacyRolePermissionMapper = legacyRolePermissionMapper;
     }
 
     /**
@@ -62,7 +62,7 @@ public class PermissionService {
             return Collections.emptyList();
         }
         try {
-            return sysRolePermissionMapper.selectPermissionCodesByRoleCodes(roleCodes);
+            return legacyRolePermissionMapper.selectPermissionCodesByRoleCodes(roleCodes);
         } catch (Exception e) {
             log.error("查询权限失败: loginId={}, roles={}", loginId, roleCodes, e);
             return Collections.emptyList();
@@ -72,7 +72,7 @@ public class PermissionService {
     private SysUser findUser(Object loginId) {
         try {
             long userId = Long.parseLong(String.valueOf(loginId));
-            return sysUserMapper.selectById(userId);
+            return sysUserMapper.selectByIdIgnoreTenant(userId);
         } catch (Exception e) {
             log.warn("根据 loginId 查询用户失败: loginId={}", loginId, e);
             return null;

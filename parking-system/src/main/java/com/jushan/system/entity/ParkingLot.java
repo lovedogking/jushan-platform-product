@@ -25,6 +25,12 @@ public class ParkingLot implements Serializable {
     /** 所属租户 ID */
     private Long tenantId;
 
+    /** 所属公司 ID */
+    private Long companyId;
+
+    /** 所属集团 ID（冗余，用于快速按集团查询） */
+    private Long groupId;
+
     /** 停车场名称 */
     private String name;
 
@@ -70,6 +76,9 @@ public class ParkingLot implements Serializable {
     /** 离线运行策略：ALLOW_ENTRY_EXIT-允许出入, ALLOW_EXIT_ONLY-只出不进, STRICT-禁止通行 */
     private String offlinePolicy;
 
+    /** 重复入场策略：REJECT-拒绝, UPDATE-更新原记录, EXCEPTION-创建异常记录 */
+    private String duplicateEntryPolicy;
+
     /** 停用时是否允许新车入场：1-允许, 0-禁止 */
     private Integer disableNewEntries;
 
@@ -96,6 +105,12 @@ public class ParkingLot implements Serializable {
 
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+
+    public Long getCompanyId() { return companyId; }
+    public void setCompanyId(Long companyId) { this.companyId = companyId; }
+
+    public Long getGroupId() { return groupId; }
+    public void setGroupId(Long groupId) { this.groupId = groupId; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -141,6 +156,9 @@ public class ParkingLot implements Serializable {
 
     public String getOfflinePolicy() { return offlinePolicy; }
     public void setOfflinePolicy(String offlinePolicy) { this.offlinePolicy = offlinePolicy; }
+
+    public String getDuplicateEntryPolicy() { return duplicateEntryPolicy; }
+    public void setDuplicateEntryPolicy(String duplicateEntryPolicy) { this.duplicateEntryPolicy = duplicateEntryPolicy; }
 
     public Integer getDisableNewEntries() { return disableNewEntries; }
     public void setDisableNewEntries(Integer disableNewEntries) { this.disableNewEntries = disableNewEntries; }

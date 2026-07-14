@@ -18,6 +18,10 @@
         <!-- 内部模块 -->
         <dependency>
             <groupId>com.jushan</groupId>
+            <artifactId>parking-infrastructure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.jushan</groupId>
             <artifactId>parking-framework</artifactId>
         </dependency>
 
@@ -26,12 +30,22 @@
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser</artifactId>
+        </dependency>
 
         <!-- Hutool 工具库（密码哈希等） -->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
             <version>${hutool.version}</version>
+        </dependency>
+
+        <!-- Micrometer Core（P002：Device Access 指标） -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
         </dependency>
 
         <!-- MySQL 驱动（runtime） -->

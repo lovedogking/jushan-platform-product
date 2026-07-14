@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: parking_system/wx_integration
+title: 微信车主端登录与车牌绑定服务
+scope:
+    - parking-system/src/main/java/com/jushan/system/controller/WxUserController.java
+    - parking-system/src/main/java/com/jushan/system/service/WxUserService.java
+    - parking-system/src/main/java/com/jushan/system/entity/WxUser.java
+source_files: []
+depends_on: []
+related_to: []

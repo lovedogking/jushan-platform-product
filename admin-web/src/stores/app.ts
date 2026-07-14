@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useAuthStore } from './auth'
 
 export type NavItem = {
   key: string
@@ -11,6 +12,7 @@ export type MenuItem = {
   label: string
   icon?: string
   path: string
+  permission?: string
 }
 
 // 一级导航（T10 最小占位，后续任务逐步激活）
@@ -31,7 +33,8 @@ export const MENU_MAP: Record<string, MenuItem[]> = {
   // FIX-11：车场运营菜单
   parking: [
     { key: 'parking-lots', label: '停车场管理', icon: 'CarOutlined', path: '/parking-lots' },
-    { key: 'parking-lanes', label: '车道管理', icon: 'BranchesOutlined', path: '/parking-lanes' },
+    { key: 'parking-zones', label: '区域管理', icon: 'AppstoreOutlined', path: '/parking-zones' },
+    { key: 'parking-lanes', label: '通道管理', icon: 'BranchesOutlined', path: '/parking-lanes' },
   ],
   // FIX-11：设备运维菜单
   deviceOps: [
@@ -41,6 +44,9 @@ export const MENU_MAP: Record<string, MenuItem[]> = {
   // FIX-11：平台管理菜单
   platform: [
     { key: 'tenants', label: '租户管理', icon: 'TeamOutlined', path: '/tenants' },
+    { key: 'companies', label: '公司管理', icon: 'ApartmentOutlined', path: '/companies', permission: 'company:view' },
+    { key: 'admin-accounts', label: '账号管理', icon: 'UserOutlined', path: '/admin-accounts', permission: 'account:view' },
+    { key: 'custom-roles', label: '角色管理', icon: 'IdcardOutlined', path: '/custom-roles', permission: 'role:view' },
     { key: 'employees', label: '员工管理', icon: 'UserOutlined', path: '/employees' },
     { key: 'proxy', label: '代理管理', icon: 'SwapOutlined', path: '/proxy' },
     { key: 'audit-logs', label: '审计日志', icon: 'FileTextOutlined', path: '/audit-logs' },
@@ -49,11 +55,15 @@ export const MENU_MAP: Record<string, MenuItem[]> = {
 }
 
 export const useAppStore = defineStore('app', () => {
+  const authStore = useAuthStore()
   const sidebarCollapsed = ref(false)
   const activeNav = ref('overview')
   const activeMenu = ref('dashboard')
 
-  const currentMenus = computed(() => MENU_MAP[activeNav.value] || [])
+  const currentMenus = computed(() => {
+    const menus = MENU_MAP[activeNav.value] || []
+    return menus.filter((menu) => !menu.permission || authStore.hasPermission(menu.permission))
+  })
 
   function toggleSidebar() {
     sidebarCollapsed.value = !sidebarCollapsed.value
@@ -61,8 +71,8 @@ export const useAppStore = defineStore('app', () => {
 
   function setActiveNav(key: string) {
     activeNav.value = key
-    const menus = MENU_MAP[key]
-    if (menus && menus.length > 0) {
+    const menus = currentMenus.value
+    if (menus.length > 0) {
       activeMenu.value = menus[0].key
     }
   }

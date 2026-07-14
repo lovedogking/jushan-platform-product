@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: parking_system/parking_operations
+title: 停车场入场与出场业务服务
+scope:
+    - parking-system/src/main/java/com/jushan/system/service/EntryService.java
+    - parking-system/src/main/java/com/jushan/system/service/ExitService.java
+    - parking-system/src/main/java/com/jushan/system/entity/ParkingRecord.java
+source_files: []
+depends_on: []
+related_to:
+    - path: parking_system/external_client
+    - path: parking_system/monitor_alert

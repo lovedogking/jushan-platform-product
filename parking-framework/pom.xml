@@ -51,17 +51,6 @@
             <artifactId>commons-pool2</artifactId>
         </dependency>
 
-        <!-- Sa-Token 认证框架 -->
-        <dependency>
-            <groupId>cn.dev33</groupId>
-            <artifactId>sa-token-spring-boot3-starter</artifactId>
-        </dependency>
-        <!-- Sa-Token Redis 集成（会话存入 Redis） -->
-        <dependency>
-            <groupId>cn.dev33</groupId>
-            <artifactId>sa-token-redis-jackson</artifactId>
-        </dependency>
-
         <!-- Spring AMQP — RabbitMQ 异步消息 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

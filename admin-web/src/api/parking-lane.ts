@@ -1,58 +1,97 @@
 import request from '@/utils/request'
 import type { PageResult } from '@/types'
-import type { DeviceVO } from './device'
 
-/** 车道视图 */
+/** 通道视图 */
 export interface ParkingLaneVO {
   id: number
-  parkingLotId: number
+  tenantId: number
+  lotId: number
+  zoneId: number
+  laneNo: string
   name: string
-  code: string
-  direction: string
-  status: string
-  isKeyLane: number
-  autoReleasePolicy: string
-  description: string
-  devices: DeviceVO[]
+  type: number
+  entryCameraId: number
+  exitCameraId: number
+  status: number
+  tideMode: number
+  cameraMode: number
+  version: number
   createdAt: string
   updatedAt: string
 }
 
-/** 分页查询车道列表 */
-export function getLanes(params: {
-  page: number
-  size: number
-  parkingLotId?: number
-  status?: string
-  direction?: string
+/** 通道类型选项 */
+export const LANE_TYPE_OPTIONS = [
+  { label: '入口', value: 1 },
+  { label: '出口', value: 2 },
+  { label: '双向', value: 3 },
+]
+
+/** 通道状态选项 */
+export const LANE_STATUS_OPTIONS = [
+  { label: '启用', value: 1 },
+  { label: '禁用', value: 2 },
+  { label: '维护中', value: 3 },
+]
+
+/** 潮汐模式选项 */
+export const TIDE_MODE_OPTIONS = [
+  { label: '关闭', value: 0 },
+  { label: '早高峰入口', value: 1 },
+  { label: '晚高峰出口', value: 2 },
+]
+
+/** 相机模式选项 */
+export const CAMERA_MODE_OPTIONS = [
+  { label: '单相机', value: 1 },
+  { label: '双相机', value: 2 },
+  { label: '主从相机', value: 3 },
+]
+
+/** 分页查询通道列表 */
+export function getParkingLanes(params: {
+  current?: number
+  size?: number
+  lotId?: number
+  zoneId?: number
+  type?: number
+  status?: number
 }) {
-  return request.get<PageResult<ParkingLaneVO>>('/admin/lanes', { params })
+  return request.get<PageResult<ParkingLaneVO>>('/api/v1/parking-lanes', params)
 }
 
-/** 查询车道详情 */
-export function getLane(id: number) {
-  return request.get<ParkingLaneVO>(`/admin/lanes/${id}`)
+/** 查询通道详情 */
+export function getParkingLane(id: number) {
+  return request.get<ParkingLaneVO>(`/api/v1/parking-lanes/${id}`)
 }
 
-/** 创建车道 */
-export function createLane(data: {
-  parkingLotId: number
+/** 创建通道 */
+export function createParkingLane(data: {
+  lotId: number
+  zoneId?: number
+  laneNo: string
   name: string
-  code: string
-  direction: string
-  isKeyLane?: boolean
-  autoReleasePolicy?: string
-  description?: string
+  type?: number
+  entryCameraId?: number
+  exitCameraId?: number
+  status?: number
+  tideMode?: number
+  cameraMode?: number
 }) {
-  return request.post<ParkingLaneVO>('/admin/lanes', data)
+  return request.post<ParkingLaneVO>('/api/v1/parking-lanes', data)
 }
 
-/** 更新车道 */
-export function updateLane(id: number, data: Record<string, any>) {
-  return request.put<ParkingLaneVO>(`/admin/lanes/${id}`, data)
+/** 更新通道 */
+export function updateParkingLane(id: number, data: Record<string, any>) {
+  return request.put<ParkingLaneVO>(`/api/v1/parking-lanes/${id}`, data)
 }
 
-/** 启用/停用车道 */
-export function updateLaneStatus(id: number, action: string) {
-  return request.post(`/admin/lanes/${id}/status`, { action })
+/** 删除通道（软删除） */
+export function deleteParkingLane(id: number) {
+  return request.delete<void>(`/api/v1/parking-lanes/${id}`)
+}
+
+/** 更新通道状态 */
+export function updateParkingLaneStatus(id: number, status: number) {
+  return request.post<void>(`/api/v1/parking-lanes/${id}/status`, undefined, { params: { status } })
 }

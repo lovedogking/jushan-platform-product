@@ -21,6 +21,9 @@ public class EmployeeParkingLot implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 所属租户 ID */
+    private Long tenantId;
+
     /** 员工 ID（sys_user.id） */
     private Long employeeId;
 
@@ -33,6 +36,9 @@ public class EmployeeParkingLot implements Serializable {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
     public Long getEmployeeId() { return employeeId; }
     public void setEmployeeId(Long employeeId) { this.employeeId = employeeId; }

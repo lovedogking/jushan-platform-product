@@ -32,6 +32,9 @@ public class Device implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 所属租户 ID */
+    private Long tenantId;
+
     /** 所属停车场 ID */
     private Long parkingLotId;
 
@@ -82,6 +85,9 @@ public class Device implements Serializable {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
     public Long getParkingLotId() { return parkingLotId; }
     public void setParkingLotId(Long parkingLotId) { this.parkingLotId = parkingLotId; }

@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: parking_system/audit_log
+title: 审计日志与代操作管理
+scope:
+    - parking-system/src/main/java/com/jushan/system/controller/AuditController.java
+    - parking-system/src/main/java/com/jushan/system/service/AuditService.java
+    - parking-system/src/main/java/com/jushan/system/entity/SysAuditLog.java
+source_files: []
+depends_on: []
+related_to:
+    - path: admin_web

@@ -27,6 +27,9 @@ public class DeviceStatusSnapshot implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 所属租户 ID */
+    private Long tenantId;
+
     /** 平台设备 ID（关联 device.id） */
     private Long deviceId;
 
@@ -67,6 +70,9 @@ public class DeviceStatusSnapshot implements Serializable {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
     public Long getDeviceId() { return deviceId; }
     public void setDeviceId(Long deviceId) { this.deviceId = deviceId; }

@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: parking_boot
+title: 停车应用启动与装配（parking-boot）
+scope:
+    - parking-boot/
+source_files: []
+depends_on: []
+related_to: []

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jushan.platform.modules.account.mapper.SysAdminAccountRoleMapper">
+
+    <!-- 通用查询映射 -->
+    <resultMap id="BaseResultMap" type="com.jushan.platform.modules.account.entity.SysAdminAccountRole">
+        <id column="id" property="id"/>
+        <result column="admin_account_id" property="adminAccountId"/>
+        <result column="role_id" property="roleId"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <!-- 根据管理员账号 ID 查询角色 ID 列表 -->
+    <select id="selectRoleIdsByAdminAccountId" resultType="java.lang.Long">
+        SELECT role_id
+        FROM sys_admin_account_role
+        WHERE admin_account_id = #{adminAccountId}
+        ORDER BY role_id ASC
+    </select>
+
+    <!-- 根据管理员账号 ID 删除角色关联 -->
+    <delete id="deleteByAdminAccountId">
+        DELETE FROM sys_admin_account_role WHERE admin_account_id = #{adminAccountId}
+    </delete>
+
+    <!-- 根据角色 ID 查询账号角色关联 -->
+    <select id="selectByRoleIdIgnoreTenant" resultMap="BaseResultMap">
+        SELECT *
+        FROM sys_admin_account_role
+        WHERE role_id = #{roleId}
+        ORDER BY id ASC
+    </select>
+
+    <!-- 插入账号角色关联 -->
+    <insert id="insertIgnoreTenant" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_admin_account_role (admin_account_id, role_id, created_at)
+        VALUES (#{adminAccountId}, #{roleId}, #{createdAt})
+    </insert>
+
+</mapper>

@@ -1,5 +1,6 @@
 package com.jushan.framework.ws;
 
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.Message;
@@ -8,7 +9,9 @@ import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
+import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -17,36 +20,43 @@ import java.util.Map;
  * 在 WebSocket 消息通道层面拦截 STOMP 命令：
  * <ul>
  *   <li><strong>CONNECT</strong>：从握手属性回填登录上下文</li>
- *   <li><strong>SUBSCRIBE</strong>：校验订阅目标权限（数据范围 hooks）</li>
+ *   <li><strong>SUBSCRIBE</strong>：基础认证校验后，调用业务层 {@link WsTopicAccessChecker} 进行数据范围检查</li>
  *   <li><strong>SEND</strong>：校验发送目标权限</li>
  *   <li><strong>DISCONNECT</strong>：清理线程上下文</li>
  * </ul>
  * <p>
- * <strong>T12 之后</strong>：业务模块在 {@code SUBSCRIBE} 阶段实施细粒度数据范围检查：
- * <ul>
- *   <li>解析 {@code /topic/parking-lot/{lotId}/...} 中的停车场 ID</li>
- *   <li>对比当前用户授权停车场列表</li>
- *   <li>未授权目标拒绝订阅</li>
- * </ul>
- * <p>
- * 当前阶段仅完成框架 hook 占位和认证上下文传递，
- * 不执行细粒度数据范围校验（T12/T16 实现后接入）。
+ * 业务模块通过实现 {@link WsTopicAccessChecker} 接口并注册为 Spring Bean，
+ * 可对特定 topic 前缀执行细粒度数据范围校验（如停车场授权范围）。
  *
  * @author Jushan Platform
  * @since 1.0.0
  */
+@Component
 public class WsChannelAuthInterceptor implements ChannelInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(WsChannelAuthInterceptor.class);
 
     /**
      * 允许订阅/发送的目标前缀白名单（无权限限制的公共目标）。
-     * 后续可根据业务扩展。
      */
     private static final String[] PUBLIC_DESTINATIONS = {
             "/topic/public",
             "/topic/health",
     };
+
+    private final List<WsTopicAccessChecker> accessCheckers;
+
+    public WsChannelAuthInterceptor(List<WsTopicAccessChecker> accessCheckers) {
+        this.accessCheckers = accessCheckers != null ? accessCheckers : List.of();
+    }
+
+    @PostConstruct
+    public void init() {
+        log.info("WsChannelAuthInterceptor 已初始化，topic 访问检查器数量: {}", accessCheckers.size());
+        for (WsTopicAccessChecker checker : accessCheckers) {
+            log.info("WsChannelAuthInterceptor 注册检查器: {}", checker.getClass().getName());
+        }
+    }
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -126,10 +136,30 @@ public class WsChannelAuthInterceptor implements ChannelInterceptor {
         }
 
         // FIX-03：私有目标必须认证后才允许订阅
-        if (WsSessionContext.getLoginId() == null) {
+        // WebSocket 消息可能由不同线程处理，ThreadLocal 不可靠，必须从 Session 属性读取握手阶段写入的认证信息
+        Map<String, Object> sessionAttrs = accessor.getSessionAttributes();
+        Object loginIdObj = sessionAttrs != null ? sessionAttrs.get(WsSessionContext.KEY_LOGIN_ID) : null;
+        Long loginId = toLong(loginIdObj);
+        if (loginId == null) {
             log.warn("WebSocket 未认证用户尝试订阅私有目标: destination={}", destination);
             throw new org.springframework.messaging.MessageDeliveryException(
                     "未认证用户不允许订阅私有主题");
+        }
+
+        // P005：调用业务层 topic 访问检查器
+        log.debug("WebSocket topic 访问检查器数量: {}", accessCheckers.size());
+        for (WsTopicAccessChecker checker : accessCheckers) {
+            String prefix = checker.supportedDestinationPrefix();
+            log.debug("WebSocket 检查器 prefix={}", prefix);
+            if (prefix != null && !prefix.isBlank() && destination.startsWith(prefix)) {
+                Object tenantIdObj = sessionAttrs != null ? sessionAttrs.get(WsSessionContext.KEY_TENANT_ID) : null;
+                Object userTypeObj = sessionAttrs != null ? sessionAttrs.get(WsSessionContext.KEY_USER_TYPE) : null;
+                Long tenantId = toLong(tenantIdObj);
+                String userType = userTypeObj != null ? userTypeObj.toString() : null;
+                log.debug("WebSocket 调用 topic 访问检查器: destination={}, loginId={}, tenantId={}, userType={}",
+                        destination, loginId, tenantId, userType);
+                checker.checkAccess(destination, loginId, tenantId, userType);
+            }
         }
     }
 
@@ -164,5 +194,22 @@ public class WsChannelAuthInterceptor implements ChannelInterceptor {
     private void handleDisconnect(StompHeaderAccessor accessor) {
         log.debug("WebSocket DISCONNECT: sessionId={}", accessor.getSessionId());
         WsSessionContext.clear();
+    }
+
+    private static Long toLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Long l) {
+            return l;
+        }
+        if (value instanceof Number n) {
+            return n.longValue();
+        }
+        try {
+            return Long.valueOf(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

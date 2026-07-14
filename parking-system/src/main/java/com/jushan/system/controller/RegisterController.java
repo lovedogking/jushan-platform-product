@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * @since 1.0.0
  */
 @RestController
-@RequestMapping("/register")
+@RequestMapping("/api/v1/register")
 public class RegisterController {
 
     private static final Logger log = LoggerFactory.getLogger(RegisterController.class);

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jushan.platform.modules.authcode.mapper.SysAuthCodeMapper">
+
+    <!-- 批量插入授权码 -->
+    <insert id="insertBatch">
+        INSERT INTO sys_auth_code
+        (code, tenant_id, max_parking_count, valid_start, valid_end, used_count,
+         max_use_count, version_type, status, activated_by, activated_at, created_at, updated_at)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.code}, #{item.tenantId}, #{item.maxParkingCount}, #{item.validStart},
+             #{item.validEnd}, #{item.usedCount}, #{item.maxUseCount}, #{item.versionType},
+             #{item.status}, #{item.activatedBy}, #{item.activatedAt}, #{item.createdAt}, #{item.updatedAt})
+        </foreach>
+    </insert>
+
+    <!-- 按授权码查询 -->
+    <select id="selectByCodeIgnoreTenant" resultType="com.jushan.platform.modules.authcode.entity.SysAuthCode">
+        SELECT *
+        FROM sys_auth_code
+        WHERE code = #{code}
+        LIMIT 1
+    </select>
+
+    <!-- 按 ID 查询 -->
+    <select id="selectByIdIgnoreTenant" resultType="com.jushan.platform.modules.authcode.entity.SysAuthCode">
+        SELECT *
+        FROM sys_auth_code
+        WHERE id = #{id}
+    </select>
+
+    <!-- 分页查询 -->
+    <select id="selectPageIgnoreTenant" resultType="com.jushan.platform.modules.authcode.entity.SysAuthCode">
+        SELECT *
+        FROM sys_auth_code
+        <where>
+            <if test="tenantId != null">
+                AND tenant_id = #{tenantId}
+                AND status = 1
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="code != null and code != ''">
+                AND code LIKE CONCAT('%', #{code}, '%')
+            </if>
+        </where>
+        ORDER BY created_at DESC, id DESC
+    </select>
+
+    <!-- 激活授权码（条件更新） -->
+    <update id="activateIgnoreTenant">
+        UPDATE sys_auth_code
+        SET tenant_id      = #{tenantId},
+            status         = 1,
+            activated_by   = #{activatedBy},
+            activated_at   = #{activatedAt},
+            used_count     = used_count + 1,
+            updated_at     = NOW()
+        WHERE code = #{code}
+          AND status = 0
+          AND used_count &lt; max_use_count
+          AND valid_start &lt;= CURDATE()
+          AND valid_end &gt;= CURDATE()
+    </update>
+
+    <!-- 禁用授权码 -->
+    <update id="disableIgnoreTenant">
+        UPDATE sys_auth_code
+        SET status     = 3,
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 查询全部授权码（用于导出） -->
+    <select id="selectListIgnoreTenant" resultType="com.jushan.platform.modules.authcode.entity.SysAuthCode">
+        SELECT *
+        FROM sys_auth_code
+        <where>
+            <if test="tenantId != null">
+                AND tenant_id = #{tenantId}
+                AND status = 1
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="code != null and code != ''">
+                AND code LIKE CONCAT('%', #{code}, '%')
+            </if>
+        </where>
+        ORDER BY created_at DESC, id DESC
+    </select>
+
+</mapper>

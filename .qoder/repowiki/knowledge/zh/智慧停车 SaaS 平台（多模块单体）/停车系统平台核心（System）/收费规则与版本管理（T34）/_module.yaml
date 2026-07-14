@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: parking_system/billing_rule
+title: 收费规则与版本管理（T34）
+scope:
+    - parking-system/src/main/java/com/jushan/system/controller/BillingRuleController.java
+    - parking-system/src/main/java/com/jushan/system/service/BillingRuleService.java
+    - parking-system/src/main/java/com/jushan/system/entity/BillingRule.java
+source_files: []
+depends_on: []
+related_to:
+    - path: admin_web

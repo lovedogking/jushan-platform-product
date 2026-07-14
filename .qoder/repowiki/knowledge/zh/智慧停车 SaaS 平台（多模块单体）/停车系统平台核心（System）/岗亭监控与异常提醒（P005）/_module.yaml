@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: parking_system/monitor_alert
+title: 岗亭监控与异常提醒（P005）
+scope:
+    - parking-system/src/main/java/com/jushan/system/controller/BoothMonitorController.java
+    - parking-system/src/main/java/com/jushan/system/service/BoothMonitorService.java
+    - parking-system/src/main/java/com/jushan/system/entity/MonitorAlert.java
+source_files: []
+depends_on: []
+related_to:
+    - path: booth_web
+    - path: parking_system/parking_operations

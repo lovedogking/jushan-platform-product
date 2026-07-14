@@ -1,6 +1,5 @@
 package com.jushan.system.service;
 
-import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -8,14 +7,24 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
+import com.jushan.common.auth.TenantContext;
+import com.jushan.platform.modules.account.entity.SysAdminAccount;
+import com.jushan.platform.modules.account.entity.SysAdminAccountRole;
+import com.jushan.platform.modules.account.entity.SysCustomRole;
+import com.jushan.platform.modules.account.mapper.SysAdminAccountMapper;
+import com.jushan.platform.modules.account.mapper.SysAdminAccountRoleMapper;
+import com.jushan.platform.modules.account.mapper.SysCustomRoleMapper;
 import com.jushan.system.dto.RegisterRequest;
 import com.jushan.system.dto.TenantAuditRequest;
+import com.jushan.system.entity.Company;
 import com.jushan.system.entity.SysUser;
 import com.jushan.system.entity.Tenant;
 import com.jushan.system.entity.TenantAuditLog;
+import com.jushan.system.mapper.CompanyMapper;
 import com.jushan.system.mapper.SysUserMapper;
 import com.jushan.system.mapper.TenantAuditLogMapper;
 import com.jushan.system.mapper.TenantMapper;
+import com.jushan.system.mybatis.TenantIgnore;
 import com.jushan.system.vo.TenantVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,16 +77,25 @@ public class TenantService {
     private final TenantMapper tenantMapper;
     private final TenantAuditLogMapper tenantAuditLogMapper;
     private final SysUserMapper sysUserMapper;
-    private final StpInterfaceImpl stpInterface;
+    private final CompanyMapper companyMapper;
+    private final SysAdminAccountMapper adminAccountMapper;
+    private final SysAdminAccountRoleMapper adminAccountRoleMapper;
+    private final SysCustomRoleMapper customRoleMapper;
 
     public TenantService(TenantMapper tenantMapper,
                          TenantAuditLogMapper tenantAuditLogMapper,
                          SysUserMapper sysUserMapper,
-                         StpInterfaceImpl stpInterface) {
+                         CompanyMapper companyMapper,
+                         SysAdminAccountMapper adminAccountMapper,
+                         SysAdminAccountRoleMapper adminAccountRoleMapper,
+                         SysCustomRoleMapper customRoleMapper) {
         this.tenantMapper = tenantMapper;
         this.tenantAuditLogMapper = tenantAuditLogMapper;
         this.sysUserMapper = sysUserMapper;
-        this.stpInterface = stpInterface;
+        this.companyMapper = companyMapper;
+        this.adminAccountMapper = adminAccountMapper;
+        this.adminAccountRoleMapper = adminAccountRoleMapper;
+        this.customRoleMapper = customRoleMapper;
     }
 
     // ==================== 客户注册 ====================
@@ -94,6 +112,7 @@ public class TenantService {
      * @param request 注册请求
      */
     @Transactional
+    @TenantIgnore(reason = "客户自助注册，初始管理员账号尚未绑定租户", audit = false)
     public void register(RegisterRequest request) {
         String companyName = request.getCompanyName().trim();
         String contactPhone = request.getContactPhone().trim();
@@ -115,9 +134,7 @@ public class TenantService {
         }
 
         // 3. 校验手机号未被平台用户占用
-        Long userCount = sysUserMapper.selectCount(
-                new LambdaQueryWrapper<SysUser>()
-                        .eq(SysUser::getUsername, contactPhone));
+        Long userCount = sysUserMapper.countByUsernameIgnoreTenant(contactPhone);
         if (userCount > 0) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "该手机号已被使用");
         }
@@ -149,10 +166,10 @@ public class TenantService {
         tenantMapper.insert(tenant);
 
         // 6. 回填 sys_user.tenant_id
-        sysUserMapper.update(null,
-                new LambdaUpdateWrapper<SysUser>()
-                        .set(SysUser::getTenantId, tenant.getId())
-                        .eq(SysUser::getId, adminUser.getId()));
+        sysUserMapper.updateTenantIdIgnoreTenant(adminUser.getId(), tenant.getId());
+
+        // 7. 为租户创建默认集团公司
+        createDefaultCompany(tenant);
 
         log.info("客户注册成功: tenantId={}, companyName={}, adminUserId={}",
                 tenant.getId(), companyName, adminUser.getId());
@@ -211,6 +228,9 @@ public class TenantService {
 
         // 7. 同步更新关联的管理员账号状态
         updateAdminUserStatus(tenant.getAdminUserId(), action);
+
+        // 7b. 审核通过后同步 sys_user 到 sys_admin_account
+        syncAdminAccountOnApproved(tenant, action);
 
         // 8. FIX-06：租户禁用后撤销该租户所有用户的会话
         if (ACTION_DISABLED.equals(action)) {
@@ -322,7 +342,7 @@ public class TenantService {
         if (adminUserId == null) {
             return;
         }
-        SysUser user = sysUserMapper.selectById(adminUserId);
+        SysUser user = sysUserMapper.selectByIdIgnoreTenant(adminUserId);
         if (user == null) {
             log.warn("审核同步用户状态时找不到用户: userId={}", adminUserId);
             return;
@@ -338,39 +358,147 @@ public class TenantService {
             return;
         }
 
-        sysUserMapper.update(null,
-                new LambdaUpdateWrapper<SysUser>()
-                        .set(SysUser::getStatus, newUserStatus)
-                        .set(SysUser::getUpdatedAt, LocalDateTime.now())
-                        .eq(SysUser::getId, adminUserId)
-                        .eq(SysUser::getStatus, user.getStatus()));
+        sysUserMapper.updateStatusIgnoreTenant(adminUserId, newUserStatus, user.getStatus());
+
+        // 同时更新 sys_admin_account 表中的状态（如果已同步）
+        if (ACTION_APPROVED.equals(action) || ACTION_DISABLED.equals(action) || ACTION_ENABLED.equals(action)) {
+            SysAdminAccount syncedAccount = adminAccountMapper.selectByUsernameIgnoreTenant(user.getUsername());
+            if (syncedAccount != null) {
+                int newAccountStatus = (ACTION_DISABLED.equals(action)) ? 0 : 1;
+                syncedAccount.setStatus(newAccountStatus);
+                syncedAccount.setUpdatedAt(LocalDateTime.now());
+                adminAccountMapper.updateByIdIgnoreTenant(syncedAccount);
+            }
+        }
     }
 
     /**
-     * 租户禁用后撤销该租户内所有用户的会话（FIX-06）。
+     * 审核通过时将 sys_user 管理员同步到 sys_admin_account。
      * <p>
-     * 查询该租户下的所有 sys_user，逐一调用 logout 使 Token 立即失效。
-     * 并清除权限缓存，确保下一请求无法使用旧权限。
+     * 仅 ACTION_APPROVED 时执行。复用 sys_user 中已有的 BCrypt 密码哈希
+     * （Hutool 和 Spring 均基于 jBCrypt，生成 $2a$ 标准格式，完全兼容）。
+     *
+     * @param tenant 租户实体
+     * @param action 审核操作类型
+     */
+    private void syncAdminAccountOnApproved(Tenant tenant, String action) {
+        if (!ACTION_APPROVED.equals(action)) {
+            return;
+        }
+
+        SysUser sysUser = sysUserMapper.selectByIdIgnoreTenant(tenant.getAdminUserId());
+        if (sysUser == null) {
+            log.warn("审核通过时找不到关联管理员: adminUserId={}", tenant.getAdminUserId());
+            return;
+        }
+
+        // 检查是否已存在同名 SysAdminAccount（防重复同步）
+        SysAdminAccount existingAccount = adminAccountMapper.selectByUsernameIgnoreTenant(sysUser.getUsername());
+        if (existingAccount != null) {
+            log.info("SysAdminAccount 已存在，跳过同步: username={}", sysUser.getUsername());
+            return;
+        }
+
+        // 创建 SysAdminAccount 记录
+        SysAdminAccount account = new SysAdminAccount();
+        account.setTenantId(tenant.getId());
+        account.setUsername(sysUser.getUsername());
+        // Hutool BCrypt.hashpw() 和 Spring BCryptPasswordEncoder 均生成 $2a$ 标准格式，可直接复用
+        account.setPassword(sysUser.getPasswordHash());
+        account.setRealName(sysUser.getDisplayName());
+        account.setPhone(tenant.getContactPhone());
+        account.setLevel(1); // level=1 租户管理员（租户内最高权限）
+        account.setStatus(1); // STATUS_NORMAL
+        account.setLoginFailCount(0);
+        account.setCreatedAt(LocalDateTime.now());
+        account.setUpdatedAt(LocalDateTime.now());
+        adminAccountMapper.insert(account);
+
+        // 绑定 customer_admin 角色
+        Long roleId = resolveCustomerAdminRoleId(tenant.getId());
+        if (roleId != null) {
+            SysAdminAccountRole roleBinding = new SysAdminAccountRole();
+            roleBinding.setAdminAccountId(account.getId());
+            roleBinding.setRoleId(roleId);
+            roleBinding.setCreatedAt(LocalDateTime.now());
+            adminAccountRoleMapper.insertIgnoreTenant(roleBinding);
+        }
+
+        log.info("审核通过后同步管理员账号到 sys_admin_account 成功: userId={}, accountId={}, tenantId={}",
+                sysUser.getId(), account.getId(), tenant.getId());
+    }
+
+    /**
+     * 查找或创建 customer_admin 角色。
+     * <p>
+     * 先通过 role_code 全局查找，若属于当前租户则复用；
+     * 否则为该租户新建一个 customer_admin 角色。
+     *
+     * @param tenantId 租户 ID
+     * @return 角色 ID，创建失败返回 null
+     */
+    private Long resolveCustomerAdminRoleId(Long tenantId) {
+        // 先查找已有角色（忽略租户拦截，全局搜索）
+        SysCustomRole existRole = customRoleMapper.selectByRoleCodeIgnoreTenant("customer_admin");
+        if (existRole != null && tenantId.equals(existRole.getTenantId())) {
+            return existRole.getId();
+        }
+
+        // 不存在或属于其他租户，则新建
+        SysCustomRole newRole = new SysCustomRole();
+        newRole.setTenantId(tenantId);
+        newRole.setRoleName("客户管理员");
+        newRole.setRoleCode("customer_admin");
+        newRole.setDescription("租户默认管理员角色，拥有该租户的全部管理权限");
+        newRole.setCreatedAt(LocalDateTime.now());
+        newRole.setUpdatedAt(LocalDateTime.now());
+        customRoleMapper.insert(newRole);
+        log.info("自动创建 customer_admin 角色: roleId={}, tenantId={}", newRole.getId(), tenantId);
+        return newRole.getId();
+    }
+
+    /**
+     * 租户禁用后标记该租户内所有用户需要重新认证（FIX-06）。
+     * <p>
+     * JWT 无状态模式下无法像 Sa-Token 一样立即撤销会话；此处仅记录日志，
+     * 实际失效依赖 JWT 过期或后续加入 Token 黑名单机制。
      */
     private void revokeTenantSessions(Long tenantId) {
         try {
             List<SysUser> tenantUsers = sysUserMapper.selectList(
                     new LambdaQueryWrapper<SysUser>()
                             .eq(SysUser::getTenantId, tenantId));
-            int revokedCount = 0;
-            for (SysUser user : tenantUsers) {
-                try {
-                    StpUtil.logout(user.getId());
-                    stpInterface.clearCache(user.getId());
-                    revokedCount++;
-                } catch (Exception e) {
-                    log.warn("撤销用户会话失败: userId={}, tenantId={}", user.getId(), tenantId, e);
-                }
-            }
-            log.info("租户禁用后已撤销 {} 个用户的会话: tenantId={}", revokedCount, tenantId);
+            log.info("租户禁用后需重新认证的用户数: count={}, tenantId={}", tenantUsers.size(), tenantId);
         } catch (Exception e) {
-            log.error("批量撤销租户会话失败: tenantId={}", tenantId, e);
+            log.error("批量查询租户用户失败: tenantId={}", tenantId, e);
         }
+    }
+
+    /**
+     * 为租户创建默认集团公司。
+     * <p>
+     * 每个租户至少有一个根公司，历史数据通过 Flyway 迁移回填。
+     *
+     * @param tenant 租户
+     */
+    private void createDefaultCompany(Tenant tenant) {
+        Company company = new Company();
+        company.setTenantId(tenant.getId());
+        company.setParentId(null);
+        company.setName(tenant.getName());
+        company.setLevel(CompanyService.LEVEL_GROUP);
+        company.setStatus(CompanyService.STATUS_NORMAL);
+        company.setSortOrder(0);
+        company.setContactName(tenant.getContactPerson());
+        company.setContactPhone(tenant.getContactPhone());
+        company.setCreatedAt(LocalDateTime.now());
+        company.setUpdatedAt(LocalDateTime.now());
+        companyMapper.insert(company);
+
+        String path = "/" + company.getId() + "/";
+        companyMapper.updatePathIgnoreTenant(company.getId(), path);
+
+        log.info("租户默认公司创建成功: tenantId={}, companyId={}", tenant.getId(), company.getId());
     }
 
     /**
@@ -380,7 +508,7 @@ public class TenantService {
                                 String beforeStatus, String afterStatus) {
         long operatorId;
         try {
-            operatorId = StpUtil.getLoginIdAsLong();
+            operatorId = TenantContext.requireUserId();
         } catch (Exception e) {
             log.error("获取当前操作人 ID 失败", e);
             operatorId = 0L; // 不应发生，审核操作必须登录

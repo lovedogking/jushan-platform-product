@@ -46,6 +46,9 @@ public class SysUser implements Serializable {
 
     private LocalDateTime updatedAt;
 
+    /** 软删除时间（null 表示未删除） */
+    private LocalDateTime deletedAt;
+
     // ==================== getter / setter ====================
 
     public Long getId() { return id; }
@@ -77,4 +80,7 @@ public class SysUser implements Serializable {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
 }

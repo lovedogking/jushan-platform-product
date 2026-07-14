@@ -225,7 +225,7 @@ public class ParkingLaneService {
         wrapper.set(ParkingLane::getUpdatedAt, LocalDateTime.now());
         laneMapper.update(null, wrapper);
 
-        ParkingLane updated = laneMapper.selectById(laneId);
+        ParkingLane updated = laneMapper.selectByIdIgnoreTenant(laneId);
         log.info("更新车道成功: laneId={}", laneId);
         return toVO(updated);
     }
@@ -336,7 +336,7 @@ public class ParkingLaneService {
      * 查询车道并校验停车场归属（通过停车场 → 租户链）。
      */
     private ParkingLane getLaneWithAuth(Long laneId) {
-        ParkingLane lane = laneMapper.selectById(laneId);
+        ParkingLane lane = laneMapper.selectByIdIgnoreTenant(laneId);
         if (lane == null) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道不存在");
         }
@@ -352,7 +352,7 @@ public class ParkingLaneService {
      * 是否有权访问该停车场。
      */
     private ParkingLot getParkingLotWithAuth(Long lotId) {
-        ParkingLot lot = parkingLotMapper.selectById(lotId);
+        ParkingLot lot = parkingLotMapper.selectByIdIgnoreTenant(lotId);
         if (lot == null) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "停车场不存在");
         }

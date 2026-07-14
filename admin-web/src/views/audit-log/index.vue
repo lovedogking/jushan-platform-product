@@ -114,8 +114,8 @@ async function fetchData() {
       size: pagination.pageSize as number,
       action: queryAction.value || undefined,
       isProxy: queryIsProxy.value !== undefined ? queryIsProxy.value : undefined,
-      startTime: dateRange.value?.length === 2 ? dayjs(dateRange.value[0]).format('YYYY-MM-DDTHH:mm:ss') : undefined,
-      endTime: dateRange.value?.length === 2 ? dayjs(dateRange.value[1]).format('YYYY-MM-DDTHH:mm:ss') : undefined,
+      startTime: dateRange.value?.length === 2 ? dayjs(dateRange.value[0]).format('YYYY-MM-DD HH:mm:ss') : undefined,
+      endTime: dateRange.value?.length === 2 ? dayjs(dateRange.value[1]).format('YYYY-MM-DD HH:mm:ss') : undefined,
     }
     const res = await getAuditLogs(p)
     dataSource.value = res.records

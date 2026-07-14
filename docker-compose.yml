@@ -65,7 +65,7 @@ services:
   # RabbitMQ 4.x Management — 异步消息
   # ===========================================================================
   rabbitmq:
-    image: rabbitmq:4-management-alpine
+    image: rabbitmq:3.12-management
     container_name: jushan-rabbitmq
     restart: unless-stopped
     environment:
@@ -103,7 +103,7 @@ services:
     networks:
       - jushan-net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-jushan_dev}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -113,6 +113,8 @@ services:
       - --appendonly yes
       - --maxmemory 256mb
       - --maxmemory-policy allkeys-lru
+      - --requirepass ${REDIS_PASSWORD:-jushan_dev}
+      - --notify-keyspace-events Exg
 
   # ===========================================================================
   # Nginx — 反向代理 & 静态资源

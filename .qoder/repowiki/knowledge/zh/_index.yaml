@@ -1,0 +1,253 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: develop
+nodes_managed: true
+exported_at: "2026-07-13T07:29:40Z"
+modules:
+    "":
+        dir_name: 智慧停车 SaaS 平台（多模块单体）
+        title: 智慧停车 SaaS 平台（多模块单体）
+        scope:
+            - README.md
+            - .gitignore
+            - CLAUDE.md
+            - docker-compose.yml
+            - mvnw.cmd
+            - pom.xml
+            - .env.example
+            - AGENTS.md
+            - mvnw
+        source_files: []
+        children:
+            - admin_web
+            - booth_web
+            - docs
+            - infra
+            - miniapp
+            - parking_boot
+            - parking_common
+            - parking_framework
+            - parking_system
+        depends_on: []
+        related_to: []
+    admin_web:
+        dir_name: 智慧停车运营后台前端（Vue3 + Ant Design）
+        title: 智慧停车运营后台前端（Vue3 + Ant Design）
+        scope:
+            - admin-web/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: parking_system/audit_log
+            - path: parking_system/billing_rule
+            - path: parking_system/device_management
+            - path: parking_system/parking_lot_lane
+            - path: parking_system/tenant_management
+    booth_web:
+        dir_name: 岗亭端监控 Web 应用
+        title: 岗亭端监控 Web 应用
+        scope:
+            - booth-web/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: parking_system/monitor_alert
+            - path: parking_system/tenant_auth
+    docs:
+        dir_name: 项目文档与跨系统共享契约
+        title: 项目文档与跨系统共享契约
+        scope:
+            - docs/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    infra:
+        dir_name: 本地开发环境编排与 AI 辅助配置
+        title: 本地开发环境编排与 AI 辅助配置
+        scope:
+            - docker/
+            - .agents/
+            - .codex/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    miniapp:
+        dir_name: 智慧停车车主端微信小程序
+        title: 智慧停车车主端微信小程序
+        scope:
+            - miniapp/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    parking_boot:
+        dir_name: 停车应用启动与装配（parking-boot）
+        title: 停车应用启动与装配（parking-boot）
+        scope:
+            - parking-boot/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    parking_common:
+        dir_name: 停车平台通用基础类型与错误体系
+        title: 停车平台通用基础类型与错误体系
+        scope:
+            - parking-common/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    parking_framework:
+        dir_name: 停车平台横切能力框架
+        title: 停车平台横切能力框架
+        scope:
+            - parking-framework/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    parking_system:
+        dir_name: 停车系统平台核心（System）
+        title: 停车系统平台核心（System）
+        scope:
+            - parking-system/src/main/java/com/jushan/system/
+        source_files: []
+        children:
+            - parking_system/audit_log
+            - parking_system/billing_rule
+            - parking_system/device_management
+            - parking_system/external_client
+            - parking_system/monitor_alert
+            - parking_system/parking_lot_lane
+            - parking_system/parking_operations
+            - parking_system/tenant_auth
+            - parking_system/tenant_management
+            - parking_system/wx_integration
+        depends_on: []
+        related_to: []
+    parking_system/audit_log:
+        dir_name: 审计日志与代操作管理
+        title: 审计日志与代操作管理
+        scope:
+            - parking-system/src/main/java/com/jushan/system/controller/AuditController.java
+            - parking-system/src/main/java/com/jushan/system/service/AuditService.java
+            - parking-system/src/main/java/com/jushan/system/entity/SysAuditLog.java
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: admin_web
+    parking_system/billing_rule:
+        dir_name: 收费规则与版本管理（T34）
+        title: 收费规则与版本管理（T34）
+        scope:
+            - parking-system/src/main/java/com/jushan/system/controller/BillingRuleController.java
+            - parking-system/src/main/java/com/jushan/system/service/BillingRuleService.java
+            - parking-system/src/main/java/com/jushan/system/entity/BillingRule.java
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: admin_web
+    parking_system/device_management:
+        dir_name: 平台设备台账管理（T20_T21_T24_T25）
+        title: 平台设备台账管理（T20/T21/T24/T25）
+        scope:
+            - parking-system/src/main/java/com/jushan/system/controller/DeviceController.java
+            - parking-system/src/main/java/com/jushan/system/service/DeviceService.java
+            - parking-system/src/main/java/com/jushan/system/entity/Device.java
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: admin_web
+    parking_system/external_client:
+        dir_name: 外部设备访问客户端与识别事件总线
+        title: 外部设备访问客户端与识别事件总线
+        scope:
+            - parking-system/src/main/java/com/jushan/system/client/
+            - parking-system/src/main/java/com/jushan/system/event/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: parking_system/parking_operations
+    parking_system/monitor_alert:
+        dir_name: 岗亭监控与异常提醒（P005）
+        title: 岗亭监控与异常提醒（P005）
+        scope:
+            - parking-system/src/main/java/com/jushan/system/controller/BoothMonitorController.java
+            - parking-system/src/main/java/com/jushan/system/service/BoothMonitorService.java
+            - parking-system/src/main/java/com/jushan/system/entity/MonitorAlert.java
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: booth_web
+            - path: parking_system/parking_operations
+    parking_system/parking_lot_lane:
+        dir_name: 停车场管理（运营端 CRUD、状态与容量管控）
+        title: 停车场管理（运营端 CRUD、状态与容量管控）
+        scope:
+            - parking-system/src/main/java/com/jushan/system/controller/ParkingLotController.java
+            - parking-system/src/main/java/com/jushan/system/service/ParkingLotService.java
+            - parking-system/src/main/java/com/jushan/system/entity/ParkingLot.java
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: admin_web
+    parking_system/parking_operations:
+        dir_name: 停车场入场与出场业务服务
+        title: 停车场入场与出场业务服务
+        scope:
+            - parking-system/src/main/java/com/jushan/system/service/EntryService.java
+            - parking-system/src/main/java/com/jushan/system/service/ExitService.java
+            - parking-system/src/main/java/com/jushan/system/entity/ParkingRecord.java
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: parking_system/external_client
+            - path: parking_system/monitor_alert
+    parking_system/tenant_auth:
+        dir_name: 租户认证与会话管理
+        title: 租户认证与会话管理
+        scope:
+            - parking-system/src/main/java/com/jushan/system/controller/AuthController.java
+            - parking-system/src/main/java/com/jushan/system/service/AuthService.java
+            - parking-system/src/main/java/com/jushan/system/entity/SysUser.java
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: booth_web
+    parking_system/tenant_management:
+        dir_name: 租户管理与审核服务
+        title: 租户管理与审核服务
+        scope:
+            - parking-system/src/main/java/com/jushan/system/controller/TenantController.java
+            - parking-system/src/main/java/com/jushan/system/service/TenantService.java
+            - parking-system/src/main/java/com/jushan/system/entity/Tenant.java
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: admin_web
+    parking_system/wx_integration:
+        dir_name: 微信车主端登录与车牌绑定服务
+        title: 微信车主端登录与车牌绑定服务
+        scope:
+            - parking-system/src/main/java/com/jushan/system/controller/WxUserController.java
+            - parking-system/src/main/java/com/jushan/system/service/WxUserService.java
+            - parking-system/src/main/java/com/jushan/system/entity/WxUser.java
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []

@@ -1,6 +1,5 @@
 package com.jushan.system.service;
 
-import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -9,7 +8,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.framework.auth.DataScope;
-import com.jushan.framework.auth.TenantContext;
+import com.jushan.common.auth.TenantContext;
 import com.jushan.system.dto.CreateEmployeeRequest;
 import com.jushan.system.dto.ResetPasswordRequest;
 import com.jushan.system.dto.UpdateEmployeeRequest;
@@ -60,18 +59,28 @@ public class EmployeeService {
     private final TenantMapper tenantMapper;
     private final ParkingLotMapper parkingLotMapper;
     private final EmployeeParkingLotMapper employeeParkingLotMapper;
-    private final StpInterfaceImpl stpInterface;
+
+    /**
+     * 解析当前租户ID，正确处理平台用户。
+     * <p>
+     * 平台用户（super_admin、platform_operator）无租户绑定，返回 null。
+     * 租户用户返回其 tenantId。
+     */
+    private Long resolveTenantId() {
+        if (TenantContext.isPlatformUser()) {
+            return null;
+        }
+        return TenantContext.requireTenantId();
+    }
 
     public EmployeeService(SysUserMapper sysUserMapper,
                            TenantMapper tenantMapper,
                            ParkingLotMapper parkingLotMapper,
-                           EmployeeParkingLotMapper employeeParkingLotMapper,
-                           StpInterfaceImpl stpInterface) {
+                           EmployeeParkingLotMapper employeeParkingLotMapper) {
         this.sysUserMapper = sysUserMapper;
         this.tenantMapper = tenantMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.employeeParkingLotMapper = employeeParkingLotMapper;
-        this.stpInterface = stpInterface;
     }
 
     // ==================== 员工创建 ====================
@@ -89,7 +98,11 @@ public class EmployeeService {
      */
     @Transactional
     public EmployeeVO createEmployee(CreateEmployeeRequest request) {
-        Long tenantId = DataScope.requireTenantUser();
+        Long tenantId = resolveTenantId();
+        if (tenantId == null) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "平台用户请通过代操作模式进入目标租户后操作员工");
+        }
         DataScope.requireCustomerAdmin();
 
         // 1. 校验角色合法性
@@ -127,11 +140,11 @@ public class EmployeeService {
         DataScope.validateParkingLotsBelongToTenant(
                 distinctIds, tenantId,
                 pid -> {
-                    ParkingLot lot = parkingLotMapper.selectById(pid);
+                    ParkingLot lot = parkingLotMapper.selectByIdIgnoreTenant(pid);
                     return lot != null ? lot.getTenantId() : null;
                 },
                 pid -> {
-                    ParkingLot lot = parkingLotMapper.selectById(pid);
+                    ParkingLot lot = parkingLotMapper.selectByIdIgnoreTenant(pid);
                     return lot != null ? lot.getName() : String.valueOf(pid);
                 });
 
@@ -165,7 +178,11 @@ public class EmployeeService {
      */
     @Transactional
     public EmployeeVO updateEmployee(Long employeeId, UpdateEmployeeRequest request) {
-        Long tenantId = DataScope.requireTenantUser();
+        Long tenantId = resolveTenantId();
+        if (tenantId == null) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "平台用户请通过代操作模式进入目标租户后操作员工");
+        }
         DataScope.requireCustomerAdmin();
 
         SysUser employee = getEmployeeInTenant(employeeId, tenantId);
@@ -210,12 +227,9 @@ public class EmployeeService {
         employee.setRoles("[\"" + roleCode + "\"]");
 
         // FIX-06：角色变更后清除权限缓存，使新权限立即生效
-        try {
-            stpInterface.clearCache(employeeId);
-            log.info("已清除角色变更员工的权限缓存: employeeId={}, newRole={}", employeeId, roleCode);
-        } catch (Exception e) {
-            log.warn("清除权限缓存失败（不影响角色变更操作）: employeeId={}", employeeId, e);
-        }
+        // 当前 JWT 无状态模式下无法直接清除服务端缓存，保留日志记录；
+        // 后续可通过 Redis Token 黑名单或缩短 Token 过期时间实现即时失效。
+        log.info("员工角色已变更，旧 Token 将在过期后失效: employeeId={}, newRole={}", employeeId, roleCode);
 
         log.info("客户管理员更新员工成功: tenantId={}, employeeId={}, newRole={}",
                 tenantId, employeeId, roleCode);
@@ -229,10 +243,10 @@ public class EmployeeService {
      * 分页查询本租户员工列表。
      */
     public IPage<EmployeeVO> listEmployees(int page, int size, String status) {
-        Long tenantId = TenantContext.requireTenantId();
+        // 解析租户范围：平台用户可查看所有租户的员工
+        Long tenantId = resolveTenantId();
 
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .eq(SysUser::getTenantId, tenantId)
                 .notLike(SysUser::getRoles, "customer_admin")
                 .eq(status != null && !status.isBlank(), SysUser::getStatus, status)
                 .orderByDesc(SysUser::getCreatedAt);
@@ -246,7 +260,7 @@ public class EmployeeService {
      * 查询单个员工详情。
      */
     public EmployeeVO getEmployee(Long employeeId) {
-        Long tenantId = TenantContext.requireTenantId();
+        Long tenantId = resolveTenantId();
         SysUser employee = getEmployeeInTenant(employeeId, tenantId);
         return toVO(employee);
     }
@@ -260,7 +274,11 @@ public class EmployeeService {
      */
     @Transactional
     public void resetPassword(Long employeeId, ResetPasswordRequest request) {
-        Long tenantId = DataScope.requireTenantUser();
+        Long tenantId = resolveTenantId();
+        if (tenantId == null) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "平台用户请通过代操作模式进入目标租户后操作员工");
+        }
         DataScope.requireCustomerAdmin();
         getEmployeeInTenant(employeeId, tenantId); // 校验归属
 
@@ -270,13 +288,10 @@ public class EmployeeService {
                         .set(SysUser::getUpdatedAt, LocalDateTime.now())
                         .eq(SysUser::getId, employeeId));
 
-        // FIX-06：密码重置后撤销所有旧 Token，确保旧密码不可继续使用
-        try {
-            StpUtil.logout(employeeId);
-            log.info("已撤销密码被重置员工的全部会话: employeeId={}", employeeId);
-        } catch (Exception e) {
-            log.warn("撤销员工会话失败（不影响密码重置操作）: employeeId={}", employeeId, e);
-        }
+        // FIX-06：密码重置后撤销所有旧 Token，确保旧密码不可继续使用。
+        // JWT 无状态模式下无法立即撤销，旧 Token 将在过期后失效；
+        // 后续可通过 Redis Token 黑名单实现即时失效。
+        log.info("员工密码已重置，旧 Token 将在过期后失效: employeeId={}", employeeId);
 
         log.info("客户管理员重置员工密码: tenantId={}, employeeId={}", tenantId, employeeId);
     }
@@ -290,7 +305,11 @@ public class EmployeeService {
      */
     @Transactional
     public void updateStatus(Long employeeId, String action) {
-        Long tenantId = DataScope.requireTenantUser();
+        Long tenantId = resolveTenantId();
+        if (tenantId == null) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "平台用户请通过代操作模式进入目标租户后操作员工");
+        }
         DataScope.requireCustomerAdmin();
 
         SysUser employee = getEmployeeInTenant(employeeId, tenantId);
@@ -330,15 +349,11 @@ public class EmployeeService {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "员工状态已变更，请刷新后重试");
         }
 
-        // FIX-06：禁用员工后主动撤销其所有 Token，使其下一请求立即失效
+        // FIX-06：禁用员工后主动撤销其所有 Token，使其下一请求立即失效。
+        // JWT 无状态模式下无法立即撤销，旧 Token 将在过期后失效；
+        // 后续可通过 Redis Token 黑名单实现即时失效。
         if ("DISABLED".equals(afterStatus)) {
-            try {
-                StpUtil.logout(employeeId);
-                stpInterface.clearCache(employeeId);
-                log.info("已撤销被禁用员工的会话和权限缓存: employeeId={}", employeeId);
-            } catch (Exception e) {
-                log.warn("撤销员工会话失败（不影响禁用操作）: employeeId={}", employeeId, e);
-            }
+            log.info("员工已被禁用，旧 Token 将在过期后失效: employeeId={}", employeeId);
         }
 
         log.info("客户管理员更新员工状态: tenantId={}, employeeId={}, {} -> {}",
@@ -354,9 +369,13 @@ public class EmployeeService {
      * 获取租户内的员工，跨租户拒绝。
      */
     private SysUser getEmployeeInTenant(Long employeeId, Long tenantId) {
-        SysUser employee = sysUserMapper.selectById(employeeId);
+        SysUser employee = sysUserMapper.selectByIdIgnoreTenant(employeeId);
         if (employee == null) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "员工不存在");
+        }
+        // 平台用户可访问所有租户数据
+        if (tenantId == null) {
+            return employee;
         }
         DataScope.validateTenantAccess(employee.getTenantId(), "员工");
         return employee;

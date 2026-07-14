@@ -12,7 +12,7 @@ package com.jushan.common;
 public enum CommonErrorCode implements ErrorCode {
 
     /** 操作成功 */
-    SUCCESS(0, "success"),
+    SUCCESS(200, "success"),
 
     /** 参数校验失败 */
     PARAM_ERROR(400, "参数错误"),
@@ -31,6 +31,12 @@ public enum CommonErrorCode implements ErrorCode {
 
     /** 业务异常（通用） */
     BUSINESS_ERROR(1000, "业务处理异常"),
+
+    /** 资源冲突 */
+    CONFLICT(1001, "资源冲突"),
+
+    /** 操作不支持 */
+    UNSUPPORTED_OPERATION(1002, "该操作暂不支持"),
 
     /** 系统内部错误 */
     INTERNAL_ERROR(9999, "系统繁忙，请稍后重试");

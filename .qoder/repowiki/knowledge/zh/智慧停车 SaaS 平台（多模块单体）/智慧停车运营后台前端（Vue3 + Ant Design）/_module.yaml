@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: admin_web
+title: 智慧停车运营后台前端（Vue3 + Ant Design）
+scope:
+    - admin-web/
+source_files: []
+depends_on: []
+related_to:
+    - path: parking_system/audit_log
+    - path: parking_system/billing_rule
+    - path: parking_system/device_management
+    - path: parking_system/parking_lot_lane
+    - path: parking_system/tenant_management

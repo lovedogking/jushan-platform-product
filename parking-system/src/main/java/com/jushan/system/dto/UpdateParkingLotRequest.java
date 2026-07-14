@@ -15,6 +15,9 @@ import java.math.BigDecimal;
  */
 public class UpdateParkingLotRequest {
 
+    /** 所属公司 ID */
+    private Long companyId;
+
     /** 停车场名称 */
     @Size(max = 128, message = "停车场名称最长128个字符")
     private String name;
@@ -54,7 +57,13 @@ public class UpdateParkingLotRequest {
     /** 离线运行策略 */
     private String offlinePolicy;
 
+    /** 重复入场策略：REJECT-拒绝, UPDATE-更新原记录, EXCEPTION-创建异常记录 */
+    private String duplicateEntryPolicy;
+
     // ==================== getter / setter ====================
+
+    public Long getCompanyId() { return companyId; }
+    public void setCompanyId(Long companyId) { this.companyId = companyId; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -88,4 +97,7 @@ public class UpdateParkingLotRequest {
 
     public String getOfflinePolicy() { return offlinePolicy; }
     public void setOfflinePolicy(String offlinePolicy) { this.offlinePolicy = offlinePolicy; }
+
+    public String getDuplicateEntryPolicy() { return duplicateEntryPolicy; }
+    public void setDuplicateEntryPolicy(String duplicateEntryPolicy) { this.duplicateEntryPolicy = duplicateEntryPolicy; }
 }
