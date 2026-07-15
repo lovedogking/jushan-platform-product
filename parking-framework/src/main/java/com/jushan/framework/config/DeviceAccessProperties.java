@@ -30,6 +30,9 @@ public class DeviceAccessProperties {
     /** 读取超时（毫秒），默认 12 秒（需覆盖 DA 内部约 10 秒 MQTT 等待） */
     private int readTimeout = 12000;
 
+    /** Device Access API Key 认证 */
+    private String apiKey = "";
+
     // ==================== getter / setter ====================
 
     public String getBaseUrl() { return baseUrl; }
@@ -40,4 +43,7 @@ public class DeviceAccessProperties {
 
     public int getReadTimeout() { return readTimeout; }
     public void setReadTimeout(int readTimeout) { this.readTimeout = readTimeout; }
+
+    public String getApiKey() { return apiKey; }
+    public void setApiKey(String apiKey) { this.apiKey = apiKey; }
 }

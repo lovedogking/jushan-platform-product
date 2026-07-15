@@ -90,6 +90,7 @@ jushan:
     base-url: http://localhost:8081
     connect-timeout: 3000
     read-timeout: 12000
+    api-key: test-api-key-001
 
 # ---- Device Access Webhook 接收端配置 ----
 # 生产环境通过环境变量覆盖：DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS

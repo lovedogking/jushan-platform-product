@@ -113,7 +113,7 @@ public class DeviceWebhookService {
         // 3. 方向校验：对比事件方向与车道绑定方向
         if (trustedLaneId != null && event.getDirection() != null) {
             ParkingLane lane = laneMapper.selectByIdIgnoreTenant(trustedLaneId);
-            if (lane != null && !"MIXED".equals(lane.getDirection())) {
+            if (lane != null && lane.getDirection() != null && !"MIXED".equals(lane.getDirection())) {
                 String laneDirection = lane.getDirection();
                 if (!laneDirection.equals(event.getDirection())) {
                     log.error("Webhook 事件方向与车道方向不匹配，拒绝处理: eventId={}, deviceSn={}, laneId={}, " +

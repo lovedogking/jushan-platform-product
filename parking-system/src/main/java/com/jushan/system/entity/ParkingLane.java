@@ -1,6 +1,7 @@
 package com.jushan.system.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -25,18 +26,22 @@ public class ParkingLane implements Serializable {
     private Long tenantId;
 
     /** 所属停车场 ID */
+    @TableField(exist = false)
     private Long parkingLotId;
 
     /** 车道名称 */
     private String name;
 
     /** 车道编码（停车场内唯一） */
+    @TableField(exist = false)
     private String code;
 
-    /** 车道方向：ENTRY-入口, EXIT-出口, MIXED-混合 */
+    /** 车道方向：ENTRY-入口, EXIT-出口, MIXED-混合（DB 中为 type TINYINT，此处标记不持久化） */
+    @TableField(exist = false)
     private String direction;
 
-    /** 状态：ENABLED-启用, DISABLED-停用 */
+    /** 状态：ENABLED-启用, DISABLED-停用（DB 中为 TINYINT，此处标记不持久化） */
+    @TableField(exist = false)
     private String status;
 
     /** 是否为关键车道：1-是, 0-否（关键车道离线可能导致停车场不可用） */

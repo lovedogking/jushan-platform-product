@@ -52,6 +52,7 @@ declare module 'vue' {
     ATree: typeof import('ant-design-vue/es')['Tree']
     ATreeSelect: typeof import('ant-design-vue/es')['TreeSelect']
     AUpload: typeof import('ant-design-vue/es')['Upload']
+    DeviceControlModal: typeof import('./components/DeviceControlModal.vue')['default']
     HolidayRuleEditor: typeof import('./components/HolidayRuleEditor.vue')['default']
     MapLocationPicker: typeof import('./components/MapLocationPicker.vue')['default']
     PermissionButton: typeof import('./components/PermissionButton.vue')['default']

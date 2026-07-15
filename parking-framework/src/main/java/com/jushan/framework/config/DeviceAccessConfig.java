@@ -9,8 +9,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.List;
 
 import java.time.Duration;
 
@@ -49,6 +53,14 @@ public class DeviceAccessConfig {
         RestTemplate restTemplate = new RestTemplateBuilder()
                 .requestFactory(() -> factory)
                 .build();
+
+        // 添加 API Key 认证拦截器
+        if (props.getApiKey() != null && !props.getApiKey().isBlank()) {
+            restTemplate.setInterceptors(List.of((ClientHttpRequestInterceptor) (request, body, execution) -> {
+                request.getHeaders().set("X-API-Key", props.getApiKey());
+                return execution.execute(request, body);
+            }));
+        }
 
         // 设置 NoOp 错误处理器：HTTP 4xx/5xx 不抛异常，由客户端自行解析响应体中的错误码
         restTemplate.setErrorHandler(new ResponseErrorHandler() {
