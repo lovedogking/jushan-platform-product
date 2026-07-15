@@ -62,9 +62,9 @@ public class ReadinessCheckService {
     private static final String CAT_PAYMENT = "PAYMENT";
     private static final String CAT_DEVICE_STATUS = "DEVICE_STATUS";
 
-    // 入口/出口方向集合（MIXED 同时属于入口和出口）
-    private static final List<String> ENTRY_DIRECTIONS = List.of("ENTRY", "MIXED");
-    private static final List<String> EXIT_DIRECTIONS = List.of("EXIT", "MIXED");
+    // 入口/出口方向 DB type 值（MIXED=3 同时属于入口和出口）
+    private static final List<Integer> ENTRY_DIRECTIONS = List.of(1, 3);  // ENTRY, MIXED
+    private static final List<Integer> EXIT_DIRECTIONS = List.of(2, 3);  // EXIT, MIXED
 
     private final ParkingLotMapper parkingLotMapper;
     private final ParkingLaneMapper laneMapper;
@@ -99,7 +99,7 @@ public class ReadinessCheckService {
         // 2. 查询所有车道
         List<ParkingLane> allLanes = laneMapper.selectList(
                 new LambdaQueryWrapper<ParkingLane>()
-                        .eq(ParkingLane::getParkingLotId, parkingLotId));
+                        .eq(ParkingLane::getLotId, parkingLotId));
 
         // 3. 查询所有已绑定设备（按 laneId 分组）
         List<Long> laneIds = allLanes.stream().map(ParkingLane::getId).collect(Collectors.toList());
@@ -113,10 +113,10 @@ public class ReadinessCheckService {
 
         // 4. 分类车道
         List<ParkingLane> entryLanes = allLanes.stream()
-                .filter(l -> ENTRY_DIRECTIONS.contains(l.getDirection()))
+                .filter(l -> ENTRY_DIRECTIONS.contains(l.getType()))
                 .collect(Collectors.toList());
         List<ParkingLane> exitLanes = allLanes.stream()
-                .filter(l -> EXIT_DIRECTIONS.contains(l.getDirection()))
+                .filter(l -> EXIT_DIRECTIONS.contains(l.getType()))
                 .collect(Collectors.toList());
 
         List<ReadinessItem> items = new ArrayList<>();

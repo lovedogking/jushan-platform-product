@@ -434,14 +434,14 @@ public class DeviceService {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道不存在");
         }
         // 校验车道归属（租户隔离）
-        getParkingLotWithAuth(lane.getParkingLotId());
+        getParkingLotWithAuth(lane.getLotId());
 
-        if (!STATUS_ENABLED.equals(lane.getStatus())) {
+        if (lane.getStatus() == null || lane.getStatus() != 1) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的车道不能绑定设备");
         }
 
         // 设备和车道必须在同一停车场
-        if (!device.getParkingLotId().equals(lane.getParkingLotId())) {
+        if (!device.getParkingLotId().equals(lane.getLotId())) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
                     "设备与车道不属于同一停车场，不允许绑定");
         }

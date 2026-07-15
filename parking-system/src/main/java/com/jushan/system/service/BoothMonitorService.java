@@ -157,7 +157,7 @@ public class BoothMonitorService {
 
         Map<Long, ParkingLane> laneMap = laneMapper.selectList(
                         new LambdaQueryWrapper<ParkingLane>()
-                                .eq(ParkingLane::getParkingLotId, parkingLotId))
+                                .eq(ParkingLane::getLotId, parkingLotId))
                 .stream()
                 .collect(Collectors.toMap(ParkingLane::getId, l -> l));
 
@@ -175,7 +175,7 @@ public class BoothMonitorService {
     private List<BoothLaneVO> loadLanes(Long parkingLotId) {
         List<ParkingLane> lanes = laneMapper.selectList(
                 new LambdaQueryWrapper<ParkingLane>()
-                        .eq(ParkingLane::getParkingLotId, parkingLotId)
+                        .eq(ParkingLane::getLotId, parkingLotId)
                         .orderByAsc(ParkingLane::getId));
 
         if (lanes.isEmpty()) {
@@ -193,11 +193,11 @@ public class BoothMonitorService {
                 .map(lane -> {
                     BoothLaneVO vo = new BoothLaneVO();
                     vo.setId(lane.getId());
-                    vo.setParkingLotId(lane.getParkingLotId());
+                    vo.setParkingLotId(lane.getLotId());
                     vo.setName(lane.getName());
-                    vo.setCode(lane.getCode());
-                    vo.setDirection(lane.getDirection());
-                    vo.setStatus(lane.getStatus());
+                    vo.setCode(lane.getLaneNo());
+                    vo.setDirection(ParkingLaneService.intToDirectionStr(lane.getType()));
+                    vo.setStatus(ParkingLaneService.intToStatusStr(lane.getStatus()));
 
                     // 找到绑定到该车道的相机设备
                     Device camera = deviceMap.values().stream()

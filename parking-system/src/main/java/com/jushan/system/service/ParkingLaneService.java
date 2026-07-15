@@ -39,19 +39,8 @@ import java.util.stream.Collectors;
  * 负责车道 CRUD、状态管理和自动放行策略配置。
  * 所有操作从当前登录会话推导租户范围，并通过停车场归属验证数据隔离。
  * <p>
- * <strong>车道方向枚举</strong>（可逆，待确认混合车道语义）：
- * <ul>
- *   <li>{@code ENTRY} — 入口车道（入场方向）</li>
- *   <li>{@code EXIT} — 出口车道（出场方向）</li>
- *   <li>{@code MIXED} — 混合车道（可切换出入方向，语义待确认，当前以可逆枚举标记）</li>
- * </ul>
- * <p>
- * <strong>自动放行策略</strong>：
- * <ul>
- *   <li>{@code AUTO} — 自动放行</li>
- *   <li>{@code MANUAL} — 人工确认</li>
- *   <li>{@code AFTER_PAY} — 缴费后自动放行</li>
- * </ul>
+ * 前端 API 使用 String 枚举方向（ENTRY/EXIT/MIXED）和状态（ENABLED/DISABLED），
+ * Service 层负责与 DB Integer 字段（type/status）间的双向转换。
  *
  * @author Jushan Platform
  * @since 1.0.0
@@ -61,20 +50,23 @@ public class ParkingLaneService {
 
     private static final Logger log = LoggerFactory.getLogger(ParkingLaneService.class);
 
-    /** 车道状态常量 */
+    /** 车道方向枚举（前端合约） */
+    private static final String DIR_ENTRY = "ENTRY";
+    private static final String DIR_EXIT = "EXIT";
+    private static final String DIR_MIXED = "MIXED";
+
+    /** DB type 值：1=入口, 2=出口, 3=双向 */
+    private static final int TYPE_ENTRY = 1;
+    private static final int TYPE_EXIT = 2;
+    private static final int TYPE_MIXED = 3;
+
+    /** 车道状态枚举（前端合约） */
     public static final String STATUS_ENABLED = "ENABLED";
     public static final String STATUS_DISABLED = "DISABLED";
 
-    /** 车道方向枚举 */
-    private static final List<String> VALID_DIRECTIONS = List.of("ENTRY", "EXIT", "MIXED");
-
-    /** 自动放行策略枚举 */
-    private static final List<String> VALID_AUTO_RELEASE_POLICIES = List.of("AUTO", "MANUAL", "AFTER_PAY");
-
-    /** 默认值 */
-    private static final String DEFAULT_DIRECTION = "ENTRY";
-    private static final String DEFAULT_AUTO_RELEASE_POLICY = "MANUAL";
-    private static final int DEFAULT_IS_KEY_LANE = 0;
+    /** DB status 值：1=启用, 2=禁用, 3=维护中 */
+    private static final int DB_STATUS_ENABLED = 1;
+    private static final int DB_STATUS_DISABLED = 2;
 
     private final ParkingLaneMapper laneMapper;
     private final ParkingLotMapper parkingLotMapper;
@@ -95,6 +87,64 @@ public class ParkingLaneService {
         this.scopeResolver = scopeResolver;
     }
 
+    // ==================== 方向/状态转换工具 ====================
+
+    /**
+     * 前端方向 String → DB type Integer。
+     *
+     * @throws BusinessException 无效方向时抛出
+     */
+    public static Integer directionToInt(String direction) {
+        if (direction == null || direction.isBlank()) return null;
+        return switch (direction.toUpperCase()) {
+            case DIR_ENTRY -> TYPE_ENTRY;
+            case DIR_EXIT -> TYPE_EXIT;
+            case DIR_MIXED -> TYPE_MIXED;
+            default -> throw new BusinessException(CommonErrorCode.PARAM_ERROR,
+                    "无效的车道方向: " + direction + "，仅支持 ENTRY / EXIT / MIXED");
+        };
+    }
+
+    /**
+     * DB type Integer → 前端方向 String。
+     */
+    public static String intToDirectionStr(Integer type) {
+        if (type == null) return null;
+        return switch (type) {
+            case TYPE_ENTRY -> DIR_ENTRY;
+            case TYPE_EXIT -> DIR_EXIT;
+            case TYPE_MIXED -> DIR_MIXED;
+            default -> null;
+        };
+    }
+
+    /**
+     * 前端状态 String → DB status Integer。
+     *
+     * @throws BusinessException 无效状态时抛出
+     */
+    public static Integer statusToInt(String status) {
+        if (status == null || status.isBlank()) return null;
+        return switch (status.toUpperCase()) {
+            case STATUS_ENABLED -> DB_STATUS_ENABLED;
+            case STATUS_DISABLED -> DB_STATUS_DISABLED;
+            default -> throw new BusinessException(CommonErrorCode.PARAM_ERROR,
+                    "无效的车道状态: " + status + "，仅支持 ENABLED / DISABLED");
+        };
+    }
+
+    /**
+     * DB status Integer → 前端状态 String。
+     */
+    public static String intToStatusStr(Integer status) {
+        if (status == null) return null;
+        return switch (status) {
+            case DB_STATUS_ENABLED -> STATUS_ENABLED;
+            case DB_STATUS_DISABLED -> STATUS_DISABLED;
+            default -> null;
+        };
+    }
+
     // ==================== 创建车道 ====================
 
     /**
@@ -111,45 +161,31 @@ public class ParkingLaneService {
         getParkingLotWithAuth(request.getParkingLotId());
 
         // 2. 校验方向
-        String direction = defaultString(request.getDirection(), DEFAULT_DIRECTION).toUpperCase();
-        if (!VALID_DIRECTIONS.contains(direction)) {
-            throw new BusinessException(CommonErrorCode.PARAM_ERROR,
-                    "无效的车道方向: " + direction + "，仅支持 " + String.join(", ", VALID_DIRECTIONS));
-        }
+        Integer type = directionToInt(request.getDirection());
 
         // 3. 校验编码在停车场内唯一
-        String code = request.getCode().trim();
+        String laneNo = request.getCode().trim();
         Long existingCount = laneMapper.selectCount(
                 new LambdaQueryWrapper<ParkingLane>()
-                        .eq(ParkingLane::getParkingLotId, request.getParkingLotId())
-                        .eq(ParkingLane::getCode, code));
+                        .eq(ParkingLane::getLotId, request.getParkingLotId())
+                        .eq(ParkingLane::getLaneNo, laneNo));
         if (existingCount > 0) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "车道编码 '" + code + "' 在本停车场内已存在");
-        }
-
-        // 4. 校验自动放行策略
-        String autoReleasePolicy = defaultString(request.getAutoReleasePolicy(), DEFAULT_AUTO_RELEASE_POLICY).toUpperCase();
-        if (!VALID_AUTO_RELEASE_POLICIES.contains(autoReleasePolicy)) {
-            throw new BusinessException(CommonErrorCode.PARAM_ERROR,
-                    "无效的自动放行策略: " + autoReleasePolicy + "，仅支持 " + String.join(", ", VALID_AUTO_RELEASE_POLICIES));
+                    "车道编码 '" + laneNo + "' 在本停车场内已存在");
         }
 
         ParkingLane lane = new ParkingLane();
-        lane.setParkingLotId(request.getParkingLotId());
+        lane.setLotId(request.getParkingLotId());
         lane.setName(request.getName().trim());
-        lane.setCode(code);
-        lane.setDirection(direction);
-        lane.setStatus(STATUS_ENABLED);
-        lane.setIsKeyLane(request.getIsKeyLane() != null ? request.getIsKeyLane() : DEFAULT_IS_KEY_LANE);
-        lane.setAutoReleasePolicy(autoReleasePolicy);
-        lane.setDescription(defaultString(request.getDescription(), ""));
+        lane.setLaneNo(laneNo);
+        lane.setType(type);
+        lane.setStatus(DB_STATUS_ENABLED);
         lane.setCreatedAt(LocalDateTime.now());
         lane.setUpdatedAt(LocalDateTime.now());
         laneMapper.insert(lane);
 
-        log.info("创建车道成功: parkingLotId={}, laneId={}, name={}, code={}, direction={}",
-                request.getParkingLotId(), lane.getId(), lane.getName(), code, direction);
+        log.info("创建车道成功: lotId={}, laneId={}, name={}, laneNo={}, type={}",
+                request.getParkingLotId(), lane.getId(), lane.getName(), laneNo, type);
 
         return toVO(lane);
     }
@@ -177,44 +213,23 @@ public class ParkingLaneService {
             hasUpdate = true;
         }
         if (request.getCode() != null) {
-            String newCode = request.getCode().trim();
+            String newLaneNo = request.getCode().trim();
             // 编码变更时检查唯一性（排除自身）
             Long existingCount = laneMapper.selectCount(
                     new LambdaQueryWrapper<ParkingLane>()
-                            .eq(ParkingLane::getParkingLotId, lane.getParkingLotId())
-                            .eq(ParkingLane::getCode, newCode)
+                            .eq(ParkingLane::getLotId, lane.getLotId())
+                            .eq(ParkingLane::getLaneNo, newLaneNo)
                             .ne(ParkingLane::getId, laneId));
             if (existingCount > 0) {
                 throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                        "车道编码 '" + newCode + "' 在本停车场内已存在");
+                        "车道编码 '" + newLaneNo + "' 在本停车场内已存在");
             }
-            wrapper.set(ParkingLane::getCode, newCode);
+            wrapper.set(ParkingLane::getLaneNo, newLaneNo);
             hasUpdate = true;
         }
         if (request.getDirection() != null) {
-            String direction = request.getDirection().toUpperCase();
-            if (!VALID_DIRECTIONS.contains(direction)) {
-                throw new BusinessException(CommonErrorCode.PARAM_ERROR,
-                        "无效的车道方向: " + direction + "，仅支持 " + String.join(", ", VALID_DIRECTIONS));
-            }
-            wrapper.set(ParkingLane::getDirection, direction);
-            hasUpdate = true;
-        }
-        if (request.getIsKeyLane() != null) {
-            wrapper.set(ParkingLane::getIsKeyLane, request.getIsKeyLane());
-            hasUpdate = true;
-        }
-        if (request.getAutoReleasePolicy() != null) {
-            String policy = request.getAutoReleasePolicy().toUpperCase();
-            if (!VALID_AUTO_RELEASE_POLICIES.contains(policy)) {
-                throw new BusinessException(CommonErrorCode.PARAM_ERROR,
-                        "无效的自动放行策略: " + policy + "，仅支持 " + String.join(", ", VALID_AUTO_RELEASE_POLICIES));
-            }
-            wrapper.set(ParkingLane::getAutoReleasePolicy, policy);
-            hasUpdate = true;
-        }
-        if (request.getDescription() != null) {
-            wrapper.set(ParkingLane::getDescription, request.getDescription().trim());
+            Integer newType = directionToInt(request.getDirection());
+            wrapper.set(ParkingLane::getType, newType);
             hasUpdate = true;
         }
 
@@ -241,8 +256,8 @@ public class ParkingLaneService {
      * @param page         页码
      * @param size         每页大小
      * @param parkingLotId 停车场 ID（必填，用于限定范围）
-     * @param status       状态筛选（可选）
-     * @param direction    方向筛选（可选）
+     * @param status       状态筛选（可选：ENABLED / DISABLED）
+     * @param direction    方向筛选（可选：ENTRY / EXIT / MIXED）
      * @return 分页结果
      */
     public IPage<ParkingLaneVO> list(int page, int size, Long parkingLotId, String status, String direction) {
@@ -253,12 +268,13 @@ public class ParkingLaneService {
         // 校验停车场归属（租户隔离）
         getParkingLotWithAuth(parkingLotId);
 
-        String dirFilter = direction != null && !direction.isBlank() ? direction.toUpperCase() : null;
+        Integer typeFilter = directionToInt(direction);
+        Integer statusFilter = statusToInt(status);
+
         LambdaQueryWrapper<ParkingLane> wrapper = new LambdaQueryWrapper<ParkingLane>()
-                .eq(ParkingLane::getParkingLotId, parkingLotId)
-                .eq(status != null && !status.isBlank(), ParkingLane::getStatus, status)
-                .eq(dirFilter != null, ParkingLane::getDirection, dirFilter)
-                .orderByAsc(ParkingLane::getDirection)
+                .eq(ParkingLane::getLotId, parkingLotId)
+                .eq(statusFilter != null, ParkingLane::getStatus, statusFilter)
+                .eq(typeFilter != null, ParkingLane::getType, typeFilter)
                 .orderByDesc(ParkingLane::getCreatedAt);
 
         IPage<ParkingLane> lanePage = laneMapper.selectPage(new Page<>(page, size), wrapper);
@@ -296,7 +312,7 @@ public class ParkingLaneService {
      * 使用条件更新防止并发覆盖。
      *
      * @param laneId 车道 ID
-     * @param action ENABLED 或 DISABLED
+     * @param action ENABLED 或 DISABLED（前端合约）
      */
     @Transactional
     public void updateStatus(Long laneId, String action) {
@@ -307,16 +323,18 @@ public class ParkingLaneService {
         }
 
         ParkingLane lane = getLaneWithAuth(laneId);
-        String beforeStatus = lane.getStatus();
+        Integer beforeStatus = lane.getStatus();
 
         // 状态流转校验
-        if (actionUpper.equals(beforeStatus)) {
+        int newStatus = STATUS_ENABLED.equals(actionUpper) ? DB_STATUS_ENABLED : DB_STATUS_DISABLED;
+        if (Integer.valueOf(newStatus).equals(beforeStatus)) {
+            String statusLabel = STATUS_ENABLED.equals(actionUpper) ? "启用" : "停用";
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "车道已是" + (STATUS_ENABLED.equals(beforeStatus) ? "启用" : "停用") + "状态");
+                    "车道已是" + statusLabel + "状态");
         }
 
         LambdaUpdateWrapper<ParkingLane> wrapper = new LambdaUpdateWrapper<ParkingLane>()
-                .set(ParkingLane::getStatus, actionUpper)
+                .set(ParkingLane::getStatus, newStatus)
                 .set(ParkingLane::getUpdatedAt, LocalDateTime.now())
                 .eq(ParkingLane::getId, laneId)
                 .eq(ParkingLane::getStatus, beforeStatus);
@@ -326,8 +344,8 @@ public class ParkingLaneService {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "车道状态已变更，请刷新后重试");
         }
 
-        log.info("车道状态变更成功: laneId={}, {} -> {}, parkingLotId={}",
-                laneId, beforeStatus, actionUpper, lane.getParkingLotId());
+        log.info("车道状态变更成功: laneId={}, {} -> {}, lotId={}",
+                laneId, beforeStatus, actionUpper, lane.getLotId());
     }
 
     // ==================== 私有方法 ====================
@@ -341,7 +359,7 @@ public class ParkingLaneService {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道不存在");
         }
         // 通过停车场校验租户归属
-        getParkingLotWithAuth(lane.getParkingLotId());
+        getParkingLotWithAuth(lane.getLotId());
         return lane;
     }
 
@@ -363,19 +381,19 @@ public class ParkingLaneService {
     }
 
     /**
-     * 实体转视图。
+     * 实体转视图（DB Integer → 前端 String）。
      */
     private ParkingLaneVO toVO(ParkingLane lane) {
         ParkingLaneVO vo = new ParkingLaneVO();
         vo.setId(lane.getId());
-        vo.setParkingLotId(lane.getParkingLotId());
+        vo.setParkingLotId(lane.getLotId());
         vo.setName(lane.getName());
-        vo.setCode(lane.getCode());
-        vo.setDirection(lane.getDirection());
-        vo.setStatus(lane.getStatus());
-        vo.setIsKeyLane(lane.getIsKeyLane());
-        vo.setAutoReleasePolicy(lane.getAutoReleasePolicy());
-        vo.setDescription(lane.getDescription());
+        vo.setCode(lane.getLaneNo());
+        vo.setDirection(intToDirectionStr(lane.getType()));
+        vo.setStatus(intToStatusStr(lane.getStatus()));
+        vo.setIsKeyLane(null);        // 预留：DB 不含此字段，后续迁移补齐
+        vo.setAutoReleasePolicy(null); // 预留：DB 不含此字段
+        vo.setDescription(null);       // 预留：DB 不含此字段
         vo.setCreatedAt(lane.getCreatedAt());
         vo.setUpdatedAt(lane.getUpdatedAt());
         return vo;

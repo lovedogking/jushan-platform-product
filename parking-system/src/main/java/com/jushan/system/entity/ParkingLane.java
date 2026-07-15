@@ -1,7 +1,6 @@
 package com.jushan.system.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -9,7 +8,14 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 车道实体（T19 入口、出口与车道模型）。
+ * 车道实体（对齐 DB parking_lane 表结构）。
+ * <p>
+ * 字段类型约定：
+ * <ul>
+ *   <li>{@code type} — 1=入口(ENTRY), 2=出口(EXIT), 3=双向(MIXED)</li>
+ *   <li>{@code status} — 1=启用(ENABLED), 2=禁用(DISABLED), 3=维护中(MAINTENANCE)</li>
+ *   <li>前端 API 使用 String 枚举，Service 层负责转换</li>
+ * </ul>
  *
  * @author Jushan Platform
  * @since 1.0.0
@@ -25,33 +31,41 @@ public class ParkingLane implements Serializable {
     /** 所属租户 ID */
     private Long tenantId;
 
-    /** 所属停车场 ID */
-    @TableField(exist = false)
-    private Long parkingLotId;
+    /** 所属车场 ID */
+    private Long lotId;
 
-    /** 车道名称 */
+    /** 所属区域 ID */
+    private Long zoneId;
+
+    /** 通道编号（停车场内唯一），如 A1、17 */
+    private String laneNo;
+
+    /** 通道名称，如东大门 */
     private String name;
 
-    /** 车道编码（停车场内唯一） */
-    @TableField(exist = false)
-    private String code;
+    /** 通道类型：1-入口, 2-出口, 3-双向 */
+    private Integer type;
 
-    /** 车道方向：ENTRY-入口, EXIT-出口, MIXED-混合（DB 中为 type TINYINT，此处标记不持久化） */
-    @TableField(exist = false)
-    private String direction;
+    /** 入口相机 ID（逻辑外键：device.id） */
+    private Long entryCameraId;
 
-    /** 状态：ENABLED-启用, DISABLED-停用（DB 中为 TINYINT，此处标记不持久化） */
-    @TableField(exist = false)
-    private String status;
+    /** 出口相机 ID（逻辑外键：device.id） */
+    private Long exitCameraId;
 
-    /** 是否为关键车道：1-是, 0-否（关键车道离线可能导致停车场不可用） */
-    private Integer isKeyLane;
+    /** 状态：1-启用, 2-禁用, 3-维护中 */
+    private Integer status;
 
-    /** 自动放行策略：AUTO-自动放行, MANUAL-人工确认, AFTER_PAY-缴费后自动放行 */
-    private String autoReleasePolicy;
+    /** 潮汐模式：0-关闭, 1-早高峰入口, 2-晚高峰出口 */
+    private Integer tideMode;
 
-    /** 备注 */
-    private String description;
+    /** 相机配置模式：1-单相机, 2-双相机, 3-主从相机 */
+    private Integer cameraMode;
+
+    /** 乐观锁版本号 */
+    private Integer version;
+
+    /** 软删除时间 */
+    private LocalDateTime deletedAt;
 
     private LocalDateTime createdAt;
 
@@ -65,29 +79,41 @@ public class ParkingLane implements Serializable {
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
-    public Long getParkingLotId() { return parkingLotId; }
-    public void setParkingLotId(Long parkingLotId) { this.parkingLotId = parkingLotId; }
+    public Long getLotId() { return lotId; }
+    public void setLotId(Long lotId) { this.lotId = lotId; }
+
+    public Long getZoneId() { return zoneId; }
+    public void setZoneId(Long zoneId) { this.zoneId = zoneId; }
+
+    public String getLaneNo() { return laneNo; }
+    public void setLaneNo(String laneNo) { this.laneNo = laneNo; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
-    public String getCode() { return code; }
-    public void setCode(String code) { this.code = code; }
+    public Integer getType() { return type; }
+    public void setType(Integer type) { this.type = type; }
 
-    public String getDirection() { return direction; }
-    public void setDirection(String direction) { this.direction = direction; }
+    public Long getEntryCameraId() { return entryCameraId; }
+    public void setEntryCameraId(Long entryCameraId) { this.entryCameraId = entryCameraId; }
 
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    public Long getExitCameraId() { return exitCameraId; }
+    public void setExitCameraId(Long exitCameraId) { this.exitCameraId = exitCameraId; }
 
-    public Integer getIsKeyLane() { return isKeyLane; }
-    public void setIsKeyLane(Integer isKeyLane) { this.isKeyLane = isKeyLane; }
+    public Integer getStatus() { return status; }
+    public void setStatus(Integer status) { this.status = status; }
 
-    public String getAutoReleasePolicy() { return autoReleasePolicy; }
-    public void setAutoReleasePolicy(String autoReleasePolicy) { this.autoReleasePolicy = autoReleasePolicy; }
+    public Integer getTideMode() { return tideMode; }
+    public void setTideMode(Integer tideMode) { this.tideMode = tideMode; }
 
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
+    public Integer getCameraMode() { return cameraMode; }
+    public void setCameraMode(Integer cameraMode) { this.cameraMode = cameraMode; }
+
+    public Integer getVersion() { return version; }
+    public void setVersion(Integer version) { this.version = version; }
+
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

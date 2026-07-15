@@ -103,16 +103,19 @@ public class MockRecognitionService {
                 throw new BusinessException(CommonErrorCode.NOT_FOUND,
                         "设备绑定车道不存在: laneId=" + device.getLaneId());
             }
-            if (!"ENABLED".equals(lane.getStatus())) {
+            if (lane.getStatus() == null || lane.getStatus() != 1) {
                 throw new BusinessException(CommonErrorCode.PARAM_ERROR,
                         "车道已停用: " + lane.getName());
             }
             // 入场事件只能匹配入口方向；出场事件只能匹配出口方向
             String direction = request.getDirection();
-            if (!direction.equals(lane.getDirection()) && !"MIXED".equals(lane.getDirection())) {
-                throw new BusinessException(CommonErrorCode.PARAM_ERROR,
-                        String.format("方向不匹配: 事件方向=%s, 车道方向=%s (lane=%s)",
-                                direction, lane.getDirection(), lane.getName()));
+            if (lane.getType() != null && lane.getType() != 3) {
+                String laneDirStr = lane.getType() == 1 ? "ENTRY" : "EXIT";
+                if (!direction.equals(laneDirStr)) {
+                    throw new BusinessException(CommonErrorCode.PARAM_ERROR,
+                            String.format("方向不匹配: 事件方向=%s, 车道方向=%s (lane=%s)",
+                                    direction, laneDirStr, lane.getName()));
+                }
             }
         }
 

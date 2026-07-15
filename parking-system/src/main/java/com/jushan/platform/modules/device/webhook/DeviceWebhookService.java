@@ -110,11 +110,12 @@ public class DeviceWebhookService {
                     event.getEventId(), event.getParkingLotId(), trustedParkingLotId);
         }
 
-        // 3. 方向校验：对比事件方向与车道绑定方向
+        // 3. 方向校验：对比事件方向与车道绑定方向（DB type: 1=ENTRY, 2=EXIT, 3=MIXED）
         if (trustedLaneId != null && event.getDirection() != null) {
             ParkingLane lane = laneMapper.selectByIdIgnoreTenant(trustedLaneId);
-            if (lane != null && lane.getDirection() != null && !"MIXED".equals(lane.getDirection())) {
-                String laneDirection = lane.getDirection();
+            if (lane != null && lane.getType() != null && lane.getType() != 3) {
+                // 非 MIXED 车道才校验方向
+                String laneDirection = lane.getType() == 1 ? "ENTRY" : "EXIT";
                 if (!laneDirection.equals(event.getDirection())) {
                     log.error("Webhook 事件方向与车道方向不匹配，拒绝处理: eventId={}, deviceSn={}, laneId={}, " +
                                     "eventDirection={}, laneDirection={}",

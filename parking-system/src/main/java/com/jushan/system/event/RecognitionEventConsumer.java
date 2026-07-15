@@ -255,16 +255,19 @@ public class RecognitionEventConsumer {
                 result.fail("车道不存在: laneId=" + device.getLaneId());
                 return result;
             }
-            if (!"ENABLED".equals(lane.getStatus())) {
+            if (lane.getStatus() == null || lane.getStatus() != 1) {
                 result.fail("车道已停用: " + lane.getName());
                 return result;
             }
             String direction = payload.getDirection();
-            if (direction != null && !direction.equals(lane.getDirection())
-                    && !"MIXED".equals(lane.getDirection())) {
-                result.fail(String.format("方向不匹配: 事件方向=%s, 车道方向=%s (lane=%s)",
-                        direction, lane.getDirection(), lane.getName()));
-                return result;
+            if (direction != null && lane.getType() != null) {
+                // type: 1=ENTRY, 2=EXIT, 3=MIXED
+                if (lane.getType() != 3 && !direction.equals(
+                        lane.getType() == 1 ? "ENTRY" : "EXIT")) {
+                    result.fail(String.format("方向不匹配: 事件方向=%s, 车道方向=%d (lane=%s)",
+                            direction, lane.getType(), lane.getName()));
+                    return result;
+                }
             }
         }
 
