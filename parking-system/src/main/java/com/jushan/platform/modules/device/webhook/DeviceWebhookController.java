@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Device Access Webhook 接收控制器。
@@ -50,39 +51,143 @@ public class DeviceWebhookController {
     /**
      * 接收 Device Access Webhook 事件。
      * <p>
-     * 内部完成幂等校验、设备身份验证、方向匹配、租户上下文推导，
-     * 所有异常内部消化，始终返回 HTTP 200。
+     * 接受 Device Event 信封格式（payload 嵌套字段），
+     * 适配转换到平台 DeviceWebhookEvent 后委托业务处理。
      *
-     * @param event   Webhook 推送事件体
+     * @param body    Webhook 推送原始事件体（Map 接收兼容嵌套信封格式）
      * @param request HTTP 请求（用于获取客户端 IP）
      * @return R.ok()
      */
     @PostMapping("/events")
-    public R<Void> receiveEvent(@RequestBody DeviceWebhookEvent event,
+    public R<Void> receiveEvent(@RequestBody Map<String, Object> body,
                                  HttpServletRequest request) {
         String clientIp = getClientIp(request);
+
+        // 提取基本信息
+        String eventId = stringValue(body, "eventId");
+        String eventType = stringValue(body, "eventType");
+        String deviceSn = stringValue(body, "deviceSn");
 
         // IP 白名单校验
         if (!isAllowedIp(clientIp)) {
             log.warn("Webhook 请求 IP 不在白名单中，已拒绝: clientIp={}, eventId={}",
-                    clientIp, event.getEventId());
-            // 仍返回 200 避免泄露接口存在信息，但不处理事件
+                    clientIp, eventId);
             return R.ok();
         }
 
-        log.info("收到 Device Access Webhook 事件: eventId={}, eventType={}, deviceSn={}, plate={}, direction={}, clientIp={}",
-                event.getEventId(), event.getEventType(), event.getDeviceSn(),
-                event.getPlateNumber(), event.getDirection(), clientIp);
+        log.info("收到 Device Access Webhook 事件: eventId={}, eventType={}, deviceSn={}, clientIp={}",
+                eventId, eventType, deviceSn, clientIp);
+
+        // 从嵌套信封中提取 payload，适配到平台 DTO
+        DeviceWebhookEvent event = mapToEvent(body);
 
         // 业务处理异常内部消化，确保始终返回 200
         try {
             deviceWebhookService.processEvent(event);
         } catch (Exception e) {
             log.error("Webhook 事件处理异常: eventId={}, deviceSn={}, error={}",
-                    event.getEventId(), event.getDeviceSn(), e.getMessage(), e);
+                    eventId, deviceSn, e.getMessage(), e);
         }
 
         return R.ok();
+    }
+
+    /**
+     * 将 Device Access 嵌套信封格式适配到平台 DeviceWebhookEvent。
+     * <p>
+     * DA v0.4 推送格式：
+     * <pre>
+     * {
+     *   "eventId": "...",
+     *   "eventType": "PLATE_RECOGNIZED",
+     *   "deviceSn": "...",
+     *   "payload": {
+     *     "plateNo": "桂A88888",
+     *     "confidence": 100,
+     *     "direction": 4,
+     *     ...
+     *   }
+     * }
+     * </pre>
+     */
+    @SuppressWarnings("unchecked")
+    private DeviceWebhookEvent mapToEvent(Map<String, Object> body) {
+        DeviceWebhookEvent event = new DeviceWebhookEvent();
+        event.setEventId(stringValue(body, "eventId"));
+        event.setEventType(stringValue(body, "eventType"));
+        event.setDeviceSn(stringValue(body, "deviceSn"));
+
+        // 提取嵌套 payload
+        Map<String, Object> payload = null;
+        Object payloadObj = body.get("payload");
+        if (payloadObj instanceof Map) {
+            payload = (Map<String, Object>) payloadObj;
+        }
+
+        if (payload != null) {
+            // 字段映射：DA 的 plateNo → 平台的 plateNumber
+            String plateNo = stringValue(payload, "plateNo");
+            if (plateNo != null) {
+                event.setPlateNumber(plateNo);
+            }
+            event.setPlateColor(stringValue(payload, "plateColor"));
+
+            // 置信度转换：DA 可能传 0~100 整数，平台期望 0.0~1.0 Double
+            Object confObj = payload.get("confidence");
+            if (confObj instanceof Number) {
+                double conf = ((Number) confObj).doubleValue();
+                if (conf > 1.0) {
+                    conf = conf / 100.0;
+                }
+                event.setConfidence(conf);
+            }
+
+            // 方向：DA 传数字方向（臻识协议），平台需要 ENTRY/EXIT
+            Object dirObj = payload.get("direction");
+            if (dirObj instanceof Number) {
+                event.setDirection(mapDirection(((Number) dirObj).intValue()));
+            } else if (dirObj instanceof String) {
+                event.setDirection((String) dirObj);
+            }
+
+            // 抓拍时间
+            String occurredAt = stringValue(body, "occurredAt");
+            if (occurredAt != null) {
+                event.setCaptureTime(occurredAt);
+            }
+
+            // 图片 URL
+            event.setImageUrl(stringValue(payload, "imagePath"));
+        }
+
+        return event;
+    }
+
+    /**
+     * 臻识方向数值 → 平台方向枚举。
+     * <p>
+     * 臻识协议方向值：
+     * <ul>
+     *   <li>0 = 未知</li>
+     *   <li>1 = 入口</li>
+     *   <li>2 = 出口</li>
+     *   <li>4 = 未知/其他</li>
+     * </ul>
+     */
+    private String mapDirection(int direction) {
+        return switch (direction) {
+            case 1 -> "ENTRY";
+            case 2 -> "EXIT";
+            default -> null;
+        };
+    }
+
+    /**
+     * 从 Map 中安全提取 String 值。
+     */
+    private static String stringValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value != null ? value.toString() : null;
     }
 
     /**
@@ -100,7 +205,6 @@ public class DeviceWebhookController {
         if (allowedList.isEmpty()) {
             return false;
         }
-        // 支持精确匹配和 CIDR 前缀匹配（如 192.168.1.）
         for (String allowed : allowedList) {
             if (clientIp.equals(allowed) || clientIp.startsWith(allowed)) {
                 return true;
@@ -109,9 +213,6 @@ public class DeviceWebhookController {
         return false;
     }
 
-    /**
-     * 解析 IP 白名单配置。
-     */
     private List<String> parseAllowedIps() {
         return Collections.unmodifiableList(
                 Arrays.stream(allowedIps.split(","))
@@ -121,9 +222,6 @@ public class DeviceWebhookController {
         );
     }
 
-    /**
-     * 获取客户端真实 IP（考虑反向代理）。
-     */
     private String getClientIp(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isBlank()) {

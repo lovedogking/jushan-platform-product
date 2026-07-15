@@ -110,19 +110,28 @@ public class DeviceWebhookService {
                     event.getEventId(), event.getParkingLotId(), trustedParkingLotId);
         }
 
-        // 3. 方向校验：对比事件方向与车道绑定方向（DB type: 1=ENTRY, 2=EXIT, 3=MIXED）
-        if (trustedLaneId != null && event.getDirection() != null) {
+        // 3. 方向推断与校验：对比事件方向与车道绑定方向（DB type: 1=ENTRY, 2=EXIT, 3=MIXED）
+        //    臻识 C5H 等相机可能不发送方向或发送未知值（direction=4），此时从车道类型推断
+        if (trustedLaneId != null) {
             ParkingLane lane = laneMapper.selectByIdIgnoreTenant(trustedLaneId);
             if (lane != null && lane.getType() != null && lane.getType() != 3) {
-                // 非 MIXED 车道才校验方向
+                // 非 MIXED 车道：方向由车道物理绑定决定
                 String laneDirection = lane.getType() == 1 ? "ENTRY" : "EXIT";
-                if (!laneDirection.equals(event.getDirection())) {
-                    log.error("Webhook 事件方向与车道方向不匹配，拒绝处理: eventId={}, deviceSn={}, laneId={}, " +
-                                    "eventDirection={}, laneDirection={}",
-                            event.getEventId(), event.getDeviceSn(), trustedLaneId,
-                            event.getDirection(), laneDirection);
-                    // 记录审计（不可信方向事件）
-                    return;
+
+                if (event.getDirection() != null) {
+                    // 有方向时校验是否匹配
+                    if (!laneDirection.equals(event.getDirection())) {
+                        log.error("Webhook 事件方向与车道方向不匹配，拒绝处理: eventId={}, deviceSn={}, laneId={}, " +
+                                        "eventDirection={}, laneDirection={}",
+                                event.getEventId(), event.getDeviceSn(), trustedLaneId,
+                                event.getDirection(), laneDirection);
+                        return;
+                    }
+                } else {
+                    // 方向未知时从车道类型推断（臻识 C5H direction=4 等场景）
+                    log.info("Webhook 事件方向为空，从车道绑定推断: laneId={}, type={} → {}",
+                            trustedLaneId, lane.getType(), laneDirection);
+                    event.setDirection(laneDirection);
                 }
             }
         }
