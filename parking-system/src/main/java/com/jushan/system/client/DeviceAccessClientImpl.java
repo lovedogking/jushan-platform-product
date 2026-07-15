@@ -3,15 +3,14 @@ package com.jushan.system.client;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.framework.config.DeviceAccessProperties;
-import com.jushan.system.client.dto.DeviceAccessResponse;
-import com.jushan.system.client.dto.DeviceStatusDTO;
-import com.jushan.system.client.dto.TimeSyncResultDTO;
+import com.jushan.system.client.dto.*;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -26,9 +25,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Device Access HTTP 客户端实现（T23，P002 增强）。
+ * Device Access HTTP 客户端实现（T23，P002 增强，v0.4 扩展）。
  * <p>
- * 使用 {@link RestTemplate} 调用 Device Access v0.2 接口，
+ * 使用 {@link RestTemplate} 调用 Device Access v0.2/v0.4 接口，
  * <strong>不包含任何自动重试</strong>，网络超时统一标记为 UNCERTAIN。
  * <p>
  * <strong>P002 新增能力</strong>：
@@ -38,12 +37,19 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>完整异常路径：响应解析失败、跨停车场调用、批量查询部分失败</li>
  * </ul>
  * <p>
+ * <strong>v0.4 新增</strong>：
+ * <ul>
+ *   <li>开闸/关闸 — {@code POST /api/v1/devices/{deviceSn}/gate/open|close}</li>
+ *   <li>显示屏文字/保存/配置 — {@code POST /api/v1/devices/{deviceSn}/display/text|save|config}</li>
+ *   <li>语音播报 — {@code POST /api/v1/devices/{deviceSn}/voice/control}</li>
+ * </ul>
+ * <p>
  * <strong>错误分类</strong>：
  * <ul>
  *   <li>DA 返回非 200 → {@link BusinessException}（携带 DA 错误码和消息）</li>
  *   <li>网络超时/连接失败 → {@link BusinessException}（INTERNAL_ERROR，标记 UNCERTAIN）</li>
  *   <li>响应解析失败 → {@link BusinessException}（INTERNAL_ERROR）</li>
- *   <li>降级触发 → {@link BusinessException}（DEVICE_ACCESS_UNAVAILABLE）</li>
+ *   <li>降级触发 → {@link BusinessException}（INTERNAL_ERROR）</li>
  * </ul>
  *
  * @author Jushan Platform
@@ -54,8 +60,19 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceAccessClientImpl.class);
 
+    // ==================== v0.2 路径 ====================
+
     private static final String STATUS_PATH = "/api/v1/devices/{deviceSn}/status";
     private static final String SYNC_TIME_PATH = "/api/v1/devices/{deviceSn}/time/sync";
+
+    // ==================== v0.4 路径 ====================
+
+    private static final String OPEN_GATE_PATH = "/api/v1/devices/{deviceSn}/gate/open";
+    private static final String CLOSE_GATE_PATH = "/api/v1/devices/{deviceSn}/gate/close";
+    private static final String DISPLAY_TEXT_PATH = "/api/v1/devices/{deviceSn}/display/text";
+    private static final String SAVE_DISPLAY_PATH = "/api/v1/devices/{deviceSn}/display/save";
+    private static final String DISPLAY_CONFIG_PATH = "/api/v1/devices/{deviceSn}/display/config";
+    private static final String VOICE_CONTROL_PATH = "/api/v1/devices/{deviceSn}/voice/control";
 
     /** Micrometer 指标前缀 */
     private static final String METRIC_PREFIX = "device.access";
@@ -91,20 +108,13 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
 
     /**
      * 初始化 Micrometer 指标。
-     * <p>
-     * 注册以下指标（前缀 {@value #METRIC_PREFIX}）：
-     * <ul>
-     *   <li>{@code .calls.total} — 总调用次数（按 method、status 标签）</li>
-     *   <li>{@code .calls.errors} — 错误调用次数（按 method、error_type 标签）</li>
-     *   <li>{@code .latency} — 调用延迟 Timer（按 method 标签）</li>
-     *   <li>{@code .circuit_breaker.state} — 降级状态（0=关闭，1=打开）</li>
-     * </ul>
      */
     private void initMetrics() {
-        // 降级状态 Gauge
         meterRegistry.gauge(METRIC_PREFIX + ".circuit_breaker.state", circuitOpen,
                 cb -> cb.get() ? 1.0 : 0.0);
     }
+
+    // ==================== v0.2 方法 ====================
 
     @Override
     public DeviceStatusDTO getStatus(String deviceSn) {
@@ -157,27 +167,180 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
         return response.getData();
     }
 
+    // ==================== v0.4 设备控制 ====================
+
+    @Override
+    public CommandResultDTO openGate(String deviceSn) {
+        log.debug("开闸: deviceSn={}", deviceSn);
+
+        checkCircuitBreaker("openGate");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        DeviceAccessResponse<CommandResultDTO> response;
+
+        try {
+            response = execute(
+                    OPEN_GATE_PATH, HttpMethod.POST, deviceSn,
+                    new ParameterizedTypeReference<DeviceAccessResponse<CommandResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "openGate")
+                    .register(meterRegistry));
+        }
+
+        recordSuccess("openGate");
+        log.info("开闸成功: deviceSn={}, success={}, deviceCode={}", deviceSn,
+                response.getData() != null ? response.getData().getSuccess() : null,
+                response.getData() != null ? response.getData().getDeviceCode() : null);
+        return response.getData();
+    }
+
+    @Override
+    public CommandResultDTO closeGate(String deviceSn) {
+        log.debug("关闸: deviceSn={}", deviceSn);
+
+        checkCircuitBreaker("closeGate");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        DeviceAccessResponse<CommandResultDTO> response;
+
+        try {
+            response = execute(
+                    CLOSE_GATE_PATH, HttpMethod.POST, deviceSn,
+                    new ParameterizedTypeReference<DeviceAccessResponse<CommandResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "closeGate")
+                    .register(meterRegistry));
+        }
+
+        recordSuccess("closeGate");
+        log.info("关闸成功: deviceSn={}, success={}, deviceCode={}", deviceSn,
+                response.getData() != null ? response.getData().getSuccess() : null,
+                response.getData() != null ? response.getData().getDeviceCode() : null);
+        return response.getData();
+    }
+
+    @Override
+    public DisplayResultDTO displayText(String deviceSn, DisplayTextRequest request) {
+        log.debug("显示屏文字: deviceSn={}, content={}", deviceSn,
+                request != null ? request.getContent() : null);
+
+        checkCircuitBreaker("displayText");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        DeviceAccessResponse<DisplayResultDTO> response;
+
+        try {
+            response = execute(
+                    DISPLAY_TEXT_PATH, HttpMethod.POST, deviceSn, request,
+                    new ParameterizedTypeReference<DeviceAccessResponse<DisplayResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "displayText")
+                    .register(meterRegistry));
+        }
+
+        recordSuccess("displayText");
+        log.info("显示屏文字设置成功: deviceSn={}, success={}", deviceSn,
+                response.getData() != null ? response.getData().getSuccess() : null);
+        return response.getData();
+    }
+
+    @Override
+    public DisplayResultDTO saveDisplay(String deviceSn, DisplaySaveRequest request) {
+        log.debug("保存显示内容: deviceSn={}, lineNumber={}", deviceSn,
+                request != null ? request.getLineNumber() : null);
+
+        checkCircuitBreaker("saveDisplay");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        DeviceAccessResponse<DisplayResultDTO> response;
+
+        try {
+            response = execute(
+                    SAVE_DISPLAY_PATH, HttpMethod.POST, deviceSn, request,
+                    new ParameterizedTypeReference<DeviceAccessResponse<DisplayResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "saveDisplay")
+                    .register(meterRegistry));
+        }
+
+        recordSuccess("saveDisplay");
+        log.info("显示内容保存成功: deviceSn={}, success={}", deviceSn,
+                response.getData() != null ? response.getData().getSuccess() : null);
+        return response.getData();
+    }
+
+    @Override
+    public DisplayResultDTO displayConfig(String deviceSn, DisplayConfigRequest request) {
+        log.debug("显示屏配置: deviceSn={}, configType={}", deviceSn,
+                request != null ? request.getConfigType() : null);
+
+        checkCircuitBreaker("displayConfig");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        DeviceAccessResponse<DisplayResultDTO> response;
+
+        try {
+            response = execute(
+                    DISPLAY_CONFIG_PATH, HttpMethod.POST, deviceSn, request,
+                    new ParameterizedTypeReference<DeviceAccessResponse<DisplayResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "displayConfig")
+                    .register(meterRegistry));
+        }
+
+        recordSuccess("displayConfig");
+        log.info("显示屏配置成功: deviceSn={}, configType={}, success={}", deviceSn,
+                request != null ? request.getConfigType() : null,
+                response.getData() != null ? response.getData().getSuccess() : null);
+        return response.getData();
+    }
+
+    @Override
+    public VoiceResultDTO voiceControl(String deviceSn, VoiceControlRequest request) {
+        log.debug("语音播报: deviceSn={}, action={}, voiceId={}", deviceSn,
+                request != null ? request.getAction() : null,
+                request != null ? request.getVoiceId() : null);
+
+        checkCircuitBreaker("voiceControl");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        DeviceAccessResponse<VoiceResultDTO> response;
+
+        try {
+            response = execute(
+                    VOICE_CONTROL_PATH, HttpMethod.POST, deviceSn, request,
+                    new ParameterizedTypeReference<DeviceAccessResponse<VoiceResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "voiceControl")
+                    .register(meterRegistry));
+        }
+
+        recordSuccess("voiceControl");
+        log.info("语音播报成功: deviceSn={}, success={}", deviceSn,
+                response.getData() != null ? response.getData().getSuccess() : null);
+        return response.getData();
+    }
+
     // ==================== 降级策略 ====================
 
     /**
      * 检查降级状态。
-     * <p>
-     * 如果降级已打开，检查是否超过恢复窗口；若未超过，直接抛出快速失败异常。
-     *
-     * @param method 方法名（用于日志和指标）
-     * @throws BusinessException 降级打开时抛出 DEVICE_ACCESS_UNAVAILABLE
      */
     private void checkCircuitBreaker(String method) {
         if (!circuitOpen.get()) {
             return;
         }
 
-        // 检查是否超过恢复窗口
         LocalDateTime now = LocalDateTime.now();
         if (lastFailureTime != null) {
             long secondsSinceLastFailure = Duration.between(lastFailureTime, now).getSeconds();
             if (secondsSinceLastFailure >= CIRCUIT_BREAKER_RECOVERY_SECONDS) {
-                // 尝试恢复：关闭降级，重置计数器
                 circuitOpen.set(false);
                 consecutiveFailures.set(0);
                 log.info("Device Access 降级恢复: 超过 {} 秒恢复窗口，尝试恢复调用 (method={})",
@@ -186,7 +349,6 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
             }
         }
 
-        // 降级中，快速失败
         Counter.builder(METRIC_PREFIX + ".calls.errors")
                 .tag("method", method)
                 .tag("error_type", "circuit_breaker")
@@ -215,9 +377,6 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
 
     /**
      * 记录失败，增加连续失败计数器，可能触发降级。
-     *
-     * @param method    方法名
-     * @param errorType 错误类型标签
      */
     private void recordFailure(String method, String errorType) {
         int failures = consecutiveFailures.incrementAndGet();
@@ -248,9 +407,9 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
     // ==================== 内部执行方法 ====================
 
     /**
-     * 执行一次 Device Access HTTP 调用并解析统一响应。
+     * 执行一次 Device Access HTTP 调用并解析统一响应（无请求体）。
      * <p>
-     * 不使用自动重试；写请求的透明重试由本方法显式禁止。
+     * 委托至 {@link #execute(String, HttpMethod, String, Object, ParameterizedTypeReference)}。
      *
      * @param pathTemplate URL 路径模板（含 {deviceSn} 占位符）
      * @param method       HTTP 方法
@@ -265,13 +424,40 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
             HttpMethod method,
             String deviceSn,
             ParameterizedTypeReference<DeviceAccessResponse<T>> typeRef) {
+        return execute(pathTemplate, method, deviceSn, null, typeRef);
+    }
+
+    /**
+     * 执行一次 Device Access HTTP 调用并解析统一响应（支持请求体）。
+     * <p>
+     * 不使用自动重试；写请求的透明重试由本方法显式禁止。
+     *
+     * @param pathTemplate URL 路径模板（含 {deviceSn} 占位符）
+     * @param method       HTTP 方法
+     * @param deviceSn     设备 SN
+     * @param requestBody  请求体（可为 null）
+     * @param typeRef      响应类型引用（用于泛型反序列化）
+     * @param <T>          业务 data 类型
+     * @return 解析后的 DA 响应
+     * @throws BusinessException DA 错误、网络异常或解析失败
+     */
+    private <T> DeviceAccessResponse<T> execute(
+            String pathTemplate,
+            HttpMethod method,
+            String deviceSn,
+            Object requestBody,
+            ParameterizedTypeReference<DeviceAccessResponse<T>> typeRef) {
 
         String url = props.getBaseUrl() + pathTemplate;
         String methodName = method.name().toLowerCase() + "_" + pathTemplate.replace("/", "_");
 
         try {
+            HttpEntity<Object> httpEntity = requestBody != null
+                    ? new HttpEntity<>(requestBody)
+                    : null;
+
             ResponseEntity<DeviceAccessResponse<T>> entity =
-                    restTemplate.exchange(url, method, null, typeRef, deviceSn);
+                    restTemplate.exchange(url, method, httpEntity, typeRef, deviceSn);
 
             HttpStatusCode statusCode = entity.getStatusCode();
             DeviceAccessResponse<T> body = entity.getBody();

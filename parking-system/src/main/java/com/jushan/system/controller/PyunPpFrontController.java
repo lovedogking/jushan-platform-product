@@ -10,6 +10,7 @@ import com.jushan.system.mapper.ParkingRecordMapper;
 import com.jushan.system.mapper.PayMerchantConfigMapper;
 import com.jushan.system.service.BillingEngine;
 import com.jushan.system.service.ParkingOrderService;
+import com.jushan.platform.modules.vehicle.service.VehicleRenewalService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
@@ -44,17 +45,20 @@ public class PyunPpFrontController {
     private final PayMerchantConfigMapper merchantConfigMapper;
     private final ParkingOrderService orderService;
     private final BillingEngine billingEngine;
+    private final VehicleRenewalService renewalService;
 
     public PyunPpFrontController(ParkingRecordMapper parkingRecordMapper,
                                   ParkingLotMapper parkingLotMapper,
                                   PayMerchantConfigMapper merchantConfigMapper,
                                   ParkingOrderService orderService,
-                                  BillingEngine billingEngine) {
+                                  BillingEngine billingEngine,
+                                  VehicleRenewalService renewalService) {
         this.parkingRecordMapper = parkingRecordMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.merchantConfigMapper = merchantConfigMapper;
         this.orderService = orderService;
         this.billingEngine = billingEngine;
+        this.renewalService = renewalService;
     }
 
     /**
@@ -186,10 +190,24 @@ public class PyunPpFrontController {
         String parkUuid = (String) request.get("park_uuid");
         String plate = (String) request.get("plate");
         int days = parseIntSafe(request.get("days"));
+        String paySerial = (String) request.get("pay_serial");
 
-        log.info("P云续费通知: parkUuid={} plate={} days={}", parkUuid, plate, days);
+        log.info("P云续费通知: parkUuid={} plate={} days={} paySerial={}", parkUuid, plate, days, paySerial);
 
-        // 一期预留：记录续费通知
+        // 解析停车场配置，得到可信租户与停车场
+        PayMerchantConfig config = findByParkUuid(parkUuid);
+        if (config == null) {
+            return R.ok(Map.of("result_code", "1001", "message", "通知成功"));
+        }
+
+        // 按车牌匹配最新待生效的月卡续费订单并触发生效（找不到则忽略，P云要求返回成功）
+        try {
+            String serial = (paySerial != null && !paySerial.isEmpty())
+                    ? paySerial : ("PYUN-RN-" + System.currentTimeMillis());
+            renewalService.applyRenewalByPlate(config.getTenantId(), config.getParkingLotId(), plate, serial);
+        } catch (Exception e) {
+            log.error("P云续费通知处理异常: plate={}", plate, e);
+        }
         return R.ok(Map.of("result_code", "1001", "message", "通知成功"));
     }
 

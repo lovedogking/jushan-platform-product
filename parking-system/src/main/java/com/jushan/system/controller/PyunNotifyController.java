@@ -9,6 +9,7 @@ import com.jushan.system.mapper.PayMerchantConfigMapper;
 import com.jushan.system.service.ParkingOrderService;
 import com.jushan.system.service.PyunPaymentClient;
 import com.jushan.system.mapper.PayOrderMapper;
+import com.jushan.platform.modules.vehicle.service.VehicleRenewalService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
@@ -48,17 +49,20 @@ public class PyunNotifyController {
     private final PayOrderMapper payOrderMapper;
     private final PayMerchantConfigMapper merchantConfigMapper;
     private final ObjectMapper objectMapper;
+    private final VehicleRenewalService renewalService;
 
     public PyunNotifyController(PyunPaymentClient pyunClient,
                                  ParkingOrderService orderService,
                                  PayOrderMapper payOrderMapper,
                                  PayMerchantConfigMapper merchantConfigMapper,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 VehicleRenewalService renewalService) {
         this.pyunClient = pyunClient;
         this.orderService = orderService;
         this.payOrderMapper = payOrderMapper;
         this.merchantConfigMapper = merchantConfigMapper;
         this.objectMapper = objectMapper;
+        this.renewalService = renewalService;
     }
 
     /**
@@ -132,6 +136,15 @@ public class PyunNotifyController {
                 // 记录支付流水
                 recordPayOrder(order, paySerial, valueCents, params);
                 log.info("P云回调支付成功: orderId={} pay_serial={} value={}", order.getId(), paySerial, valueCents);
+                // 月卡续费订单：支付成功后自动延长有效期、回写在场车辆类型、记录审计
+                if (ParkingOrder.ORDER_TYPE_MONTH_RENEW.equals(order.getOrderType())) {
+                    try {
+                        renewalService.applyRenewalEffect(order.getId(), paySerial);
+                    } catch (Exception e) {
+                        // 支付已成功，续费生效失败需告警但不影响回调响应
+                        log.error("月卡续费生效处理失败（支付已成功）: orderId={}", order.getId(), e);
+                    }
+                }
                 return successResponse();
             } else {
                 log.warn("P云回调更新订单状态失败: orderId={}", order.getId());

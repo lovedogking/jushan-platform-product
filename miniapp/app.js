@@ -1,7 +1,7 @@
 /**
  * 智慧停车 - 车主端微信小程序
  * 全局入口
- * R01 冻结契约：jushan_access_token、code===0、message 字段、displayName
+ * R01 冻结契约：jushan_access_token、code===200、message 字段、displayName
  */
 const TOKEN_KEY = 'jushan_access_token'
 const OWNER_INFO_KEY = 'ownerInfo'

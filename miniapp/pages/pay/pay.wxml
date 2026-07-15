@@ -1,0 +1,83 @@
+<view class="page">
+  <!-- 加载中 -->
+  <view class="loading-wrap" wx:if="{{loading}}">
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <!-- 支付成功 -->
+  <view class="result-wrap" wx:if="{{!loading && payResult === 'success'}}">
+    <view class="result-icon success-icon">✓</view>
+    <text class="result-title">支付成功</text>
+    <text class="result-desc" wx:if="{{orderNo}}">订单号：{{orderNo}}</text>
+    <text class="result-desc">费用：¥{{feeText}}</text>
+    <button class="btn-primary btn-full result-btn" bindtap="goToRecords">查看记录</button>
+  </view>
+
+  <!-- 支付失败 -->
+  <view class="result-wrap" wx:elif="{{!loading && payResult === 'fail'}}">
+    <view class="result-icon fail-icon">✕</view>
+    <text class="result-title">支付失败</text>
+    <text class="result-desc error-msg">{{errorMsg}}</text>
+    <button class="btn-primary btn-full result-btn" bindtap="onRetry">重新支付</button>
+  </view>
+
+  <!-- 支付详情（默认状态） -->
+  <block wx:if="{{!loading && payResult !== 'success' && payResult !== 'fail'}}">
+    <!-- 停车详情卡片 -->
+    <view class="card detail-card">
+      <view class="plate-display">
+        <text class="plate-text">{{plateNumber}}</text>
+        <text class="status-tag {{status === 'IN' ? 'tag-in' : 'tag-out'}}">{{statusText}}</text>
+      </view>
+
+      <view class="detail-row">
+        <text class="detail-label">停车场</text>
+        <text class="detail-value">{{parkingLotName}}</text>
+      </view>
+      <view class="detail-row">
+        <text class="detail-label">入场时间</text>
+        <text class="detail-value">{{entryTimeText}}</text>
+      </view>
+      <view class="detail-row" wx:if="{{exitTimeText}}">
+        <text class="detail-label">出场时间</text>
+        <text class="detail-value">{{exitTimeText}}</text>
+      </view>
+      <view class="detail-row">
+        <text class="detail-label">停车时长</text>
+        <text class="detail-value duration">{{durationText}}</text>
+      </view>
+
+      <!-- 分隔线 -->
+      <view class="divider"></view>
+
+      <!-- 费用 -->
+      <view class="fee-display">
+        <text class="fee-label">停车费用</text>
+        <text class="fee-amount">¥{{feeText}}</text>
+      </view>
+
+      <view class="message-hint" wx:if="{{message}}">{{message}}</view>
+    </view>
+
+    <!-- 错误提示 -->
+    <view class="error-bar" wx:if="{{errorMsg}}">
+      <text class="error-text">{{errorMsg}}</text>
+    </view>
+
+    <!-- 支付按钮 -->
+    <view class="pay-action">
+      <button
+        class="btn-pay-primary {{payable ? '' : 'btn-disabled'}}"
+        bindtap="onPay"
+        disabled="{{paying || !payable}}"
+        loading="{{paying}}"
+      >
+        <text wx:if="{{!payable}}">无需支付</text>
+        <text wx:elif="{{paying}}">支付中...</text>
+        <text wx:else>微信支付 ¥{{feeText}}</text>
+      </button>
+      <text class="pay-hint" wx:if="{{payable}}">点击按钮发起微信支付</text>
+      <text class="pay-hint" wx:else>{{status === 'OUT' ? '车辆已出场' : '已支付或免费'}}</text>
+    </view>
+  </block>
+</view>

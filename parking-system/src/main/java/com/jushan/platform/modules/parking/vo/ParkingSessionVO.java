@@ -50,6 +50,9 @@ public class ParkingSessionVO {
     /** 应收费用（元） */
     private BigDecimal feeAmount;
 
+    /** 应收费用（分），精度安全的整数分表示 */
+    private Integer feeCents;
+
     /** 已付费用（元） */
     private BigDecimal paidAmount;
 

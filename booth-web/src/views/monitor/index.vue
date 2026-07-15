@@ -68,13 +68,21 @@
               :key="lane.laneId"
               :bordered="false"
               class="lane-card"
-              :class="{ 'lane-offline': lane.isOffline }"
+              :class="{
+                'lane-offline': lane.isOffline,
+                'lane-charging': lane.charging,
+              }"
             >
               <div class="lane-header">
                 <span class="lane-name">{{ lane.laneName }}</span>
-                <a-tag :color="lane.deviceOnline ? 'success' : 'error'">
-                  {{ lane.deviceOnline ? '在线' : '离线' }}
-                </a-tag>
+                <div class="lane-tags">
+                  <a-tag v-if="lane.charging" color="processing">
+                    <SyncOutlined :spin="true" style="margin-right: 2px" />收费中
+                  </a-tag>
+                  <a-tag :color="lane.deviceOnline ? 'success' : 'error'">
+                    {{ lane.deviceOnline ? '在线' : '离线' }}
+                  </a-tag>
+                </div>
               </div>
               <div class="lane-direction">
                 <a-tag :color="lane.direction === 'EXIT' ? 'orange' : 'blue'">
@@ -105,7 +113,11 @@
             size="small"
           >
             <template #renderItem="{ item }">
-              <a-list-item class="event-list-item">
+              <a-list-item
+                class="event-list-item"
+                :class="{ 'event-exit-unpaid': item.direction === 'EXIT' && !item.paymentStatus }"
+                @click="handleEventClick(item)"
+              >
                 <div class="event-row">
                   <div class="event-main">
                     <span class="event-plate-text">{{ item.plateNumber || '-' }}</span>
@@ -115,10 +127,22 @@
                     <a-tag size="small" :color="sourceColor(item.source)">
                       {{ item.source }}
                     </a-tag>
+                    <!-- 支付状态标记 -->
+                    <a-tag
+                      v-if="item.direction === 'EXIT' && item.paymentStatus"
+                      size="small"
+                      :color="item.paymentStatus === 'PAID' ? 'success' : 'warning'"
+                    >
+                      {{ item.paymentStatus === 'PAID' ? '已支付' : '待支付' }}
+                    </a-tag>
                   </div>
                   <div class="event-sub">
                     <span>{{ item.laneName || '未知车道' }}</span>
                     <span class="event-time-text">{{ store.formatTime(item.eventTime) }}</span>
+                  </div>
+                  <!-- 费用信息 -->
+                  <div v-if="item.feeAmount != null && item.feeAmount > 0" class="event-fee">
+                    应收: ¥{{ item.feeAmount.toFixed(2) }}
                   </div>
                 </div>
               </a-list-item>
@@ -151,15 +175,20 @@
         </a-card>
       </a-col>
     </a-row>
+
+    <!-- 收费面板 -->
+    <ChargePanel />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import { SyncOutlined } from '@ant-design/icons-vue'
 import { useMonitorStore } from '@/stores/monitor'
 import { MonitorWebSocketClient, type ConnectionStatus } from '@/utils/websocket'
-import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPayload } from '@/api/monitor-types'
+import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPayload, RecognitionEvent } from '@/api/monitor-types'
+import ChargePanel from '@/components/ChargePanel.vue'
 
 const TOKEN_KEY = 'jushan_access_token'
 const LOT_ID_KEY = 'booth_selected_lot_id'
@@ -201,6 +230,8 @@ interface LaneCard {
   deviceId?: number
   deviceOnline: boolean
   isOffline: boolean
+  /** 是否正在收费中 */
+  charging: boolean
   latestEvent?: RecognitionEventPayload
 }
 
@@ -211,6 +242,11 @@ const laneCards = computed((): LaneCard[] => {
       : undefined
     const latestEvent = store.recentEvents.find((e) => e.laneId === lane.id)
 
+    // 判断当前车道是否处于收费中状态（收费面板打开且对应此车道）
+    const charging =
+      store.chargePanelVisible &&
+      store.currentChargeInfo?.laneId === lane.id
+
     return {
       laneId: lane.id,
       laneName: lane.name || `车道 ${lane.id}`,
@@ -218,6 +254,7 @@ const laneCards = computed((): LaneCard[] => {
       deviceId: lane.deviceId,
       deviceOnline: !!device?.online && !device?.stale,
       isOffline: !device || !device.online || device.stale,
+      charging,
       latestEvent: latestEvent as RecognitionEventPayload | undefined,
     }
   })
@@ -228,6 +265,15 @@ function sourceColor(source?: string) {
   if (source === 'MOCK') return 'purple'
   if (source === 'MANUAL') return 'blue'
   return 'default'
+}
+
+/** 点击事件列表项：EXIT 事件打开收费面板 */
+function handleEventClick(item: RecognitionEvent) {
+  if (item.direction === 'EXIT') {
+    store.showChargePanel(item.plateNumber, item.laneId).catch(() => {
+      // 查询失败不阻塞
+    })
+  }
 }
 
 function getToken(): string | null {
@@ -255,6 +301,13 @@ function buildWsClient(lotId: number) {
       onRecognitionEvent: (payload: RecognitionEventPayload) => {
         store.handleRecognitionEvent(payload)
         message.info(`${payload.direction === 'ENTRY' ? '入场' : '出场'}识别: ${payload.plateNumber}`)
+
+        // EXIT 出场事件自动弹出收费面板
+        if (payload.direction === 'EXIT') {
+          store.showChargePanel(payload.plateNumber, payload.laneId).catch(() => {
+            // 查询失败时不阻塞，收费面板已显示（含错误提示）
+          })
+        }
       },
       onDeviceStatus: (payload: DeviceStatus) => {
         store.handleDeviceStatus(payload)
@@ -428,6 +481,17 @@ onUnmounted(() => {
   &.lane-offline {
     border: 1px solid #fca5a5;
   }
+
+  &.lane-charging {
+    border: 2px solid $primary-color;
+    box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.15);
+  }
+
+  .lane-tags {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
 }
 
 .right-card {
@@ -438,6 +502,18 @@ onUnmounted(() => {
 
 .event-list-item {
   padding: 8px 0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #f0f5ff;
+  }
+
+  &.event-exit-unpaid {
+    border-left: 3px solid $warning-color;
+    padding-left: 9px;
+    background-color: rgba(245, 158, 11, 0.04);
+  }
 }
 
 .event-row {
@@ -465,6 +541,14 @@ onUnmounted(() => {
 
 .event-time-text {
   font-family: monospace;
+}
+
+.event-fee {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: $error-color;
+  text-align: right;
 }
 
 .alert-list-item {

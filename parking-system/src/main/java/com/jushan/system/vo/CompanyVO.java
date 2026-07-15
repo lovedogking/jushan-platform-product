@@ -5,9 +5,14 @@ import java.time.LocalDateTime;
 /**
  * 公司/集团档案视图。
  *
+ * <p><b>已废弃（@Deprecated）：</b>旧风格 {@code com.jushan.system.controller.CompanyController}
+ * 的响应视图，已迁移至 {@code com.jushan.platform.modules.company.vo.CompanyVO}。
+ *
  * @author Jushan Platform
  * @since 1.0.0
+ * @deprecated 自 1.0.0 起废弃，迁移目标见类注释。
  */
+@Deprecated
 public class CompanyVO {
 
     /** 公司 ID */

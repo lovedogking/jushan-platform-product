@@ -68,9 +68,9 @@ Codex 默认只读，只有在用户明确要求亲自修改且使用允许写�
 
 ## 4. Device Access 当前冻结契约
 
-### 当前 v0.2 事实
+### 当前 v0.4 事实（2026-07-15 更新）
 
-Device Access v0.2 当前实际提供 7 个 HTTP 端点：
+Device Access v0.4 当前实际提供 16 个 HTTP 端点：
 
 ```text
 POST   /api/v1/devices
@@ -80,32 +80,40 @@ PUT    /api/v1/devices/{deviceId}
 DELETE /api/v1/devices/{deviceId}
 POST   /api/v1/devices/{deviceId}/time/sync
 GET    /api/v1/devices/{deviceId}/status
+POST   /api/v1/devices/{deviceId}/gate/open       ← v0.4 新增（臻识/信路通）
+POST   /api/v1/devices/{deviceId}/gate/close        ← v0.4 新增
+POST   /api/v1/devices/{deviceId}/peripheral/display ← v0.4 新增
+POST   /api/v1/devices/{deviceId}/display/text      ← v0.4 新增
+POST   /api/v1/devices/{deviceId}/display/save       ← v0.4 新增
+POST   /api/v1/devices/{deviceId}/display/config    ← v0.4 新增
+POST   /api/v1/devices/{deviceId}/voice/control     ← v0.4 新增
+GET    /api/v1/products
+GET    /api/v1/devices/{deviceId}/relations
 ```
 
 当前实现事实：
-- **没有 gate/open**，开闸为 NOT_IMPLEMENTED_IN_V0.2（v0.2 有意排除）
-- 没有跨系统 PLATE_RECOGNIZED 上报
-- 没有 RabbitMQ 业务事件发布
-- 没有 commandId 幂等
-- 没有 COMMAND_RESULT
-- 没有 HMAC 服务间认证
+- ✅ **gate/open 已实现**（臻识 gate_direct_open + 信路通 OPEN_GATE，待真机验证）
+- ✅ **车牌识别事件已支持**：PlateRecognizedEvent 通过 HTTP Webhook 异步推送到平台
+- ✅ **心跳已支持**：DeviceHeartbeatRecorder 记录心跳
+- ✅ **显示屏控制已支持**：三接口分离（配置/内容/语音）
+- ⚠️ 没有 commandId 幂等（一期不得自动重试开闸）
+- ⚠️ 没有 HMAC 服务间认证（当前使用 API Key 认证）
+- ⚠️ 没有 RabbitMQ 业务事件（使用 HTTP Webhook 替代）
 - 当前响应格式为 code=200 风格
 - 当前 deviceId 主要对应厂商 SN
-- Platform 当前没有可以组合成真实停车主链路的 Device Access 接口集合
 
 ### B01～B08 联合决策
 
-B01～B08 已获得双方 ACCEPTED（2026-07-11），但这是**目标设计**，不代表当前代码已实现。
+B01～B08 已获得双方 ACCEPTED（2026-07-11），v0.4 代码已实现其中与设备控制相关的决策。
 
 详细决策见共享契约 `docs/contracts/platform-device-access/08-联合评审决策表.md`。
 
 ### V01～V04 真机验证
 
-待完成（阻塞第一阶段编码）：
-- V01：C5H 型号和固件
-- V02：真实车牌识别 Topic、字段和报文
-- V03：真实心跳 Topic、频率和超时
-- V04：真实开闸 Topic、命令、回执和实际闸杆动作
+- V01：C5H 型号和固件 — 代码已实现，待真机验证
+- V02：真实车牌识别 Topic、字段和报文 — 代码已实现，待真机验证
+- V03：真实心跳 Topic、频率和超时 — 代码已实现，信路通真机验证通过
+- V04：真实开闸 Topic、命令、回执和实际闸杆动作 — 代码已实现，信路通真机验证通过，臻识待验证
 
 ### 开闸三层状态
 
@@ -212,7 +220,7 @@ Claude Code 日常开发与自检 Skills 位于 `.claude/skills/`，包括 `revi
 | 二期 增值运营 | S11-S18 | 约 10-12 周 | 商家优惠、会员积分、充电优惠、访客管理、电子发票、短信增值、报表中心 |
 | 三期 生态扩展 | S19-S23 | 约 6-8 周 | 相机设备档案与指令预留、高级审批流、数据开放平台、智能分析 |
 
-详细任务拆分见 `docs/开发计划/section_01_dev_plan.md`。
+详细任务拆分见 `docs/开发计划/01-开发任务拆分.md`。
 
 ### 13.2 Sprint 执行规则
 
@@ -233,7 +241,7 @@ Claude Code 日常开发与自检 Skills 位于 `.claude/skills/`，包括 `revi
 | 车牌大写存储 | 入库前 `toUpperCase()`；查询使用大写匹配 |
 | 操作日志 | 记录操作人、IP、时间、变更前后 JSON、操作结果；敏感字段脱敏 |
 | 并发控制 | 余额/库存/积分扣减使用 Redis 分布式锁（Redisson）+ 数据库乐观锁（version 字段） |
-| 预留接口 | 开闸、设备指令、税控、第三方支付等标注【预留】，返回 mock 但数据结构完整 |
+| 预留接口 | 税控、第三方支付等标注【预留】，返回 mock 但数据结构完整；开闸/设备控制已通过 v0.4 实现 |
 | 时间字段 | 统一使用 `DATETIME(3)` 或 `DATETIME`；接口使用 ISO 8601 |
 | 幂等 | 除只读接口外，所有 POST/PUT/DELETE 必须携带 `X-Idempotency-Key`（UUID），服务端 24 小时内同一键返回首次结果 |
 | PWA 离线缓存 | 岗亭端 Service Worker 缓存静态资源与关键数据；离线操作队列 + 冲突处理 |
@@ -243,7 +251,7 @@ Claude Code 日常开发与自检 Skills 位于 `.claude/skills/`，包括 `revi
 ### 14.1 三端一体架构
 
 - **后端**：Java 21 + Spring Boot 3.5 + MyBatis-Plus + MySQL 8.4 + Redis 7 + RabbitMQ 4
-- **PC 运营平台**：Vue 3 + Element Plus
+- **PC 运营平台**：Vue 3 + Ant Design Vue
 - **岗亭端**：Vue 3 + PWA，支持离线缓存与弱网环境
 - **车主小程序**：微信小程序原生框架
 - **部署**：Docker 容器化，初期 Docker Compose，后续可迁移 K8s
@@ -281,7 +289,7 @@ Redis Key 设计见 `docs/开发计划/section_06_architecture.md`。
 
 ### 14.6 关键依赖与风险
 
-1. **Device Access 接口**：开闸等控制指令依赖 v1.0，当前 v0.2 仅支持状态查询，一期开闸接口必须【预留】。
+1. **Device Access 接口**：开闸/关闸/显示屏/校时/状态查询等控制指令已通过 v0.4 HTTP API 实现，当前可对接联调。二期依赖统一设备事件管道（MQTT）和 commandId 幂等。
 2. **微信支付/支付宝真实参数**：一期使用 mock/沙箱，正式上线前需替换真实商户号、证书、密钥。
 3. **税控系统对接**：电子发票税控对接【预留】，需商务确认服务商。
 4. **第三方充电桩 API**：充电优惠第三方同步接口【预留】，需确认合作方。

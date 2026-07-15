@@ -1,0 +1,112 @@
+.records-list {
+  margin-top: 8rpx;
+}
+
+.notice-bar {
+  background: #fffbe6;
+  border: 1rpx solid #ffe58f;
+  border-radius: 16rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.notice-text {
+  color: #ad6800;
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
+.record-card {
+  margin-bottom: 20rpx;
+}
+
+.record-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18rpx;
+}
+
+.lot-name {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.status-badge {
+  font-size: 24rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 12rpx;
+  font-weight: 600;
+}
+
+.status-in {
+  background: #e6fffb;
+  color: #006d75;
+}
+
+.status-out {
+  background: #f6ffed;
+  color: #237804;
+}
+
+.record-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10rpx 0;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 26rpx;
+}
+
+.value {
+  color: var(--text);
+  font-size: 26rpx;
+  font-weight: 500;
+}
+
+.plate {
+  font-weight: 700;
+  letter-spacing: 1rpx;
+}
+
+.fee {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.pay-status.unpaid {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.pay-status.paid {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.load-more-wrap {
+  padding: 24rpx 0 40rpx;
+}
+
+.load-more-btn {
+  font-size: 28rpx;
+}
+
+.loading-text,
+.no-more-text {
+  text-align: center;
+  color: var(--muted);
+  padding: 24rpx 0;
+}
+
+.loading-text {
+  font-size: 26rpx;
+}
+
+.no-more-text {
+  font-size: 24rpx;
+}

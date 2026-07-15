@@ -50,19 +50,19 @@ export const CAMERA_MODE_OPTIONS = [
 
 /** 分页查询通道列表 */
 export function getParkingLanes(params: {
-  current?: number
+  page?: number
   size?: number
   lotId?: number
   zoneId?: number
   type?: number
   status?: number
 }) {
-  return request.get<PageResult<ParkingLaneVO>>('/api/v1/parking-lanes', params)
+  return request.get<PageResult<ParkingLaneVO>>('/admin/lanes', params)
 }
 
 /** 查询通道详情 */
 export function getParkingLane(id: number) {
-  return request.get<ParkingLaneVO>(`/api/v1/parking-lanes/${id}`)
+  return request.get<ParkingLaneVO>(`/admin/lanes/${id}`)
 }
 
 /** 创建通道 */
@@ -78,20 +78,20 @@ export function createParkingLane(data: {
   tideMode?: number
   cameraMode?: number
 }) {
-  return request.post<ParkingLaneVO>('/api/v1/parking-lanes', data)
+  return request.post<ParkingLaneVO>('/admin/lanes', data)
 }
 
 /** 更新通道 */
 export function updateParkingLane(id: number, data: Record<string, any>) {
-  return request.put<ParkingLaneVO>(`/api/v1/parking-lanes/${id}`, data)
+  return request.put<ParkingLaneVO>(`/admin/lanes/${id}`, data)
 }
 
 /** 删除通道（软删除） */
 export function deleteParkingLane(id: number) {
-  return request.delete<void>(`/api/v1/parking-lanes/${id}`)
+  return request.delete<void>(`/admin/lanes/${id}`)
 }
 
 /** 更新通道状态 */
 export function updateParkingLaneStatus(id: number, status: number) {
-  return request.post<void>(`/api/v1/parking-lanes/${id}/status`, undefined, { params: { status } })
+  return request.post<void>(`/admin/lanes/${id}/status`, { action: status === 1 ? "ENABLED" : "DISABLED" })
 }

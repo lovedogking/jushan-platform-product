@@ -58,6 +58,14 @@
             <a @click="handleBindLane(record)">绑定车道</a>
             <a v-if="record.deviceType === 'GATE'" @click="handleSetExecutor(record)">执行相机</a>
             <a @click="handleSyncTime(record)">校时</a>
+            <template v-if="record.deviceType === 'GATE' || record.deviceType === 'CAMERA'">
+              <a @click="handleOpenGate(record)">开闸</a>
+              <a @click="handleCloseGate(record)">关闸</a>
+            </template>
+            <template v-if="record.deviceType === 'CAMERA'">
+              <a @click="handleOpenControl(record)">显示屏</a>
+              <a @click="handleVoiceBroadcast(record)">语音播报</a>
+            </template>
             <a v-if="record.status === 'DISABLED'" @click="handleToggleStatus(record, 'ENABLED')">启用</a>
             <a v-else style="color: #dc2626" @click="handleToggleStatus(record, 'DISABLED')">停用</a>
           </a-space>
@@ -155,6 +163,27 @@
         <a-descriptions-item label="消息">{{ syncResult.message }}</a-descriptions-item>
       </a-descriptions>
     </a-modal>
+
+    <!-- 设备控制弹窗 -->
+    <DeviceControlModal
+      v-model:open="controlModalOpen"
+      :device-id="controlTargetDeviceId"
+      :device-name="controlTargetDeviceName"
+      :initial-tab="controlInitialTab"
+    />
+
+    <!-- 开闸/关闸结果弹窗 -->
+    <a-modal v-model:open="gateResultOpen" title="操作结果" :footer="null" width="480px">
+      <a-descriptions v-if="gateResult" :column="1" size="small" bordered>
+        <a-descriptions-item label="结果">
+          <a-tag :color="gateResult.success ? 'green' : 'red'">
+            {{ gateResult.success ? '成功' : '失败' }}
+          </a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item label="设备返回码">{{ gateResult.deviceCode }}</a-descriptions-item>
+        <a-descriptions-item label="消息">{{ gateResult.message }}</a-descriptions-item>
+      </a-descriptions>
+    </a-modal>
   </div>
 </template>
 
@@ -166,10 +195,12 @@ import {
   getDevices, createDevice, updateDevice, updateDeviceStatus,
   getVendors, getModels, bindLane, unbindLane, setExecutor,
   syncDeviceTime, queryDeviceStatus,
+  openGate, closeGate,
   type DeviceVO, type DeviceStatusVO, type DeviceVendor, type DeviceModel,
 } from '@/api/device'
 import { getParkingLots, type ParkingLotVO } from '@/api/parking-lot'
 import { getParkingLanes, type ParkingLaneVO } from '@/api/parking-lane'
+import DeviceControlModal from '@/components/DeviceControlModal.vue'
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
@@ -183,7 +214,7 @@ const columns = [
   { title: '在线', key: 'onlineState', width: 90 },
   { title: '车道', key: 'laneInfo', width: 70 },
   { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 170 },
-  { title: '操作', key: 'action', width: 420, fixed: 'right' as const },
+  { title: '操作', key: 'action', width: 560, fixed: 'right' as const },
 ]
 
 const loading = ref(false)
@@ -237,6 +268,54 @@ const syncResult = ref<{ success: boolean; deviceCode: number; message: string }
 
 // 批量查询
 const batchQueryLoading = ref(false)
+
+// 设备控制弹窗
+const controlModalOpen = ref(false)
+const controlTargetDeviceId = ref(0)
+const controlTargetDeviceName = ref('')
+const controlInitialTab = ref('display')
+
+// 开闸/关闸结果
+const gateResultOpen = ref(false)
+const gateResult = ref<{ success: boolean; deviceCode: number; message: string } | null>(null)
+
+function handleOpenGate(record: any) {
+  const deviceName = record.name || `设备#${record.id}`
+  if (!confirm(`确定要对【${deviceName}】执行开闸吗？`)) return
+  openGate(record.id).then((res) => {
+    gateResult.value = res
+    gateResultOpen.value = true
+    message.success(res.success ? '开闸成功' : `开闸失败: ${res.message || '未知错误'}`)
+  }).catch(() => {
+    message.error('开闸请求失败')
+  })
+}
+
+function handleCloseGate(record: any) {
+  const deviceName = record.name || `设备#${record.id}`
+  if (!confirm(`确定要对【${deviceName}】执行关闸吗？`)) return
+  closeGate(record.id).then((res) => {
+    gateResult.value = res
+    gateResultOpen.value = true
+    message.success(res.success ? '关闸成功' : `关闸失败: ${res.message || '未知错误'}`)
+  }).catch(() => {
+    message.error('关闸请求失败')
+  })
+}
+
+function handleOpenControl(record: any) {
+  controlTargetDeviceId.value = record.id
+  controlTargetDeviceName.value = record.name || `设备#${record.id}`
+  controlInitialTab.value = 'display'
+  controlModalOpen.value = true
+}
+
+function handleVoiceBroadcast(record: any) {
+  controlTargetDeviceId.value = record.id
+  controlTargetDeviceName.value = record.name || `设备#${record.id}`
+  controlInitialTab.value = 'voice'
+  controlModalOpen.value = true
+}
 
 async function fetchData() {
   loading.value = true

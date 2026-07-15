@@ -1028,9 +1028,9 @@ components:
       type: object
       properties:
         code:
-          type: string
-          description: 业务状态码，"0000" 表示成功
-          example: "0000"
+          type: integer
+          description: 业务状态码，200 表示成功
+          example: 200
         message:
           type: string
           description: 提示信息
@@ -2193,7 +2193,7 @@ components:
           schema:
             $ref: '#/components/schemas/Result'
           example:
-            code: "1001"
+            code: 1001
             message: "参数校验失败: name 不能为空"
             requestId: "req-202607130001"
             data: null
@@ -2206,7 +2206,7 @@ components:
           schema:
             $ref: '#/components/schemas/Result'
           example:
-            code: "1002"
+            code: 1002
             message: "幂等键已存在"
             requestId: "req-202607130001"
             data: null
@@ -2219,7 +2219,7 @@ components:
           schema:
             $ref: '#/components/schemas/Result'
           example:
-            code: "2002"
+            code: 2002
             message: "禁止访问：无权操作该车场"
             requestId: "req-202607130001"
             data: null
@@ -2232,7 +2232,7 @@ components:
           schema:
             $ref: '#/components/schemas/Result'
           example:
-            code: "1003"
+            code: 1003
             message: "资源不存在"
             requestId: "req-202607130001"
             data: null
@@ -2245,7 +2245,7 @@ components:
           schema:
             $ref: '#/components/schemas/Result'
           example:
-            code: "5001"
+            code: 5001
             message: "设备离线或指令超时"
             requestId: "req-202607130001"
             data:

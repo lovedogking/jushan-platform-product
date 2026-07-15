@@ -1,0 +1,37 @@
+<view class="page plate-page">
+  <view wx:if="{{backendMissingTip}}" class="backend-tip">{{backendMissingTip}}</view>
+
+  <view class="card add-card">
+    <input class="plate-input" placeholder="请输入车牌号码" value="{{newPlate}}" data-field="newPlate" bindinput="onInputChange" maxlength="12" />
+    <button class="btn-primary btn-add" bindtap="bindPlate" loading="{{binding}}" disabled="{{binding || actionLoading}}">添加绑定</button>
+  </view>
+
+  <view class="card list-card" wx:if="{{plates.length}}">
+    <view class="plate-item" wx:for="{{plates}}" wx:key="id">
+      <view class="plate-main">
+        <view class="plate-row">
+          <text class="plate-number">{{item.plate}}</text>
+          <text wx:if="{{item.isDefault}}" class="default-tag">默认</text>
+        </view>
+        <view class="plate-meta">
+          <text>{{item.vehicleTypeText}}</text>
+          <text class="meta-sep">·</text>
+          <text>{{item.verifyStatusText}}</text>
+        </view>
+      </view>
+      <view class="plate-actions">
+        <button wx:if="{{!item.isDefault}}" class="btn-action btn-default" bindtap="setDefault" data-id="{{item.id}}" disabled="{{actionLoading}}">设为默认</button>
+        <button class="btn-action btn-danger" bindtap="unbindPlate" data-id="{{item.id}}" data-plate="{{item.plate}}" disabled="{{actionLoading}}">解绑</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-state" wx:if="{{!loading && !plates.length}}">
+    <text class="empty-title">暂无绑定车牌</text>
+    <text class="empty-desc">添加常用车牌，快速查询停车记录与缴费</text>
+  </view>
+
+  <view class="loading-mask" wx:if="{{loading}}">
+    <view class="loading-text">加载中…</view>
+  </view>
+</view>

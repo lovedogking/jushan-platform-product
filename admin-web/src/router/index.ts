@@ -96,6 +96,13 @@ export const constantRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/company/CompanyManage.vue'),
         meta: { title: '公司管理', icon: 'ApartmentOutlined', permission: 'company:view', cache: true },
       },
+      // 车辆管理（含月卡/固定车续费）
+      {
+        path: 'vehicles',
+        name: 'Vehicles',
+        component: () => import('@/views/vehicle/VehicleManage.vue'),
+        meta: { title: '车辆管理', icon: 'CarOutlined', permission: 'vehicle:view', cache: true },
+      },
       // Sprint 1：管理员账号
       {
         path: 'admin-accounts',

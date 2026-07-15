@@ -67,7 +67,7 @@ export function billingModeColor(mode: number) {
 
 /** 分页查询收费规则列表 */
 export function getFeeRules(params: {
-  current?: number
+  page?: number
   size?: number
   lotId?: number
   zoneId?: number
@@ -104,5 +104,5 @@ export function copyFeeRule(id: number) {
 
 /** 更新收费规则状态 */
 export function updateFeeRuleStatus(id: number, status: number) {
-  return request.post<void>(`/api/v1/fee-rules/${id}/status`, undefined, { params: { status } })
+  return request.post<void>(`/api/v1/fee-rules/${id}/status`, { action: status === 1 ? "ENABLED" : "DISABLED" })
 }

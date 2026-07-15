@@ -235,14 +235,33 @@ class DeviceAccessClientTest extends TestcontainersBaseTest {
                 .isInstanceOf(BusinessException.class);
     }
 
-    // ==================== openGate 占位场景 ====================
+    // ==================== openGate v0.4 场景 ====================
 
     @Test
-    @DisplayName("openGate → 抛出 UnsupportedOperationException（v0.2 未实现）")
-    void shouldThrowUnsupportedForOpenGate() {
-        assertThatThrownBy(() -> client.openGate(TEST_SN))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("NOT_IMPLEMENTED_IN_V0.2");
+    @DisplayName("开闸 200 → 返回 CommandResultDTO")
+    void shouldReturnCommandResultWhenOpenGate200() {
+        wireMockServer.stubFor(post(urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {
+                                    "code": 200,
+                                    "message": "success",
+                                    "data": {
+                                        "success": true,
+                                        "deviceCode": 200,
+                                        "message": "gate opened"
+                                    },
+                                    "timestamp": "2026-07-11 10:00:00"
+                                }""")));
+
+        com.jushan.system.client.dto.CommandResultDTO result = client.openGate(TEST_SN);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getSuccess()).isTrue();
+        assertThat(result.getDeviceCode()).isEqualTo(200);
+        assertThat(result.isSuccessful()).isTrue();
     }
 
     // ==================== 边界场景 ====================

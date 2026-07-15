@@ -47,6 +47,10 @@ export interface RecognitionEvent {
   deviceName: string
   imagePath: string
   plateImagePath: string
+  /** 支付状态：PAID-已支付, UNPAID-待支付 */
+  paymentStatus?: 'PAID' | 'UNPAID'
+  /** 应收费用（元） */
+  feeAmount?: number
 }
 
 /** 设备状态 */
@@ -113,3 +117,83 @@ export interface AlertPayload {
   message: string
   createdAt: string
 }
+
+// ========== 收费与开闸相关类型 ==========
+
+/** 在场车辆记录（收费面板使用的后端返回） */
+export interface ParkingSessionVO {
+  id: number
+  parkingLotId: number
+  laneId: number
+  plateNumber: string
+  plateColor?: string
+  vehicleType: string
+  entryTime: string
+  entryImage?: string
+  exitTime?: string
+  exitLaneId?: number
+  status: string
+  feeAmount: number
+  feeCents: number
+  paidAmount: number
+  durationMinutes: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** 收费面板展示信息 */
+export interface ChargeInfo {
+  sessionId: number
+  plateNumber: string
+  plateColor: string
+  vehicleType: string
+  entryTime: string
+  durationMinutes: number
+  feeAmount: number
+  /** 费用（分），精度安全 */
+  feeCents: number
+  laneId: number
+}
+
+/** 收费提交请求 */
+export interface ChargeRequest {
+  sessionId: number
+  exitLaneId: number
+  feeAmount: number
+  paidAmount: number
+  paymentMethod: 'CASH' | 'WECHAT' | 'ALIPAY' | 'FREE'
+  authCode?: string
+  remark?: string
+}
+
+/** 支付方式 */
+export type PaymentMethod = 'CASH' | 'WECHAT' | 'ALIPAY' | 'FREE'
+
+/** 开闸结果（对应后端 RecognitionResultVO） */
+export interface GateOpenResult {
+  eventId?: number
+  plateNumber?: string
+  vehicleType?: string
+  allowPass?: boolean
+  gateCommandSent: boolean
+  gateDeviceAck: boolean
+  /** 闸杆实际是否抬起。一期始终为 null，二期设备状态反馈后填充。 */
+  gateOpened: boolean | null
+  gateResult?: string
+  feeAmount?: number
+  sessionId?: number
+  resultMessage?: string
+  exception?: boolean
+  exceptionType?: string
+}
+
+/** 人工放行原因 */
+export type ReleaseReason = 'DEVICE_FAULT' | 'VIP_VEHICLE' | 'EMERGENCY' | 'OTHER'
+
+/** 人工放行原因选项 */
+export const RELEASE_REASON_OPTIONS: { value: ReleaseReason; label: string }[] = [
+  { value: 'DEVICE_FAULT', label: '设备故障' },
+  { value: 'VIP_VEHICLE', label: 'VIP车辆' },
+  { value: 'EMERGENCY', label: '紧急车辆' },
+  { value: 'OTHER', label: '其他' },
+]

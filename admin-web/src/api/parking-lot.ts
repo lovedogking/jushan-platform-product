@@ -45,17 +45,17 @@ export const PARKING_LOT_STATUS_OPTIONS = [
 
 /** 分页查询停车场列表 */
 export function getParkingLots(params: {
-  current?: number
+  page?: number
   size?: number
   name?: string
   status?: number
 }) {
-  return request.get<PageResult<ParkingLotVO>>('/api/v1/parking-lots', params)
+  return request.get<PageResult<ParkingLotVO>>('/admin/parking-lots', params)
 }
 
 /** 查询停车场详情 */
 export function getParkingLot(id: number) {
-  return request.get<ParkingLotVO>(`/api/v1/parking-lots/${id}`)
+  return request.get<ParkingLotVO>(`/admin/parking-lots/${id}`)
 }
 
 /** 创建停车场 */
@@ -77,25 +77,25 @@ export function createParkingLot(data: {
   totalSpaces?: number
   images?: string
 }) {
-  return request.post<ParkingLotVO>('/api/v1/parking-lots', data)
+  return request.post<ParkingLotVO>('/admin/parking-lots', data)
 }
 
 /** 更新停车场 */
 export function updateParkingLot(id: number, data: Record<string, any>) {
-  return request.put<ParkingLotVO>(`/api/v1/parking-lots/${id}`, data)
+  return request.put<ParkingLotVO>(`/admin/parking-lots/${id}`, data)
 }
 
 /** 删除停车场（软删除） */
 export function deleteParkingLot(id: number) {
-  return request.delete<void>(`/api/v1/parking-lots/${id}`)
+  return request.delete<void>(`/admin/parking-lots/${id}`)
 }
 
 /** 更新停车场状态 */
 export function updateParkingLotStatus(id: number, status: number) {
-  return request.post<void>(`/api/v1/parking-lots/${id}/status`, undefined, { params: { status } })
+  return request.post<void>(`/admin/parking-lots/${id}/status`, { action: status === 1 ? "ENABLED" : "DISABLED" })
 }
 
 /** 更新停车场图片 */
 export function updateParkingLotImages(id: number, images: string[]) {
-  return request.post<void>(`/api/v1/parking-lots/${id}/images`, images)
+  return request.post<void>(`/admin/parking-lots/${id}/images`, images)
 }

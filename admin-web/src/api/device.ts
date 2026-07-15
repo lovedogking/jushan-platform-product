@@ -49,6 +49,47 @@ export interface TimeSyncResult {
   message: string
 }
 
+/** 命令执行结果（开闸/关闸） */
+export interface CommandResult {
+  success: boolean
+  deviceCode: number
+  message: string
+}
+
+/** 显示屏操作结果 */
+export interface DisplayResult {
+  success: boolean
+  message: string
+}
+
+/** 语音播报结果 */
+export interface VoiceResult {
+  success: boolean
+  message: string
+}
+
+/** 显示屏文字请求 */
+export interface DisplayTextRequest {
+  content: string
+  direction: string
+  fontSize: number
+  color: string
+}
+
+/** 显示屏配置请求 */
+export interface DisplayConfigRequest {
+  configType: string
+  intValue: number
+  stringValue?: string
+}
+
+/** 语音控制请求 */
+export interface VoiceControlRequest {
+  action: string
+  voiceId: number
+  variable?: string
+}
+
 /** 厂商 */
 export interface DeviceVendor {
   id: number
@@ -154,4 +195,31 @@ export function getDeviceStatusSnapshot(id: number) {
 /** 批量获取设备状态快照 */
 export function getDeviceStatusSnapshots(deviceIds: number[]) {
   return request.post<DeviceStatusVO[]>('/admin/devices/status-snapshots', { deviceIds })
+}
+
+// ==================== 设备控制（v0.4） ====================
+
+/** 开闸 */
+export function openGate(deviceId: number, reason?: string) {
+  return request.post<CommandResult>(`/admin/devices/${deviceId}/open-gate`, { reason: reason || '' })
+}
+
+/** 关闸 */
+export function closeGate(deviceId: number, reason?: string) {
+  return request.post<CommandResult>(`/admin/devices/${deviceId}/close-gate`, { reason: reason || '' })
+}
+
+/** 显示屏实时文字 */
+export function displayText(deviceId: number, data: DisplayTextRequest) {
+  return request.post<DisplayResult>(`/admin/devices/${deviceId}/display-text`, data)
+}
+
+/** 显示屏配置 */
+export function displayConfig(deviceId: number, data: DisplayConfigRequest) {
+  return request.post<DisplayResult>(`/admin/devices/${deviceId}/display-config`, data)
+}
+
+/** 语音播报 */
+export function voiceControl(deviceId: number, data: VoiceControlRequest) {
+  return request.post<VoiceResult>(`/admin/devices/${deviceId}/voice-control`, data)
 }

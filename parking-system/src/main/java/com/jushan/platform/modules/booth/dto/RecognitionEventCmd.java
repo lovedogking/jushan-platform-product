@@ -41,4 +41,13 @@ public class RecognitionEventCmd {
 
     /** 置信度（0-100） */
     private Integer confidence;
+
+    /** 设备序列号（Webhook 场景：来自 Device Access 推送，经平台台账验证） */
+    private String deviceSn;
+
+    /** 事件 ID（Webhook 场景：来自 Device Access 推送的 eventId，用于全链路追踪） */
+    private String eventId;
+
+    /** 抓拍时间（Webhook 场景：来自 Device Access 推送的 captureTime） */
+    private String captureTime;
 }

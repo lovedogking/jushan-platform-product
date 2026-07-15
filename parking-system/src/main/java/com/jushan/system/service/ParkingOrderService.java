@@ -226,6 +226,39 @@ public class ParkingOrderService {
     }
 
     /**
+     * 应用储值车余额支付。
+     * <p>
+     * 使用条件更新确保仅从 PENDING_PAY 状态更新，并记录余额支付明细。
+     *
+     * @param orderId       订单ID
+     * @param paidAmount    余额支付金额（分）
+     * @param fullyPaid     是否全额支付（true → PAID, false → 保持 PENDING_PAY）
+     * @return 是否成功
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean applyBalancePayment(Long orderId, int paidAmount, boolean fullyPaid) {
+        UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
+                .set("pay_channel", ParkingOrder.PAY_CHANNEL_BALANCE)
+                .set("paid_amount", paidAmount)
+                .set("updated_at", LocalDateTime.now())
+                .eq("id", orderId)
+                .eq("status", ParkingOrder.STATUS_PENDING_PAY);
+
+        if (fullyPaid) {
+            wrapper.set("status", ParkingOrder.STATUS_PAID);
+            wrapper.set("pay_time", LocalDateTime.now());
+        }
+
+        int updated = orderMapper.update(null, wrapper);
+        if (updated > 0) {
+            log.info("余额支付应用成功: orderId={} paidAmount={} fullyPaid={}", orderId, paidAmount, fullyPaid);
+        } else {
+            log.warn("余额支付应用失败（订单状态可能已变更）: orderId={}", orderId);
+        }
+        return updated > 0;
+    }
+
+    /**
      * 按 ID 查询订单。
      */
     public ParkingOrder getById(Long orderId) {

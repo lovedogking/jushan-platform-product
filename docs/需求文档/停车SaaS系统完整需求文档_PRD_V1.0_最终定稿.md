@@ -1,38 +1,54 @@
 
-# 停车SaaS系统 - 车场管理模块需求文档（PRD）
+# 停车SaaS系统 - 运营后台需求文档（PRD）
 
 ## 文档信息
-- 版本：V1.0
-- 日期：2026-07-12
-- 状态：待评审
+- 版本：V1.1
+- 日期：2026-07-15
+- 状态：已修订（对齐一期代码实现，标注二期预留范围）
+- 修订要点：章节重编号、去除重复内容、补充代码映射、标注一期/二期边界、补充岗亭监控章节
 
 ---
 
 ## 一、模块架构
 
+### 1.0 整体模块树
+
 ```
-车场管理（Operation Platform）
-├── 1. 管理员体系
-├── 2. 车场基础设置
-│   ├── 2.1 停车场档案
-│   ├── 2.2 区域管理
-│   └── 2.3 通道管理
-├── 3. 车位管控策略
-│   ├── 3.1 车位已满设置
-│   ├── 3.2 余位计算规则
-│   └── 3.3 分时段管控
-├── 4. 车辆进出策略
-│   ├── 4.1 入场策略
-│   ├── 4.2 出场策略
-│   ├── 4.3 重复车牌处理
-│   └── 4.4 无记录/异常处理
-├── 5. 一位多车管理
-├── 6. 车辆类型与计费权限
-├── 7. 黑名单与特殊车辆
-├── 8. 收费标准管理
-├── 9. 收款商户管理
-└── 10. 电子发票管理
+停车SaaS运营后台
+├── 一、管理员体系与权限（§1）
+├── 二、车场基础设置（§2）
+│   ├── 停车场档案
+│   ├── 区域管理
+│   └── 通道管理
+├── 三、车位管控策略（§3）
+├── 四、车辆进出策略（§4~5）
+├── 五、车辆类型与收费规则（§6~7）
+├── 六、支付管理（§8·P云聚合支付）
+├── 七、车辆登记管理（§9）
+├── 八、优惠管理（§10）【二期：充电优惠】
+├── 九、访客管理（§11）
+├── 十、系统配置（§12）
+├── 十一、岗亭监控（§13）
+├── 十二、设备管理（§14）【一期：设备台账 + 开闸/识别事件；二期：心跳自动化】
+└── 附录：数据字典
 ```
+
+### 1.1 代码模块映射（PRD ↔ 实际代码）
+
+| PRD 章节 | 后端代码模块 | 前端应用 |
+|----------|-------------|----------|
+| §1 管理员体系 | `modules/account/` + `modules/auth/` + `system/*/TenantController` | admin-web |
+| §2 车场基础设置 | `system/*/ParkingLotController` + `modules/parking/` | admin-web |
+| §3 车位管控 | `modules/parking/ParkingSpacePolicy*` | admin-web |
+| §4~5 进出策略 | `system/*/ParkingRecord` + `system/event/` + `modules/parking/ParkingSession*` | booth-web |
+| §6~7 收费规则 | `system/*/BillingRuleController` + `modules/parking/FeeRule*` | admin-web |
+| §8 支付管理 | `system/*/PyunNotifyController` + `PyunPpFrontController` + `PayOrder` | admin-web + miniapp |
+| §9 车辆登记 | `modules/vehicle/` + `system/entity/Vehicle` | admin-web |
+| §10 优惠管理 | （一期暂未实现，仅设计） | admin-web |
+| §11 访客管理 | `modules/miniapp/VisitorApply*` | miniapp |
+| §12 系统配置 | `modules/company/` + `modules/account/` + `modules/authcode/` | admin-web |
+| §13 岗亭监控 | `modules/booth/` + `system/*/BoothMonitorController` | booth-web |
+| §14 设备管理 | `system/*/DeviceController` + `system/client/DeviceAccessClient` | admin-web |
 
 ---
 
@@ -45,7 +61,7 @@
 | 级别 | 角色名称 | 管理范围 | 核心权限 | 创建方式 |
 |------|----------|----------|----------|----------|
 | 一级 | 超级管理员 | 整个SaaS平台 | 租户管理、系统配置、全局数据看板、操作日志审计 | 系统初始化内置 |
-| 二级 | 租户管理员 | 所属集团/公司的**多个停车场** | 创建/编辑车场、配置收费规则、创建三级管理员、查看本租户数据 | 一级管理员创建并分配 |
+| 二级 | 租户管理员 | 所属集团/公司的**多个停车场** | 创建/编辑车场、配置收费规则、创建三级管理员、查看本租户数据 | ① 租户自助注册 → 一级管理员审核通过（主路径）；② 一级管理员后台直接创建（线下签约/大客户对接） |
 | 三级 | 车场管理员 | **单个停车场** | 现场监控、抬杆放行、查看本车场报表、处理异常订单 | 二级管理员创建 |
 
 #### 1.2 权限隔离原则
@@ -317,31 +333,7 @@
 
 ### 8. 收款商户管理
 
-#### 8.1 商户配置
-
-| 配置项 | 类型 | 说明 |
-|--------|------|------|
-| 所属车场 | 选择 | 一个车场对应一个商户号 |
-| 商户类型 | 选择 | 微信支付 / 支付宝 / 银联 |
-| 商户号 | 文本 | 微信支付商户号 / 支付宝PID |
-| API密钥 | 加密存储 | 支付接口密钥 |
-| 证书文件 | 文件上传 | 微信支付证书（.p12/.pem） |
-| 结算周期 | 选择 | T+1 / T+7 / 实时到账 |
-| 启用状态 | 选择 | 启用 / 禁用 |
-
-#### 8.2 支付通道管理
-- 支持一个车场配置多个支付通道（微信+支付宝）
-- 支持支付通道故障自动切换（主通道失败时自动启用备用通道）
-- 支付回调地址统一由平台管理，车场无需配置
-
-#### 8.3 对账与退款
-- 每日自动生成对账报表（平台订单 vs 支付渠道流水）
-- 支持原路退款（需二级管理员审批）
-- 退款记录关联原始订单，支持导出
-
----
-
-#### 8.3 对账与退款
+#### 8.1 对账与退款
 - 每日自动生成对账报表（平台订单 vs P云支付流水）
 - 支持原路退款（需二级管理员审批）
 - 退款记录关联原始订单，支持导出
@@ -726,48 +718,112 @@
 
 ---
 
-## 六、附录：数据字典（核心表）
+## 附录A：数据字典（一期已实现核心表）
 
-### 6.1 停车场表（parking_lot）
-```
-id, name, company_id, group_id, region_type, province, city, district, 
-address, longitude, latitude, contact_name, contact_phone, status, 
-business_hours, total_spaces, images, created_at, updated_at, tenant_id
-```
+> 以下为截至 V1.1 已通过 Flyway 迁移落地的核心表。完整 DDL 见 `parking-boot/src/main/resources/db/migration/`。所有业务表均包含 `tenant_id`（多租户隔离）和 `deleted_at`（软删除）。
 
-### 6.2 区域表（parking_zone）
-```
-id, lot_id, name, tag, level, fee_rule_id, total_spaces, fixed_spaces, 
-temp_spaces, status, manager_id, remark, created_at, updated_at
-```
+### A.1 租户与账号
 
-### 6.3 通道表（parking_lane）
-```
-id, lot_id, zone_id, lane_no, name, type, entry_camera_id, exit_camera_id, 
-status, tide_mode, created_at, updated_at
-```
+| 表名 | 用途 | 关键字段 |
+|------|------|----------|
+| `tenant` | 租户主表 | id, company_name, contact_name, contact_phone, status, quota_max_parking_lots, tenant_id |
+| `sys_user` | 平台用户表 | id, username, password, real_name, phone, tenant_id, status, level (0超管/1租户管理员) |
+| `sys_role` | 角色表 | id, role_code, role_name, level |
+| `sys_permission` | 权限表 | id, permission_code, permission_name |
+| `sys_role_permission` | 角色-权限关联 | role_id, permission_id |
+| `sys_admin_account` | 运营后台账号（新风格） | id, account_name, real_name, phone, tenant_id, company_id, parking_lot_id, level, status |
+| `sys_admin_account_role` | 账号-角色关联 | account_id, role_id |
+| `sys_custom_role` | 自定义角色（新风格） | id, role_name, level, data_scope, tenant_id |
+| `sys_role_permission` (新) | 自定义角色权限 | role_id, permission_id |
+| `sys_login_log` | 登录日志 | user_id, login_ip, login_time, result |
+| `sys_audit_log` | 操作审计日志 | operator_id, target_type, target_id, action, before_value, after_value, result, ip, is_proxy |
 
-### 6.4 收费规则表（fee_rule）
-```
-id, lot_id, zone_id, name, billing_mode, free_minutes, unit_minutes, 
-first_period_price, subsequent_price, daily_cap, night_cap, 
-holiday_rules, created_at, updated_at
-```
+### A.2 公司与部门
 
-### 6.5 车辆类型配置表（vehicle_type_config）
-```
-id, lot_id, type_code, type_name, allow_renewal, renewal_in_valid_period_mode, 
-renewal_after_expiry_entry_mode, renewal_after_expiry_in_parking_mode, 
-renewal_after_expiry_not_in_parking_mode, created_at, updated_at
-```
+| 表名 | 用途 | 关键字段 |
+|------|------|----------|
+| `company` | 公司/集团表 | id, name, level (1集团/2子公司/3分公司), parent_id, status, sort_order, tenant_id |
+| `sys_department` | 部门表 | id, name, parking_lot_id, parent_id, manager_name, phone, status, sort_order, tenant_id |
 
-### 6.6 进出策略配置表（access_policy）
-```
-id, lot_id, policy_type, policy_key, policy_value, created_at, updated_at
-```
+### A.3 停车场与车道
 
+| 表名 | 用途 | 关键字段 |
+|------|------|----------|
+| `parking_lot` | 停车场主表 | id, name, company_id, region_type, province, city, district, address, lng, lat, contact_name, contact_phone, status, business_hours, total_spaces, tenant_id |
+| `parking_lot_capacity_log` | 车场容量变更日志 | id, lot_id, old_total, new_total, change_reason, operator_id |
+| `parking_lot_status_log` | 车场状态变更日志 | id, lot_id, old_status, new_status, operator_id |
+| `parking_zone` | 区域表 | id, lot_id, name, tag, level, fee_rule_id, total_spaces, fixed_spaces, temp_spaces, status, tenant_id |
+| `parking_lane` | 车道表 | id, lot_id, zone_id, lane_no, name, type (入口/出口/双向), entry_device_id, exit_device_id, status, tide_mode, tenant_id |
+| `lane_permission` | 通道权限表 | id, target_type (部门/车辆), target_id, lane_id, permission_type, effective_period, tenant_id |
 
+### A.4 停车记录与会话
 
+| 表名 | 用途 | 关键字段 |
+|------|------|----------|
+| `parking_record` | 停车记录（入场→出场） | id, tenant_id, parking_lot_id, lane_id, device_id, standardized_plate, status (PARKING/COMPLETED/CANCELLED), entry_time, exit_time, entry_image_path, tenant_id |
+| `parking_session` | 在场车辆会话（新风格） | id, parking_lot_id, lane_id, plate_number, plate_color, vehicle_type, entry_time, exit_time, status (IN/OUT/EXCEPTION), fee_amount, paid_amount, order_id, tenant_id |
+| `exit_record` | 出场记录 | id, parking_record_id, exit_lane_id, exit_device_id, exit_time, fee_amount, paid_amount, release_type, tenant_id |
+| `duplicate_entry_log` | 重复入场日志 | id, parking_lot_id, plate_number, original_record_id, new_event_id, strategy, tenant_id |
+| `recognition_event_log` | 识别事件日志 | id, parking_lot_id, lane_id, device_id, plate_raw, plate_standardized, plate_color, confidence, image_path, event_type, idempotency_key, tenant_id |
+
+### A.5 计费与订单
+
+| 表名 | 用途 | 关键字段 |
+|------|------|----------|
+| `billing_rule` | 收费规则主表 | id, name, parking_lot_id, zone_id, billing_mode, status, tenant_id |
+| `billing_rule_version` | 收费规则版本 | id, rule_id, version, free_minutes, unit_minutes, first_period_price, subsequent_price, daily_cap, night_cap, effective_from, tenant_id |
+| `billing_rule_switch_log` | 规则切换日志 | id, rule_id, old_version, new_version, operator_id |
+| `fee_rule` | 收费规则（新风格） | id, lot_id, zone_id, name, billing_mode, free_minutes, unit_minutes, first_period_price, subsequent_price, daily_cap, night_cap, tenant_id |
+| `fee_rule_segment` | 分时段计费 | id, rule_id, start_time, end_time, unit_minutes, unit_price, cap_amount |
+| `parking_order` | 停车订单 | id, parking_record_id, fee_amount, paid_amount, pay_status, pay_channel, pay_time, tenant_id |
+| `pay_order` | 支付订单 | id, order_id, pay_serial, pay_channel, pay_amount, pay_status, pay_time, tenant_id |
+| `pay_merchant_config` | 支付商户配置 | id, parking_lot_id, app_id, merchant, park_uuid, app_secret (加密), status, tenant_id |
+
+### A.6 车辆管理
+
+| 表名 | 用途 | 关键字段 |
+|------|------|----------|
+| `sys_vehicle` | 车辆主表 | id, plate_number, plate_color, vehicle_type (FREE/MONTHLY/PREPAID/VIP/SUPER/BLACKLIST), owner_name, owner_phone, department_id, parking_lot_id, valid_start_date, valid_end_date, prepaid_balance, fee_rule_id, tenant_id |
+| `sys_vehicle_wallet` | 储值车账户 | id, vehicle_id, balance, total_recharged, total_consumed, low_balance_threshold, tenant_id |
+| `sys_vehicle_wallet_log` | 储值车流水 | id, vehicle_id, change_type, change_amount, balance_after, order_id, operator_id |
+| `vehicle_audit` | 车牌审核 | id, apply_type, owner_name, owner_phone, plate_number, plate_color, vehicle_type, attachment_urls, status, auditor_id, audit_time, tenant_id |
+| `plate_binding` | 车牌绑定（微信） | id, wx_user_id, plate_number, is_default, tenant_id |
+
+### A.7 设备与授权
+
+| 表名 | 用途 | 关键字段 |
+|------|------|----------|
+| `device` | 设备台账 | id, device_sn, device_name, device_type, vendor_id, model_id, parking_lot_id, lane_id, status, tenant_id |
+| `device_model` | 设备型号 | id, vendor_id, model_name, model_code, capabilities |
+| `device_vendor` | 设备厂商 | id, vendor_name, contact_name, contact_phone |
+| `device_status_snapshot` | 设备状态快照 | id, device_id, online_status, last_heartbeat, snapshot_time |
+| `device_command_audit` | 设备指令审计 | id, device_id, command_type, request_body, response_body, status, cost_ms, tenant_id |
+| `sys_auth_code` | 授权码 | id, auth_code, auth_type, target_id, status, activated_at, expire_at, tenant_id |
+
+### A.8 岗亭与监控
+
+| 表名 | 用途 | 关键字段 |
+|------|------|----------|
+| `shift_record` | 交班记录 | id, booth_id, operator_id, start_time, end_time, start_cash, end_cash, collected_amount, order_count, status |
+| `monitor_alert` | 监控告警 | id, parking_lot_id, alert_type, alert_content, alert_time, confirm_status, confirmed_by, confirmed_at |
+
+### A.9 微信与访客
+
+| 表名 | 用途 | 关键字段 |
+|------|------|----------|
+| `wx_user` | 微信用户 | id, openid, unionid, nickname, phone, tenant_id |
+| `visitor_apply` | 访客申请 | id, visitor_name, visitor_phone, plate_number, visited_company, visited_person, visit_date, visit_time_start, visit_time_end, status, tenant_id |
+
+### A.10 其他
+
+| 表名 | 用途 | 关键字段 |
+|------|------|----------|
+| `access_policy` | 进出策略配置 | id, lot_id, policy_type, policy_key, policy_value, tenant_id |
+| `parking_space_policy` | 车位管控策略 | id, lot_id, full_action, remain_mode, buffer_count, tenant_id |
+| `employee_parking_lot` | 员工-停车场关联 | id, employee_id, parking_lot_id |
+| `archive_data` | 归档数据 | id, data_type, original_id, data_json, archived_at |
+| `archive_job_log` | 归档任务日志 | id, data_type, start_time, end_time, affected_rows, status |
+| `recognition_event_log` | 识别事件日志 | id, lot_id, lane_id, device_id, plate_number, confidence, image_url, idempotency_key, tenant_id |
 ---
 
 ## 十一、车辆登记管理
@@ -1142,9 +1198,11 @@ id, lot_id, policy_type, policy_key, policy_value, created_at, updated_at
 
 ---
 
-### 11.3.7 盒子车牌登记
+### 11.3.7 无牌车管理（盒子车牌）【一期简化】
 
-**业务定义**：用于管理"无牌车"或"临时牌照"的替代识别方案。当车辆无车牌或车牌无法识别时，通过发放物理/电子"停车盒子"（如二维码卡片、蓝牙标签）作为临时身份标识。
+> **一期范围**：仅支持纸质临时券 + 手动录入车牌，不实现蓝牙/NFC 硬件设备、库存管理和盒子完整生命周期。硬件盒子为二期功能。
+
+**业务定义**：用于管理"无牌车"或"临时牌照"的替代识别方案。一期通过岗亭操作员发放纸质临时券（含编号二维码），手动录入系统；二期扩展为蓝牙标签/NFC 卡片等物理介质。
 
 #### 登记字段
 
@@ -1679,7 +1737,9 @@ id, lot_id, policy_type, policy_key, policy_value, created_at, updated_at
 
 ---
 
-### 13.2 充电优惠
+### 13.2 充电优惠【二期预留】
+
+> **⚠️ 二期模块**：当前一期 MVP 不实现充电优惠。以下设计为二期预研，一期编码时跳过此章节。与 AGENTS.md §13.1「暂不开发充电模块」保持一致。
 
 #### 13.2.1 充电减免策略
 
@@ -1751,9 +1811,11 @@ id, lot_id, policy_type, policy_key, policy_value, created_at, updated_at
 
 ### 13.3 发券审核
 
+> **一期范围**：仅支持单级审核（通过/驳回），不实现多级工作流引擎（会签/或签/转交/超时升级等为二期功能）。
+
 #### 13.3.1 审核管理
 
-**业务定义**：当商家发券需要审核时（如大额抵扣券、特殊活动券），管理员在此进行审核操作。
+**业务定义**：当商家发券需要审核时（如大额抵扣券、特殊活动券），管理员在此进行单级审核操作。
 
 | 字段 | 说明 |
 |------|------|
@@ -2049,7 +2111,11 @@ id, lot_id, policy_type, policy_key, policy_value, created_at, updated_at
 
 #### 15.1.1 公司管理
 
-**业务定义**：管理集团/公司档案，与车场档案中的"所属公司"关联。支持多级公司架构。
+**业务定义**：管理集团/公司档案，与车场档案中的"所属公司"关联。支持多级公司架构（集团 → 子公司 → 分公司）。
+
+**UI 交互建议**：提供两种创建入口以适应不同入驻节奏——
+- **集团视角**：先创建一级公司（集团），再在集团下「新增下级」创建子公司/分公司；
+- **公司视角**：先创建独立公司（二级/三级），后续编辑时再挂载到某个上级集团下。
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -2103,9 +2169,9 @@ id, lot_id, policy_type, policy_key, policy_value, created_at, updated_at
 | 订单管理 | ✓ | ✗ | ✗ | ✗ | ✓ | ✗ |
 | 报表分析 | ✓ | ✗ | ✗ | ✗ | ✓ | ✗ |
 
-#### 15.1.4 新增集团账号
+#### 15.1.4 新增集团账号（超管直接创建租户管理员）
 
-**功能**：一级管理员为集团/公司创建二级管理员账号的快捷入口。
+**功能**：一级管理员为集团/公司直接创建二级管理员账号的快捷入口。此为辅助路径，适用于线下签约、大客户对接、批量导入等场景；标准路径为租户自助注册 → 审核通过后自动升级（见 1.1 角色定义）。
 
 | 字段 | 说明 |
 |------|------|
@@ -2253,15 +2319,67 @@ id, lot_id, policy_type, policy_key, policy_value, created_at, updated_at
 
 ---
 
-## 十六、设备管理（预留模块）
+## 十三、岗亭监控
 
-> **模块定位**：管理车场内的硬件设备，目前以**相机**为核心设备（相机集成车牌识别、显示屏控制、道闸控制于一体）。后续设备协议完善后，可扩展为独立的设备管控中心。
+> **模块定位**：为岗亭操作员提供实时停车场监控大屏、交班记录、异常提醒和人工放行能力。对应代码 `modules/booth/` + `system/*/BoothMonitorController`。
 
-### 16.1 设计原则
+### 13.1 岗亭交班
 
-- **单一设备视角**：当前阶段仅管理"相机"设备，显示屏和道闸的控制指令通过相机统一下发
-- **预留扩展**：数据结构预留设备类型字段，后续可无缝扩展充电桩、地感、LED屏等独立设备
-- **指令通道**：平台 → 相机 → 显示屏/道闸（相机作为指令中转和执行单元）
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| 记录ID | 系统生成 | 是 | - |
+| 岗亭ID | 选择 | 是 | 所属岗亭（关联停车场车道） |
+| 操作员ID | 系统生成 | 是 | 当前登录操作员 |
+| 接班时间 | 系统生成 | 是 | 上班打卡时间 |
+| 交班时间 | 系统生成 | 否 | 下班打卡时间 |
+| 接班金额 | 金额 | 是 | 接班时现金余额 |
+| 交班金额 | 金额 | 否 | 交班时现金余额 |
+| 当班收款 | 金额 | 自动 | 本班次现金收款合计 |
+| 当班订单数 | 数字 | 自动 | 本班次处理订单数 |
+| 状态 | - | 是 | 当班中 / 已交班 |
+| 备注 | 文本 | 否 | 交接事项 |
+
+### 13.2 监控大屏
+
+**实时数据展示**：
+- 各车道状态（空闲/占用/故障）及最近识别车牌
+- 当前在场车辆数 / 剩余车位数
+- 最近 N 条识别事件（车牌、时间、车道、抓拍图）
+- 异常告警列表（设备离线、无入场记录出场、黑名单识别等）
+
+**WebSocket 推送**：通过 `BoothWebSocketPublisher` 按停车场维度实时推送车位变化和放行结果，岗亭前端通过 STOMP 订阅。
+
+### 13.3 异常提醒
+
+| 字段 | 说明 |
+|------|------|
+| 提醒ID | 系统生成 |
+| 车场ID | 关联停车场 |
+| 提醒类型 | 设备离线 / 无入场记录出场 / 黑名单车辆识别 / 余额不足 / 超时车辆 |
+| 提醒内容 | 如"车道A1相机离线超过5分钟" |
+| 提醒时间 | 系统生成 |
+| 确认状态 | 未确认 / 已确认 |
+| 确认人 | 岗亭操作员 |
+| 确认时间 | 确认操作时间 |
+
+### 13.4 人工放行
+
+- 岗亭操作员可在以下场景手动开闸：收费异常、设备故障、VIP 车辆、紧急车辆
+- 每次人工放行强制记录：操作人、时间、车牌、放行原因、关联停车记录
+- 人工放行与支付状态解耦，放行后订单状态标记为 EXCEPTION_RELEASED
+
+---
+
+## 十四、设备管理【一期：设备台账 + 开闸/识别事件；二期：心跳自动化】
+
+> **模块定位**：管理车场内的硬件设备，通过 Device Access v0.4 HTTP API 与设备交互。当前支持设备台账、校时、状态查询、开闸/关闸、显示屏控制、车牌识别事件接收（HTTP Webhook）。
+
+### 14.1 设计原则
+
+- **平台侧只维护设备业务台账**，不解析厂商协议
+- **Device Access 负责设备通信**：MQTT 连接、协议适配、命令下发
+- **车牌识别事件通过 HTTP Webhook 推送**到平台，平台消费后触发入场/出场流程
+- 显示屏和道闸的控制指令通过相机统一下发（相机作为指令中转和执行单元）
 
 ### 16.2 相机设备档案
 
@@ -2300,17 +2418,51 @@ id, lot_id, policy_type, policy_key, policy_value, created_at, updated_at
 - 双向通道可绑定1台相机（兼顾出入）或2台相机（入口侧+出口侧分别控制）
 - 所有控制指令（抬杆、落杆、显示屏文字、语音播报）通过平台下发到相机，由相机驱动外设
 
-### 16.4 预留指令下发能力（平台 → 相机）
+### 14.4 设备控制指令（一期已实现）
 
-> 以下指令能力待设备协议完善后实现，当前PRD仅做接口预留。
+> 以下指令通过 Device Access v0.4 HTTP API 调用实现。
 
-| 指令类型 | 目标 | 说明 |
-|----------|------|------|
-| 抬杆指令 | 道闸 | 远程控制道闸抬起 |
-| 落杆指令 | 道闸 | 远程控制道闸落下 |
-| 常开模式 | 道闸 | 道闸保持抬起状态（如高峰期） |
-| 常闭模式 | 道闸 | 道闸保持关闭状态 |
-| 显示屏文字 | LED屏 | 下发显示内容，如"欢迎光临"、"缴费XX元"、"车位已满" |
+| 指令类型 | HTTP 端点 | 目标 | 说明 | 一期状态 |
+|----------|-----------|------|------|----------|
+| 校时 | `POST /time/sync` | 相机 | 同步相机系统时间 | ✅ 可用 |
+| 状态查询 | `GET /status` | 相机 | 查询在线/离线状态 | ✅ 可用 |
+| 开闸 | `POST /gate/open` | 道闸 | 控制道闸抬起 | ✅ 可用（臻识/信路通） |
+| 关闸 | `POST /gate/close` | 道闸 | 控制道闸落下 | ✅ 可用 |
+| 显示屏文字 | `POST /display/text` | LED屏 | 下发显示内容 | ✅ 可用 |
+| 显示屏配置 | `POST /display/config` | LED屏 | 音量/亮度/方向 | ✅ 可用 |
+| 语音播报 | `POST /voice/control` | 扬声器 | 播报语音 | ✅ 可用 |
+| 常开模式 | — | 道闸 | 道闸保持抬起 | ⚠️ 预留 |
+| 常闭模式 | — | 道闸 | 道闸保持关闭 | ⚠️ 预留 |
+
+### 14.5 车牌识别事件接收（HTTP Webhook）
+
+**事件来源**：Device Access 通过 MQTT 接收相机车牌识别结果，转换为统一格式后通过 HTTP POST 推送到平台。
+
+**平台接收端点**：`POST /api/v1/device-webhook/events`
+
+**事件字段**：
+
+| 字段 | 说明 |
+|------|------|
+| eventType | `PLATE_RECOGNIZED` |
+| deviceSn | 设备序列号 |
+| plateNumber | 识别到的车牌号 |
+| plateColor | 车牌颜色 |
+| confidence | 识别置信度 |
+| captureTime | 识别时间戳 |
+| imageUrl | 抓拍图片 URL |
+| direction | 方向：ENTRY / EXIT |
+| tenantId | 租户ID（设备注册时传入） |
+| parkingLotId | 停车场ID |
+| laneId | 车道ID |
+
+**处理流程**：
+
+```
+Device Access 推送事件 → 平台 Webhook 接收端 → 幂等校验 → 车牌标准化 → 触发入场/出场流程
+```
+
+> ⚠️ 幂等要求：同一识别事件（通过 idempotencyKey 或业务唯一键）不得重复创建停车记录。
 | 显示屏语音 | 语音模块 | 下发语音播报内容，如"请缴费10元" |
 | 显示屏清屏 | LED屏 | 清空显示内容 |
 | 重启设备 | 相机 | 远程重启相机 |

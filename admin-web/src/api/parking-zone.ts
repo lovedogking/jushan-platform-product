@@ -45,22 +45,22 @@ export const ZONE_STATUS_OPTIONS = [
 
 /** 分页查询区域列表 */
 export function getParkingZones(params: {
-  current?: number
+  page?: number
   size?: number
   lotId?: number
   status?: number
 }) {
-  return request.get<PageResult<ParkingZoneVO>>('/api/v1/parking-zones', params)
+  return request.get<PageResult<ParkingZoneVO>>('/admin/parking-zones', params)
 }
 
 /** 按车场查询区域列表 */
 export function getParkingZonesByLotId(lotId: number) {
-  return request.get<ParkingZoneVO[]>(`/api/v1/parking-zones/by-lot/${lotId}`)
+  return request.get<ParkingZoneVO[]>(`/admin/parking-zones/by-lot/${lotId}`)
 }
 
 /** 查询区域详情 */
 export function getParkingZone(id: number) {
-  return request.get<ParkingZoneVO>(`/api/v1/parking-zones/${id}`)
+  return request.get<ParkingZoneVO>(`/admin/parking-zones/${id}`)
 }
 
 /** 创建区域 */
@@ -76,20 +76,20 @@ export function createParkingZone(data: {
   managerId?: number
   remark?: string
 }) {
-  return request.post<ParkingZoneVO>('/api/v1/parking-zones', data)
+  return request.post<ParkingZoneVO>('/admin/parking-zones', data)
 }
 
 /** 更新区域 */
 export function updateParkingZone(id: number, data: Record<string, any>) {
-  return request.put<ParkingZoneVO>(`/api/v1/parking-zones/${id}`, data)
+  return request.put<ParkingZoneVO>(`/admin/parking-zones/${id}`, data)
 }
 
 /** 删除区域（软删除） */
 export function deleteParkingZone(id: number) {
-  return request.delete<void>(`/api/v1/parking-zones/${id}`)
+  return request.delete<void>(`/admin/parking-zones/${id}`)
 }
 
 /** 更新区域状态 */
 export function updateParkingZoneStatus(id: number, status: number) {
-  return request.post<void>(`/api/v1/parking-zones/${id}/status`, undefined, { params: { status } })
+  return request.post<void>(`/admin/parking-zones/${id}/status`, undefined, { params: { status } })
 }

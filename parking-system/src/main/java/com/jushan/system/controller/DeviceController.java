@@ -8,7 +8,10 @@ import com.jushan.system.dto.UpdateDeviceRequest;
 import com.jushan.system.entity.DeviceModel;
 import com.jushan.system.entity.DeviceVendor;
 import com.jushan.system.service.DeviceService;
+import com.jushan.system.client.dto.CommandResultDTO;
+import com.jushan.system.client.dto.DisplayResultDTO;
 import com.jushan.system.client.dto.TimeSyncResultDTO;
+import com.jushan.system.client.dto.VoiceResultDTO;
 import com.jushan.system.vo.DeviceStatusVO;
 import com.jushan.system.vo.DeviceVO;
 import jakarta.validation.Valid;
@@ -230,6 +233,111 @@ public class DeviceController {
         String reason = body != null ? body.getOrDefault("reason", "") : "";
         TimeSyncResultDTO result = deviceService.syncTime(id, reason);
         log.info("设备校时完成: deviceId={}, success={}", id, result.isSuccessful());
+        return R.ok(result);
+    }
+
+    // ==================== 设备控制（T5: v0.4 开闸/关闸/显示屏/语音） ====================
+
+    /**
+     * 开闸（调用 Device Access v0.4）。
+     * <p>
+     * 写操作，<b>禁止自动重试</b>。网络超时标记为 UNCERTAIN。
+     * <p>
+     * 权限：device:manage
+     *
+     * @param id   平台设备 ID
+     * @param body 包含 reason 字段（操作原因，可选）
+     */
+    @PostMapping("/{id}/open-gate")
+    @RequirePermission("device:manage")
+    public R<CommandResultDTO> openGate(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String reason = body != null ? body.getOrDefault("reason", "") : "";
+        CommandResultDTO result = deviceService.openGate(id, reason);
+        log.info("开闸完成: deviceId={}, success={}", id, result.isSuccessful());
+        return R.ok(result);
+    }
+
+    /**
+     * 关闸（调用 Device Access v0.4）。
+     * <p>
+     * 写操作，<b>禁止自动重试</b>。网络超时标记为 UNCERTAIN。
+     * <p>
+     * 权限：device:manage
+     *
+     * @param id   平台设备 ID
+     * @param body 包含 reason 字段（操作原因，可选）
+     */
+    @PostMapping("/{id}/close-gate")
+    @RequirePermission("device:manage")
+    public R<CommandResultDTO> closeGate(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String reason = body != null ? body.getOrDefault("reason", "") : "";
+        CommandResultDTO result = deviceService.closeGate(id, reason);
+        log.info("关闸完成: deviceId={}, success={}", id, result.isSuccessful());
+        return R.ok(result);
+    }
+
+    /**
+     * 显示屏实时文字（调用 Device Access v0.4）。
+     * <p>
+     * 权限：device:manage
+     *
+     * @param id   平台设备 ID
+     * @param body 包含 content、direction、fontSize、color 字段
+     */
+    @PostMapping("/{id}/display-text")
+    @RequirePermission("device:manage")
+    public R<DisplayResultDTO> displayText(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String content = (String) body.get("content");
+        String direction = (String) body.getOrDefault("direction", "HORIZONTAL");
+        Integer fontSize = body.get("fontSize") != null ? ((Number) body.get("fontSize")).intValue() : null;
+        String color = (String) body.getOrDefault("color", "RED");
+        if (content == null || content.isBlank()) {
+            return R.fail(400, "显示内容不能为空");
+        }
+        DisplayResultDTO result = deviceService.displayText(id, content, direction, fontSize, color);
+        log.info("显示屏文字完成: deviceId={}, success={}", id, result.getSuccess());
+        return R.ok(result);
+    }
+
+    /**
+     * 显示屏配置（音量/亮度/时间同步）（调用 Device Access v0.4）。
+     * <p>
+     * 权限：device:manage
+     *
+     * @param id   平台设备 ID
+     * @param body 包含 configType、intValue、stringValue 字段
+     */
+    @PostMapping("/{id}/display-config")
+    @RequirePermission("device:manage")
+    public R<DisplayResultDTO> displayConfig(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String configType = (String) body.get("configType");
+        Integer intValue = body.get("intValue") != null ? ((Number) body.get("intValue")).intValue() : null;
+        String stringValue = (String) body.get("stringValue");
+        if (configType == null || configType.isBlank()) {
+            return R.fail(400, "配置类型不能为空");
+        }
+        DisplayResultDTO result = deviceService.displayConfig(id, configType, intValue, stringValue);
+        log.info("显示屏配置完成: deviceId={}, configType={}, success={}", id, configType, result.getSuccess());
+        return R.ok(result);
+    }
+
+    /**
+     * 语音播报（调用 Device Access v0.4）。
+     * <p>
+     * 权限：device:manage
+     *
+     * @param id   平台设备 ID
+     * @param body 包含 action、voiceId、variable 字段
+     */
+    @PostMapping("/{id}/voice-control")
+    @RequirePermission("device:manage")
+    public R<VoiceResultDTO> voiceControl(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String action = (String) body.getOrDefault("action", "PLAY");
+        Integer voiceId = body.get("voiceId") != null ? ((Number) body.get("voiceId")).intValue() : null;
+        String variable = (String) body.get("variable");
+        VoiceResultDTO result = deviceService.voiceControl(id, action, voiceId, variable);
+        log.info("语音播报完成: deviceId={}, action={}, voiceId={}, success={}",
+                id, action, voiceId, result.getSuccess());
         return R.ok(result);
     }
 

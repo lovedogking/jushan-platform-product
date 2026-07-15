@@ -21,8 +21,8 @@ import java.time.LocalDateTime;
  *   <li>显式标记 UNCERTAIN 状态，网络超时等不确定场景不得自动重试</li>
  * </ul>
  * <p>
- * <strong>当前状态</strong>：开闸命令为 {@code NOT_IMPLEMENTED_IN_V0.2}，
- * 本表先保留结构化审计字段，待 Device Access v1.0 契约冻结后启用真实调用。
+ * <strong>当前状态</strong>：Device Access v0.4 已实现开闸能力，
+ * 本表记录完整的调用上下文、执行结果和 UNCERTAIN 处置状态。
  *
  * @author Jushan Platform
  * @since 1.0.0
@@ -79,7 +79,7 @@ public class DeviceCommandAudit implements Serializable {
      *   <li>FAILED — 有明确失败结果</li>
      *   <li>UNCERTAIN — 网络超时等不确定，禁止自动重试</li>
      *   <li>REJECTED — 参数/权限/能力/状态不允许</li>
-     *   <li>NOT_IMPLEMENTED — 当前 v0.2 占位，未真实调用</li>
+     *   <li>NOT_IMPLEMENTED — 历史占位状态，v0.4 起不再使用</li>
      * </ul>
      */
     private String status;

@@ -5,15 +5,18 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.common.auth.TenantContext;
 import com.jushan.platform.modules.account.entity.SysAdminAccount;
 import com.jushan.platform.modules.account.entity.SysAdminAccountRole;
 import com.jushan.platform.modules.account.entity.SysCustomRole;
+import com.jushan.platform.modules.account.entity.SysRolePermission;
 import com.jushan.platform.modules.account.mapper.SysAdminAccountMapper;
 import com.jushan.platform.modules.account.mapper.SysAdminAccountRoleMapper;
 import com.jushan.platform.modules.account.mapper.SysCustomRoleMapper;
+import com.jushan.platform.modules.account.mapper.SysRolePermissionMapper;
 import com.jushan.system.dto.RegisterRequest;
 import com.jushan.system.dto.TenantAuditRequest;
 import com.jushan.system.entity.Company;
@@ -74,6 +77,83 @@ public class TenantService {
     /** 允许启停的租户状态（ENABLED/DISABLED 在 ENABLED 和 DISABLED 之间切换） */
     private static final List<String> TOGGLEABLE_STATUSES = Arrays.asList(STATUS_ENABLED, STATUS_DISABLED);
 
+    /**
+     * customer_admin 默认权限列表。
+     * <p>
+     * 租户管理员拥有该租户内的全部管理权限；不包含平台级权限（如租户创建/删除）。
+     */
+    private static final List<SysRolePermission> DEFAULT_CUSTOMER_ADMIN_PERMISSIONS = Arrays.asList(
+            // 企业管理（前端菜单使用 company:view，后端接口使用 company:read/write/delete）
+            buildPermission("company:view", "menu", "company"),
+            buildPermission("company:read", "button", "company"),
+            buildPermission("company:write", "button", "company"),
+            buildPermission("company:create", "button", "company"),
+            buildPermission("company:update", "button", "company"),
+            buildPermission("company:delete", "button", "company"),
+            // 员工账号
+            buildPermission("account:view", "menu", "company"),
+            buildPermission("account:create", "button", "company"),
+            buildPermission("account:update", "button", "company"),
+            buildPermission("account:delete", "button", "company"),
+            // 角色权限
+            buildPermission("role:view", "menu", "company"),
+            buildPermission("role:create", "button", "company"),
+            buildPermission("role:update", "button", "company"),
+            buildPermission("role:delete", "button", "company"),
+            // 停车场
+            buildPermission("parking:view", "menu", "company"),
+            buildPermission("parking:read", "button", "company"),
+            buildPermission("parking:write", "button", "company"),
+            buildPermission("parking:update", "button", "company"),
+            buildPermission("parking:delete", "button", "company"),
+            buildPermission("parking:disable", "button", "company"),
+            // 区域/车道
+            buildPermission("lane:view", "menu", "company"),
+            buildPermission("lane:update", "button", "company"),
+            buildPermission("lane:delete", "button", "company"),
+            // 设备
+            buildPermission("device:read", "menu", "company"),
+            buildPermission("device:manage", "button", "company"),
+            // 收费规则
+            buildPermission("fee:read", "menu", "company"),
+            buildPermission("fee:write", "button", "company"),
+            // 计费记录
+            buildPermission("billing:read", "menu", "company"),
+            buildPermission("billing:write", "button", "company"),
+            buildPermission("billing:switch", "button", "company"),
+            // 停车记录
+            buildPermission("record:read", "menu", "company"),
+            // 岗亭
+            buildPermission("booth:view", "menu", "company"),
+            buildPermission("booth:operate", "button", "company"),
+            buildPermission("booth:monitor", "button", "company"),
+            // 车辆
+            buildPermission("vehicle:view", "menu", "company"),
+            buildPermission("vehicle:create", "button", "company"),
+            buildPermission("vehicle:update", "button", "company"),
+            buildPermission("vehicle:delete", "button", "company"),
+            // 部门
+            buildPermission("department:view", "menu", "company"),
+            buildPermission("department:create", "button", "company"),
+            buildPermission("department:update", "button", "company"),
+            buildPermission("department:delete", "button", "company"),
+            // 用户
+            buildPermission("user:read", "menu", "company"),
+            buildPermission("user:write", "button", "company"),
+            // 小程序
+            buildPermission("miniapp:view", "menu", "company"),
+            buildPermission("miniapp:operate", "button", "company")
+            // 注：租户级管理员不应拥有 tenant:read / tenant:write，否则可查看/操作其他租户
+    );
+
+    private static SysRolePermission buildPermission(String code, String type, String scope) {
+        SysRolePermission p = new SysRolePermission();
+        p.setPermissionCode(code);
+        p.setPermissionType(type);
+        p.setDataScope(scope);
+        return p;
+    }
+
     private final TenantMapper tenantMapper;
     private final TenantAuditLogMapper tenantAuditLogMapper;
     private final SysUserMapper sysUserMapper;
@@ -81,6 +161,7 @@ public class TenantService {
     private final SysAdminAccountMapper adminAccountMapper;
     private final SysAdminAccountRoleMapper adminAccountRoleMapper;
     private final SysCustomRoleMapper customRoleMapper;
+    private final SysRolePermissionMapper rolePermissionMapper;
 
     public TenantService(TenantMapper tenantMapper,
                          TenantAuditLogMapper tenantAuditLogMapper,
@@ -88,7 +169,8 @@ public class TenantService {
                          CompanyMapper companyMapper,
                          SysAdminAccountMapper adminAccountMapper,
                          SysAdminAccountRoleMapper adminAccountRoleMapper,
-                         SysCustomRoleMapper customRoleMapper) {
+                         SysCustomRoleMapper customRoleMapper,
+                         SysRolePermissionMapper rolePermissionMapper) {
         this.tenantMapper = tenantMapper;
         this.tenantAuditLogMapper = tenantAuditLogMapper;
         this.sysUserMapper = sysUserMapper;
@@ -96,6 +178,7 @@ public class TenantService {
         this.adminAccountMapper = adminAccountMapper;
         this.adminAccountRoleMapper = adminAccountRoleMapper;
         this.customRoleMapper = customRoleMapper;
+        this.rolePermissionMapper = rolePermissionMapper;
     }
 
     // ==================== 客户注册 ====================
@@ -186,6 +269,7 @@ public class TenantService {
      * @param request  审核请求（操作类型 + 原因）
      */
     @Transactional
+    @TenantIgnore(reason = "平台用户审核操作需要跨租户写入管理员账号和角色数据", audit = true)
     public void audit(Long tenantId, TenantAuditRequest request) {
         String action = request.getAction().trim();
         String reason = request.getReason() != null ? request.getReason().trim() : "";
@@ -418,6 +502,7 @@ public class TenantService {
         Long roleId = resolveCustomerAdminRoleId(tenant.getId());
         if (roleId != null) {
             SysAdminAccountRole roleBinding = new SysAdminAccountRole();
+            roleBinding.setId(IdWorker.getId());
             roleBinding.setAdminAccountId(account.getId());
             roleBinding.setRoleId(roleId);
             roleBinding.setCreatedAt(LocalDateTime.now());
@@ -454,7 +539,33 @@ public class TenantService {
         newRole.setUpdatedAt(LocalDateTime.now());
         customRoleMapper.insert(newRole);
         log.info("自动创建 customer_admin 角色: roleId={}, tenantId={}", newRole.getId(), tenantId);
+
+        // 初始化该角色的默认权限
+        initCustomerAdminPermissions(newRole.getId());
         return newRole.getId();
+    }
+
+    /**
+     * 为 customer_admin 角色初始化默认权限。
+     * <p>
+     * 幂等：已存在的权限码通过 ON DUPLICATE KEY UPDATE 更新类型和范围。
+     *
+     * @param roleId 角色 ID
+     */
+    private void initCustomerAdminPermissions(Long roleId) {
+        if (roleId == null || DEFAULT_CUSTOMER_ADMIN_PERMISSIONS.isEmpty()) {
+            return;
+        }
+        for (SysRolePermission template : DEFAULT_CUSTOMER_ADMIN_PERMISSIONS) {
+            SysRolePermission rp = new SysRolePermission();
+            rp.setId(IdWorker.getId());
+            rp.setRoleId(roleId);
+            rp.setPermissionCode(template.getPermissionCode());
+            rp.setPermissionType(template.getPermissionType());
+            rp.setDataScope(template.getDataScope());
+            rolePermissionMapper.insert(rp);
+        }
+        log.info("初始化 customer_admin 默认权限完成: roleId={}, count={}", roleId, DEFAULT_CUSTOMER_ADMIN_PERMISSIONS.size());
     }
 
     /**

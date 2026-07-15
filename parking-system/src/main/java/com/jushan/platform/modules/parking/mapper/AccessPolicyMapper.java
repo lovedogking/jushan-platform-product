@@ -1,5 +1,6 @@
 package com.jushan.platform.modules.parking.mapper;
 
+import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.jushan.platform.modules.parking.entity.AccessPolicy;
 import org.apache.ibatis.annotations.Mapper;
@@ -37,4 +38,17 @@ public interface AccessPolicyMapper extends BaseMapper<AccessPolicy> {
      */
     @Select("SELECT * FROM access_policy WHERE parking_lot_id = #{parkingLotId} AND policy_type = #{policyType} AND tenant_id = #{tenantId} AND deleted_at IS NULL AND status = 'ACTIVE' ORDER BY sort_order")
     List<AccessPolicy> selectByType(@Param("parkingLotId") Long parkingLotId, @Param("policyType") String policyType, @Param("tenantId") Long tenantId);
+
+    /**
+     * 读取指定停车场的黑名单超时阈值（policy_type='BLACKLIST', policy_key='timeout_hours'）。
+     * <p>
+     * 忽略租户拦截器，由调用方显式传入 tenantId，便于系统级定时任务跨租户读取策略。
+     *
+     * @param parkingLotId 停车场ID
+     * @param tenantId     租户ID
+     * @return 阈值（小时）字符串；未配置时返回 null
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT policy_value FROM access_policy WHERE parking_lot_id = #{parkingLotId} AND tenant_id = #{tenantId} AND policy_type = 'BLACKLIST' AND policy_key = 'timeout_hours' AND status = 'ACTIVE' AND deleted_at IS NULL LIMIT 1")
+    String selectTimeoutHoursValue(@Param("parkingLotId") Long parkingLotId, @Param("tenantId") Long tenantId);
 }

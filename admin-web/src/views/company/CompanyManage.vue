@@ -83,11 +83,11 @@ import CompanyFormModal from './CompanyFormModal.vue'
 type CompanyTableRow = CompanyVO & { status?: string }
 
 const columns = [
+  { title: '排序', dataIndex: 'sortOrder', key: 'sortOrder', width: 80 },
   { title: '公司名称', dataIndex: 'name', key: 'name', width: 180 },
   { title: '级别', key: 'level', width: 90 },
   { title: '联系人', dataIndex: 'contactName', key: 'contactName', width: 110 },
   { title: '联系电话', dataIndex: 'contactPhone', key: 'contactPhone', width: 140 },
-  { title: '排序', dataIndex: 'sortOrder', key: 'sortOrder', width: 80 },
   { title: '状态', key: 'status', width: 90 },
   { title: '操作', key: 'action', width: 150, fixed: 'right' as const },
 ]

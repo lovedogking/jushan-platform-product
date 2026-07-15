@@ -91,6 +91,14 @@ jushan:
     connect-timeout: 3000
     read-timeout: 12000
 
+# ---- Device Access Webhook 接收端配置 ----
+# 生产环境通过环境变量覆盖：DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS
+device-access:
+  webhook:
+    # IP 白名单（逗号分隔），* 表示放行所有（仅限开发/测试环境）
+    # 生产环境必须配置为 Device Access 服务的具体 IP 地址
+    allowed-ips: "*"
+
 # ---- JWT 配置 ----
 # 生产环境必须通过环境变量 JWT_SECRET 覆盖，至少 32 字符
 jwt:

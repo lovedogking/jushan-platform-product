@@ -14,8 +14,11 @@ import java.time.LocalDateTime;
 @Data
 public class MiniParkingRecordVO {
 
-    /** 记录ID */
+    /** 记录ID（ParkingSession.id 或 ParkingRecord.id） */
     private Long id;
+
+    /** 停车记录 ID（ParkingRecord.id），用于支付等后端操作 */
+    private Long recordId;
 
     /** 停车场名称 */
     private String parkingLotName;
@@ -34,6 +37,9 @@ public class MiniParkingRecordVO {
 
     /** 费用（元） */
     private BigDecimal feeAmount;
+
+    /** 费用（分），精度安全的整数分表示 */
+    private Integer feeCents;
 
     /** 支付状态：UNPAID-未支付, PAID-已支付, FREE-免费 */
     private String payStatus;

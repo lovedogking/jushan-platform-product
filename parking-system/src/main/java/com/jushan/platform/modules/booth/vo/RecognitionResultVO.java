@@ -25,7 +25,17 @@ public class RecognitionResultVO {
     /** 是否允许通行 */
     private Boolean allowPass;
 
-    /** 是否开闸（预留/mock） */
+    /** 开闸命令是否已发送到 Device Access */
+    private Boolean gateCommandSent;
+
+    /** 设备是否回复开闸成功 */
+    private Boolean gateDeviceAck;
+
+    /**
+     * 闸杆实际是否抬起。
+     * 一期：始终为 null（无法确认第三层状态，gateDeviceAck 不代表闸杆动作）。
+     * 二期：接入设备状态反馈后填充。
+     */
     private Boolean gateOpened;
 
     /** 开闸结果说明 */

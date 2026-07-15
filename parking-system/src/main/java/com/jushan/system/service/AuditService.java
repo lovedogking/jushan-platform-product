@@ -97,6 +97,55 @@ public class AuditService {
     }
 
     /**
+     * 写入审计日志（显式提供操作人，不依赖当前线程上下文）。
+     * <p>
+     * 供无用户上下文的场景使用，例如支付回调（P云异步通知）中触发的续费生效。
+     * 若未提供 operatorName，则按 operatorId 反查操作员姓名。
+     *
+     * @param tenantId     目标租户 ID（可为 null）
+     * @param targetType   目标类型
+     * @param targetId     目标业务主键
+     * @param action       操作类型
+     * @param operatorId   操作人 ID（可为 null，例如系统触发）
+     * @param operatorName 操作人名称（可为 null，将按 operatorId 反查）
+     * @param beforeValue  操作前数据（JSON，可为 null）
+     * @param afterValue   操作后数据（JSON，可为 null）
+     * @param result       操作结果
+     * @param failReason   失败原因
+     * @param reason       操作原因
+     * @param clientIp     客户端 IP
+     */
+    public void writeAuditLog(Long tenantId, String targetType, String targetId, String action,
+                              Long operatorId, String operatorName,
+                              String beforeValue, String afterValue,
+                              String result, String failReason, String reason, String clientIp) {
+        String resolvedName = operatorName;
+        if (resolvedName == null && operatorId != null) {
+            try {
+                SysUser operator = sysUserMapper.selectById(operatorId);
+                if (operator != null) {
+                    resolvedName = operator.getDisplayName() != null
+                            ? operator.getDisplayName() : operator.getUsername();
+                } else {
+                    resolvedName = String.valueOf(operatorId);
+                }
+            } catch (Exception e) {
+                resolvedName = String.valueOf(operatorId);
+            }
+        } else if (resolvedName == null) {
+            resolvedName = "";
+        }
+
+        writeAuditLogDirect(
+                tenantId, targetType, targetId, action,
+                operatorId, resolvedName, null,
+                0,
+                beforeValue, afterValue,
+                result, failReason, reason, clientIp
+        );
+    }
+
+    /**
      * 直接写入审计日志（不依赖上下文，由调用方提供所有参数）。
      *
      * @param targetTenantId 目标租户 ID（保留字段，当前未使用）
@@ -148,6 +197,43 @@ public class AuditService {
             }
             // 非关键审计日志写入失败不影响主业务
         }
+    }
+
+    // ==================== 代操作审计 ====================
+
+    /**
+     * 记录代操作启动审计日志。
+     *
+     * @param operatorId     操作人 ID
+     * @param operatorName   操作人名称
+     * @param targetTenantId 目标租户 ID
+     * @param reason         代操作原因
+     */
+    public void logProxyStart(Long operatorId, String operatorName, Long targetTenantId, String reason) {
+        writeAuditLogDirect(
+                null, TARGET_TYPE_TENANT, String.valueOf(targetTenantId), "proxy_start",
+                operatorId, operatorName, targetTenantId, 1,
+                null, null,
+                RESULT_SUCCESS, null, reason, null,
+                false
+        );
+    }
+
+    /**
+     * 记录代操作停止审计日志。
+     *
+     * @param operatorId     操作人 ID
+     * @param operatorName   操作人名称
+     * @param targetTenantId 目标租户 ID
+     */
+    public void logProxyStop(Long operatorId, String operatorName, Long targetTenantId) {
+        writeAuditLogDirect(
+                null, TARGET_TYPE_TENANT, String.valueOf(targetTenantId), "proxy_stop",
+                operatorId, operatorName, targetTenantId, 1,
+                null, null,
+                RESULT_SUCCESS, null, null, null,
+                false
+        );
     }
 
     // ==================== 查询 ====================

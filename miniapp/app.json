@@ -1,7 +1,11 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/profile/profile"
+    "pages/profile/profile",
+    "pages/plate/plate",
+    "pages/records/records",
+    "pages/parking/parking",
+    "pages/pay/pay"
   ],
   "lazyCodeLoading": "requiredComponents",
   "window": {

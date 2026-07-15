@@ -168,7 +168,7 @@ import {
   CarOutlined,
   AppstoreOutlined,
 } from '@ant-design/icons-vue'
-import { useAuthStore, useAppStore, NAV_ITEMS, MENU_MAP, useTabsStore } from '@/stores'
+import { useAuthStore, useAppStore, NAV_ITEMS, useTabsStore } from '@/stores'
 
 const router = useRouter()
 const route = useRoute()
@@ -209,7 +209,8 @@ function getIcon(icon?: string) {
 function handleNavClick(info: any) {
   const key = String(info.key)
   appStore.setActiveNav(key)
-  const menus = MENU_MAP[key]
+  // 必须基于当前用户权限过滤后的菜单跳转，否则无权限的首个菜单会直接进 403
+  const menus = currentMenus.value
   if (menus && menus.length > 0) {
     router.push(menus[0].path)
   }

@@ -9,8 +9,14 @@ import com.jushan.common.CommonErrorCode;
 import com.jushan.framework.auth.DataScope;
 import com.jushan.common.auth.TenantContext;
 import com.jushan.system.client.DeviceAccessClient;
+import com.jushan.system.client.dto.CommandResultDTO;
 import com.jushan.system.client.dto.DeviceStatusDTO;
+import com.jushan.system.client.dto.DisplayConfigRequest;
+import com.jushan.system.client.dto.DisplayResultDTO;
+import com.jushan.system.client.dto.DisplayTextRequest;
 import com.jushan.system.client.dto.TimeSyncResultDTO;
+import com.jushan.system.client.dto.VoiceControlRequest;
+import com.jushan.system.client.dto.VoiceResultDTO;
 import com.jushan.system.dto.CreateDeviceRequest;
 import com.jushan.system.dto.UpdateDeviceRequest;
 import com.jushan.system.entity.Device;
@@ -649,18 +655,14 @@ public class DeviceService {
         auditLogMapper.insert(audit);
     }
 
-    // ==================== 开闸占位（P001） ====================
+    // ==================== 开闸（P001 → v0.4） ====================
 
     /**
-     * 开闸占位方法。
+     * 开闸方法（已废弃）。
      * <p>
-     * Device Access v0.2 中开闸为 {@code NOT_IMPLEMENTED_IN_V0.2}，本方法仅用于：
-     * <ol>
-     *   <li>校验设备权限、状态和能力范围</li>
-     *   <li>创建结构化 {@code device_command_audit} 审计记录</li>
-     *   <li>调用 {@link DeviceAccessClient#openGate(String)} 占位接口</li>
-     * </ol>
-     * 真实开闸逻辑需在 Device Access v1.0 契约冻结、真机验证（V04）完成后实现。
+     * Device Access v0.4 已实现 {@code POST /api/v1/devices/{deviceSn}/gate/open}，
+     * 请使用 {@link DeviceAccessClient#openGate(String)} 直接调用。
+     * 本方法保留仅作为审计记录参考，将在后续版本中移除。
      * <p>
      * <strong>安全约束</strong>：
      * <ul>
@@ -673,7 +675,9 @@ public class DeviceService {
      * @param reason   操作原因
      * @param source   操作来源（MANUAL / SYSTEM / AUTO_EXIT 等）
      * @param previousCommandId 前次命令 ID（人工再次开闸时填写，可选）
+     * @deprecated 使用 {@link DeviceAccessClient#openGate(String)} 替代（v0.4 已实现真实开闸）
      */
+    @Deprecated
     public void openGatePlaceholder(Long deviceId, String reason, String source, String previousCommandId) {
         Device device = getDeviceWithAuth(deviceId);
 
@@ -683,16 +687,16 @@ public class DeviceService {
 
         ParkingLot lot = getParkingLotWithAuth(device.getParkingLotId());
 
-        // 当前仅 GATE 类型设备支持开闸占位；CAMERA 开闸由 executor mapping 在 v1.0 中明确
+        // 当前仅 GATE 类型设备支持开闸；CAMERA 开闸由 executor mapping 在后续版本中明确
         if (!"GATE".equals(device.getDeviceType())) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "仅逻辑道闸（GATE）设备支持开闸占位");
+                    "仅逻辑道闸（GATE）设备支持开闸");
         }
 
         String deviceSn = device.getDeviceSn();
         LocalDateTime now = LocalDateTime.now();
 
-        // 构造审计记录（NOT_IMPLEMENTED）
+        // 构造审计记录
         DeviceCommandAudit audit = new DeviceCommandAudit();
         audit.setTenantId(lot.getTenantId());
         audit.setParkingLotId(device.getParkingLotId());
@@ -703,11 +707,8 @@ public class DeviceService {
         audit.setSource(defaultString(source, SOURCE_MANUAL));
         audit.setReason(reason != null ? reason : "");
         audit.setPreviousCommandId(previousCommandId);
-        audit.setStatus(AUDIT_STATUS_NOT_IMPLEMENTED);
-        audit.setUncertain(false);
         audit.setRequestPayload(buildOpenGateRequestPayload(device, lot));
         audit.setIssuedAt(now);
-        audit.setCompletedAt(now);
         audit.setCreatedAt(now);
         audit.setUpdatedAt(now);
 
@@ -723,21 +724,39 @@ public class DeviceService {
 
         commandAuditMapper.insert(audit);
 
-        // 调用 Client 占位（v0.2 始终抛出 UnsupportedOperationException）
+        // 调用 DeviceAccessClient v0.4 真实开闸
         try {
-            deviceAccessClient.openGate(deviceSn);
-        } catch (UnsupportedOperationException e) {
-            // 占位预期异常：更新审计记录并抛出业务异常
-            audit.setErrorCode(String.valueOf(CommonErrorCode.UNSUPPORTED_OPERATION.getCode()));
+            com.jushan.system.client.dto.CommandResultDTO result = deviceAccessClient.openGate(deviceSn);
+            audit.setStatus(result.isSuccessful() ? AUDIT_STATUS_SUCCESS : AUDIT_STATUS_FAILED);
+            audit.setUncertain(false);
+            audit.setResponsePayload("{\"success\":" + result.getSuccess()
+                    + ",\"deviceCode\":" + result.getDeviceCode()
+                    + ",\"message\":\"" + escapeJson(result.getMessage()) + "\"}");
+            audit.setCompletedAt(LocalDateTime.now());
+            audit.setUpdatedAt(LocalDateTime.now());
+            commandAuditMapper.updateById(audit);
+
+            if (!result.isSuccessful()) {
+                log.warn("开闸失败: deviceId={}, auditId={}, deviceCode={}, message={}",
+                        deviceId, audit.getId(), result.getDeviceCode(), result.getMessage());
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "开闸失败: " + (result.getMessage() != null ? result.getMessage() : "设备返回异常"));
+            }
+
+            log.info("开闸成功: deviceId={}, auditId={}", deviceId, audit.getId());
+
+        } catch (BusinessException e) {
+            // 网络异常或 DA 错误（UNCERTAIN）
+            audit.setStatus(AUDIT_STATUS_UNCERTAIN);
+            audit.setUncertain(true);
+            audit.setErrorCode(String.valueOf(e.getCode()));
             audit.setErrorMessage(e.getMessage());
             audit.setUpdatedAt(LocalDateTime.now());
             commandAuditMapper.updateById(audit);
 
-            log.warn("开闸占位：Device Access v0.2 未实现开闸，已记录审计: deviceId={}, auditId={}",
-                    deviceId, audit.getId());
-
-            throw new BusinessException(CommonErrorCode.UNSUPPORTED_OPERATION,
-                    "开闸接口在 Device Access v0.2 中未实现（NOT_IMPLEMENTED_IN_V0.2），待 v1.0 契约冻结后启用");
+            log.error("开闸异常（UNCERTAIN）: deviceId={}, auditId={}, error={}",
+                    deviceId, audit.getId(), e.getMessage());
+            throw e;
         }
     }
 
@@ -766,6 +785,387 @@ public class DeviceService {
                 .replace("\n", "\\n")
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
+    }
+
+    // ==================== 设备控制（T5: v0.4 开闸/关闸/显示屏/语音） ====================
+
+    /**
+     * 开闸（调用 DA v0.4）。
+     * <p>
+     * 支持 GATE 类型设备和具备开闸能力的 CAMERA 设备。
+     * <b>禁止自动重试</b>；网络错误或命令超时标记为 UNCERTAIN。
+     *
+     * @param deviceId 平台设备 ID
+     * @param reason   操作原因
+     * @return 命令执行结果
+     */
+    @Transactional
+    public CommandResultDTO openGate(Long deviceId, String reason) {
+        Device device = getDeviceWithAuth(deviceId);
+
+        if (!STATUS_ENABLED.equals(device.getStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不能开闸");
+        }
+
+        String deviceType = device.getDeviceType();
+        if (!"GATE".equals(deviceType) && !"CAMERA".equals(deviceType)) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "仅道闸（GATE）或相机（CAMERA）设备支持开闸");
+        }
+
+        String deviceSn = device.getDeviceSn();
+        ParkingLot lot = getParkingLotWithAuth(device.getParkingLotId());
+        Long tenantId = lot.getTenantId();
+        LocalDateTime now = LocalDateTime.now();
+
+        // 构造命令审计记录
+        DeviceCommandAudit audit = buildCommandAudit(device, lot, tenantId,
+                COMMAND_TYPE_OPEN_GATE, reason, null, now);
+
+        try {
+            CommandResultDTO result = deviceAccessClient.openGate(deviceSn);
+            audit.setStatus(result.isSuccessful() ? AUDIT_STATUS_SUCCESS : AUDIT_STATUS_FAILED);
+            audit.setUncertain(false);
+            audit.setResponsePayload(buildCommandResponseJson(result));
+            audit.setCompletedAt(LocalDateTime.now());
+            audit.setUpdatedAt(LocalDateTime.now());
+            commandAuditMapper.updateById(audit);
+
+            log.info("开闸完成: deviceId={}, auditId={}, success={}, deviceCode={}",
+                    deviceId, audit.getId(), result.getSuccess(), result.getDeviceCode());
+
+            if (!result.isSuccessful()) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "开闸失败: " + (result.getMessage() != null ? result.getMessage() : "设备返回异常"));
+            }
+            return result;
+
+        } catch (BusinessException e) {
+            audit.setStatus(AUDIT_STATUS_UNCERTAIN);
+            audit.setUncertain(true);
+            audit.setErrorCode(String.valueOf(e.getCode()));
+            audit.setErrorMessage(e.getMessage());
+            audit.setUpdatedAt(LocalDateTime.now());
+            commandAuditMapper.updateById(audit);
+
+            log.error("开闸异常（UNCERTAIN）: deviceId={}, auditId={}, error={}",
+                    deviceId, audit.getId(), e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * 关闸（调用 DA v0.4）。
+     * <p>
+     * 支持 GATE 类型设备和具备关闸能力的 CAMERA 设备。
+     * <b>禁止自动重试</b>；网络错误或命令超时标记为 UNCERTAIN。
+     *
+     * @param deviceId 平台设备 ID
+     * @param reason   操作原因
+     * @return 命令执行结果
+     */
+    @Transactional
+    public CommandResultDTO closeGate(Long deviceId, String reason) {
+        Device device = getDeviceWithAuth(deviceId);
+
+        if (!STATUS_ENABLED.equals(device.getStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不能关闸");
+        }
+
+        String deviceType = device.getDeviceType();
+        if (!"GATE".equals(deviceType) && !"CAMERA".equals(deviceType)) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "仅道闸（GATE）或相机（CAMERA）设备支持关闸");
+        }
+
+        String deviceSn = device.getDeviceSn();
+        ParkingLot lot = getParkingLotWithAuth(device.getParkingLotId());
+        Long tenantId = lot.getTenantId();
+        LocalDateTime now = LocalDateTime.now();
+
+        DeviceCommandAudit audit = buildCommandAudit(device, lot, tenantId,
+                "CLOSE_GATE", reason, null, now);
+
+        try {
+            CommandResultDTO result = deviceAccessClient.closeGate(deviceSn);
+            audit.setStatus(result.isSuccessful() ? AUDIT_STATUS_SUCCESS : AUDIT_STATUS_FAILED);
+            audit.setUncertain(false);
+            audit.setResponsePayload(buildCommandResponseJson(result));
+            audit.setCompletedAt(LocalDateTime.now());
+            audit.setUpdatedAt(LocalDateTime.now());
+            commandAuditMapper.updateById(audit);
+
+            log.info("关闸完成: deviceId={}, auditId={}, success={}, deviceCode={}",
+                    deviceId, audit.getId(), result.getSuccess(), result.getDeviceCode());
+
+            if (!result.isSuccessful()) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "关闸失败: " + (result.getMessage() != null ? result.getMessage() : "设备返回异常"));
+            }
+            return result;
+
+        } catch (BusinessException e) {
+            audit.setStatus(AUDIT_STATUS_UNCERTAIN);
+            audit.setUncertain(true);
+            audit.setErrorCode(String.valueOf(e.getCode()));
+            audit.setErrorMessage(e.getMessage());
+            audit.setUpdatedAt(LocalDateTime.now());
+            commandAuditMapper.updateById(audit);
+
+            log.error("关闸异常（UNCERTAIN）: deviceId={}, auditId={}, error={}",
+                    deviceId, audit.getId(), e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * 显示屏实时文字（调用 DA v0.4）。
+     *
+     * @param deviceId  平台设备 ID
+     * @param content   显示内容
+     * @param direction 显示方向（HORIZONTAL / VERTICAL）
+     * @param fontSize  字体大小
+     * @param color     文字颜色
+     * @return 显示结果
+     */
+    @Transactional
+    public DisplayResultDTO displayText(Long deviceId, String content, String direction,
+                                         Integer fontSize, String color) {
+        Device device = getDeviceWithAuth(deviceId);
+
+        if (!STATUS_ENABLED.equals(device.getStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不支持显示屏控制");
+        }
+
+        if (!"CAMERA".equals(device.getDeviceType())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "仅相机（CAMERA）设备支持显示屏控制");
+        }
+
+        String deviceSn = device.getDeviceSn();
+        DisplayTextRequest request = new DisplayTextRequest(content, direction, fontSize, color);
+
+        ParkingLot lot = getParkingLotWithAuth(device.getParkingLotId());
+        Long tenantId = lot.getTenantId();
+        String resultStatus = "SUCCESS";
+        String failReason = "";
+
+        log.info("发送显示屏文字: deviceId={}, deviceSn={}, content={}, direction={}",
+                deviceId, deviceSn, content, direction);
+
+        try {
+            DisplayResultDTO result = deviceAccessClient.displayText(deviceSn, request);
+            log.info("显示屏文字发送成功: deviceId={}, success={}", deviceId, result.getSuccess());
+            if (!result.isSuccessful()) {
+                resultStatus = "FAILED";
+                failReason = result.getMessage();
+            }
+            writeControlAuditLog(device, lot, tenantId, "display_text", resultStatus, failReason, content);
+            return result;
+        } catch (BusinessException e) {
+            resultStatus = "FAILED";
+            failReason = e.getMessage();
+            writeControlAuditLog(device, lot, tenantId, "display_text", resultStatus, failReason, content);
+            log.error("显示屏文字发送失败: deviceId={}, error={}", deviceId, e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * 显示屏配置（音量/亮度/时间同步）（调用 DA v0.4）。
+     *
+     * @param deviceId   平台设备 ID
+     * @param configType 配置类型（VOLUME / BRIGHTNESS / TIME_SYNC）
+     * @param intValue   整数型配置值
+     * @param stringValue 字符串型配置值
+     * @return 配置结果
+     */
+    @Transactional
+    public DisplayResultDTO displayConfig(Long deviceId, String configType,
+                                           Integer intValue, String stringValue) {
+        Device device = getDeviceWithAuth(deviceId);
+
+        if (!STATUS_ENABLED.equals(device.getStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不支持显示屏配置");
+        }
+
+        if (!"CAMERA".equals(device.getDeviceType())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "仅相机（CAMERA）设备支持显示屏配置");
+        }
+
+        String deviceSn = device.getDeviceSn();
+        DisplayConfigRequest request = new DisplayConfigRequest(configType, intValue, stringValue);
+
+        ParkingLot lot = getParkingLotWithAuth(device.getParkingLotId());
+        Long tenantId = lot.getTenantId();
+        String resultStatus = "SUCCESS";
+        String failReason = "";
+
+        log.info("发送显示屏配置: deviceId={}, deviceSn={}, configType={}, intValue={}",
+                deviceId, deviceSn, configType, intValue);
+
+        try {
+            DisplayResultDTO result = deviceAccessClient.displayConfig(deviceSn, request);
+            log.info("显示屏配置成功: deviceId={}, success={}", deviceId, result.getSuccess());
+            if (!result.isSuccessful()) {
+                resultStatus = "FAILED";
+                failReason = result.getMessage();
+            }
+            writeControlAuditLog(device, lot, tenantId, "display_config", resultStatus, failReason,
+                    configType + "=" + intValue);
+            return result;
+        } catch (BusinessException e) {
+            resultStatus = "FAILED";
+            failReason = e.getMessage();
+            writeControlAuditLog(device, lot, tenantId, "display_config", resultStatus, failReason,
+                    configType + "=" + intValue);
+            log.error("显示屏配置失败: deviceId={}, error={}", deviceId, e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * 语音播报（调用 DA v0.4）。
+     *
+     * @param deviceId 平台设备 ID
+     * @param action   操作（PLAY / STOP）
+     * @param voiceId  语音模板 ID
+     * @param variable 变量参数（如车牌号）
+     * @return 播报结果
+     */
+    @Transactional
+    public VoiceResultDTO voiceControl(Long deviceId, String action, Integer voiceId, String variable) {
+        Device device = getDeviceWithAuth(deviceId);
+
+        if (!STATUS_ENABLED.equals(device.getStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不支持语音播报");
+        }
+
+        if (!"CAMERA".equals(device.getDeviceType())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "仅相机（CAMERA）设备支持语音播报");
+        }
+
+        String deviceSn = device.getDeviceSn();
+        VoiceControlRequest request = new VoiceControlRequest(action, voiceId, variable);
+
+        ParkingLot lot = getParkingLotWithAuth(device.getParkingLotId());
+        Long tenantId = lot.getTenantId();
+        String resultStatus = "SUCCESS";
+        String failReason = "";
+
+        log.info("发送语音播报: deviceId={}, deviceSn={}, action={}, voiceId={}, variable={}",
+                deviceId, deviceSn, action, voiceId, variable);
+
+        try {
+            VoiceResultDTO result = deviceAccessClient.voiceControl(deviceSn, request);
+            log.info("语音播报成功: deviceId={}, success={}", deviceId, result.getSuccess());
+            if (!result.isSuccessful()) {
+                resultStatus = "FAILED";
+                failReason = result.getMessage();
+            }
+            writeControlAuditLog(device, lot, tenantId, "voice_control", resultStatus, failReason,
+                    "action=" + action + ",voiceId=" + voiceId);
+            return result;
+        } catch (BusinessException e) {
+            resultStatus = "FAILED";
+            failReason = e.getMessage();
+            writeControlAuditLog(device, lot, tenantId, "voice_control", resultStatus, failReason,
+                    "action=" + action + ",voiceId=" + voiceId);
+            log.error("语音播报失败: deviceId={}, error={}", deviceId, e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * 构造命令审计记录（通用）。
+     */
+    private DeviceCommandAudit buildCommandAudit(Device device, ParkingLot lot, Long tenantId,
+                                                  String commandType, String reason,
+                                                  String previousCommandId, LocalDateTime now) {
+        DeviceCommandAudit audit = new DeviceCommandAudit();
+        audit.setTenantId(tenantId);
+        audit.setParkingLotId(device.getParkingLotId());
+        audit.setLaneId(device.getLaneId());
+        audit.setDeviceId(device.getId());
+        audit.setDeviceSn(device.getDeviceSn());
+        audit.setCommandType(commandType);
+        audit.setSource(SOURCE_MANUAL);
+        audit.setReason(reason != null ? reason : "");
+        audit.setPreviousCommandId(previousCommandId);
+        audit.setRequestPayload(buildCommandRequestPayload(device, lot, commandType));
+        audit.setIssuedAt(now);
+        audit.setCreatedAt(now);
+        audit.setUpdatedAt(now);
+
+        TenantContext.Snapshot ctx = TenantContext.get();
+        if (ctx != null) {
+            audit.setOperatorId(ctx.userId());
+            audit.setOperatorName("userId=" + (ctx.userId() != null ? ctx.userId() : "unknown"));
+        } else {
+            audit.setOperatorId(0L);
+            audit.setOperatorName("system");
+        }
+
+        commandAuditMapper.insert(audit);
+        return audit;
+    }
+
+    /**
+     * 构造命令请求上下文 JSON（通用，用于审计）。
+     */
+    private String buildCommandRequestPayload(Device device, ParkingLot lot, String commandType) {
+        return "{\"deviceId\":" + device.getId()
+                + ",\"deviceSn\":\"" + escapeJson(device.getDeviceSn())
+                + "\",\"deviceName\":\"" + escapeJson(device.getName())
+                + "\",\"parkingLotId\":" + lot.getId()
+                + ",\"laneId\":" + (device.getLaneId() != null ? device.getLaneId() : "null")
+                + ",\"executorDeviceId\":" + (device.getExecutorDeviceId() != null ? device.getExecutorDeviceId() : "null")
+                + ",\"commandType\":\"" + escapeJson(commandType) + "\"}";
+    }
+
+    /**
+     * 构造命令响应 JSON（通用，用于审计）。
+     */
+    private String buildCommandResponseJson(CommandResultDTO result) {
+        return "{\"success\":" + result.getSuccess()
+                + ",\"deviceCode\":" + result.getDeviceCode()
+                + ",\"message\":\"" + escapeJson(result.getMessage()) + "\"}";
+    }
+
+    /**
+     * 写入设备控制操作审计日志（通用，用于显示屏/语音等非开闸操作）。
+     */
+    private void writeControlAuditLog(Device device, ParkingLot lot, Long tenantId,
+                                       String action, String result, String failReason, String detail) {
+        SysAuditLog audit = new SysAuditLog();
+        audit.setTenantId(tenantId);
+        audit.setTargetType("device");
+        audit.setTargetId(String.valueOf(device.getId()));
+        audit.setAction(action);
+
+        TenantContext.Snapshot ctx = TenantContext.get();
+        if (ctx != null) {
+            audit.setOperatorId(ctx.userId() != null ? ctx.userId() : 0L);
+            audit.setOperatorName("userId=" + (ctx.userId() != null ? ctx.userId() : "unknown"));
+            audit.setIsProxy(0);
+        } else {
+            audit.setOperatorId(0L);
+            audit.setOperatorName("system");
+            audit.setIsProxy(0);
+        }
+
+        audit.setAfterValue("{\"deviceSn\":\"" + escapeJson(device.getDeviceSn())
+                + "\",\"deviceName\":\"" + escapeJson(device.getName())
+                + "\",\"parkingLotId\":" + lot.getId()
+                + ",\"detail\":\"" + escapeJson(detail != null ? detail : "") + "\"}");
+
+        audit.setResult(result);
+        audit.setFailReason(failReason != null ? failReason : "");
+        audit.setReason("");
+
+        auditLogMapper.insert(audit);
     }
 
     // ==================== 设备状态查询与快照（T24） ====================

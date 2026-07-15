@@ -1,5 +1,6 @@
 package com.jushan.platform.modules.parking.mapper;
 
+import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.jushan.platform.modules.parking.entity.ParkingSession;
 import org.apache.ibatis.annotations.Mapper;
@@ -58,6 +59,18 @@ public interface ParkingSessionMapper extends BaseMapper<ParkingSession> {
      */
     @Select("SELECT * FROM parking_session WHERE plate_number = UPPER(#{plateNumber}) AND parking_lot_id = #{parkingLotId} AND tenant_id = #{tenantId} AND status = 'IN' AND deleted_at IS NULL ORDER BY entry_time DESC LIMIT 1")
     ParkingSession selectInByPlateAndLot(@Param("plateNumber") String plateNumber, @Param("parkingLotId") Long parkingLotId, @Param("tenantId") Long tenantId);
+
+    /**
+     * 查询所有在场（IN）车辆记录，忽略租户拦截器。
+     * <p>
+     * 供超时停放自动拉黑定时任务使用：该任务在系统上下文（无租户）下运行，
+     * 需要跨租户扫描全部在场车辆，再由调用方按各自租户写入黑名单。
+     *
+     * @return 全部在场车辆列表（按入场时间升序）
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT * FROM parking_session WHERE status = 'IN' AND deleted_at IS NULL ORDER BY entry_time ASC")
+    List<ParkingSession> selectAllInSessions();
 
     /**
      * 更新出场信息（含 ParkingRecordId 关联）。

@@ -40,6 +40,12 @@ public class MiniUserController {
         return R.ok(miniUserService.listParkingRecords(current, size));
     }
 
+    @GetMapping("/parking-records/{id}")
+    @RequirePermission("miniapp:view")
+    public R<MiniParkingRecordVO> getParkingRecordDetail(@PathVariable Long id) {
+        return R.ok(miniUserService.getParkingRecordDetail(id));
+    }
+
     @GetMapping("/parking-records/plate/{plateNumber}")
     @RequirePermission("miniapp:view")
     public R<IPage<MiniParkingRecordVO>> listParkingRecordsByPlate(

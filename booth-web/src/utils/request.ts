@@ -68,7 +68,7 @@ service.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => {
     NProgress.done()
     const { data } = response
-    if (data.code === 0) return data.data
+    if (data.code === 200) return data.data
 
     // 业务层 code=401：清本地状态，跳转一次
     if (data.code === 401) {
@@ -99,12 +99,10 @@ service.interceptors.response.use(
       switch (httpStatus) {
         case 401:
           if (isLogin) {
-            // 登录接口 401：不跳转、不清除表单
             return Promise.reject(
               new ApiError(serverMessage || '账号或密码错误', serverCode, httpStatus, traceId),
             )
           }
-          // 普通接口 401：只清本地，跳转一次
           if (!isRedirectingLogin) {
             isRedirectingLogin = true
             message.error('登录已过期，请重新登录')
@@ -133,17 +131,79 @@ service.interceptors.response.use(
   },
 )
 
+/**
+ * 提取操作描述（用于离线队列 UI 展示）。
+ */
+function extractOpLabel(config: AxiosRequestConfig): string {
+  const url = config.url || ''
+  if (url.includes('/alerts/') && url.includes('/ack')) return '确认异常提醒'
+  if (url.includes('/devices/refresh')) return '刷新设备状态'
+  if (url.includes('/auth/logout')) return '退出登录'
+  const method = (config.method || 'GET').toUpperCase()
+  if (method === 'POST') return '数据提交'
+  if (method === 'PUT') return '数据更新'
+  if (method === 'DELETE') return '数据删除'
+  return 'API 请求'
+}
+
+/**
+ * 将请求加入离线队列。
+ */
+async function queueOffline(config: AxiosRequestConfig): Promise<any> {
+  const { offlineQueue } = await import('./offline-queue')
+
+  const url = config.url || ''
+  const method = (config.method || 'GET').toUpperCase() as 'POST' | 'PUT' | 'DELETE'
+
+  const opType = method === 'DELETE' ? 'EXCEPTION_HANDLE' : 'MANUAL_RELEASE'
+
+  const id = await offlineQueue.enqueue({
+    type: opType,
+    url,
+    method,
+    body: config.data ? JSON.stringify(config.data) : undefined,
+    params: config.params ? JSON.stringify(config.params) : undefined,
+    label: extractOpLabel(config),
+  })
+
+  message.info(`网络离线，操作已暂存，恢复网络后自动提交`)
+
+  return { queued: true, offlineOpId: id }
+}
+
+/**
+ * 判断是否为写操作且当前离线。
+ */
+function shouldQueueOffline(config: AxiosRequestConfig): boolean {
+  const method = (config.method || 'GET').toUpperCase()
+  if (method === 'GET') return false
+  if (isLoginRequest(config)) return false
+  return !navigator.onLine
+}
+
 const request = {
   get<T = any>(url: string, params?: object, config?: AxiosRequestConfig): Promise<T> {
     return service.get(url, { params, ...config })
   },
-  post<T = any>(url: string, data?: object, config?: AxiosRequestConfig): Promise<T> {
+  async post<T = any>(url: string, data?: object, config?: AxiosRequestConfig): Promise<T> {
+    const mergedConfig = { ...config, url, method: 'POST', data }
+    if (shouldQueueOffline(mergedConfig)) {
+      return queueOffline(mergedConfig) as Promise<T>
+    }
     return service.post(url, data, config)
   },
-  put<T = any>(url: string, data?: object, config?: AxiosRequestConfig): Promise<T> {
+  async put<T = any>(url: string, data?: object, config?: AxiosRequestConfig): Promise<T> {
+    const mergedConfig = { ...config, url, method: 'PUT', data }
+    if (shouldQueueOffline(mergedConfig)) {
+      return queueOffline(mergedConfig) as Promise<T>
+    }
     return service.put(url, data, config)
   },
-  delete<T = any>(url: string, params?: object, config?: AxiosRequestConfig): Promise<T> {
+  async delete<T = any>(url: string, params?: object, config?: AxiosRequestConfig): Promise<T> {
+    const mergedConfig = { ...config, url, method: 'DELETE', params }
+    if (shouldQueueOffline(mergedConfig)) {
+      return queueOffline(mergedConfig) as Promise<T>
+    }
     return service.delete(url, { params, ...config })
   },
 }

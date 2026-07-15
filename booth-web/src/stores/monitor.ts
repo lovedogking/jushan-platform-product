@@ -6,8 +6,10 @@ import {
   refreshDevices,
   acknowledgeAlert,
 } from '@/api/monitor'
+import { getChargeInfo } from '@/api/charge'
 import type {
   BoothMonitorSnapshot,
+  ChargeInfo,
   DeviceStatus,
   Lane,
   MonitorAlert,
@@ -31,6 +33,20 @@ export const useMonitorStore = defineStore('monitor', () => {
   const alerts = ref<MonitorAlert[]>([])
   const loading = ref(false)
   const error = ref('')
+
+  // ========== 收费面板状态 ==========
+  /** 收费面板是否显示 */
+  const chargePanelVisible = ref(false)
+  /** 当前收费信息 */
+  const currentChargeInfo = ref<ChargeInfo | null>(null)
+  /** 收费操作加载中 */
+  const chargeLoading = ref(false)
+  /** 开闸结果 */
+  const chargeResult = ref<{
+    success: boolean
+    message: string
+    gateOpened: boolean | null
+  } | null>(null)
 
   // ========== getters ==========
   const criticalAlerts = computed(() => alerts.value.filter((a) => a.severity === 'CRITICAL'))
@@ -99,8 +115,15 @@ export const useMonitorStore = defineStore('monitor', () => {
   }
 
   async function ackAlert(alertId: number) {
-    await acknowledgeAlert(alertId)
-    alerts.value = alerts.value.filter((a) => a.id !== alertId)
+    try {
+      const result = await acknowledgeAlert(alertId)
+      // 如果被离线队列拦截（返回 { queued: true }），仍然从列表中移除
+      alerts.value = alerts.value.filter((a) => a.id !== alertId)
+      return result
+    } catch (e: any) {
+      // 网络错误或离线队列不可用时保留告警
+      throw e
+    }
   }
 
   async function refreshAllDevices() {
@@ -118,6 +141,65 @@ export const useMonitorStore = defineStore('monitor', () => {
     return dayjs(time).format('HH:mm:ss')
   }
 
+  // ========== 收费面板操作 ==========
+
+  /**
+   * 根据车牌号查询收费信息并显示收费面板。
+   * 用于 WebSocket EXIT 事件触发或手动查询。
+   */
+  async function showChargePanel(plateNumber: string, laneId: number) {
+    chargeLoading.value = true
+    chargeResult.value = null
+    try {
+      const session = await getChargeInfo(plateNumber)
+      if (!session) {
+        throw new Error('未找到在场记录')
+      }
+      const info: ChargeInfo = {
+        sessionId: session.id,
+        plateNumber: session.plateNumber,
+        plateColor: session.plateColor || '',
+        vehicleType: session.vehicleType || '临时车',
+        entryTime: session.entryTime,
+        durationMinutes: session.durationMinutes || 0,
+        feeAmount: session.feeAmount || 0,
+        feeCents: session.feeCents || 0,
+        laneId,
+      }
+      currentChargeInfo.value = info
+      chargePanelVisible.value = true
+    } catch (e: any) {
+      // 查询失败时仍然打开面板，但显示错误状态
+      currentChargeInfo.value = {
+        sessionId: 0,
+        plateNumber,
+        plateColor: '',
+        vehicleType: '未知',
+        entryTime: '',
+        durationMinutes: 0,
+        feeAmount: 0,
+        feeCents: 0,
+        laneId,
+      }
+      chargePanelVisible.value = true
+      throw e
+    } finally {
+      chargeLoading.value = false
+    }
+  }
+
+  /** 关闭收费面板 */
+  function hideChargePanel() {
+    chargePanelVisible.value = false
+    currentChargeInfo.value = null
+    chargeResult.value = null
+  }
+
+  /** 设置收费/开闸结果 */
+  function setChargeResult(result: { success: boolean; message: string; gateOpened: boolean | null }) {
+    chargeResult.value = result
+  }
+
   function reset() {
     currentLotId.value = null
     connectionStatus.value = 'disconnected'
@@ -127,6 +209,10 @@ export const useMonitorStore = defineStore('monitor', () => {
     deviceStatuses.value = []
     alerts.value = []
     error.value = ''
+    chargePanelVisible.value = false
+    currentChargeInfo.value = null
+    chargeLoading.value = false
+    chargeResult.value = null
   }
 
   return {
@@ -151,6 +237,13 @@ export const useMonitorStore = defineStore('monitor', () => {
     ackAlert,
     refreshAllDevices,
     formatTime,
+    chargePanelVisible,
+    currentChargeInfo,
+    chargeLoading,
+    chargeResult,
+    showChargePanel,
+    hideChargePanel,
+    setChargeResult,
     reset,
   }
 })

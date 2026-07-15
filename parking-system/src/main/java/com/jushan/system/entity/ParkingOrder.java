@@ -41,6 +41,15 @@ public class ParkingOrder implements Serializable {
     /** 关联停车记录 ID */
     private Long parkingRecordId;
 
+    /** 关联业务主键（MONTH_RENEW 订单时为 vehicle_id） */
+    private Long refId;
+
+    /** 续费月数（月卡续费订单） */
+    private Integer renewalMonths;
+
+    /** 发起续费的操作人 ID（sys_user.id） */
+    private Long operatorId;
+
     /** 订单号：O{lotId}{yyyyMMdd}{6位序号} */
     private String orderNo;
 
@@ -131,6 +140,15 @@ public class ParkingOrder implements Serializable {
 
     public Long getParkingRecordId() { return parkingRecordId; }
     public void setParkingRecordId(Long parkingRecordId) { this.parkingRecordId = parkingRecordId; }
+
+    public Long getRefId() { return refId; }
+    public void setRefId(Long refId) { this.refId = refId; }
+
+    public Integer getRenewalMonths() { return renewalMonths; }
+    public void setRenewalMonths(Integer renewalMonths) { this.renewalMonths = renewalMonths; }
+
+    public Long getOperatorId() { return operatorId; }
+    public void setOperatorId(Long operatorId) { this.operatorId = operatorId; }
 
     public String getOrderNo() { return orderNo; }
     public void setOrderNo(String orderNo) { this.orderNo = orderNo; }

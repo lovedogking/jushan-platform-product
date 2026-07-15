@@ -13,9 +13,15 @@ import java.time.LocalDateTime;
  * 软删除通过 {@link #deletedAt} 手动实现，未使用 MyBatis-Plus 逻辑删除注解，
  * 与当前项目其他业务表保持一致风格。
  *
+ * <p><b>已废弃（@Deprecated）：</b>本实体为旧风格实现，对应表 {@code company}，
+ * 已迁移至新风格 {@code com.jushan.platform.modules.company.entity.SysCompany}
+ * （对应表 {@code sys_company}）。新增代码请勿再依赖本类。
+ *
  * @author Jushan Platform
  * @since 1.0.0
+ * @deprecated 自 1.0.0 起废弃，迁移目标见类注释。
  */
+@Deprecated
 @TableName("company")
 public class Company extends BaseEntity {
 

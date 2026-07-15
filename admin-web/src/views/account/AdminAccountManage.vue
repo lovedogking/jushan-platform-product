@@ -52,7 +52,7 @@
           <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
         </template>
         <template v-if="column.key === 'companyName'">
-          {{ record.companyId ? companyMap.get(record.companyId) || '-' : '-' }}
+          {{ record.companyId ? companyMap.get(String(record.companyId)) || '-' : '-' }}
         </template>
         <template v-if="column.key === 'lastLoginTime'">
           {{ record.lastLoginTime || '-' }}
@@ -134,7 +134,7 @@ const columns = [
 
 const loading = ref(false)
 const dataSource = ref<AdminAccountVO[]>([])
-const companyMap = ref<Map<number, string>>(new Map())
+const companyMap = ref<Map<string | number, string>>(new Map())
 const queryKeyword = ref('')
 const queryStatus = ref<number | ''>('')
 
@@ -155,7 +155,12 @@ const resetPasswordModalOpen = ref(false)
 const resetPasswordTarget = ref<AdminAccountVO | null>(null)
 const resetPasswordResult = ref('')
 
-const LEVEL_MAP: Record<number, string> = {
+const LEVEL_LABELS_TENANT: Record<number, string> = {
+  1: '租户',
+  2: '公司',
+  3: '停车场',
+}
+const LEVEL_LABELS_PLATFORM: Record<number, string> = {
   1: '平台',
   2: '公司',
   3: '停车场',
@@ -168,7 +173,8 @@ const STATUS_MAP: Record<number, { label: string; color: string }> = {
 }
 
 function levelLabel(level: number) {
-  return LEVEL_MAP[level] || '未知'
+  const map = authStore.tenantId ? LEVEL_LABELS_TENANT : LEVEL_LABELS_PLATFORM
+  return map[level] || '未知'
 }
 
 function statusLabel(status: number) {
@@ -183,7 +189,7 @@ async function fetchData() {
   loading.value = true
   try {
     const res = await getAdminAccountPage({
-      current: pagination.current,
+      page: pagination.current,
       size: pagination.pageSize,
       keyword: queryKeyword.value || undefined,
       status: queryStatus.value === '' ? undefined : queryStatus.value,
@@ -198,9 +204,9 @@ async function fetchData() {
 }
 
 // 递归构建公司 ID 到名称的映射
-function buildCompanyMap(nodes: CompanyVO[], map: Map<number, string>) {
+function buildCompanyMap(nodes: CompanyVO[], map: Map<string | number, string>) {
   nodes.forEach((node) => {
-    map.set(node.id, node.name)
+    map.set(String(node.id), node.name)
     if (node.children && node.children.length > 0) {
       buildCompanyMap(node.children, map)
     }
@@ -210,7 +216,7 @@ function buildCompanyMap(nodes: CompanyVO[], map: Map<number, string>) {
 async function loadCompanyMap() {
   try {
     const tree = await getCompanyTree()
-    const map = new Map<number, string>()
+    const map = new Map<string | number, string>()
     buildCompanyMap(tree, map)
     companyMap.value = map
   } catch {

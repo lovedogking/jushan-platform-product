@@ -1,6 +1,8 @@
 package com.jushan.system.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.framework.auth.DataScope;
@@ -32,9 +34,15 @@ import java.util.stream.Collectors;
  * 负责公司 CRUD、树形结构维护与删除前校验。
  * 平台用户（super_admin）可跨租户查看与操作公司数据。
  *
+ * <p><b>已废弃（@Deprecated）：</b>本服务为旧风格实现，底层表为 {@code company}，
+ * 已迁移至新风格 {@code com.jushan.platform.modules.company.service.SysCompanyService}
+ * （底层表 {@code sys_company}）。新增代码请勿再依赖本类。
+ *
  * @author Jushan Platform
  * @since 1.0.0
+ * @deprecated 自 1.0.0 起废弃，迁移目标见类注释。
  */
+@Deprecated
 @Service
 public class CompanyService {
 
@@ -75,6 +83,27 @@ public class CompanyService {
             return null;
         }
         return DataScope.requireTenantUser();
+    }
+
+    /**
+     * 生成当前租户下一个排序号。
+     * <p>
+     * 取本租户未删除公司中最大 sort_order + 1，确保排序号自动递增、租户不可干预。
+     *
+     * @param tenantId 租户 ID
+     * @return 下一个排序号（从 1 开始）
+     */
+    private int nextSortOrder(Long tenantId) {
+        LambdaQueryWrapper<Company> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Company::getTenantId, tenantId)
+               .isNull(Company::getDeletedAt)
+               .orderByDesc(Company::getSortOrder)
+               .last("LIMIT 1");
+        List<Company> list = companyMapper.selectList(wrapper);
+        if (list.isEmpty() || list.get(0).getSortOrder() == null) {
+            return 1;
+        }
+        return list.get(0).getSortOrder() + 1;
     }
 
     // ==================== 创建公司 ====================
@@ -127,7 +156,7 @@ public class CompanyService {
         company.setName(name);
         company.setLevel(level);
         company.setStatus(STATUS_NORMAL);
-        company.setSortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0);
+        company.setSortOrder(nextSortOrder(tenantId));
         company.setContactName(request.getContactName());
         company.setContactPhone(request.getContactPhone());
         // path 在 insert 后根据 id 回填
@@ -218,9 +247,6 @@ public class CompanyService {
         if (request.getStatus() != null) {
             company.setStatus(request.getStatus());
         }
-        if (request.getSortOrder() != null) {
-            company.setSortOrder(request.getSortOrder());
-        }
         if (request.getContactName() != null) {
             company.setContactName(request.getContactName());
         }
@@ -287,6 +313,43 @@ public class CompanyService {
     }
 
     // ==================== 查询 ====================
+
+    /**
+     * 分页查询公司列表。
+     * <p>
+     * 平台用户可查看所有租户的公司，租户用户仅查看本租户。
+     *
+     * @param page     页码（从 1 开始）
+     * @param size     每页大小
+     * @param name     名称模糊筛选（可选）
+     * @param level    级别筛选（可选）
+     * @param parentId 上级公司 ID 筛选（可选）
+     * @return 分页结果
+     */
+    public IPage<CompanyVO> page(int page, int size, String name, Integer level, Long parentId) {
+        Long tenantId = resolveTenantId();
+
+        LambdaQueryWrapper<Company> wrapper = new LambdaQueryWrapper<>();
+        if (tenantId != null) {
+            wrapper.eq(Company::getTenantId, tenantId);
+        }
+        wrapper.isNull(Company::getDeletedAt);
+
+        if (name != null && !name.isBlank()) {
+            wrapper.like(Company::getName, name.trim());
+        }
+        if (level != null) {
+            wrapper.eq(Company::getLevel, level);
+        }
+        if (parentId != null) {
+            wrapper.eq(Company::getParentId, parentId);
+        }
+        wrapper.orderByAsc(Company::getSortOrder)
+               .orderByDesc(Company::getCreatedAt);
+
+        IPage<Company> result = companyMapper.selectPage(new Page<>(page, size), wrapper);
+        return result.convert(this::toVO);
+    }
 
     /**
      * 查询公司详情。

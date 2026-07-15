@@ -13,9 +13,15 @@ import java.util.List;
 /**
  * 公司/集团档案 Mapper。
  *
+ * <p><b>已废弃（@Deprecated）：</b>本 Mapper 为旧风格实现，对应表 {@code company}，
+ * 已迁移至新风格 {@code com.jushan.platform.modules.company.mapper.SysCompanyMapper}
+ * （对应表 {@code sys_company}）。新增代码请勿再依赖本接口。
+ *
  * @author Jushan Platform
  * @since 1.0.0
+ * @deprecated 自 1.0.0 起废弃，迁移目标见类注释。
  */
+@Deprecated
 @Mapper
 public interface CompanyMapper extends BaseMapper<Company> {
 

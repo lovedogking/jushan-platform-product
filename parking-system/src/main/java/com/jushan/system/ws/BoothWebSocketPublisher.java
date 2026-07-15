@@ -161,6 +161,41 @@ public class BoothWebSocketPublisher {
     }
 
     /**
+     * 推送支付完成通知到岗亭。
+     * <p>
+     * 小程序用户完成支付后调用，通知岗亭端该车牌已缴费可放行。
+     *
+     * @param parkingLotId 停车场 ID（可信）
+     * @param orderId      订单 ID
+     * @param orderNo      订单号
+     * @param plateNumber  车牌号
+     * @param amountCents  支付金额（分）
+     */
+    public void sendPaymentCompleted(Long parkingLotId, Long orderId, String orderNo,
+                                      String plateNumber, int amountCents) {
+        if (parkingLotId == null) {
+            return;
+        }
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("type", "PAYMENT_COMPLETED");
+            payload.put("orderId", orderId);
+            payload.put("orderNo", orderNo);
+            payload.put("plateNumber", plateNumber);
+            payload.put("amountCents", amountCents);
+            payload.put("amountYuan", String.format("%.2f", amountCents / 100.0));
+            payload.put("paidAt", format(java.time.LocalDateTime.now()));
+
+            send(String.format(TOPIC_EVENTS, parkingLotId), payload);
+            log.info("支付完成通知已推送到岗亭: parkingLotId={}, orderId={}, plate={}",
+                    parkingLotId, orderId, plateNumber);
+        } catch (Exception e) {
+            log.warn("支付完成通知 WebSocket 推送失败（不影响主业务）: parkingLotId={}, orderId={}, error={}",
+                    parkingLotId, orderId, e.getMessage());
+        }
+    }
+
+    /**
      * 底层发送方法。
      */
     private void send(String destination, Object payload) {

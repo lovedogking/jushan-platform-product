@@ -52,11 +52,6 @@
       <a-form-item label="地址" name="address">
         <a-textarea v-model:value="formData.address" placeholder="请输入地址" :rows="2" />
       </a-form-item>
-
-      <!-- 排序 -->
-      <a-form-item label="排序" name="sortOrder">
-        <a-input-number v-model:value="formData.sortOrder" :min="0" style="width: 100%" />
-      </a-form-item>
     </a-form>
   </a-modal>
 </template>
@@ -80,7 +75,6 @@ interface CompanyForm {
   contactName: string
   contactPhone: string
   address: string
-  sortOrder: number
 }
 
 const props = defineProps<{
@@ -116,7 +110,6 @@ const formData = reactive<CompanyForm>({
   contactName: '',
   contactPhone: '',
   address: '',
-  sortOrder: 0,
 })
 
 /**
@@ -129,7 +122,6 @@ function resetForm() {
   formData.contactName = ''
   formData.contactPhone = ''
   formData.address = ''
-  formData.sortOrder = 0
   formRef.value?.resetFields()
 }
 
@@ -143,7 +135,6 @@ function fillForm(record: CompanyVO) {
   formData.contactName = record.contactName || ''
   formData.contactPhone = record.contactPhone || ''
   formData.address = record.address || ''
-  formData.sortOrder = record.sortOrder ?? 0
 }
 
 /**
@@ -235,7 +226,6 @@ async function handleSubmit() {
       contactName: formData.contactName?.trim() || undefined,
       contactPhone: formData.contactPhone?.trim() || undefined,
       address: formData.address?.trim() || undefined,
-      sortOrder: formData.sortOrder ?? 0,
     }
 
     if (props.editingRecord) {

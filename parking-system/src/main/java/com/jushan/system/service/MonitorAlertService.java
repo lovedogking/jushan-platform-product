@@ -154,6 +154,59 @@ public class MonitorAlertService {
     }
 
     /**
+     * 创建超时停放告警（系统自动拉黑前触发）。
+     *
+     * @param tenantId     租户 ID
+     * @param parkingLotId 停车场 ID
+     * @param plateNumber  车牌号
+     * @param message      告警描述
+     */
+    @Transactional
+    public void createOverstayAlert(Long tenantId, Long parkingLotId, String plateNumber, String message) {
+        if (existsUnacknowledged(parkingLotId, MonitorAlert.TYPE_OVERSTAY, plateNumber)) {
+            return;
+        }
+        MonitorAlert alert = new MonitorAlert();
+        alert.setTenantId(tenantId);
+        alert.setParkingLotId(parkingLotId);
+        alert.setAlertType(MonitorAlert.TYPE_OVERSTAY);
+        alert.setSeverity(MonitorAlert.SEVERITY_WARNING);
+        alert.setSourceId(plateNumber);
+        alert.setMessage(message);
+        alert.setAcknowledged(0);
+        alert.setCreatedAt(LocalDateTime.now());
+        saveAndPush(alert);
+    }
+
+    /**
+     * 创建开闸/设备异常告警。
+     * <p>
+     * 用于开闸失败、设备配置缺失、UNCERTAIN 等场景。
+     * 一期仅持久化并推送，不触发自动修复。
+     *
+     * @param tenantId     租户 ID
+     * @param parkingLotId 停车场 ID
+     * @param laneId       车道 ID
+     * @param deviceSn     设备 SN（可为 null）
+     * @param alertType    告警类型（如 DEVICE_CONFIG_MISSING, DEVICE_FAULT, DEVICE_UNCERTAIN）
+     * @param message      告警描述
+     */
+    @Transactional
+    public void createGateAlert(Long tenantId, Long parkingLotId, Long laneId, String deviceSn,
+                                 String alertType, String message) {
+        MonitorAlert alert = new MonitorAlert();
+        alert.setTenantId(tenantId);
+        alert.setParkingLotId(parkingLotId);
+        alert.setAlertType(alertType);
+        alert.setSeverity(MonitorAlert.SEVERITY_WARNING);
+        alert.setSourceId(deviceSn != null ? deviceSn : String.valueOf(laneId));
+        alert.setMessage(message);
+        alert.setAcknowledged(0);
+        alert.setCreatedAt(LocalDateTime.now());
+        saveAndPush(alert);
+    }
+
+    /**
      * 根据设备状态快照检查是否需要生成离线提醒。
      *
      * @param lot      停车场

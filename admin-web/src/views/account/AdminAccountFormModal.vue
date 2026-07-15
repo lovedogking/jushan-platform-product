@@ -23,6 +23,15 @@
           @blur="handleUsernameBlur"
         />
       </a-form-item>
+      <!-- 仅新增时可设置初始密码 -->
+      <a-form-item v-if="!isEditing" label="初始密码" name="password">
+        <a-input
+          v-model:value="formData.password"
+          placeholder="为空则由系统随机生成"
+          :maxlength="64"
+          allow-clear
+        />
+      </a-form-item>
       <a-form-item label="姓名" name="realName">
         <a-input v-model:value="formData.realName" placeholder="请输入真实姓名" :maxlength="64" />
       </a-form-item>
@@ -90,6 +99,7 @@ import {
   getCustomRoleList,
   type AdminAccountVO,
 } from '@/api/account'
+import { useAuthStore } from '@/stores'
 import { getCompanyTree } from '@/api/company'
 import { getParkingLots } from '@/api/parking-lot'
 import type { CompanyVO } from '@/api/company'
@@ -105,6 +115,8 @@ const emit = defineEmits<{
   (e: 'success'): void
 }>()
 
+const authStore = useAuthStore()
+
 // 表单引用
 const formRef = ref<FormInstance>()
 const submitLoading = ref(false)
@@ -114,8 +126,9 @@ const isEditing = computed(() => !!props.record?.id)
 
 // 表单数据
 const formData = reactive<{
-  id?: number
+  id?: string
   username: string
+  password: string
   realName: string
   phone: string
   email: string
@@ -126,6 +139,7 @@ const formData = reactive<{
   status: number
 }>({
   username: '',
+  password: '',
   realName: '',
   phone: '',
   email: '',
@@ -143,7 +157,7 @@ const levelOptions = computed(() => {
     return [{ value: 3, label: '停车场' }]
   }
   return [
-    { value: 1, label: '平台' },
+    { value: 1, label: authStore.tenantId ? '租户' : '平台' },
     { value: 2, label: '公司' },
     { value: 3, label: '停车场' },
   ]
@@ -169,6 +183,23 @@ const formRules: Record<string, Rule[]> = {
   username: [
     { required: true, message: '请输入账号', trigger: 'blur' },
     { max: 64, message: '账号长度不能超过64个字符', trigger: 'blur' },
+  ],
+  password: [
+    {
+      validator: (_rule: any, value: string) => {
+        if (!value) {
+          return Promise.resolve()
+        }
+        if (value.length < 6) {
+          return Promise.reject(new Error('密码长度不能少于6位'))
+        }
+        if (value.length > 64) {
+          return Promise.reject(new Error('密码长度不能超过64位'))
+        }
+        return Promise.resolve()
+      },
+      trigger: 'blur',
+    },
   ],
   realName: [
     { required: true, message: '请输入姓名', trigger: 'blur' },
@@ -222,7 +253,7 @@ async function handleUsernameBlur() {
   if (!formData.username || isEditing.value) return
   try {
     const res = await getAdminAccountPage({
-      current: 1,
+      page: 1,
       size: 1,
       keyword: formData.username,
     })
@@ -246,7 +277,7 @@ async function loadCompanyTree() {
 // 加载停车场列表
 async function loadParkingLots() {
   try {
-    const res = await getParkingLots({ current: 1, size: 1000 })
+    const res = await getParkingLots({ page: 1, size: 1000 })
     parkingLots.value = res.records || []
   } catch (e) {
     message.error('加载停车场列表失败')
@@ -256,7 +287,7 @@ async function loadParkingLots() {
 // 加载角色列表
 async function loadRoles() {
   try {
-    const res = await getCustomRoleList({ current: 1, size: 1000 })
+    const res = await getCustomRoleList({ page: 1, size: 1000 })
     roleList.value = res.records || []
   } catch (e) {
     message.error('加载角色列表失败')
@@ -267,6 +298,7 @@ async function loadRoles() {
 function resetForm() {
   formData.id = undefined
   formData.username = ''
+  formData.password = ''
   formData.realName = ''
   formData.phone = ''
   formData.email = ''
@@ -310,6 +342,16 @@ watch(
   },
 )
 
+// 编辑时 record 可能晚于 open 到达，单独监听确保回填
+watch(
+  () => props.record,
+  (record) => {
+    if (record && props.open) {
+      fillForm(record)
+    }
+  },
+)
+
 // 提交表单
 async function handleSubmit() {
   if (!formRef.value) return
@@ -337,6 +379,7 @@ async function handleSubmit() {
     } else {
       await createAdminAccount({
         username: formData.username.trim(),
+        password: formData.password || undefined,
         realName: formData.realName.trim(),
         phone: formData.phone || undefined,
         email: formData.email || undefined,

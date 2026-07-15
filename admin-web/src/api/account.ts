@@ -2,7 +2,7 @@ import request from '@/utils/request'
 import type { PageResult } from '@/types'
 
 export interface AdminAccountVO {
-  id: number
+  id: string
   tenantId?: number
   companyId?: number
   lotId?: number
@@ -32,7 +32,7 @@ export interface AdminAccountCreateCmd {
 }
 
 export interface AdminAccountUpdateCmd {
-  id: number
+  id: string | number
   realName?: string
   phone?: string
   email?: string
@@ -78,27 +78,27 @@ export function createAdminAccount(data: AdminAccountCreateCmd) {
 }
 
 /** 编辑账号 */
-export function updateAdminAccount(id: number, data: AdminAccountUpdateCmd) {
+export function updateAdminAccount(id: string | number, data: AdminAccountUpdateCmd) {
   return request.put(`/v1/admin-accounts/${id}`, data)
 }
 
 /** 删除账号 */
-export function deleteAdminAccount(id: number) {
+export function deleteAdminAccount(id: string | number) {
   return request.delete(`/v1/admin-accounts/${id}`)
 }
 
 /** 账号详情 */
-export function getAdminAccountDetail(id: number) {
+export function getAdminAccountDetail(id: string | number) {
   return request.get<AdminAccountVO>(`/v1/admin-accounts/${id}`)
 }
 
 /** 账号分页列表 */
-export function getAdminAccountPage(params: { current?: number; size?: number; keyword?: string; status?: number }) {
+export function getAdminAccountPage(params: { page?: number; size?: number; keyword?: string; status?: number }) {
   return request.get<PageResult<AdminAccountVO>>('/v1/admin-accounts', params)
 }
 
 /** 重置密码 */
-export function resetAdminPassword(id: number) {
+export function resetAdminPassword(id: string | number) {
   return request.post<ResetPasswordVO>(`/v1/admin-accounts/${id}/reset-password`)
 }
 
@@ -118,7 +118,7 @@ export function deleteCustomRole(id: number) {
 }
 
 /** 角色列表 */
-export function getCustomRoleList(params?: { current?: number; size?: number; keyword?: string }) {
+export function getCustomRoleList(params?: { page?: number; size?: number; keyword?: string }) {
   return request.get<PageResult<CustomRoleVO>>('/v1/custom-roles', params)
 }
 

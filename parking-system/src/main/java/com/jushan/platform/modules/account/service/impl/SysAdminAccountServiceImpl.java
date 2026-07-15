@@ -1,6 +1,7 @@
 package com.jushan.platform.modules.account.service.impl;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
@@ -453,6 +454,7 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
         LocalDateTime now = LocalDateTime.now();
         for (Long roleId : distinctRoleIds) {
             SysAdminAccountRole relation = new SysAdminAccountRole();
+            relation.setId(IdWorker.getId());
             relation.setAdminAccountId(adminAccountId);
             relation.setRoleId(roleId);
             relation.setCreatedAt(now);

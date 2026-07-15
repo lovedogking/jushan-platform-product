@@ -30,6 +30,12 @@ public class MonitorAlert implements Serializable {
     /** 告警类型：识别失败 */
     public static final String TYPE_RECOGNITION_FAIL = "RECOGNITION_FAIL";
 
+    /** 告警类型：超时停放（系统自动拉黑） */
+    public static final String TYPE_OVERSTAY = "OVERSTAY";
+
+    /** 告警类型：储值车余额不足 */
+    public static final String TYPE_BALANCE_INSUFFICIENT = "BALANCE_INSUFFICIENT";
+
     /** 严重程度：警告 */
     public static final String SEVERITY_WARNING = "WARNING";
 

@@ -1,5 +1,8 @@
 package com.jushan.platform.modules.account.vo;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -11,7 +14,8 @@ import java.util.List;
  */
 public class AdminAccountVO {
 
-    /** 账号 ID */
+    /** 账号 ID（序列化为字符串，防止前端 JS Number 精度丢失） */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /** 租户 ID */

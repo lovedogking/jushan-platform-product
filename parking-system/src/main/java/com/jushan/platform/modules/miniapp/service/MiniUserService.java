@@ -51,6 +51,14 @@ public interface MiniUserService {
     ParkingSpaceRemainVO getParkingLotRemain(Long parkingLotId);
 
     /**
+     * 查询单条停车记录详情。
+     *
+     * @param id 停车记录 ID（ParkingRecord.id）
+     * @return 记录详情
+     */
+    MiniParkingRecordVO getParkingRecordDetail(Long id);
+
+    /**
      * 查询当前用户绑定的车牌列表。
      *
      * @return 车牌列表

@@ -325,6 +325,13 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
             vo.setDurationMinutes(ChronoUnit.MINUTES.between(entity.getEntryTime(), endTime));
         }
 
+        // 费用精度安全：feeAmount（元）→ feeCents（分）
+        if (entity.getFeeAmount() != null) {
+            vo.setFeeCents(entity.getFeeAmount().movePointRight(2).intValue());
+        } else {
+            vo.setFeeCents(0);
+        }
+
         return vo;
     }
 }

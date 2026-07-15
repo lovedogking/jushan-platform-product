@@ -1,7 +1,7 @@
 /**
  * 微信小程序请求封装
  * 基于 wx.request 的 Promise 包装，自动注入 Token 和统一错误处理
- * R01 冻结契约：code===0 成功、message 字段、traceId 保留、jushan_access_token
+ * 成功条件：后端 R.ok() 返回 code=0，历史契约同时支持 code=200；message 字段、traceId 保留、jushan_access_token
  */
 
 const app = getApp()
@@ -63,8 +63,8 @@ function request(options) {
 
         // 2xx 成功响应
         if (statusCode >= 200 && statusCode < 300) {
-          // 有合法 JSON body 且 code===0
-          if (body && body.code === 0) {
+          // 有合法 JSON body 且 code===0 或 code===200
+          if (body && (body.code === 0 || body.code === 200)) {
             resolve(body.data)
             return
           }

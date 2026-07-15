@@ -32,9 +32,9 @@
     </select>
 
     <!-- 插入账号角色关联 -->
-    <insert id="insertIgnoreTenant" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO sys_admin_account_role (admin_account_id, role_id, created_at)
-        VALUES (#{adminAccountId}, #{roleId}, #{createdAt})
+    <insert id="insertIgnoreTenant">
+        INSERT INTO sys_admin_account_role (id, admin_account_id, role_id, created_at)
+        VALUES (#{id}, #{adminAccountId}, #{roleId}, #{createdAt})
     </insert>
 
 </mapper>

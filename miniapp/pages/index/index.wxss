@@ -1,3 +1,4 @@
+/* 欢迎区域 */
 .welcome-section {
   text-align: center;
   margin-bottom: 32rpx;
@@ -18,8 +19,118 @@
   line-height: 1.6;
 }
 
+/* 车牌条 */
+.plate-bar {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 28rpx;
+  margin-bottom: 20rpx;
+}
+.plate-label { font-size: 26rpx; color: var(--muted); margin-right: 16rpx; }
+.plate-value { font-size: 30rpx; font-weight: 700; color: var(--text); flex: 1; }
+.plate-action { font-size: 26rpx; color: var(--primary); }
+
+/* 区域标题 */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16rpx 8rpx 12rpx;
+}
+.section-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--text);
+}
+.section-more {
+  font-size: 26rpx;
+  color: var(--primary);
+}
+
+/* 在场车辆卡片 */
+.session-card {
+  padding: 28rpx;
+}
+.active-session {
+  border: 2rpx solid var(--primary);
+}
+.session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18rpx;
+}
+.plate-number {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: 2rpx;
+}
+
+.session-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8rpx 0;
+}
+.session-row .label { color: var(--muted); font-size: 26rpx; }
+.session-row .value { color: var(--text); font-size: 26rpx; font-weight: 500; }
+
+/* 状态标签 */
+.status-badge {
+  font-size: 24rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 12rpx;
+  font-weight: 600;
+}
+.status-in { background: #e6fffb; color: #006d75; }
+.status-unpaid { background: #fff7e6; color: #d46b08; font-weight: 700; }
+.status-paid { background: #f6ffed; color: #237804; }
+.status-free { background: #f0f0f0; color: #87989f; }
+
+/* 费用 */
+.fee { color: var(--danger); font-weight: 700; }
+
+/* 支付按钮 */
+.btn-pay {
+  margin-top: 20rpx;
+}
+
+/* 最近记录卡片 */
+.record-card {
+  padding: 24rpx 28rpx;
+}
+.record-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14rpx;
+}
+.record-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6rpx 0;
+}
+.record-row .label { color: var(--muted); font-size: 26rpx; }
+.record-row .value { color: var(--text); font-size: 26rpx; font-weight: 500; }
+
+/* 快捷操作 */
 .quick-actions {
   display: flex;
   flex-direction: column;
   gap: 16rpx;
+  margin-top: 20rpx;
+}
+
+.btn-secondary {
+  background: #f0f0f0;
+  color: #666;
+  border: none;
+  font-size: 28rpx;
+  border-radius: 26rpx;
+  min-height: 76rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

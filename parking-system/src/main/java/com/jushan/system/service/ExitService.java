@@ -57,6 +57,7 @@ public class ExitService {
     private final BillingEngine billingEngine;
     private final BoothWebSocketPublisher boothWebSocketPublisher;
     private final ParkingSessionService parkingSessionService;
+    private final PrepaidDeductionService prepaidDeductionService;
 
     public ExitService(ParkingRecordMapper recordMapper,
                         ExitRecordMapper exitRecordMapper,
@@ -64,7 +65,8 @@ public class ExitService {
                         ParkingLotMapper parkingLotMapper,
                         BillingEngine billingEngine,
                         BoothWebSocketPublisher boothWebSocketPublisher,
-                        ParkingSessionService parkingSessionService) {
+                        ParkingSessionService parkingSessionService,
+                        PrepaidDeductionService prepaidDeductionService) {
         this.recordMapper = recordMapper;
         this.exitRecordMapper = exitRecordMapper;
         this.parkingOrderService = parkingOrderService;
@@ -72,6 +74,7 @@ public class ExitService {
         this.billingEngine = billingEngine;
         this.boothWebSocketPublisher = boothWebSocketPublisher;
         this.parkingSessionService = parkingSessionService;
+        this.prepaidDeductionService = prepaidDeductionService;
     }
 
     /**
@@ -106,6 +109,22 @@ public class ExitService {
         // 3. 生成订单（使用 ParkingOrderService）
         ParkingOrder order = parkingOrderService.createOrder(record, feeCents, null);
 
+        // 3b. 储值车余额自动扣费（在订单创建后、放行决策前）
+        int actualPaidCents = 0;
+        if (feeCents > 0) {
+            PrepaidDeductionService.DeductionResult deduction =
+                    prepaidDeductionService.tryDeduct(record, feeCents, order);
+            if (deduction.isApplicable() && deduction.getDeductedCents() > 0) {
+                actualPaidCents = deduction.getDeductedCents();
+                boolean fullyPaid = deduction.isFullyCovered();
+                parkingOrderService.applyBalancePayment(order.getId(), actualPaidCents, fullyPaid);
+                // 重新查询订单以获取更新后的状态
+                order = parkingOrderService.getById(order.getId());
+                log.info("储值车余额扣费完成: orderId={} paidCents={} fullyPaid={} walletLogId={}",
+                        order.getId(), actualPaidCents, fullyPaid, deduction.getWalletLogId());
+            }
+        }
+
         // 4. 决定放行策略
         ReleaseDecision decision = resolveReleaseDecision(feeCents, order);
 
@@ -121,9 +140,9 @@ public class ExitService {
             }
         }
 
-        // 7. 创建出场记录
+        // 7. 创建出场记录（传入实际已付金额）
         ExitRecord exitRecord = createExitRecord(payload, record, order, feeCents,
-                decision.getDecisionCode(), decision.getReason(), exitTime);
+                decision.getDecisionCode(), decision.getReason(), exitTime, actualPaidCents);
 
         // 8. 若可放行，更新订单为已完成
         if (decision.isAllowExit()) {
@@ -135,8 +154,8 @@ public class ExitService {
             syncParkingSessionExit(record, payload, exitTime, feeCents, order.getId());
         }
 
-        log.info("出场处理完成: recordId={} plate={} feeCents={} decision={} orderId={}",
-                record.getId(), standardizedPlate, feeCents,
+        log.info("出场处理完成: recordId={} plate={} feeCents={} paidCents={} decision={} orderId={}",
+                record.getId(), standardizedPlate, feeCents, actualPaidCents,
                 decision.getDecisionCode(), order.getId());
 
         return ExitResult.of(decision, exitRecord.getId(), order.getId(), feeCents);
@@ -266,7 +285,8 @@ public class ExitService {
                                          int feeCents,
                                          String decisionCode,
                                          String reason,
-                                         LocalDateTime exitTime) {
+                                         LocalDateTime exitTime,
+                                         int actualPaidCents) {
         ExitRecord exitRecord = new ExitRecord();
         exitRecord.setTenantId(record.getTenantId());
         exitRecord.setParkingLotId(record.getParkingLotId());
@@ -277,8 +297,7 @@ public class ExitService {
         exitRecord.setStandardizedPlate(record.getStandardizedPlate());
         exitRecord.setExitTime(exitTime);
         exitRecord.setFeeCents(Math.max(0, feeCents));
-        exitRecord.setPaidCents(decisionCode.equals(ExitRecord.DECISION_PAID)
-                ? exitRecord.getFeeCents() : 0);
+        exitRecord.setPaidCents(actualPaidCents);
         exitRecord.setReleaseDecision(decisionCode);
         exitRecord.setOrderId(order.getId());
         exitRecord.setReason(reason);

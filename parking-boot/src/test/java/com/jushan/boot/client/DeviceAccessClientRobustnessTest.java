@@ -214,14 +214,24 @@ class DeviceAccessClientRobustnessTest extends TestcontainersBaseTest {
         assertThat(getCounterValue("calls.errors", "error_type", "rest_client")).isGreaterThanOrEqualTo(1);
     }
 
-    // ==================== openGate 占位场景 ====================
+    // ==================== openGate v0.4 场景 ====================
 
     @Test
-    @DisplayName("openGate -> 抛出 UnsupportedOperationException（v0.2 未实现）")
-    void shouldThrowUnsupportedForOpenGate() {
-        assertThatThrownBy(() -> client.openGate(TEST_SN))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("NOT_IMPLEMENTED_IN_V0.2");
+    @DisplayName("开闸 200 -> 返回 CommandResultDTO + 指标记录")
+    void shouldReturnCommandResultWhenOpenGate200() {
+        wireMockServer.stubFor(post(urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(openGate200Body())));
+
+        com.jushan.system.client.dto.CommandResultDTO result = client.openGate(TEST_SN);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getSuccess()).isTrue();
+        assertThat(result.getDeviceCode()).isEqualTo(200);
+        assertThat(result.isSuccessful()).isTrue();
+        assertThat(getCounterValue("calls.total", "status", "success")).isGreaterThanOrEqualTo(1);
     }
 
     // ==================== 边界场景 ====================
@@ -446,5 +456,9 @@ class DeviceAccessClientRobustnessTest extends TestcontainersBaseTest {
 
     private String timeSync200Body() {
         return "{\"code\":200,\"message\":\"success\",\"data\":{\"success\":true,\"deviceCode\":200,\"message\":\"time synced\"},\"timestamp\":\"2026-07-11 10:00:00\"}";
+    }
+
+    private String openGate200Body() {
+        return "{\"code\":200,\"message\":\"success\",\"data\":{\"success\":true,\"deviceCode\":200,\"message\":\"gate opened\"},\"timestamp\":\"2026-07-11 10:00:00\"}";
     }
 }
