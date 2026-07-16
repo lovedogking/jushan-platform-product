@@ -24,6 +24,12 @@ import java.util.UUID;
 /**
  * P云支付平台客户端（Sprint 8）。
  * <p>
+ * <strong>已废弃（Phase 0 S0-3）</strong>：系统已切换为模拟支付模式，
+ * 不再连接真实支付平台（4pyun.com）。此类保留仅作参考，
+ * 生产环境不会调用真实接口。
+ * <p>
+ * 所有支付流程请使用 {@link com.jushan.system.service.MockPaymentService}。
+ * <p>
  * 封装 P云开放平台支付接口：
  * <ol>
  *   <li>被扫交易请求 /gate/1.0/payment/trade/create</li>
@@ -42,8 +48,9 @@ import java.util.UUID;
  * 预请求直接返回成功，不调用真实 P云接口，用于本地开发联调。
  *
  * @author Jushan Platform
- * @since 1.0.0
+ * @deprecated 请使用 MockPaymentService。此类保留仅供架构参考，不会在生产路径中被调用。
  */
+@Deprecated
 @Service
 public class PyunPaymentClient {
 

@@ -23,6 +23,9 @@ import java.util.Map;
 /**
  * P云 PP 前端接口 Controller（Sprint 8）。
  * <p>
+ * <strong>已废弃（Phase 0 S0-3）</strong>：系统已切换为模拟支付模式，
+ * P云开放平台不再调用。此 Controller 保留仅供参考。
+ * <p>
  * P云开放平台调用停车场系统的接口：
  * <ul>
  *   <li>POST /api/v1/pyun/billing —— 获取临停缴费订单（service.parking.payment.billing）</li>
@@ -32,8 +35,9 @@ import java.util.Map;
  * </ul>
  *
  * @author Jushan Platform
- * @since 1.0.0
+ * @deprecated 系统已切换为模拟支付（MockPaymentService）。此类不会在生产路径中被调用。
  */
+@Deprecated
 @RestController
 @RequestMapping("/api/v1/pyun")
 public class PyunPpFrontController {

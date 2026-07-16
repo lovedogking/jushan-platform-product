@@ -25,6 +25,9 @@ import java.util.Map;
 /**
  * P云支付回调 Controller（Sprint 8）。
  * <p>
+ * <strong>已废弃（Phase 0 S0-3）</strong>：系统已切换为模拟支付模式，
+ * 不再连接真实支付平台。此 Controller 保留仅供参考，不会再收到真实支付回调。
+ * <p>
  * 处理 P云支付结果异步通知（Form 表单 POST）。
  * <p>
  * <strong>安全约束</strong>：
@@ -35,9 +38,9 @@ import java.util.Map;
  *   <li>重复回调返回 1001 成功</li>
  * </ul>
  *
- * @author Jushan Platform
- * @since 1.0.0
+ * @deprecated 系统已切换为模拟支付（MockPaymentService）。此类不会在生产路径中被调用。
  */
+@Deprecated
 @RestController
 @RequestMapping("/api/v1/pay")
 public class PyunNotifyController {

@@ -1,7 +1,5 @@
 package com.jushan.platform.modules.miniapp.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jushan.common.R;
 import com.jushan.platform.infra.security.RequirePermission;
 import com.jushan.platform.modules.miniapp.dto.MiniPayNotifyRequest;
@@ -9,12 +7,10 @@ import com.jushan.platform.modules.miniapp.dto.MiniPayPrepareRequest;
 import com.jushan.platform.modules.miniapp.vo.MiniPayResultVO;
 import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.entity.ParkingRecord;
-import com.jushan.system.entity.PayMerchantConfig;
 import com.jushan.system.mapper.ParkingRecordMapper;
-import com.jushan.system.mapper.PayMerchantConfigMapper;
+import com.jushan.system.service.MockPaymentService;
 import com.jushan.system.service.ParkingFeeService;
 import com.jushan.system.service.ParkingOrderService;
-import com.jushan.system.service.PyunPaymentClient;
 import com.jushan.system.vo.ParkingFeeVO;
 import com.jushan.system.ws.BoothWebSocketPublisher;
 import jakarta.validation.Valid;
@@ -25,15 +21,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * 小程序支付控制器。
  * <p>
- * 提供小程序停车缴费的预下单和支付结果通知能力。
- * 复用现有 P云支付对接逻辑（{@link PyunPaymentClient}）。
+ * 提供小程序停车缴费的预下单和支付确认能力。
+ * <p>
+ * <strong>Phase 0 改造</strong>：已切换为模拟支付流程（{@link MockPaymentService}），
+ * 不再依赖真实支付平台（4pyun.com/PyunPaymentClient）。
  *
  * @author Jushan Platform
  * @since 1.0.0
@@ -44,34 +40,32 @@ public class MiniPayController {
 
     private static final Logger log = LoggerFactory.getLogger(MiniPayController.class);
 
+    /** 前端调用标记 */
+    private static final String PAID_BY_MINIAPP = "miniapp";
+
     private final ParkingFeeService parkingFeeService;
     private final ParkingOrderService orderService;
     private final ParkingRecordMapper recordMapper;
-    private final PyunPaymentClient pyunClient;
-    private final PayMerchantConfigMapper merchantConfigMapper;
+    private final MockPaymentService mockPaymentService;
     private final BoothWebSocketPublisher boothWebSocketPublisher;
-    private final ObjectMapper objectMapper;
 
     public MiniPayController(ParkingFeeService parkingFeeService,
                               ParkingOrderService orderService,
                               ParkingRecordMapper recordMapper,
-                              PyunPaymentClient pyunClient,
-                              PayMerchantConfigMapper merchantConfigMapper,
-                              BoothWebSocketPublisher boothWebSocketPublisher,
-                              ObjectMapper objectMapper) {
+                              MockPaymentService mockPaymentService,
+                              BoothWebSocketPublisher boothWebSocketPublisher) {
         this.parkingFeeService = parkingFeeService;
         this.orderService = orderService;
         this.recordMapper = recordMapper;
-        this.pyunClient = pyunClient;
-        this.merchantConfigMapper = merchantConfigMapper;
+        this.mockPaymentService = mockPaymentService;
         this.boothWebSocketPublisher = boothWebSocketPublisher;
-        this.objectMapper = objectMapper;
     }
 
     /**
-     * 支付预下单。
+     * 支付预下单（模拟支付）。
      * <p>
-     * 计算费用、创建订单、调用 P云交易预请求，返回支付参数给小程序。
+     * 计算费用、创建订单、创建模拟支付记录。
+     * 不再调用真实支付平台，小程序无需处理 wx.requestPayment 参数。
      *
      * @param request 预下单请求（含停车记录 ID）
      * @return 预支付结果
@@ -94,7 +88,7 @@ public class MiniPayController {
         if (Boolean.TRUE.equals(feeVo.getHasPendingOrder()) && feeVo.getPendingOrderId() != null) {
             ParkingOrder pendingOrder = orderService.getById(feeVo.getPendingOrderId());
             if (pendingOrder != null && ParkingOrder.STATUS_PENDING_PAY.equals(pendingOrder.getStatus())) {
-                return doPrepay(pendingOrder);
+                return buildPrepareResult(pendingOrder);
             }
         }
 
@@ -120,17 +114,20 @@ public class MiniPayController {
             return R.ok(vo);
         }
 
-        // 5. 标记支付中 + 调用 P云预请求
+        // 5. 标记支付中 + 创建模拟支付记录
         orderService.startPaying(order.getId(), ParkingOrder.PAY_CHANNEL_PYUN);
-        return doPrepay(order);
+        mockPaymentService.preparePay(order);
+
+        return buildPrepareResult(order);
     }
 
     /**
-     * 支付结果通知（前端调用）。
+     * 模拟支付确认（替代真实的 wx.requestPayment 回调）。
      * <p>
-     * 前端调用 wx.requestPayment 成功后回调此接口确认支付结果。
+     * 小程序端点击"确认支付"后调用此接口完成支付。
+     * 不再需要真实的 wx.requestPayment 调用及 paySign 等参数。
      *
-     * @param request 支付通知请求
+     * @param request 支付通知请求（仅需 orderId）
      * @return 处理结果
      */
     @PostMapping("/notify")
@@ -145,15 +142,18 @@ public class MiniPayController {
         if (ParkingOrder.STATUS_PAID.equals(order.getStatus())
                 || ParkingOrder.STATUS_COMPLETED.equals(order.getStatus())) {
             log.info("订单已处理，跳过通知: orderId={}", order.getId());
-            return R.ok("已处理");
+            return R.ok(Map.of("orderId", order.getId(), "status", "PAID"));
         }
 
-        // 更新订单为已支付
-        boolean success = orderService.markPaid(order.getId(), request.getPaySerial(), request.getPaidAmount());
+        // 调用模拟支付确认
+        boolean success = mockPaymentService.confirmPay(order.getId(), PAID_BY_MINIAPP);
         if (!success) {
-            log.warn("订单支付状态更新失败: orderId={}", request.getOrderId());
-            return R.fail(4002, "订单状态更新失败");
+            log.warn("模拟支付确认失败: orderId={} status={}", order.getId(), order.getStatus());
+            return R.fail(4002, "支付失败，订单可能已过期");
         }
+
+        // 重新查询订单获取最新状态
+        order = orderService.getById(request.getOrderId());
 
         // 推送 WebSocket 通知到岗亭
         boothWebSocketPublisher.sendPaymentCompleted(
@@ -161,10 +161,10 @@ public class MiniPayController {
                 order.getId(),
                 order.getOrderNo(),
                 order.getPlateNumber(),
-                request.getPaidAmount());
+                order.getPaidAmount());
 
-        log.info("小程序支付完成: orderId={} orderNo={} plate={} amount={}",
-                order.getId(), order.getOrderNo(), order.getPlateNumber(), request.getPaidAmount());
+        log.info("小程序模拟支付完成: orderId={} orderNo={} plate={} amount={}",
+                order.getId(), order.getOrderNo(), order.getPlateNumber(), order.getPaidAmount());
 
         return R.ok(Map.of("orderId", order.getId(), "status", "PAID"));
     }
@@ -172,71 +172,22 @@ public class MiniPayController {
     // ==================== 私有方法 ====================
 
     /**
-     * 执行 P云交易预请求。
+     * 构建预支付结果（模拟支付版本）。
+     * 返回简单的订单信息，无需 P云支付参数。
      */
-    private R<MiniPayResultVO> doPrepay(ParkingOrder order) {
-        // 获取商户配置
-        PayMerchantConfig config = merchantConfigMapper.selectActiveByParkingLot(
-                order.getTenantId(), order.getParkingLotId());
-        if (config == null) {
-            log.warn("停车场未配置 P云商户: parkingLotId={}", order.getParkingLotId());
-            orderService.markPayFailed(order.getId());
-            return R.fail(4003, "支付渠道未配置");
-        }
+    private R<MiniPayResultVO> buildPrepareResult(ParkingOrder order) {
+        MiniPayResultVO vo = new MiniPayResultVO();
+        vo.setOrderId(order.getId());
+        vo.setOrderNo(order.getOrderNo());
+        vo.setPayChannel(ParkingOrder.PAY_CHANNEL_PYUN);
+        vo.setStatus("PAYING");
+        vo.setPayableAmount(order.getPayableAmount());
+        vo.setPayableAmountYuan(formatYuan(order.getPayableAmount()));
 
-        // 构建 P云预请求参数
-        Map<String, String> params = new HashMap<>();
-        params.put("pay_order", order.getOrderNo());
-        params.put("subject", "停车支付" + formatYuan(order.getPayableAmount()) + "元(" + order.getPlateNumber() + ")");
-        params.put("body", "【" + order.getPlateNumber() + "】停车缴费" + formatYuan(order.getPayableAmount()) + "元");
-        params.put("value", String.valueOf(order.getPayableAmount()));
-        params.put("payer", "");
-        params.put("notify_url", config.getNotifyUrl() != null ? config.getNotifyUrl() : "");
-        params.put("callback_url", config.getCallbackUrl() != null ? config.getCallbackUrl() : "");
-        params.put("expire_time", PyunPaymentClient.formatExpireTime(15));
-        params.put("trade_scene", "PARKING");
+        // 模拟支付不需要 prepayParams（无需 wx.requestPayment）
+        // 前端直接调用 /notify 完成支付即可
 
-        // extra 字段
-        Map<String, Object> extra = new HashMap<>();
-        extra.put("plate", order.getPlateNumber());
-        extra.put("plate_color", "-1");
-        extra.put("parking_serial", String.valueOf(order.getParkingRecordId()));
-        extra.put("park_name", "停车场");
-        try {
-            params.put("extra", objectMapper.writeValueAsString(extra));
-        } catch (Exception e) {
-            log.warn("extra JSON 序列化失败", e);
-        }
-
-        // 调用 P云
-        JsonNode response = pyunClient.tradePrepare(config, params);
-        String code = response.path("code").asText("");
-
-        if ("1000".equals(code) || "1001".equals(code)) {
-            String paySerial = response.path("pay_serial").asText("");
-            log.info("P云预请求成功: orderId={} paySerial={}", order.getId(), paySerial);
-
-            MiniPayResultVO vo = new MiniPayResultVO();
-            vo.setOrderId(order.getId());
-            vo.setOrderNo(order.getOrderNo());
-            vo.setPaySerial(paySerial);
-            vo.setPayChannel(ParkingOrder.PAY_CHANNEL_PYUN);
-            vo.setStatus("PAYING");
-            vo.setPayableAmount(order.getPayableAmount());
-            vo.setPayableAmountYuan(formatYuan(order.getPayableAmount()));
-
-            Map<String, Object> prepayParams = new HashMap<>();
-            prepayParams.put("paySerial", paySerial);
-            prepayParams.put("appId", config.getAppId());
-            vo.setPrepayParams(prepayParams);
-
-            return R.ok(vo);
-        } else {
-            log.warn("P云预请求失败: orderId={} code={} message={}",
-                    order.getId(), code, response.path("message").asText());
-            orderService.markPayFailed(order.getId());
-            return R.fail(4003, "支付预请求失败: " + response.path("message").asText("未知错误"));
-        }
+        return R.ok(vo);
     }
 
     private String formatYuan(int cents) {

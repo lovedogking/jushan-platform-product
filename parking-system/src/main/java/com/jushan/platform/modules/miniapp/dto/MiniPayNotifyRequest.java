@@ -18,12 +18,10 @@ public class MiniPayNotifyRequest implements Serializable {
     @NotNull(message = "订单 ID 不能为空")
     private Long orderId;
 
-    /** P云支付流水号 */
-    @NotBlank(message = "支付流水号不能为空")
+    /** 支付流水号（模拟支付模式留空，由后端自动生成） */
     private String paySerial;
 
-    /** 实际支付金额（分） */
-    @NotNull(message = "支付金额不能为空")
+    /** 实际支付金额（模拟支付模式留空，从订单读取） */
     private Integer paidAmount;
 
     public Long getOrderId() { return orderId; }

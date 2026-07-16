@@ -97,6 +97,15 @@ jushan:
     read-timeout: 12000
     api-key: test-api-key-001
 
+# ---- 模拟支付（Phase 0 S0-3） ----
+# 生产环境强制启用模拟支付，禁止连接任何第三方支付平台（4pyun.com 等）。
+mock-payment:
+  enabled: true
+
+# ---- P云支付（已废弃——永远为 true，禁止连接真实支付平台） ----
+pyun:
+  mock: true
+
 # ---- Device Access Webhook 接收端配置 ----
 # 生产环境通过环境变量覆盖：DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS
 device-access:
