@@ -6,11 +6,13 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.system.entity.MockPaymentConfig;
 import com.jushan.system.entity.MockPaymentRecord;
 import com.jushan.system.entity.ParkingOrder;
+import com.jushan.system.event.PaymentSuccessEvent;
 import com.jushan.system.mapper.MockPaymentConfigMapper;
 import com.jushan.system.mapper.MockPaymentRecordMapper;
 import com.jushan.system.mapper.ParkingOrderMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,13 +48,16 @@ public class MockPaymentService {
     private final MockPaymentConfigMapper configMapper;
     private final MockPaymentRecordMapper recordMapper;
     private final ParkingOrderMapper orderMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public MockPaymentService(MockPaymentConfigMapper configMapper,
                               MockPaymentRecordMapper recordMapper,
-                              ParkingOrderMapper orderMapper) {
+                              ParkingOrderMapper orderMapper,
+                              ApplicationEventPublisher eventPublisher) {
         this.configMapper = configMapper;
         this.recordMapper = recordMapper;
         this.orderMapper = orderMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     // ==================== 核心支付方法 ====================
@@ -152,6 +157,11 @@ public class MockPaymentService {
                 LocalDateTime.now()
         );
 
+        if (updated > 0) {
+            // 发布支付成功事件（同步），监听者包括月卡续费生效
+            eventPublisher.publishEvent(new PaymentSuccessEvent(order, paySerial, paidBy));
+        }
+
         log.info("模拟支付成功: orderId={} paySerial={} paidBy={} updated={}",
                 orderId, paySerial, paidBy, updated > 0);
         return updated > 0;
@@ -208,6 +218,9 @@ public class MockPaymentService {
                 record.setUpdatedAt(LocalDateTime.now());
                 recordMapper.insert(record);
             }
+
+            // 发布支付成功事件（同步），监听者包括月卡续费生效
+            eventPublisher.publishEvent(new PaymentSuccessEvent(order, paySerial, operatorId));
 
             log.info("手动标记支付成功: orderId={} operatorId={}", orderId, operatorId);
         }

@@ -11,8 +11,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,8 +23,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,6 +47,8 @@ class MockPaymentServiceTest {
     private MockPaymentRecordMapper recordMapper;
     @Mock
     private ParkingOrderMapper orderMapper;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private MockPaymentService mockPaymentService;
 
@@ -51,7 +57,7 @@ class MockPaymentServiceTest {
 
     @BeforeEach
     void setUp() {
-        mockPaymentService = new MockPaymentService(configMapper, recordMapper, orderMapper);
+        mockPaymentService = new MockPaymentService(configMapper, recordMapper, orderMapper, eventPublisher);
 
         defaultConfig = new MockPaymentConfig();
         defaultConfig.setId(1L);
@@ -119,16 +125,18 @@ class MockPaymentServiceTest {
 
         assertThat(result).isTrue();
         verify(orderMapper).markPaidStatus(eq(100L), any(String.class), eq(500), any(LocalDateTime.class));
+        verify(eventPublisher).publishEvent(isA(com.jushan.system.event.PaymentSuccessEvent.class));
     }
 
     @Test
-    @DisplayName("确认支付时订单不存在返回 false")
+    @DisplayName("确认支付时订单不存在返回 false 且不发布事件")
     void shouldFailWhenOrderNotFound() {
         when(orderMapper.selectById(999L)).thenReturn(null);
 
         boolean result = mockPaymentService.confirmPay(999L, "miniapp");
 
         assertThat(result).isFalse();
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -200,6 +208,7 @@ class MockPaymentServiceTest {
         assertThat(result).isTrue();
         verify(orderMapper).markPaidStatus(eq(100L), any(), eq(500), any(LocalDateTime.class));
         verify(recordMapper).insert(any(MockPaymentRecord.class));
+        verify(eventPublisher).publishEvent(isA(com.jushan.system.event.PaymentSuccessEvent.class));
     }
 
     @Test

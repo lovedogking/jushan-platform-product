@@ -224,6 +224,14 @@ public class PyunPaymentClient {
      */
     @Deprecated
     public JsonNode postForm(String url, PayMerchantConfig config, Map<String, String> params) {
+        // 硬编码保护：防止配置意外被覆盖导致真实 HTTP 请求（Phase 1 A0-1）
+        // 即使 application.yml 中 pyun.mock 被其它 profile 覆盖为 false，
+        // 也不得发送真实 HTTP 请求到 4pyun.com 或其它外部接口。
+        if (!mockEnabled) {
+            throw new IllegalStateException(
+                    "真实支付已被禁用，请使用 MockPaymentService。如需临时恢复请检查 pyun.mock 配置。");
+        }
+
         // Mock 模式：直接返回成功响应，不调用真实 P云接口
         if (mockEnabled) {
             log.info("[MOCK] P云表单请求已跳过: url={}", url);
