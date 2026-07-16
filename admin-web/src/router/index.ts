@@ -103,6 +103,13 @@ export const constantRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/vehicle/VehicleManage.vue'),
         meta: { title: '车辆管理', icon: 'CarOutlined', permission: 'vehicle:view', cache: true },
       },
+      // Phase 1 A1：月卡独立管理
+      {
+        path: 'monthly-passes',
+        name: 'MonthlyPasses',
+        component: () => import('@/views/monthly-pass/index.vue'),
+        meta: { title: '月卡管理', icon: 'IdcardOutlined', permission: 'monthly:manage', cache: true },
+      },
       // Sprint 1：管理员账号
       {
         path: 'admin-accounts',

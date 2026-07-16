@@ -36,6 +36,7 @@ export const MENU_MAP: Record<string, MenuItem[]> = {
     { key: 'parking-zones', label: '区域管理', icon: 'AppstoreOutlined', path: '/parking-zones' },
     { key: 'parking-lanes', label: '通道管理', icon: 'BranchesOutlined', path: '/parking-lanes' },
     { key: 'vehicles', label: '车辆管理', icon: 'IdcardOutlined', path: '/vehicles', permission: 'vehicle:view' },
+    { key: 'monthly-passes', label: '月卡管理', icon: 'IdcardOutlined', path: '/monthly-passes', permission: 'monthly:manage' },
   ],
   // FIX-11：设备运维菜单
   deviceOps: [
