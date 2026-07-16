@@ -794,6 +794,45 @@ public class DeviceService {
     // ==================== 设备控制（T5: v0.4 开闸/关闸/显示屏/语音） ====================
 
     /**
+     * 按车道远程开闸（Phase 1 B2 运营端远程开闸）。
+     * <p>
+     * 根据车道 ID 查找绑定的 GATE 设备，再委托 {@link #openGate(Long, String)} 执行开闸。
+     * <b>禁止自动重试</b>；网络错误或命令超时标记为 UNCERTAIN。
+     *
+     * @param laneId 车道 ID
+     * @param reason 操作原因
+     * @return 命令执行结果
+     */
+    @Transactional
+    public CommandResultDTO openGateByLane(Long laneId, String reason) {
+        // 1. 查找车道
+        ParkingLane lane = laneMapper.selectByIdIgnoreTenant(laneId);
+        if (lane == null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道不存在: laneId=" + laneId);
+        }
+        if (lane.getDeletedAt() != null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道已被删除: laneId=" + laneId);
+        }
+
+        // 2. 校验停车场归属
+        DataScope.validateTenantMatch(lane.getTenantId(), "车道");
+        scopeResolver.validateAccess(lane.getLotId());
+
+        // 3. 查找绑定的 GATE 设备
+        Device gateDevice = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "GATE");
+        if (gateDevice == null) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "该车道未绑定道闸设备: laneId=" + laneId + " laneName=" + lane.getName());
+        }
+
+        log.info("按车道远程开闸: laneId={}, laneName={}, gateDeviceId={}, reason={}",
+                laneId, lane.getName(), gateDevice.getId(), reason);
+
+        // 4. 委托给设备开闸
+        return openGate(gateDevice.getId(), reason);
+    }
+
+    /**
      * 开闸（调用 DA v0.4）。
      * <p>
      * 支持 GATE 类型设备和具备开闸能力的 CAMERA 设备。

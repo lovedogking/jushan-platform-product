@@ -15,6 +15,7 @@ import com.jushan.system.ws.BoothWebSocketPublisher;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -58,6 +59,7 @@ public class ExitService {
     private final BoothWebSocketPublisher boothWebSocketPublisher;
     private final ParkingSessionService parkingSessionService;
     private final PrepaidDeductionService prepaidDeductionService;
+    private final FixedSpaceService fixedSpaceService;
 
     public ExitService(ParkingRecordMapper recordMapper,
                         ExitRecordMapper exitRecordMapper,
@@ -66,7 +68,8 @@ public class ExitService {
                         BillingEngine billingEngine,
                         BoothWebSocketPublisher boothWebSocketPublisher,
                         ParkingSessionService parkingSessionService,
-                        PrepaidDeductionService prepaidDeductionService) {
+                        PrepaidDeductionService prepaidDeductionService,
+                        FixedSpaceService fixedSpaceService) {
         this.recordMapper = recordMapper;
         this.exitRecordMapper = exitRecordMapper;
         this.parkingOrderService = parkingOrderService;
@@ -75,6 +78,7 @@ public class ExitService {
         this.boothWebSocketPublisher = boothWebSocketPublisher;
         this.parkingSessionService = parkingSessionService;
         this.prepaidDeductionService = prepaidDeductionService;
+        this.fixedSpaceService = fixedSpaceService;
     }
 
     /**
@@ -103,11 +107,25 @@ public class ExitService {
             return ExitResult.noRecord(noRecord.getId(), "未找到在场记录");
         }
 
-        // 2. 计算费用
-        int feeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+        // 2a. 检查固定车位绑定（生效中的固定车位车辆跳过计费）
+        boolean isFixedSpace = record.getTenantId() != null
+                && fixedSpaceService.hasActiveBinding(standardizedPlate, parkingLotId, record.getTenantId());
+
+        // 2b. 计算费用
+        int feeCents;
+        if (isFixedSpace) {
+            feeCents = 0;
+            log.info("固定车位车辆出场，跳过计费: plate={} parkingLotId={}", standardizedPlate, parkingLotId);
+        } else {
+            feeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+        }
 
         // 3. 生成订单（使用 ParkingOrderService）
-        ParkingOrder order = parkingOrderService.createOrder(record, feeCents, null);
+        //    固定车位车辆不生成临停订单（类似月卡在 booth 路径的行为）
+        ParkingOrder order = null;
+        if (!isFixedSpace) {
+            order = parkingOrderService.createOrder(record, feeCents, null);
+        }
 
         // 3b. 储值车余额自动扣费（在订单创建后、放行决策前）
         int actualPaidCents = 0;
@@ -144,14 +162,15 @@ public class ExitService {
         ExitRecord exitRecord = createExitRecord(payload, record, order, feeCents,
                 decision.getDecisionCode(), decision.getReason(), exitTime, actualPaidCents);
 
-        // 8. 若可放行，更新订单为已完成
-        if (decision.isAllowExit()) {
+        // 8. 若可放行，更新订单为已完成（固定车位无订单则跳过）
+        if (decision.isAllowExit() && order != null) {
             parkingOrderService.completeOrder(order.getId(), exitTime);
         }
 
         // 9. 同步更新 ParkingSession 状态（出场完成）
         if (decision.isAllowExit()) {
-            syncParkingSessionExit(record, payload, exitTime, feeCents, order.getId());
+            Long orderId = order != null ? order.getId() : null;
+            syncParkingSessionExit(record, payload, exitTime, feeCents, orderId);
         }
 
         log.info("出场处理完成: recordId={} plate={} feeCents={} paidCents={} decision={} orderId={}",
@@ -228,6 +247,11 @@ public class ExitService {
      */
     private void syncParkingSessionExit(ParkingRecord record, RecognitionEventPayload payload,
                                          LocalDateTime exitTime, int feeCents, Long orderId) {
+        if (orderId == null) {
+            log.info("ParkingSession 出场同步跳过（无订单）: plate={} lotId={}",
+                    record.getStandardizedPlate(), record.getParkingLotId());
+            return;
+        }
         if (parkingSessionService == null) {
             return;
         }
@@ -299,7 +323,7 @@ public class ExitService {
         exitRecord.setFeeCents(Math.max(0, feeCents));
         exitRecord.setPaidCents(actualPaidCents);
         exitRecord.setReleaseDecision(decisionCode);
-        exitRecord.setOrderId(order.getId());
+        exitRecord.setOrderId(order != null ? order.getId() : 0L);
         exitRecord.setReason(reason);
         exitRecord.setCreatedAt(LocalDateTime.now());
         exitRecord.setUpdatedAt(LocalDateTime.now());

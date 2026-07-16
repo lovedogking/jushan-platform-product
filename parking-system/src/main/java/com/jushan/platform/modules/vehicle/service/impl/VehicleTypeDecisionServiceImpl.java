@@ -9,6 +9,7 @@ import com.jushan.platform.modules.vehicle.mapper.SysVehicleMultiPlateMapper;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleWalletMapper;
 import com.jushan.platform.modules.vehicle.service.VehicleTypeDecisionService;
 import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
+import com.jushan.system.service.FixedSpaceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
  *   <li>VIP - 贵宾车</li>
  *   <li>MONTHLY - 月租/固定车（检查有效期）</li>
  *   <li>PREPAID - 储值车</li>
+ *   <li>FIXED_SPACE - 固定车位车辆（检查固定车位绑定有效期）</li>
  *   <li>FREE - 免费车</li>
  *   <li>TEMP - 临时车（默认）</li>
  * </ol>
@@ -41,13 +43,16 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
     private final SysVehicleMapper vehicleMapper;
     private final SysVehicleMultiPlateMapper multiPlateMapper;
     private final SysVehicleWalletMapper walletMapper;
+    private final FixedSpaceService fixedSpaceService;
 
     public VehicleTypeDecisionServiceImpl(SysVehicleMapper vehicleMapper,
                                           SysVehicleMultiPlateMapper multiPlateMapper,
-                                          SysVehicleWalletMapper walletMapper) {
+                                          SysVehicleWalletMapper walletMapper,
+                                          FixedSpaceService fixedSpaceService) {
         this.vehicleMapper = vehicleMapper;
         this.multiPlateMapper = multiPlateMapper;
         this.walletMapper = walletMapper;
+        this.fixedSpaceService = fixedSpaceService;
     }
 
     @Override
@@ -127,6 +132,25 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
      */
     private VehicleTypeDecisionVO applyPriorityChain(SysVehicle vehicle, VehicleTypeDecisionVO result, Long tenantId) {
         String type = vehicle.getVehicleType();
+
+        // FIXED_SPACE 检查：对于非黑名单/超级车牌/贵宾车/月卡/储值车车辆，
+        // 检查是否绑定了生效中的固定车位
+        if (!SysVehicle.TYPE_BLACKLIST.equals(type)
+                && !SysVehicle.TYPE_SUPER.equals(type)
+                && !SysVehicle.TYPE_VIP.equals(type)
+                && !SysVehicle.TYPE_MONTHLY.equals(type)
+                && !SysVehicle.TYPE_PREPAID.equals(type)) {
+            if (fixedSpaceService != null && fixedSpaceService.hasActiveBindingByVehicleId(
+                    vehicle.getId(), vehicle.getParkingLotId(), tenantId)) {
+                result.setVehicleType("FIXED_SPACE");
+                result.setTypeDescription("固定车位车辆");
+                result.setAllowEntry(true);
+                result.setAllowExit(true);
+                result.setNeedCharge(false);
+                result.setDecisionReason("固定车位在有效期内，免费通行");
+                return result;
+            }
+        }
 
         switch (type) {
             case SysVehicle.TYPE_BLACKLIST -> {

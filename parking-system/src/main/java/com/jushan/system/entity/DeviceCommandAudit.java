@@ -56,6 +56,12 @@ public class DeviceCommandAudit implements Serializable {
     /** 命令类型：OPEN_GATE, CLOSE_GATE, SNAPSHOT, REBOOT, SYNC_TIME 等 */
     private String commandType;
 
+    /** 关联车牌号（手动开闸时记录，Phase 2 D3） */
+    private String plateNumber;
+
+    /** 费用（分，手工计费时记录，Phase 2 D3） */
+    private Integer feeCents;
+
     /** 操作来源：SYSTEM-系统自动, MANUAL-人工操作, AUTO_EXIT-自动出场, COMPENSATION-补偿 */
     private String source;
 
@@ -134,6 +140,12 @@ public class DeviceCommandAudit implements Serializable {
 
     public String getCommandType() { return commandType; }
     public void setCommandType(String commandType) { this.commandType = commandType; }
+
+    public String getPlateNumber() { return plateNumber; }
+    public void setPlateNumber(String plateNumber) { this.plateNumber = plateNumber; }
+
+    public Integer getFeeCents() { return feeCents; }
+    public void setFeeCents(Integer feeCents) { this.feeCents = feeCents; }
 
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }

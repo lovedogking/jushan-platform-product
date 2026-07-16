@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jushan.platform.modules.parking.dto.ParkingSessionEntryCmd;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import com.jushan.platform.modules.parking.vo.ParkingSessionVO;
+
 import java.time.LocalDateTime;
 
 /**
@@ -54,17 +55,20 @@ public class EntryService {
     private final DuplicateEntryHandler duplicateEntryHandler;
     private final BoothWebSocketPublisher boothWebSocketPublisher;
     private final ParkingSessionService parkingSessionService;
+    private final FixedSpaceService fixedSpaceService;
 
     public EntryService(ParkingRecordMapper recordMapper,
                         ParkingLotMapper parkingLotMapper,
                         DuplicateEntryHandler duplicateEntryHandler,
                         BoothWebSocketPublisher boothWebSocketPublisher,
-                        ParkingSessionService parkingSessionService) {
+                        ParkingSessionService parkingSessionService,
+                        FixedSpaceService fixedSpaceService) {
         this.recordMapper = recordMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.duplicateEntryHandler = duplicateEntryHandler;
         this.boothWebSocketPublisher = boothWebSocketPublisher;
         this.parkingSessionService = parkingSessionService;
+        this.fixedSpaceService = fixedSpaceService;
     }
 
     /**
@@ -110,9 +114,20 @@ public class EntryService {
             record = createParkingRecord(payload, standardizedPlate);
         }
 
+        // 2c. 检查固定车位绑定（MQ 消费者路径无车辆类型判定服务）
+        String vehicleType = null;
+        if (record != null && payload.getTenantId() != null) {
+            boolean hasFixedSpace = fixedSpaceService.hasActiveBinding(
+                    standardizedPlate, parkingLotId, payload.getTenantId());
+            if (hasFixedSpace) {
+                vehicleType = "FIXED_SPACE";
+                log.info("固定车位车辆入场: plate={} parkingLotId={}", standardizedPlate, parkingLotId);
+            }
+        }
+
         // 3. 同步创建 ParkingSession（在场记录），避免双写分裂
         if (isNewRecordCreated(record, existingRecord)) {
-            createParkingSession(record, payload);
+            createParkingSession(record, payload, vehicleType);
         }
 
         // 4. 更新停车场容量（仅当成功创建了新记录时）
@@ -143,8 +158,10 @@ public class EntryService {
 
     /**
      * 同步创建 ParkingSession，与 ParkingRecord 保持一致。
+     *
+     * @param vehicleType 车辆类型（可为 null，由后续服务判定；FIXED_SPACE 表示固定车位车辆）
      */
-    private void createParkingSession(ParkingRecord record, RecognitionEventPayload payload) {
+    private void createParkingSession(ParkingRecord record, RecognitionEventPayload payload, String vehicleType) {
         if (parkingSessionService == null) {
             return;
         }
@@ -155,7 +172,7 @@ public class EntryService {
             cmd.setLaneId(record.getLaneId());
             cmd.setPlateNumber(record.getStandardizedPlate());
             cmd.setPlateColor(null); // 识别事件暂未携带颜色
-            cmd.setVehicleType(null); // 由车辆类型判定服务后续处理
+            cmd.setVehicleType(vehicleType);
             cmd.setEntryImage(record.getEntryImagePath());
 
             ParkingSessionVO session = parkingSessionService.entry(cmd);

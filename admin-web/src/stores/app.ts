@@ -37,10 +37,15 @@ export const MENU_MAP: Record<string, MenuItem[]> = {
     { key: 'parking-lanes', label: '通道管理', icon: 'BranchesOutlined', path: '/parking-lanes' },
     { key: 'vehicles', label: '车辆管理', icon: 'IdcardOutlined', path: '/vehicles', permission: 'vehicle:view' },
     { key: 'monthly-passes', label: '月卡管理', icon: 'IdcardOutlined', path: '/monthly-passes', permission: 'monthly:manage' },
+    { key: 'fixed-spaces', label: '固定车位', icon: 'CarOutlined', path: '/fixed-spaces', permission: 'fixed:manage' },
+    { key: 'parking-records', label: '通行记录', icon: 'FileTextOutlined', path: '/parking-records', permission: 'record:view' },
   ],
   // FIX-11：设备运维菜单
   deviceOps: [
     { key: 'devices', label: '设备管理', icon: 'ToolOutlined', path: '/devices' },
+    { key: 'remote-gate', label: '远程开闸', icon: 'ThunderboltOutlined', path: '/remote-gate', permission: 'device:remote:open' },
+    { key: 'manual-gate-records', label: '开闸记录', icon: 'HistoryOutlined', path: '/manual-gate-records', permission: 'device:audit' },
+    { key: 'exception-records', label: '异常记录', icon: 'ExclamationCircleOutlined', path: '/exception-records', permission: 'exception:view' },
   ],
   billing: [],
   // FIX-11：平台管理菜单
@@ -53,7 +58,9 @@ export const MENU_MAP: Record<string, MenuItem[]> = {
 
     { key: 'audit-logs', label: '审计日志', icon: 'FileTextOutlined', path: '/audit-logs' },
   ],
-  settings: [],
+  settings: [
+    { key: 'system-params', label: '系统参数', icon: 'SettingOutlined', path: '/system-params', permission: 'system:param:manage' },
+  ],
 }
 
 export const useAppStore = defineStore('app', () => {

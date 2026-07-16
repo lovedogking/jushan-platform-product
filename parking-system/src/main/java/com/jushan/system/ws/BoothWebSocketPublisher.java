@@ -1,5 +1,6 @@
 package com.jushan.system.ws;
 
+import com.jushan.system.dto.RemoteGateAlertDTO;
 import com.jushan.system.entity.MonitorAlert;
 import com.jushan.system.entity.RecognitionEventLog;
 import com.jushan.system.vo.DeviceStatusVO;
@@ -42,6 +43,9 @@ public class BoothWebSocketPublisher {
 
     /** 异常提醒 topic 模板。 */
     private static final String TOPIC_ALERTS = "/topic/booth/%d/alerts";
+
+    /** 远程开闸通知 topic 模板。 */
+    private static final String TOPIC_REMOTE_GATE = "/topic/booth/%d/remote-gate-alert";
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -192,6 +196,28 @@ public class BoothWebSocketPublisher {
         } catch (Exception e) {
             log.warn("支付完成通知 WebSocket 推送失败（不影响主业务）: parkingLotId={}, orderId={}, error={}",
                     parkingLotId, orderId, e.getMessage());
+        }
+    }
+
+    /**
+     * 推送远程开闸通知到岗亭（Phase 1 B2）。
+     * <p>
+     * 运营端远程开闸后调用，通知岗亭端弹窗显示操作信息。
+     *
+     * @param parkingLotId 停车场 ID（可信）
+     * @param dto          远程开闸通知 DTO
+     */
+    public void sendRemoteGateAlert(Long parkingLotId, RemoteGateAlertDTO dto) {
+        if (parkingLotId == null || dto == null) {
+            return;
+        }
+        try {
+            send(String.format(TOPIC_REMOTE_GATE, parkingLotId), dto);
+            log.info("远程开闸通知已推送到岗亭: parkingLotId={}, operator={}, lane={}",
+                    parkingLotId, dto.getOperatorName(), dto.getLaneName());
+        } catch (Exception e) {
+            log.warn("远程开闸 WebSocket 推送失败（不影响主业务）: parkingLotId={}, error={}",
+                    parkingLotId, e.getMessage());
         }
     }
 

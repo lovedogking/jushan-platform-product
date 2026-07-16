@@ -18,6 +18,7 @@ import type {
   SpaceUpdatePayload,
   RecognitionEventPayload,
   AlertPayload,
+  RemoteGateAlertPayload,
 } from '@/api/monitor-types'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
@@ -31,6 +32,8 @@ export const useMonitorStore = defineStore('monitor', () => {
   const recentEvents = ref<RecognitionEvent[]>([])
   const deviceStatuses = ref<DeviceStatus[]>([])
   const alerts = ref<MonitorAlert[]>([])
+  /** 远程开闸历史通知（Phase 1 B2） */
+  const remoteGateAlerts = ref<RemoteGateAlertPayload[]>([])
   const loading = ref(false)
   const error = ref('')
 
@@ -111,6 +114,19 @@ export const useMonitorStore = defineStore('monitor', () => {
   function handleAlert(payload: AlertPayload) {
     if (!alerts.value.some((a) => a.id === payload.id)) {
       alerts.value.unshift(payload)
+    }
+  }
+
+  function handleRemoteGateAlert(payload: RemoteGateAlertPayload) {
+    // 去重：相同操作人+时间不重复添加
+    const exists = remoteGateAlerts.value.some(
+      (a) => a.operatorName === payload.operatorName && a.operationTime === payload.operationTime
+    )
+    if (exists) return
+    remoteGateAlerts.value.unshift(payload)
+    // 最多保留 20 条历史
+    if (remoteGateAlerts.value.length > 20) {
+      remoteGateAlerts.value = remoteGateAlerts.value.slice(0, 20)
     }
   }
 
@@ -208,6 +224,7 @@ export const useMonitorStore = defineStore('monitor', () => {
     recentEvents.value = []
     deviceStatuses.value = []
     alerts.value = []
+    remoteGateAlerts.value = []
     error.value = ''
     chargePanelVisible.value = false
     currentChargeInfo.value = null
@@ -223,6 +240,7 @@ export const useMonitorStore = defineStore('monitor', () => {
     recentEvents,
     deviceStatuses,
     alerts,
+    remoteGateAlerts,
     loading,
     error,
     criticalAlerts,
@@ -234,6 +252,7 @@ export const useMonitorStore = defineStore('monitor', () => {
     handleRecognitionEvent,
     handleDeviceStatus,
     handleAlert,
+    handleRemoteGateAlert,
     ackAlert,
     refreshAllDevices,
     formatTime,

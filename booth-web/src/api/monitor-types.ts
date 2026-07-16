@@ -199,6 +199,17 @@ export interface FeeRule {
   timeSegments: FeeRuleSegment[]
 }
 
+/** WebSocket 远程开闸通知推送（Phase 1 B2） */
+export interface RemoteGateAlertPayload {
+  type: string
+  operatorName: string
+  operationTime: string
+  parkingLotName: string
+  laneName: string
+  reason: string
+  autoDismissSeconds: number
+}
+
 /** 开闸结果（对应后端 RecognitionResultVO） */
 export interface GateOpenResult {
   eventId?: number

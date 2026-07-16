@@ -1,5 +1,5 @@
 import { Client, type IFrame, type IStompSocket, type StompSubscription } from '@stomp/stompjs'
-import type { SpaceUpdatePayload, RecognitionEventPayload, AlertPayload, DeviceStatus } from '@/api/monitor-types'
+import type { SpaceUpdatePayload, RecognitionEventPayload, AlertPayload, DeviceStatus, RemoteGateAlertPayload } from '@/api/monitor-types'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
 
@@ -9,6 +9,7 @@ export interface WebSocketHandlers {
   onRecognitionEvent?: (payload: RecognitionEventPayload) => void
   onDeviceStatus?: (payload: DeviceStatus) => void
   onAlert?: (payload: AlertPayload) => void
+  onRemoteGateAlert?: (payload: RemoteGateAlertPayload) => void
   onError?: (error: string) => void
 }
 
@@ -114,6 +115,7 @@ export class MonitorWebSocketClient {
       { path: `${prefix}/spaces`, handler: this.options.handlers.onSpaceUpdate },
       { path: `${prefix}/device-status`, handler: this.options.handlers.onDeviceStatus },
       { path: `${prefix}/alerts`, handler: this.options.handlers.onAlert },
+      { path: `${prefix}/remote-gate-alert`, handler: this.options.handlers.onRemoteGateAlert },
     ]
 
     for (const topic of topics) {

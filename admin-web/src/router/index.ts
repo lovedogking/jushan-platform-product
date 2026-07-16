@@ -61,6 +61,20 @@ export const constantRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/device/index.vue'),
         meta: { title: '设备管理', icon: 'ToolOutlined' },
       },
+      // Phase 1 B2：远程开闸
+      {
+        path: 'remote-gate',
+        name: 'RemoteGate',
+        component: () => import('@/views/remote-gate/index.vue'),
+        meta: { title: '远程开闸', icon: 'ThunderboltOutlined', permission: 'device:remote:open', cache: true },
+      },
+      // Phase 2 D3：手动开闸记录
+      {
+        path: 'manual-gate-records',
+        name: 'ManualGateRecords',
+        component: () => import('@/views/manual-gate-record/index.vue'),
+        meta: { title: '开闸记录', icon: 'HistoryOutlined', permission: 'device:audit', cache: true },
+      },
       // FIX-11：员工管理
       {
         path: 'employees',
@@ -110,7 +124,27 @@ export const constantRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/monthly-pass/index.vue'),
         meta: { title: '月卡管理', icon: 'IdcardOutlined', permission: 'monthly:manage', cache: true },
       },
-      // Sprint 1：管理员账号
+      // Phase 1 A2：固定车位管理
+      {
+        path: 'fixed-spaces',
+        name: 'FixedSpaces',
+        component: () => import('@/views/fixed-space/index.vue'),
+        meta: { title: '固定车位', icon: 'CarOutlined', permission: 'fixed:manage', cache: true },
+      },
+      // Phase 2 D1：通行记录管理
+      {
+        path: 'parking-records',
+        name: 'ParkingRecords',
+        component: () => import('@/views/parking-record/index.vue'),
+        meta: { title: '通行记录', icon: 'FileTextOutlined', permission: 'record:view', cache: true },
+      },
+      // B1：订单中心管理
+      {
+        path: 'orders',
+        name: 'Orders',
+        component: () => import('@/views/order/index.vue'),
+        meta: { title: '订单管理', icon: 'FileTextOutlined', permission: 'order:manage', cache: true },
+      },
       {
         path: 'admin-accounts',
         name: 'AdminAccounts',
@@ -123,6 +157,27 @@ export const constantRoutes: RouteRecordRaw[] = [
         name: 'CustomRoles',
         component: () => import('@/views/account/CustomRoleManage.vue'),
         meta: { title: '角色管理', icon: 'IdcardOutlined', permission: 'role:view', cache: true },
+      },
+      // 黑白名单管理
+      {
+        path: 'access-policies',
+        name: 'AccessPolicies',
+        component: () => import('@/views/access-policy/index.vue'),
+        meta: { title: '黑白名单', icon: 'SafetyOutlined', permission: 'parking:view', cache: true },
+      },
+      // Phase 1 A3：系统参数管理
+      {
+        path: 'system-params',
+        name: 'SystemParams',
+        component: () => import('@/views/system-param/index.vue'),
+        meta: { title: '系统参数', icon: 'SettingOutlined', permission: 'system:param:manage', cache: true },
+      },
+      // Phase 2 D2：异常记录管理
+      {
+        path: 'exception-records',
+        name: 'ExceptionRecords',
+        component: () => import('@/views/exception-record/index.vue'),
+        meta: { title: '异常记录', icon: 'ExclamationCircleOutlined', permission: 'exception:view', cache: true },
       },
 
     ],

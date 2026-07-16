@@ -5,6 +5,8 @@ import com.jushan.platform.infra.security.RequirePermission;
 import com.jushan.platform.modules.booth.dto.RecognitionEventCmd;
 import com.jushan.platform.modules.booth.service.RecognitionEventService;
 import com.jushan.platform.modules.booth.vo.RecognitionResultVO;
+import com.jushan.system.client.dto.CommandResultDTO;
+import com.jushan.system.service.DeviceService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,6 +14,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 识别事件处理控制器。
@@ -27,9 +34,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class RecognitionEventController {
 
     private final RecognitionEventService recognitionEventService;
+    private final DeviceService deviceService;
 
-    public RecognitionEventController(RecognitionEventService recognitionEventService) {
+    public RecognitionEventController(RecognitionEventService recognitionEventService,
+                                       DeviceService deviceService) {
         this.recognitionEventService = recognitionEventService;
+        this.deviceService = deviceService;
     }
 
     /**
@@ -45,7 +55,7 @@ public class RecognitionEventController {
     }
 
     /**
-     * 人工开闸（预留/mock）。
+     * 人工开闸（单通道）。
      */
     @PostMapping("/manual-open-gate")
     @RequirePermission("booth:operate")
@@ -55,6 +65,72 @@ public class RecognitionEventController {
         Long operatorId = com.jushan.common.auth.TenantContext.getUserId();
         RecognitionResultVO result = recognitionEventService.manualOpenGate(laneId, operatorId, reason);
         log.info("人工开闸: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+        return R.ok(result);
+    }
+
+    /**
+     * 批量多通道开闸（Phase 2 D5）。
+     * <p>
+     * 支持一次性对多个设备发起开闸命令。
+     * 循环调用 DeviceService.openGate()，记录每条操作日志。
+     *
+     * @param body 请求体：{ deviceIds: [], reason, isCharge, amount }
+     */
+    @PostMapping("/manual-open-gate-batch")
+    @RequirePermission("booth:operate")
+    public R<Map<String, Object>> manualOpenGateBatch(@RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<Object> deviceIdObjs = body.get("deviceIds") != null
+                ? (List<Object>) body.get("deviceIds") : List.of();
+        String reason = body.get("reason") != null ? body.get("reason").toString().trim() : "批量开闸";
+        boolean isCharge = body.get("isCharge") != null && Boolean.TRUE.equals(body.get("isCharge"));
+        Integer amount = body.get("amount") != null ? ((Number) body.get("amount")).intValue() : null;
+
+        if (deviceIdObjs.isEmpty()) {
+            return R.fail(com.jushan.common.CommonErrorCode.PARAM_ERROR.getCode(), "deviceIds 不能为空");
+        }
+
+        List<Map<String, Object>> successList = new ArrayList<>();
+        List<Map<String, Object>> failedList = new ArrayList<>();
+
+        for (Object obj : deviceIdObjs) {
+            Long deviceId = ((Number) obj).longValue();
+            try {
+                CommandResultDTO result = deviceService.openGate(deviceId, reason);
+                Map<String, Object> item = new HashMap<>();
+                item.put("deviceId", deviceId);
+                item.put("success", result.isSuccessful());
+                item.put("message", result.getMessage());
+
+                if (result.isSuccessful()) {
+                    successList.add(item);
+                } else {
+                    failedList.add(item);
+                }
+
+                log.info("批量开闸: deviceId={}, success={}, message={}",
+                        deviceId, result.isSuccessful(), result.getMessage());
+            } catch (Exception e) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("deviceId", deviceId);
+                item.put("success", false);
+                item.put("message", e.getMessage());
+                failedList.add(item);
+
+                log.warn("批量开闸异常: deviceId={}, error={}", deviceId, e.getMessage());
+            }
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", successList);
+        result.put("failed", failedList);
+        result.put("total", deviceIdObjs.size());
+        result.put("successCount", successList.size());
+        result.put("failedCount", failedList.size());
+
+        log.info("批量开闸完成: total={}, success={}, failed={}",
+                deviceIdObjs.size(), successList.size(), failedList.size());
+
         return R.ok(result);
     }
 

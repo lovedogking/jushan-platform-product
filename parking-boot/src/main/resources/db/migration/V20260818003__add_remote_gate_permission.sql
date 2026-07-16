@@ -1,0 +1,51 @@
+-- =============================================================================
+-- B2: 运营端远程开闸 — 添加 device:remote:open 权限
+-- =============================================================================
+-- 背景：
+--   Phase 1 B2 为运营端提供按车道远程开闸能力。
+--   新增 device:remote:open 权限码，控制远程开闸功能的访问。
+-- 安全：
+--   - 超级管理员（super_admin）默认拥有
+--   - 设备维护员（device_maintenance）、岗亭操作员（booth_operator）默认拥有
+--   - 租户管理员（customer_admin）默认不拥有，需超管在自定义角色中手动勾选
+--   - 固定角色（parking_manager 等）不自动获得此权限
+-- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1. 插入权限定义（幂等）
+-- ---------------------------------------------------------------------------
+INSERT INTO sys_permission (code, name, description)
+VALUES ('device:remote:open', '远程开闸', '运营端远程开启道闸')
+ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description);
+
+-- ---------------------------------------------------------------------------
+-- 2. 固定角色授权（传统 sys_role_permission 模式）
+--    给 super_admin、device_maintenance、booth_operator 发放
+-- ---------------------------------------------------------------------------
+INSERT INTO sys_role_permission (role_code, permission_code)
+SELECT rc.role_code, perm.permission_code
+FROM (SELECT 'super_admin' AS role_code
+      UNION ALL SELECT 'device_maintenance'
+      UNION ALL SELECT 'booth_operator') rc
+CROSS JOIN (SELECT 'device:remote:open' AS permission_code) perm
+WHERE NOT EXISTS (
+    SELECT 1 FROM sys_role_permission srp
+    WHERE srp.role_code = rc.role_code AND srp.permission_code = perm.permission_code
+);
+
+-- ---------------------------------------------------------------------------
+-- 3. 自定义角色授权（sys_custom_role 模式）
+--    customer_admin 默认不获得，可通过后续管理页面勾选
+--    但为 SUPER_ADMIN 自定义角色补充此权限（超管总应该能远程开闸）
+-- ---------------------------------------------------------------------------
+INSERT INTO sys_role_permission (id, role_id, permission_code, permission_type, data_scope)
+SELECT
+    CONV(SUBSTRING(MD5(CONCAT(scr.id, ':device:remote:open')), 1, 16), 16, 10) % 9223372036854775807 AS id,
+    scr.id,
+    'device:remote:open' AS permission_code,
+    'button' AS permission_type,
+    'all' AS data_scope
+FROM sys_custom_role scr
+WHERE scr.role_code = 'SUPER_ADMIN'
+  AND scr.deleted_at IS NULL
+ON DUPLICATE KEY UPDATE permission_type = VALUES(permission_type), data_scope = VALUES(data_scope);

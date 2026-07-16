@@ -7,12 +7,16 @@
         <a-tag :color="statusColor">{{ statusText }}</a-tag>
       </div>
       <div class="header-right">
-        <a-input-number
+        <a-select
           v-model:value="selectedLotId"
-          :min="1"
-          placeholder="停车场 ID"
-          style="width: 160px"
+          placeholder="选择停车场"
+          style="width: 200px"
           :disabled="wsClient?.status === 'connected'"
+          :options="lotOptions"
+          :loading="loadingLots"
+          show-search
+          :filter-option="filterLotOption"
+          allow-clear
         />
         <a-button
           type="primary"
@@ -23,6 +27,13 @@
           {{ wsClient?.status === 'connected' ? '重连' : '连接' }}
         </a-button>
         <a-button @click="refreshDevices">刷新设备</a-button>
+        <a-button @click="openBatchRelease">批量开闸</a-button>
+        <a-badge :count="store.remoteGateAlerts.length" :overflow-count="99">
+          <a-button @click="historyDrawerOpen = true">
+            <template #icon><BellOutlined /></template>
+            历史通知
+          </a-button>
+        </a-badge>
       </div>
     </div>
 
@@ -202,12 +213,22 @@
     <!-- 收费面板 -->
     <ChargePanel />
 
-    <!-- 人工放行弹窗 -->
+    <!-- 人工放行弹窗（单通道） -->
     <ManualReleaseModal
       v-model:open="manualReleaseOpen"
       :lane-id="manualReleaseLaneId"
       plate-number=""
       @success="handleManualReleaseResult"
+    />
+
+    <!-- 批量开闸弹窗（Phase 2 D5） -->
+    <ManualReleaseModal
+      v-model:open="batchReleaseOpen"
+      :lane-id="0"
+      plate-number=""
+      :batch="true"
+      :batch-lanes="batchLaneOptions"
+      @success="handleBatchReleaseResult"
     />
 
     <!-- 收费规则编辑弹窗 -->
@@ -217,19 +238,75 @@
       :fee-rule="currentFeeRule"
       @save="handleSaveFeeRule"
     />
+
+    <!-- 远程开闸弹窗 -->
+    <a-modal
+      v-model:open="remoteGateModalVisible"
+      title="🚧 运营端远程开闸"
+      :footer="null"
+      width="420px"
+      centered
+      :closable="true"
+      :mask-closable="true"
+    >
+      <a-result
+        status="success"
+        title="远程开闸通知"
+      >
+        <template #subTitle>
+          <a-descriptions :column="1" size="small" bordered>
+            <a-descriptions-item label="操作人">{{ currentRemoteGateAlert?.operatorName || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="操作时间">{{ currentRemoteGateAlert?.operationTime || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="车场">{{ currentRemoteGateAlert?.parkingLotName || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="通道">{{ currentRemoteGateAlert?.laneName || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="原因">{{ currentRemoteGateAlert?.reason || '-' }}</a-descriptions-item>
+          </a-descriptions>
+        </template>
+      </a-result>
+    </a-modal>
+
+    <!-- 远程开闸历史通知抽屉 -->
+    <a-drawer
+      v-model:open="historyDrawerOpen"
+      title="远程开闸历史通知"
+      placement="right"
+      width="400px"
+    >
+      <template v-if="store.remoteGateAlerts.length > 0">
+        <a-list :data-source="store.remoteGateAlerts" size="small">
+          <template #renderItem="{ item }">
+            <a-list-item>
+              <a-list-item-meta>
+                <template #title>
+                  <span>{{ item.operatorName }} @ {{ item.laneName }}</span>
+                </template>
+                <template #description>
+                  <div>时间：{{ item.operationTime }}</div>
+                  <div>原因：{{ item.reason }}</div>
+                </template>
+              </a-list-item-meta>
+            </a-list-item>
+          </template>
+        </a-list>
+      </template>
+      <template v-else>
+        <a-empty description="暂无远程开闸记录" />
+      </template>
+    </a-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { SyncOutlined } from '@ant-design/icons-vue'
+import { SyncOutlined, BellOutlined } from '@ant-design/icons-vue'
 import { useMonitorStore } from '@/stores/monitor'
 import { MonitorWebSocketClient, type ConnectionStatus } from '@/utils/websocket'
-import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPayload, RecognitionEvent } from '@/api/monitor-types'
+import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPayload, RecognitionEvent, RemoteGateAlertPayload } from '@/api/monitor-types'
 import ChargePanel from '@/components/ChargePanel.vue'
-import ManualReleaseModal from '@/components/ManualReleaseModal.vue'
+import ManualReleaseModal, { type BatchLaneOption } from '@/components/ManualReleaseModal.vue'
 import FeeRuleEditModal from '@/components/FeeRuleEditModal.vue'
+import { getBoothParkingLots, type BoothParkingLot } from '@/api/parking-lot'
 
 const TOKEN_KEY = 'jushan_access_token'
 const LOT_ID_KEY = 'booth_selected_lot_id'
@@ -246,6 +323,64 @@ const manualReleaseLaneId = ref(0)
 const feeRuleEditOpen = ref(false)
 const feeRuleEditLaneId = ref(0)
 const currentFeeRule = ref<any>(null)
+
+// 远程开闸弹窗（Phase 1 B2）
+const remoteGateModalVisible = ref(false)
+const currentRemoteGateAlert = ref<RemoteGateAlertPayload | null>(null)
+let remoteGateDismissTimer: ReturnType<typeof setTimeout> | null = null
+
+// 远程开闸历史通知抽屉
+const historyDrawerOpen = ref(false)
+
+// Phase 2 D5：批量开闸
+const batchReleaseOpen = ref(false)
+const batchLaneOptions = ref<BatchLaneOption[]>([])
+
+// Phase 2 D6：车场下拉选项
+const lotOptions = ref<{ value: number; label: string }[]>([])
+const loadingLots = ref(false)
+
+/** 打开批量开闸弹窗 */
+function openBatchRelease() {
+  // 从 store 的 lanes 构建批量选项
+  batchLaneOptions.value = store.lanes.map((lane) => ({
+    id: lane.id,
+    name: lane.name || `车道 ${lane.id}`,
+    direction: lane.direction,
+    deviceId: lane.deviceId,
+    hasDevice: !!lane.deviceId,
+  }))
+  batchReleaseOpen.value = true
+}
+
+/** 批量开闸结果处理 */
+function handleBatchReleaseResult(result: { success: boolean; message: string; gateOpened: boolean | null }) {
+  if (result.success) {
+    message.success(result.message)
+  } else {
+    message.warning(result.message || '批量开闸部分失败')
+  }
+}
+
+/** 加载车场列表 */
+async function loadLotOptions() {
+  loadingLots.value = true
+  try {
+    const lots = await getBoothParkingLots()
+    lotOptions.value = (lots || []).map((lot: BoothParkingLot) => ({
+      value: lot.id,
+      label: lot.name,
+    }))
+  } catch {
+    // 静默失败
+  } finally {
+    loadingLots.value = false
+  }
+}
+
+function filterLotOption(input: string, option: { value: number; label: string } | undefined) {
+  return option?.label?.toLowerCase().includes(input.toLowerCase()) ?? false
+}
 
 function handleManualOpenGate(laneId: number) {
   manualReleaseLaneId.value = laneId
@@ -299,6 +434,25 @@ async function handleSaveFeeRule(data: any) {
   } catch (e: any) {
     message.error(e?.message || '更新收费规则失败')
   }
+}
+
+/** 显示远程开闸弹窗并启动自动消失计时器 */
+function showRemoteGateAlert(payload: RemoteGateAlertPayload) {
+  // 清除旧计时器
+  if (remoteGateDismissTimer) {
+    clearTimeout(remoteGateDismissTimer)
+    remoteGateDismissTimer = null
+  }
+
+  currentRemoteGateAlert.value = payload
+  remoteGateModalVisible.value = true
+
+  // 自动消失
+  const dismissMs = (payload.autoDismissSeconds || 10) * 1000
+  remoteGateDismissTimer = setTimeout(() => {
+    remoteGateModalVisible.value = false
+    remoteGateDismissTimer = null
+  }, dismissMs)
 }
 
 function handleManualReleaseResult(result: { success: boolean; message: string; gateOpened: boolean | null }) {
@@ -428,6 +582,10 @@ function buildWsClient(lotId: number) {
       onAlert: (payload: AlertPayload) => {
         store.handleAlert(payload)
       },
+      onRemoteGateAlert: (payload: RemoteGateAlertPayload) => {
+        store.handleRemoteGateAlert(payload)
+        showRemoteGateAlert(payload)
+      },
       onError: (error) => {
         console.warn('WebSocket 错误:', error)
       },
@@ -466,6 +624,7 @@ async function refreshDevices() {
 }
 
 onMounted(() => {
+  loadLotOptions()
   const saved = localStorage.getItem(LOT_ID_KEY)
   if (saved) {
     selectedLotId.value = Number(saved)
@@ -475,6 +634,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   wsClient?.disconnect()
+  if (remoteGateDismissTimer) {
+    clearTimeout(remoteGateDismissTimer)
+    remoteGateDismissTimer = null
+  }
 })
 </script>
 
