@@ -10,9 +10,7 @@ import com.jushan.platform.modules.account.entity.SysAdminAccount;
 import com.jushan.platform.modules.account.mapper.SysAdminAccountRoleMapper;
 import com.jushan.platform.modules.account.mapper.SysAdminAccountMapper;
 import com.jushan.platform.modules.account.service.SysAdminAccountService;
-import com.jushan.system.entity.Tenant;
 import com.jushan.system.mapper.SysRoleMapper;
-import com.jushan.system.mapper.TenantMapper;
 import com.jushan.platform.modules.auth.dto.LoginRequest;
 import com.jushan.platform.modules.auth.vo.LoginResult;
 import io.jsonwebtoken.Claims;
@@ -60,9 +58,6 @@ public class AuthController {
     /** 账号状态：锁定 */
     private static final int STATUS_LOCKED = 2;
 
-    /** Redis key 前缀：代操作状态缓存 */
-    private static final String PROXY_STATUS_KEY = "proxy:status:";
-
     @Value("${jwt.secret}")
     private String jwtSecret;
 
@@ -78,25 +73,19 @@ public class AuthController {
     private final SysAdminAccountService adminAccountService;
     private final BCryptPasswordEncoder passwordEncoder;
     private final PermissionProvider permissionProvider;
-    private final TenantMapper tenantMapper;
-    private final StringRedisTemplate redisTemplate;
 
     public AuthController(SysAdminAccountMapper adminAccountMapper,
                           SysAdminAccountRoleMapper adminAccountRoleMapper,
                           SysRoleMapper sysRoleMapper,
                           SysAdminAccountService adminAccountService,
                           BCryptPasswordEncoder passwordEncoder,
-                          PermissionProvider permissionProvider,
-                          TenantMapper tenantMapper,
-                          StringRedisTemplate redisTemplate) {
+                          PermissionProvider permissionProvider) {
         this.adminAccountMapper = adminAccountMapper;
         this.adminAccountRoleMapper = adminAccountRoleMapper;
         this.sysRoleMapper = sysRoleMapper;
         this.adminAccountService = adminAccountService;
         this.passwordEncoder = passwordEncoder;
         this.permissionProvider = permissionProvider;
-        this.tenantMapper = tenantMapper;
-        this.redisTemplate = redisTemplate;
     }
 
     /**
@@ -218,9 +207,10 @@ public class AuthController {
     }
 
     /**
-     * 获取当前会话信息（含代操作状态）。
+     * 获取当前会话信息。
      * <p>
-     * 返回当前登录用户的完整会话信息，包括用户基本信息、权限和代操作状态。
+     * 返回当前登录用户的完整会话信息，包括用户基本信息、权限。
+     * 代操作功能已废弃，超级管理员可直接操作任意租户数据。
      */
     @GetMapping("/session")
     public R<SessionInfo> session() {
@@ -236,23 +226,6 @@ public class AuthController {
         session.setRealName(account.getRealName());
         session.setLevel(account.getLevel());
         session.setTenantId(account.getTenantId());
-
-        // 检查代操作状态
-        String proxyStatus = redisTemplate.opsForValue().get(PROXY_STATUS_KEY + userId);
-        ProxyInfo proxyInfo = new ProxyInfo();
-        if (proxyStatus != null) {
-            proxyInfo.setProxy(true);
-            proxyInfo.setProxyTargetTenantId(Long.parseLong(proxyStatus));
-            Tenant tenant = tenantMapper.selectById(proxyInfo.getProxyTargetTenantId());
-            if (tenant != null) {
-                proxyInfo.setProxyTargetTenantName(tenant.getName());
-            }
-            // 代操作模式下，session 中的 tenantId 应显示目标租户
-            session.setTenantId(proxyInfo.getProxyTargetTenantId());
-        } else {
-            proxyInfo.setProxy(false);
-        }
-        session.setProxy(proxyInfo);
 
         // 加载权限
         Set<String> permissions = permissionProvider.getPermissions(account.getId());
@@ -328,7 +301,6 @@ public class AuthController {
         private Integer level;
         private Long tenantId;
         private List<String> permissions;
-        private ProxyInfo proxy;
 
         public Long getUserId() { return userId; }
         public void setUserId(Long userId) { this.userId = userId; }
@@ -347,26 +319,5 @@ public class AuthController {
 
         public List<String> getPermissions() { return permissions; }
         public void setPermissions(List<String> permissions) { this.permissions = permissions; }
-
-        public ProxyInfo getProxy() { return proxy; }
-        public void setProxy(ProxyInfo proxy) { this.proxy = proxy; }
-    }
-
-    /**
-     * 代操作信息视图。
-     */
-    public static class ProxyInfo {
-        private boolean isProxy;
-        private Long proxyTargetTenantId;
-        private String proxyTargetTenantName;
-
-        public boolean isProxy() { return isProxy; }
-        public void setProxy(boolean proxy) { isProxy = proxy; }
-
-        public Long getProxyTargetTenantId() { return proxyTargetTenantId; }
-        public void setProxyTargetTenantId(Long proxyTargetTenantId) { this.proxyTargetTenantId = proxyTargetTenantId; }
-
-        public String getProxyTargetTenantName() { return proxyTargetTenantName; }
-        public void setProxyTargetTenantName(String proxyTargetTenantName) { this.proxyTargetTenantName = proxyTargetTenantName; }
     }
 }

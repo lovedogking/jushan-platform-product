@@ -117,13 +117,7 @@ export const constantRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/account/CustomRoleManage.vue'),
         meta: { title: '角色管理', icon: 'IdcardOutlined', permission: 'role:view', cache: true },
       },
-      // FIX-11：代理模式
-      {
-        path: 'proxy',
-        name: 'Proxy',
-        component: () => import('@/views/proxy/index.vue'),
-        meta: { title: '代理管理', icon: 'SwapOutlined' },
-      },
+
     ],
   },
   {

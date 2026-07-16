@@ -123,7 +123,7 @@ public class CompanyService {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后创建公司");
+                    "平台用户需指定租户上下文后创建公司");
         }
 
         String name = request.getName().trim();

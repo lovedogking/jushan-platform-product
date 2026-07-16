@@ -120,7 +120,7 @@ public class ParkingZoneService extends ServiceImpl<ParkingZoneMapper, ParkingZo
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后创建区域");
+                    "平台用户需指定租户上下文后创建区域");
         }
 
         // 校验车位数
@@ -153,7 +153,7 @@ public class ParkingZoneService extends ServiceImpl<ParkingZoneMapper, ParkingZo
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后更新区域");
+                    "平台用户需指定租户上下文后更新区域");
         }
         ParkingZone existing = getAndCheck(zone.getId(), tenantId);
 
@@ -184,7 +184,7 @@ public class ParkingZoneService extends ServiceImpl<ParkingZoneMapper, ParkingZo
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后删除区域");
+                    "平台用户需指定租户上下文后删除区域");
         }
         ParkingZone zone = getAndCheck(id, tenantId);
 
@@ -276,7 +276,7 @@ public class ParkingZoneService extends ServiceImpl<ParkingZoneMapper, ParkingZo
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后变更区域状态");
+                    "平台用户需指定租户上下文后变更区域状态");
         }
         ParkingZone zone = getAndCheck(id, tenantId);
 

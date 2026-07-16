@@ -49,7 +49,7 @@ export const MENU_MAP: Record<string, MenuItem[]> = {
     { key: 'admin-accounts', label: '账号管理', icon: 'UserOutlined', path: '/admin-accounts', permission: 'account:view' },
     { key: 'custom-roles', label: '角色管理', icon: 'IdcardOutlined', path: '/custom-roles', permission: 'role:view' },
     { key: 'employees', label: '员工管理', icon: 'UserOutlined', path: '/employees' },
-    { key: 'proxy', label: '代理管理', icon: 'SwapOutlined', path: '/proxy' },
+
     { key: 'audit-logs', label: '审计日志', icon: 'FileTextOutlined', path: '/audit-logs' },
   ],
   settings: [],

@@ -36,4 +36,16 @@ public interface RecognitionEventService {
      * @return 开闸结果（含三层状态：gateCommandSent / gateDeviceAck / gateOpened）
      */
     RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason);
+
+    /**
+     * 人工关闸。
+     * <p>
+     * 通过 GPIO 或 Device Access 关闸，与开闸共享同一设备查找逻辑。
+     *
+     * @param laneId      通道ID
+     * @param operatorId  操作人ID
+     * @param reason      关闸原因
+     * @return 关闸结果
+     */
+    RecognitionResultVO manualCloseGate(Long laneId, Long operatorId, String reason);
 }

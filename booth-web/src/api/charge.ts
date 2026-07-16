@@ -1,12 +1,12 @@
 import request from '@/utils/request'
-import type { ChargeInfo, GateOpenResult, ParkingSessionVO } from './monitor-types'
+import type { ChargeInfo, GateOpenResult, ParkingSessionVO, FeeRule } from './monitor-types'
 
 /**
  * 查询待收费信息（按车牌查询在场记录）。
  * GET /api/v1/parking-sessions/in/plate/{plateNumber}
  */
 export function getChargeInfo(plateNumber: string): Promise<ParkingSessionVO> {
-  return request.get<ParkingSessionVO>(`/parking-sessions/in/plate/${encodeURIComponent(plateNumber)}`)
+  return request.get<ParkingSessionVO>(`/api/v1/parking-sessions/in/plate/${encodeURIComponent(plateNumber)}`)
 }
 
 /**
@@ -25,7 +25,7 @@ export function submitCharge(data: {
   authCode?: string
   remark?: string
 }) {
-  return request.post<ParkingSessionVO>('/parking-sessions/exit', {
+  return request.post<ParkingSessionVO>('/api/v1/parking-sessions/exit', {
     sessionId: data.sessionId,
     exitLaneId: data.exitLaneId,
     feeAmount: data.feeAmount,
@@ -42,8 +42,36 @@ export function submitCharge(data: {
  */
 export function manualOpenGate(laneId: number, reason: string): Promise<GateOpenResult> {
   return request.post<GateOpenResult>(
-    '/booth/recognition/manual-open-gate',
+    '/api/v1/booth/recognition/manual-open-gate',
     undefined,
     { params: { laneId, reason } },
   )
+}
+
+/**
+ * 人工关闸。
+ * POST /api/v1/booth/recognition/manual-close-gate
+ */
+export function manualCloseGate(laneId: number, reason: string): Promise<GateOpenResult> {
+  return request.post<GateOpenResult>(
+    '/api/v1/booth/recognition/manual-close-gate',
+    undefined,
+    { params: { laneId, reason } },
+  )
+}
+
+/**
+ * 查询车道当前生效的收费规则。
+ * GET /api/v1/fee-rules/current
+ */
+export function getCurrentFeeRule(lotId: number, zoneId?: number): Promise<FeeRule> {
+  return request.get<FeeRule>('/api/v1/fee-rules/current', { lotId, zoneId })
+}
+
+/**
+ * 岗亭端临时调整收费规则。
+ * PUT /api/v1/fee-rules/{id}
+ */
+export function updateFeeRule(id: number, data: Partial<FeeRule>): Promise<FeeRule> {
+  return request.put<FeeRule>(`/api/v1/fee-rules/${id}`, data)
 }

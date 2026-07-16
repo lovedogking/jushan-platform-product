@@ -103,24 +103,18 @@ async function handleConfirm() {
     const reasonText = getReasonText(formState.reason as ReleaseReason, formState.remark)
     const result = await manualOpenGate(props.laneId, reasonText)
 
-    const success = result.gateOpened === true
+    // gateDeviceAck=true 表示 GPIO/设备命令已成功发送，视为开闸成功
+    const success = result.gateDeviceAck === true
     const resultMsg = success
-      ? `${props.plateNumber || '车辆'} 人工放行成功`
+      ? '开闸成功'
       : `开闸失败: ${result.gateResult || result.resultMessage || '未知错误'}`
 
     releaseResult.value = { success, message: resultMsg, gateOpened: success }
     emit('success', { success, message: resultMsg, gateOpened: success })
-
-    if (success) {
-      message.success(resultMsg)
-    } else {
-      message.warning(resultMsg)
-    }
   } catch (e: any) {
-    const errMsg = e?.message || '人工放行请求失败'
+    const errMsg = e?.message || '开闸请求失败'
     releaseResult.value = { success: false, message: errMsg, gateOpened: false }
     emit('success', { success: false, message: errMsg, gateOpened: false })
-    message.error(errMsg)
   } finally {
     releasing.value = false
   }

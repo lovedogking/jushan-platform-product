@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ParkSaaS - 智慧停车运营平台</title>
+<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus/dist/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus/theme-chalk/dark/css-vars.css">
+<script src="https://cdn.jsdelivr.net/npm/element-plus/dist/index.full.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
+<style>
+:root{--bg:#F8FAFC;--card:#FFF;--primary:#2563EB;--primary-hover:#1D4ED8;--primary-light:#EFF6FF;--text:#0F172A;--text-sec:#475569;--text-muted:#94A3B8;--border:#E2E8F0;--success:#10B981;--success-bg:#DCFCE7;--warning:#F59E0B;--warning-bg:#FEF3C7;--danger:#EF4444;--danger-bg:#FEE2E2;--sidebar-bg:#0F172A;--el-color-primary:#2563EB;--el-color-primary-light-3:#5088F0;--el-color-primary-light-5:#7BA5F5;--el-color-primary-light-7:#A5C2F9;--el-color-primary-light-8:#BBD0FB;--el-color-primary-light-9:#D5E1FC;--el-color-primary-dark-2:#1D4ED8;--el-color-success:#10B981;--el-color-warning:#F59E0B;--el-color-danger:#EF4444;--el-border-radius-base:8px}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body,#app{height:100%;overflow:hidden}
+body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+
+/* SIDEBAR */
+.aside{background:var(--sidebar-bg)!important;display:flex;flex-direction:column;border-right:none!important;overflow:hidden}
+.sb-head{height:64px;display:flex;align-items:center;padding:0 20px;gap:10px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.sb-dot{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#2563EB,#3B82F6);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sb-dot i{color:#fff;font-size:18px}
+.sb-brand{font-size:17px;font-weight:700;color:#F1F5F9;letter-spacing:-.02em}
+.sb-scroll{flex:1;overflow-y:auto;padding:8px 0}
+.sb-scroll::-webkit-scrollbar{width:0}
+.sb-foot{padding:16px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.sb-user{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;cursor:pointer}
+.sb-user:hover{background:rgba(255,255,255,.05)}
+.sb-av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#2563EB,#06B6D4);display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:600;flex-shrink:0}
+.sb-un{color:#E2E8F0;font-size:13px;font-weight:500}
+.sb-ur{color:#64748B;font-size:11px}
+.nav-gt{padding:16px 20px 8px;font-size:11px;font-weight:600;letter-spacing:.06em;color:#475569;text-transform:uppercase}
+
+/* Menu overrides */
+.sb-menu{border-right:none!important;background:transparent!important}
+.sb-menu .el-menu-item,.sb-menu .el-sub-menu__title{height:42px;line-height:42px;margin:2px 12px;border-radius:8px;padding-left:12px!important}
+.sb-menu .el-menu-item{color:rgba(255,255,255,.55)!important;font-size:13.5px}
+.sb-menu .el-menu-item i{font-size:18px;margin-right:8px}
+.sb-menu .el-menu-item:hover{background:rgba(255,255,255,.05)!important;color:rgba(255,255,255,.9)!important}
+.sb-menu .el-menu-item.is-active{background:var(--primary)!important;color:#fff!important;position:relative}
+.sb-menu .el-menu-item.is-active::before{content:'';position:absolute;left:-12px;top:50%;transform:translateY(-50%);width:3px;height:20px;background:#fff;border-radius:0 3px 3px 0}
+
+/* HEADER */
+.hd{height:64px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;z-index:10}
+.hd .el-breadcrumb{font-size:13px}
+.hd-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+/* LOGIN */
+.login-bg{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#0B1120,#1E293B 50%,#0F172A);position:relative;overflow:hidden}
+.login-bg::before{content:'';position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.12),transparent 70%);top:-200px;right:-100px}
+.login-bg::after{content:'';position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,246,.08),transparent 70%);bottom:-100px;left:-100px}
+.lc{background:#151E32;border-radius:20px;padding:48px 40px;width:420px;box-shadow:0 25px 60px -12px rgba(0,0,0,.5);position:relative;z-index:1;border:1px solid rgba(255,255,255,.05)}
+.lc-logo{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.lc-dot{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#2563EB,#3B82F6);display:flex;align-items:center;justify-content:center}
+.lc-dot i{font-size:20px;color:#fff}
+.lc-title{font-size:22px;font-weight:700;color:#F1F5F9;letter-spacing:-.02em}
+.lc-sub{color:#64748B;margin-bottom:32px;font-size:14px}
+.lc .el-input__wrapper{background:#0F172A!important;box-shadow:0 0 0 1px #1E293B inset!important;border-radius:8px}
+.lc .el-input__inner{color:#F1F5F9!important}
+.lc .el-input__wrapper.is-focus{box-shadow:0 0 0 1px #2563EB inset,0 0 0 3px rgba(37,99,235,.15)!important}
+.lc .el-form-item__label{color:#94A3B8!important;font-size:13px}
+.lc-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.lc-row .el-checkbox__label{color:#94A3B8;font-size:13px}
+
+/* MAIN */
+.main-c{background:var(--bg);overflow-y:auto;padding:24px}
+.main-c::-webkit-scrollbar{width:6px}
+.main-c::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.pg-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.pg-title{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-.02em;margin:0}
+.pg-desc{font-size:13px;color:var(--text-muted);margin-top:2px}
+
+/* STATS */
+.s4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.s4.c3{grid-template-columns:repeat(3,1fr)}
+.sc{background:var(--card);border-radius:12px;padding:20px;display:flex;align-items:center;gap:16px;box-shadow:0 1px 3px rgba(0,0,0,.08);transition:all .2s;border:1px solid transparent}
+.sc:hover{box-shadow:0 10px 15px -3px rgba(0,0,0,.1);border-color:var(--border)}
+.si{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.si.bl{background:var(--primary-light);color:var(--primary)}
+.si.gn{background:var(--success-bg);color:var(--success)}
+.si.am{background:var(--warning-bg);color:var(--warning)}
+.si.rd{background:var(--danger-bg);color:var(--danger)}
+.sv{font-size:28px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.2}
+.sl{font-size:12px;color:var(--text-muted);margin-top:2px}
+.st{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;margin-top:4px}
+.st.up{color:var(--success)}
+.st.dn{color:var(--danger)}
+
+/* CHARTS */
+.cg{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:24px}
+.bc{display:flex;align-items:flex-end;gap:8px;height:180px;padding:16px 20px}
+.bc .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px}
+.bc .bar{width:100%;border-radius:4px 4px 0 0;transition:height .6s ease;min-height:4px}
+.bc .bar.bl{background:linear-gradient(180deg,var(--primary),#60A5FA)}
+.bc .bar.gn{background:linear-gradient(180deg,var(--success),#6EE7B7)}
+.bc .lbl{font-size:11px;color:var(--text-muted)}
+.donut-w{display:flex;align-items:center;justify-content:center;padding:20px;gap:24px}
+.donut{width:140px;height:140px;border-radius:50%;background:conic-gradient(var(--primary) 0% 35%,#60A5FA 35% 55%,var(--success) 55% 75%,var(--warning) 75% 88%,var(--text-muted) 88% 100%);position:relative}
+.donut::after{content:'';position:absolute;inset:30px;background:var(--card);border-radius:50%}
+.leg{display:flex;flex-direction:column;gap:10px}
+.leg i{font-size:13px;color:var(--text-sec)}
+.leg-d{width:10px;height:10px;border-radius:3px;flex-shrink:0;display:inline-block;margin-right:8px}
+
+/* CARDS */
+.pc{background:var(--card);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:16px}
+.pc .el-card__header{padding:16px 20px;border-bottom:1px solid var(--border)}
+.pc .el-card__body{padding:20px}
+
+/* SELECT CARDS */
+.scs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.scs.c4{grid-template-columns:repeat(4,1fr)}
+.scc{padding:20px;border:2px solid var(--border);border-radius:12px;cursor:pointer;transition:all .2s;text-align:center}
+.scc:hover{border-color:#CBD5E1;background:var(--bg)}
+.scc.on{border-color:var(--primary);background:var(--primary-light)}
+.scc i{font-size:28px;margin-bottom:8px;display:block;color:var(--text-sec)}
+.scc.on i{color:var(--primary)}
+.scc .sl2{font-size:14px;font-weight:500;color:var(--text)}
+.scc .sd2{font-size:12px;color:var(--text-muted);margin-top:4px}
+
+/* GATE CARDS */
+.gcg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.gcc{padding:24px;border:2px solid var(--border);border-radius:12px;cursor:pointer;transition:all .2s;text-align:center}
+.gcc:hover,.gcc.on{border-color:var(--primary);background:var(--primary-light)}
+.gcc i{font-size:32px;color:var(--primary);margin-bottom:8px;display:block}
+.gcc .gn2{font-size:15px;font-weight:600;color:var(--text)}
+.gcc .ga2{font-size:12px;color:var(--text-muted);margin-top:4px}
+
+/* PARAM */
+.ps-t{font-size:15px;font-weight:600;color:var(--text);padding-bottom:12px}
+.pr{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--border)}
+.pr:last-child{border-bottom:none}
+.pr-l{font-size:14px;color:var(--text)}
+.pr-d{font-size:12px;color:var(--text-muted);margin-top:2px}
+
+/* TABLE OVERRIDES */
+.el-table{--el-table-border-color:var(--border)}
+.el-table th.el-table__cell{background:var(--bg)!important;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--text-muted)!important}
+.el-table td.el-table__cell{font-size:14px;color:var(--text-sec)}
+.el-table .el-table__row:hover>td.el-table__cell{background:var(--bg)!important}
+.el-pagination{margin-top:16px;justify-content:flex-end}
+.el-dialog{border-radius:16px!important}
+.el-dialog__header{border-bottom:1px solid var(--border);padding:16px 20px!important;margin-right:0}
+.el-dialog__body{padding:20px!important}
+.el-dialog__footer{border-top:1px solid var(--border);padding:12px 20px!important}
+.info-box{padding:12px 16px;background:var(--primary-light);border-radius:8px;color:var(--primary);font-size:13px;margin-top:16px}
+.info-box i{vertical-align:middle;margin-right:6px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,monospace}
+
+/* DARK */
+html.dark{--bg:#0B1120;--card:#151E32;--text:#F1F5F9;--text-sec:#94A3B8;--text-muted:#64748B;--border:#1E293B;--primary-light:rgba(37,99,235,.15);--danger-bg:rgba(239,68,68,.15);--success-bg:rgba(16,185,129,.15);--warning-bg:rgba(245,158,11,.15)}
+html.dark .sc,html.dark .pc{box-shadow:0 4px 6px -1px rgba(0,0,0,.3)}
+html.dark .el-table th.el-table__cell{background:var(--card)!important}
+html.dark .el-table .el-table__row:hover>td.el-table__cell{background:rgba(255,255,255,.02)!important}
+html.dark .hd{background:var(--card);border-color:var(--border)}
+html.dark .el-card{background:var(--card);--el-card-bg-color:var(--card)}
+html.dark .el-table{--el-table-bg-color:var(--card);--el-table-tr-bg-color:var(--card);--el-table-header-bg-color:var(--card)}
+html.dark .el-input__wrapper{background:var(--card)!important;box-shadow:0 0 0 1px var(--border) inset!important}
+
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}70%{box-shadow:0 0 0 6px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+.dot-online{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--success);margin-right:6px;animation:pulse 2s infinite}
+.dot-offline{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--danger);margin-right:6px}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ====== LOGIN ====== -->
+<div v-if="!logged" class="login-bg">
+  <div class="lc">
+    <div class="lc-logo">
+      <div class="lc-dot"><i class="ri-roadster-line"></i></div>
+      <span class="lc-title">ParkSaaS</span>
+    </div>
+    <p class="lc-sub">欢迎回来，请登录管理员账号</p>
+    <el-form :model="lf" :rules="lr" ref="lfRef" @submit.prevent="doLogin">
+      <el-form-item label="用户名" prop="user">
+        <el-input v-model="lf.user" placeholder="请输入用户名" size="large">
+          <template #prefix><i class="ri-user-3-line"></i></template>
+        </el-input>
+      </el-form-item>
+      <el-form-item label="密码" prop="pass">
+        <el-input v-model="lf.pass" type="password" show-password placeholder="请输入密码" size="large" @keyup.enter="doLogin">
+          <template #prefix><i class="ri-lock-2-line"></i></template>
+        </el-input>
+      </el-form-item>
+      <div class="lc-row">
+        <el-checkbox v-model="lf.rem" label="记住我"/>
+        <el-link type="primary" :underline="false">忘记密码？</el-link>
+      </div>
+      <el-button type="primary" size="large" style="width:100%;height:48px;font-size:15px;font-weight:600;border-radius:8px" :loading="lfLoad" native-type="submit">登 录</el-button>
+    </el-form>
+  </div>
+</div>
+
+<!-- ====== APP ====== -->
+<el-container v-else style="height:100vh">
+  <el-aside width="240px" class="aside">
+    <div class="sb-head"><div class="sb-dot"><i class="ri-roadster-line"></i></div><span class="sb-brand">ParkSaaS</span></div>
+    <div class="sb-scroll">
+      <el-menu :default-active="p" class="sb-menu" @select="p=$event" :unique-opened="true">
+        <div class="nav-gt">概览</div>
+        <el-menu-item index="dash"><i class="ri-dashboard-3-line"></i>仪表盘</el-menu-item>
+        <div class="nav-gt">车场运营</div>
+        <el-menu-item index="park"><i class="ri-building-2-line"></i>车场管理</el-menu-item>
+        <el-menu-item index="area"><i class="ri-layout-grid-line"></i>区域 / 车位</el-menu-item>
+        <el-menu-item index="gate"><i class="ri-door-open-line"></i>出入口管理</el-menu-item>
+        <el-menu-item index="dev"><i class="ri-cpu-line"></i>设备管理</el-menu-item>
+        <div class="nav-gt">车辆管理</div>
+        <el-menu-item index="mon"><i class="ri-coupon-3-line"></i>月卡管理</el-menu-item>
+        <el-menu-item index="fix"><i class="ri-map-pin-2-line"></i>固定车位</el-menu-item>
+        <el-menu-item index="bw"><i class="ri-shield-check-line"></i>黑白名单</el-menu-item>
+        <div class="nav-gt">收费管理</div>
+        <el-menu-item index="bill"><i class="ri-money-cny-circle-line"></i>收费规则</el-menu-item>
+        <el-menu-item index="order"><i class="ri-file-list-3-line"></i>订单中心</el-menu-item>
+        <el-menu-item index="access"><i class="ri-roadster-line"></i>通行记录</el-menu-item>
+        <el-menu-item index="excp"><i class="ri-error-warning-line"></i>异常记录</el-menu-item>
+        <el-menu-item index="mgate"><i class="ri-lock-unlock-line"></i>手动开闸记录</el-menu-item>
+        <div class="nav-gt">数据统计</div>
+        <el-menu-item index="rev"><i class="ri-line-chart-line"></i>收入报表</el-menu-item>
+        <el-menu-item index="traf"><i class="ri-bar-chart-2-line"></i>车流量统计</el-menu-item>
+        <div class="nav-gt">系统设置</div>
+        <el-menu-item index="acct"><i class="ri-user-settings-line"></i>账号管理</el-menu-item>
+        <el-menu-item index="role"><i class="ri-key-2-line"></i>角色权限</el-menu-item>
+        <el-menu-item index="param"><i class="ri-settings-3-line"></i>系统参数</el-menu-item>
+        <el-menu-item index="log"><i class="ri-file-text-line"></i>操作日志</el-menu-item>
+        <el-menu-item index="remote"><i class="ri-remote-control-line"></i>远程开闸</el-menu-item>
+      </el-menu>
+    </div>
+    <div class="sb-foot">
+      <div class="sb-user" @click="logged=false">
+        <div class="sb-av">管</div>
+        <div><div class="sb-un">管理员</div><div class="sb-ur">超级管理员</div></div>
+      </div>
+    </div>
+  </el-aside>
+
+  <el-container>
+    <el-header class="hd" height="64px">
+      <el-breadcrumb separator="/"><el-breadcrumb-item>运营管理</el-breadcrumb-item><el-breadcrumb-item><span style="color:var(--text);font-weight:500">{{titles[p]}}</span></el-breadcrumb-item></el-breadcrumb>
+      <div class="hd-right">
+        <el-tooltip :content="dk?'切换浅色':'切换深色'" placement="bottom"><el-button circle @click="tdk"><i :class="dk?'ri-sun-line':'ri-moon-line'"></i></el-button></el-tooltip>
+        <el-badge :value="3" :max="99"><el-button circle @click="ElMessage.info('暂无更多通知')"><i class="ri-notification-3-line"></i></el-button></el-badge>
+        <el-dropdown trigger="click">
+          <div class="sb-av" style="width:34px;height:34px;font-size:12px;cursor:pointer">管</div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item><i class="ri-user-3-line" style="margin-right:8px"></i>个人信息</el-dropdown-item>
+              <el-dropdown-item><i class="ri-settings-3-line" style="margin-right:8px"></i>账号设置</el-dropdown-item>
+              <el-dropdown-item divided @click="logged=false"><i class="ri-logout-box-r-line" style="margin-right:8px"></i>退出登录</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
+    </el-header>
+
+    <el-main class="main-c">
+
+      <!-- DASHBOARD -->
+      <template v-if="p==='dash'">
+        <div class="pg-hd"><div><h1 class="pg-title">仪表盘</h1><p class="pg-desc">今日数据概览</p></div></div>
+        <div class="s4">
+          <div class="sc"><div class="si bl"><i class="ri-roadster-line"></i></div><div><div class="sv">347</div><div class="sl">今日在场车辆</div><div class="st up"><i class="ri-arrow-up-s-line"></i>12.5%</div></div></div>
+          <div class="sc"><div class="si gn"><i class="ri-wallet-3-line"></i></div><div><div class="sv">¥8,650</div><div class="sl">今日收入</div><div class="st up"><i class="ri-arrow-up-s-line"></i>8.2%</div></div></div>
+          <div class="sc"><div class="si am"><i class="ri-map-pin-2-line"></i></div><div><div class="sv">153</div><div class="sl">空闲车位</div><div class="st dn"><i class="ri-arrow-down-s-line"></i>3.1%</div></div></div>
+          <div class="sc"><div class="si rd"><i class="ri-error-warning-line"></i></div><div><div class="sv">3</div><div class="sl">今日异常</div><div class="st dn"><i class="ri-arrow-down-s-line"></i>15%</div></div></div>
+        </div>
+        <div class="cg">
+          <el-card shadow="never" class="pc"><template #header><span style="font-weight:600">近7日收入趋势</span></template>
+            <div class="bc">
+              <div class="col" v-for="d in barData" :key="d.l"><div class="bar bl" :style="{height:d.h+'%'}"></div><span class="lbl">{{d.l}}</span></div>
+            </div>
+          </el-card>
+          <el-card shadow="never" class="pc"><template #header><span style="font-weight:600">车辆类型分布</span></template>
+            <div class="donut-w"><div class="donut"></div>
+              <div class="leg">
+                <span><span class="leg-d" style="background:#2563EB"></span>小型车 35%</span>
+                <span><span class="leg-d" style="background:#60A5FA"></span>中型车 20%</span>
+                <span><span class="leg-d" style="background:#10B981"></span>大型车 20%</span>
+                <span><span class="leg-d" style="background:#F59E0B"></span>新能源 13%</span>
+                <span><span class="leg-d" style="background:#94A3B8"></span>其他 12%</span>
+              </div>
+            </div>
+          </el-card>
+        </div>
+        <el-card shadow="never" class="pc">
+          <template #header><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600">最新异常</span><el-button size="small" @click="p='excp'">查看全部</el-button></div></template>
+          <el-table :data="excps" stripe size="small">
+            <el-table-column prop="t" label="时间" width="180"><template #default="{row}"><span class="mono">{{row.t}}</span></template></el-table-column>
+            <el-table-column prop="tp" label="类型" width="130"><template #default="{row}"><el-tag type="danger" size="small">{{row.tp}}</el-tag></template></el-table-column>
+            <el-table-column prop="pl" label="车牌" width="120"><template #default="{row}"><span class="mono" style="font-weight:500;color:var(--text)">{{row.pl}}</span></template></el-table-column>
+            <el-table-column prop="ch" label="通道"/>
+            <el-table-column label="状态"><template #default="{row}"><el-tag :type="row.ok?'success':'warning'" size="small">{{row.ok?'已处理':'待处理'}}</el-tag></template></el-table-column>
+          </el-table>
+        </el-card>
+      </template>
+
+      <!-- PARKING LOT -->
+      <template v-if="p==='park'">
+        <div class="pg-hd"><div><h1 class="pg-title">车场管理</h1><p class="pg-desc">管理所有停车场信息</p></div><el-button type="primary" @click="openPark()"><i class="ri-add-line" style="margin-right:4px"></i>新增车场</el-button></div>
+        <el-card shadow="never" class="pc">
+          <el-input v-model="ps" placeholder="搜索车场名称或地址..." style="width:280px;margin-bottom:16px" clearable>
+            <template #prefix><i class="ri-search-line"></i></template>
+          </el-input>
+          <el-table :data="fParks" stripe>
+            <el-table-column prop="name" label="车场名称" min-width="140"><template #default="{row}"><span style="font-weight:500;color:var(--text)">{{row.name}}</span></template></el-table-column>
+            <el-table-column prop="addr" label="地址" min-width="200"/>
+            <el-table-column prop="tot" label="总车位" width="90"/>
+            <el-table-column prop="used" label="已占" width="80"/>
+            <el-table-column label="余位" width="80"><template #default="{row}"><span :style="{color:row.tot-row.used<20?'var(--danger)':'var(--success)',fontWeight:600}">{{row.tot-row.used}}</span></template></el-table-column>
+            <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.on?'success':'danger'" size="small" effect="light">{{row.on?'在线':'离线'}}</el-tag></template></el-table-column>
+            <el-table-column label="操作" width="140" align="right"><template #default="{row}"><el-button type="primary" link size="small" @click="openPark(row)">编辑</el-button><el-button type="danger" link size="small" @click="delPark(row)">删除</el-button></template></el-table-column>
+          </el-table>
+        </el-card>
+        <el-dialog v-model="pfv" :title="pe?'编辑车场':'新增车场'" width="520" destroy-on-close>
+          <el-form :model="pf" label-position="top">
+            <el-form-item label="车场名称" required><el-input v-model="pf.name" placeholder="请输入车场名称"/></el-form-item>
+            <el-row :gutter="16">
+              <el-col :span="12"><el-form-item label="总车位数" required><el-input-number v-model="pf.tot" :min="1" style="width:100%"/></el-form-item></el-col>
+              <el-col :span="12"><el-form-item label="状态"><el-switch v-model="pf.on" active-text="在线" inactive-text="离线"/></el-form-item></el-col>
+            </el-row>
+            <el-form-item label="地址" required><el-input v-model="pf.addr" placeholder="请输入详细地址"/></el-form-item>
+          </el-form>
+          <template #footer><el-button @click="pfv=false">取消</el-button><el-button type="primary" @click="savePark">确认</el-button></template>
+        </el-dialog>
+      </template>
+
+      <!-- AREA / SPOTS -->
+      <template v-if="p==='area'">
+        <div class="pg-hd"><div><h1 class="pg-title">区域 / 车位</h1><p class="pg-desc">管理停车场区域和车位</p></div></div>
+        <el-tabs v-model="aTab" style="margin-bottom:16px"><el-tab-pane label="区域管理" name="a"/><el-tab-pane label="固定车位" name="s"/></el-tabs>
+        <el-card shadow="never" class="pc">
+          <el-table :data="aTab==='a'?areas:fixes" stripe>
+            <template v-if="aTab==='a'">
+              <el-table-column prop="n" label="区域名称"><template #default="{row}"><span style="font-weight:500;color:var(--text)">{{row.n}}</span></template></el-table-column>
+              <el-table-column prop="pk" label="所属车场"/>
+              <el-table-column prop="t" label="总车位"/>
+              <el-table-column prop="u" label="占用"/>
+              <el-table-column label="余位"><template #default="{row}"><span :style="{color:row.t-row.u<10?'var(--danger)':'var(--success)',fontWeight:600}">{{row.t-row.u}}</span></template></el-table-column>
+            </template>
+            <template v-else>
+              <el-table-column prop="sn" label="编号"><template #default="{row}"><span class="mono" style="font-weight:500">{{row.sn}}</span></template></el-table-column>
+              <el-table-column prop="pk" label="车场"/><el-table-column prop="ar" label="区域"/>
+              <el-table-column label="绑定车牌"><template #default="{row}"><span class="mono">{{row.pl||'—'}}</span></template></el-table-column>
+              <el-table-column label="状态"><template #default="{row}"><el-tag :type="row.pl?'success':'info'" size="small">{{row.pl?'已出租':'空闲'}}</el-tag></template></el-table-column>
+            </template>
+            <el-table-column label="操作" width="90" align="right"><template #default><el-button type="primary" link size="small">编辑</el-button></template></el-table-column>
+          </el-table>
+        </el-card>
+      </template>
+
+      <!-- ENTRANCE -->
+      <template v-if="p==='gate'">
+        <div class="pg-hd"><div><h1 class="pg-title">出入口管理</h1><p class="pg-desc">管理各车场的出入口通道</p></div><el-button type="primary"><i class="ri-add-line" style="margin-right:4px"></i>新增通道</el-button></div>
+        <el-card shadow="never" class="pc">
+          <el-table :data="gates" stripe>
+            <el-table-column prop="n" label="通道名称"><template #default="{row}"><span style="font-weight:500;color:var(--text)">{{row.n}}</span></template></el-table-column>
+            <el-table-column prop="pk" label="所属车场"/>
+            <el-table-column label="类型"><template #default="{row}"><el-tag :type="row.tp==='入口'?'success':row.tp==='出口'?'danger':'warning'" size="small" effect="light">{{row.tp}}</el-tag></template></el-table-column>
+            <el-table-column prop="dev" label="关联设备"/>
+            <el-table-column label="状态"><template #default="{row}"><el-tag :type="row.on?'success':'danger'" size="small">{{row.on?'正常':'异常'}}</el-tag></template></el-table-column>
+            <el-table-column label="操作" width="140" align="right"><template #default><el-button type="primary" link size="small">编辑</el-button><el-button type="danger" link size="small">删除</el-button></template></el-table-column>
+          </el-table>
+        </el-card>
+      </template>
+
+      <!-- DEVICE -->
+      <template v-if="p==='dev'">
+        <div class="pg-hd"><div><h1 class="pg-title">设备管理</h1><p class="pg-desc">监控和管理所有接入设备</p></div><el-button type="primary"><i class="ri-add-line" style="margin-right:4px"></i>添加设备</el-button></div>
+        <el-card shadow="never" class="pc">
+          <el-table :data="devs" stripe>
+            <el-table-column prop="n" label="设备名称"><template #default="{row}"><span style="font-weight:500;color:var(--text)">{{row.n}}</span></template></el-table-column>
+            <el-table-column prop="tp" label="类型"/>
+            <el-table-column prop="pk" label="车场"/>
+            <el-table-column prop="ip" label="IP"><template #default="{row}"><span class="mono" style="font-size:13px">{{row.ip}}</span></template></el-table-column>
+            <el-table-column label="状态" width="90"><template #default="{row}"><span><span :class="row.on?'dot-online':'dot-offline'"></span>{{row.on?'在线':'离线'}}</span></template></el-table-column>
+            <el-table-column prop="lb" label="最后心跳"><template #default="{row}"><span class="mono" style="font-size:13px">{{row.lb}}</span></template></el-table-column>
+            <el-table-column label="操作" width="130" align="right"><template #default><el-button type="primary" link size="small">配置</el-button><el-button type="danger" link size="small">删除</el-button></template></el-table-column>
+          </el-table>
+        </el-card>
+      </template>
+
+      <!-- MONTHLY -->
+      <template v-if="p==='mon'">
+        <div class="pg-hd"><div><h1 class="pg-title">月卡管理</h1><p class="pg-desc">管理月卡开通、续费与到期</p></div><el-button type="primary" @click="mfv=true"><i class="ri-add-line" style="margin-right:4px"></i>新增月卡</el-button></div>
+        <el-card shadow="never" class="pc">
+          <div style="display:flex;justify-content:space-between;margin-bottom:16px">
+            <el-input v-model="ms" placeholder="搜索车牌或姓名..." style="width:260px" clearable><template #prefix><i class="ri-search-line"></i></template></el-input>
+            <el-radio-group v-model="mf2" size="small"><el-radio-button v-for="f in ['全部','生效中','已过期','待审核']" :key="f" :value="f">{{f}}</el-radio-button></el-radio-group>
+          </div>
+          <el-table :data="fMon" stripe>
+            <el-table-column prop="pl" label="车牌" width="130"><template #default="{row}"><span class="mono" style="font-weight:500;color:var(--text)">{{row.pl}}</span></template></el-table-column>
+            <el-table-column prop="ow" label="车主"/>
+            <el-table-column prop="pk" label="车场"/>
+            <el-table-column prop="exp" label="有效期至"><template #default="{row}"><span class="mono">{{row.exp}}</span></template></el-table-column>
+            <el-table-column label="状态" width="100"><template #default="{row}"><el-tag :type="row.st==='生效中'?'success':row.st==='已过期'?'danger':'warning'" size="small" effect="light">{{row.st}}</el-tag></template></el-table-column>
+            <el-table-column label="操作" width="130" align="right"><template #default><el-button type="primary" link size="small">续费</el-button><el-button type="danger" link size="small">删除</el-button></template></el-table-column>
+          </el-table>
+        </el-card>
+        <el-dialog v-model="mfv" title="新增月卡" width="480" destroy-on-close>
+          <el-form :model="mform" label-position="top">
+            <el-form-item label="车牌号" required><el-input v-model="mform.pl" placeholder="京A12345"/></el-form-item>
+            <el-form-item label="车主姓名" required><el-input v-model="mform.ow" placeholder="请输入姓名"/></el-form-item>
+            <el-form-item label="选择车场" required><el-select v-model="mform.pk" style="width:100%"><el-option v-for="k in parks" :key="k.id" :label="k.name" :value="k.name"/></el-select></el-form-item>
+            <el-form-item label="有效期至" required><el-date-picker v-model="mform.exp" type="date" style="width:100%" value-format="YYYY-MM-DD" placeholder="选择日期"/></el-form-item>
+          </el-form>
+          <template #footer><el-button @click="mfv=false">取消</el-button><el-button type="primary" @click="addMon">确认新增</el-button></template>
+        </el-dialog>
+      </template>
+
+      <!-- FIXED SPOT -->
+      <template v-if="p==='fix'">
+        <div class="pg-hd"><div><h1 class="pg-title">固定车位管理</h1><p class="pg-desc">管理固定车位的分配与续费</p></div><el-button type="primary"><i class="ri-add-line" style="margin-right:4px"></i>新增车位</el-button></div>
+        <el-card shadow="never" class="pc">
+          <el-table :data="fixes" stripe>
+            <el-table-column prop="sn" label="编号"><template #default="{row}"><span class="mono" style="font-weight:500">{{row.sn}}</span></template></el-table-column>
+            <el-table-column prop="pk" label="车场"/><el-table-column prop="ar" label="区域"/>
+            <el-table-column label="绑定车牌"><template #default="{row}"><span class="mono">{{row.pl||'未绑定'}}</span></template></el-table-column>
+            <el-table-column prop="exp" label="到期日"><template #default="{row}"><span class="mono" style="font-size:13px">{{row.exp||'—'}}</span></template></el-table-column>
+            <el-table-column label="状态"><template #default="{row}"><el-tag :type="row.pl?'success':'info'" size="small">{{row.pl?'已出租':'空闲'}}</el-tag></template></el-table-column>
+            <el-table-column label="操作" width="130" align="right"><template #default><el-button type="primary" link size="small">编辑</el-button><el-button type="danger" link size="small">删除</el-button></template></el-table-column>
+          </el-table>
+        </el-card>
+      </template>
+
+      <!-- B/W LIST -->
+      <template v-if="p==='bw'">
+        <div class="pg-hd"><div><h1 class="pg-title">黑白名单</h1><p class="pg-desc">管理车辆通行权限</p></div><el-button type="primary"><i class="ri-add-line" style="margin-right:4px"></i>添加车辆</el-button></div>
+        <el-tabs v-model="bt" style="margin-bottom:16px"><el-tab-pane label="白名单" name="w"/><el-tab-pane label="黑名单" name="b"/></el-tabs>
+        <el-card shadow="never" class="pc">
+          <el-table :data="bt==='w'?wl:bl" stripe>
+            <el-table-column prop="pl" label="车牌"><template #default="{row}"><span class="mono" style="font-weight:500;color:var(--text)">{{row.pl}}</span></template></el-table-column>
+            <el-table-column prop="tp" label="类型"><template #default="{row}"><el-tag :type="bt==='w'?'success':'danger'" size="small">{{row.tp}}</el-tag></template></el-table-column>
+            <el-table-column prop="ow" label="所属人"/>
+            <el-table-column prop="tm" label="添加时间"><template #default="{row}"><span class="mono" style="font-size:13px">{{row.tm}}</span></template></el-table-column>
+            <el-table-column prop="rm" label="备注"><template #default="{row}"><span style="color:var(--text-muted)">{{row.rm}}</span></template></el-table-column>
+            <el-table-column label="操作" width="80" align="right"><template #default><el-button type="danger" link size="small">移除</el-button></template></el-table-column>
+          </el-table>
+        </el-card>
+      </template>
+
+      <!-- BILLING -->
+      <template v-if="p==='bill'">
+        <div class="pg-hd"><div><h1 class="pg-title">收费规则</h1><p class="pg-desc">配置各车场的收费标准</p></div><el-button type="primary" @click="ElMessage.success('规则已保存')"><i class="ri-save-line" style="margin-right:4px"></i>保存配置</el-button></div>
+        <el-card shadow="never" class="pc" style="margin-bottom:16px">
+          <template #header><span style="font-weight:600">计费模式</span></template>
+          <div class="scs">
+            <div class="scc" :class="{on:bm==='d'}" @click="bm='d'"><i class="ri-timer-line"></i><div class="sl2">按时计费</div><div class="sd2">按停车时长阶梯计费</div></div>
+            <div class="scc" :class="{on:bm==='c'}" @click="bm='c'"><i class="ri-coin-line"></i><div class="sl2">按次计费</div><div class="sd2">每次入场固定收费</div></div>
+            <div class="scc" :class="{on:bm==='day'}" @click="bm='day'"><i class="ri-calendar-line"></i><div class="sl2">按天计费</div><div class="sd2">每天固定费用</div></div>
+          </div>
+        </el-card>
+        <el-card shadow="never" class="pc">
+          <template #header><span style="font-weight:600">规则明细</span></template>
+          <el-form label-position="top">
+            <el-row :gutter="16">
+              <el-col :span="8"><el-form-item label="免费时长(分钟)"><el-input-number :model-value="15" :min="0" style="width:100%"/></el-form-item></el-col>
+              <el-col :span="8"><el-form-item label="首段时长(分钟)"><el-input-number :model-value="60" :min="0" style="width:100%"/></el-form-item></el-col>
+              <el-col :span="8"><el-form-item label="首段费用(元)"><el-input-number :model-value="5" :min="0" style="width:100%"/></el-form-item></el-col>
+              <el-col :span="8"><el-form-item label="超时单位(分钟)"><el-input-number :model-value="30" :min="0" style="width:100%"/></el-form-item></el-col>
+              <el-col :span="8"><el-form-item label="超时费用(元)"><el-input-number :model-value="3" :min="0" style="width:100%"/></el-form-item></el-col>
+              <el-col :span="8"><el-form-item label="24h封顶(元)"><el-input-number :model-value="50" :min="0" style="width:100%"/></el-form-item></el-col>
+            </el-row>
+          </el-form>
+          <div class="info-box"><i class="ri-information-line"></i>修改计费规则后，新规则将在次日 0:00 生效。当前在场车辆仍按原规则计费。</div>
+        </el-card>
+      </template>
+
+      <!-- ORDERS -->
+      <template v-if="p==='order'">
+        <div class="pg-hd"><div><h1 class="pg-title">订单中心</h1><p class="pg-desc">查看和管理所有停车订单</p></div><el-button><i class="ri-download-2-line" style="margin-right:4px"></i>导出</el-button></div>
+        <el-card shadow="never" class="pc">
+          <div style="display:flex;justify-content:space-between;margin-bottom:16px">
+            <el-input v-model="os" placeholder="搜索车牌或订单号..." style="width:260px" clearable><template #prefix><i class="ri-search-line"></i></template></el-input>
+            <el-radio-group v-model="of" size="small"><el-radio-button v-for="f in ['全部','已支付','待支付','已退款','欠费']" :key="f" :value="f">{{f}}</el-radio-button></el-radio-group>
+          </div>
+          <el-table :data="fOrd" stripe>
+            <el-table-column prop="no" label="订单号" width="170"><template #default="{row}"><span class="mono" style="color:var(--primary);font-weight:500">{{row.no}}</span></template></el-table-column>
+            <el-table-column prop="pl" label="车牌" width="120"><template #default="{row}"><span class="mono" style="font-weight:500;color:var(--text)">{{row.pl}}</span></template></el-table-column>
+            <el-table-column prop="et" label="入场" width="100"><template #default="{row}"><span class="mono">{{row.et}}</span></template></el-table-column>
+            <el-table-column prop="xt" label="出场" width="100"><template #default="{row}"><span class="mono">{{row.xt||'—'}}</span></template></el-table-column>
+            <el-table-column prop="du" label="时长" width="80"/>
+            <el-table-column label="金额" width="100" align="right"><template #default="{row}"><span class="mono" style="font-weight:600" :style="{color:row.st==='欠费'||row.st==='待支付'?'var(--danger)':'var(--text)'}">¥{{row.am}}</span></template></el-table-column>
+            <el-table-column label="状态" width="90"><template #default="{row}"><el-tag :type="row.st==='已支付'?'success':row.st==='待支付'?'warning':row.st==='欠费'?'danger':'info'" size="small" effect="light">{{row.st}}</el-tag></template></el-table-column>
+          </el-table>
+          <el-pagination layout="total,prev,pager,next" :total="fOrd.length" :page-size="10" style="margin-top:16px"/>
+        </el-card>
+      </template>
+
+      <!-- ACCESS -->
+      <template v-if="p==='access'">
+        <div class="pg-hd"><div><h1 class="pg-title">通行记录</h1><p class="pg-desc">所有车辆进出场详细记录</p></div><el-button><i class="ri-download-2-line" style="margin-right:4px"></i>导出</el-button></div>
+        <el-card shadow="never" class="pc">
+          <div style="display:flex;justify-content:space-between;margin-bottom:16px">
+            <el-input v-model="acs" placeholder="搜索车牌..." style="width:260px" clearable><template #prefix><i class="ri-search-line"></i></template></el-input>
+            <el-radio-group v-model="acf" size="small"><el-radio-button v-for="f in ['全部','入场','出场']" :key="f" :value="f">{{f}}</el-radio-button></el-radio-group>
+          </div>
+          <el-table :data="fAcc" stripe>
+            <el-table-column prop="tm" label="时间" width="180"><template #default="{row}"><span class="mono">{{row.tm}}</span></template></el-table-column>
+            <el-table-column prop="pl" label="车牌" width="130"><template #default="{row}"><span class="mono" style="font-weight:500;color:var(--text)">{{row.pl}}</span></template></el-table-column>
+            <el-table-column prop="tp" label="类型" width="80"><template #default="{row}"><el-tag :type="row.tp==='入场'?'success':'primary'" size="small">{{row.tp}}</el-tag></template></el-table-column>
+            <el-table-column prop="ch" label="通道"/><el-table-column prop="mt" label="识别方式"/>
+            <el-table-column label="图片" width="70" align="center"><template #default><el-button type="primary" link size="small">查看</el-button></template></el-table-column>
+          </el-table>
+          <el-pagination layout="total,prev,pager,next" :total="fAcc.length" :page-size="10" style="margin-top:16px"/>
+        </el-card>
+      </template>
+
+      <!-- EXCEPTION -->
+      <template v-if="p==='excp'">
+        <div class="pg-hd"><div><h1 class="pg-title">异常记录</h1><p class="pg-desc">查看和处理所有异常情况</p></div></div>
+        <el-card shadow="never" class="pc">
+          <el-table :data="excps" stripe>
+            <el-table-column prop="t" label="时间" width="180"><template #default="{row}"><span class="mono">{{row.t}}</span></template></el-table-column>
+            <el-table-column prop="tp" label="类型" width="120"><template #default="{row}"><el-tag type="danger" size="small">{{row.tp}}</el-tag></template></el-table-column>
+            <el-table-column prop="pl" label="车牌" width="120"><template #default="{row}"><span class="mono" style="font-weight:500;color:var(--text)">{{row.pl}}</span></template></el-table-column>
+            <el-table-column prop="ch" label="通道" width="100"/><el-table-column prop="ds" label="描述" show-overflow-tooltip/>
+            <el-table-column label="状态" width="90"><template #default="{row}"><el-tag :type="row.ok?'success':'warning'" size="small">{{row.ok?'已处理':'待处理'}}</el-tag></template></el-table-column>
+            <el-table-column label="操作" width="120" align="right"><template #default="{row}"><el-button v-if="!row.ok" type="primary" size="small" @click="row.ok=true;ElMessage.success('已标记为已处理')">处理</el-button><el-button type="primary" link size="small">详情</el-button></template></el-table-column>
+          </el-table>
+        </el-card>
+      </template>
+
+      <!-- MANUAL GATE LOG -->
+      <template v-if="p==='mgate'">
+        <div class="pg-hd"><div><h1 class="pg-title">手动开闸记录</h1><p class="pg-desc">所有手动/远程开闸操作记录</p></div></div>
+        <el-card shadow="never" class="pc">
+          <el-table :data="mgates" stripe>
+            <el-table-column prop="tm" label="时间" width="180"><template #default="{row}"><span class="mono">{{row.tm}}</span></template></el-table-column>
+            <el-table-column prop="ur" label="操作人" width="140"><template #default="{row}"><div style="display:flex;align-items:center;gap:8px"><div class="sb-av" style="width:28px;height:28px;font-size:11px">{{row.ur[0]}}</div>{{row.ur}}</div></template></el-table-column>
+            <el-table-column prop="pk" label="车场"/><el-table-column prop="ch" label="通道"/>
+            <el-table-column prop="rs" label="原因"><template #default="{row}"><span style="color:var(--text-muted)">{{row.rs}}</span></template></el-table-column>
+          </el-table>
+        </el-card>
+      </template>
+
+      <!-- REVENUE -->
+      <template v-if="p==='rev'">
+        <div class="pg-hd"><div><h1 class="pg-title">收入报表</h1><p class="pg-desc">查看各时间段收入统计</p></div>
+          <el-radio-group v-model="rp" size="small"><el-radio-button v-for="k in ['今日','本周','本月','自定义']" :key="k" :value="k">{{k}}</el-radio-button></el-radio-group>
+        </div>
+        <div class="s4">
+          <div class="sc"><div class="si gn"><i class="ri-wallet-3-line"></i></div><div><div class="sv">¥38,650</div><div class="sl">总收入</div></div></div>
+          <div class="sc"><div class="si bl"><i class="ri-line-chart-line"></i></div><div><div class="sv">¥5,521</div><div class="sl">日均收入</div></div></div>
+          <div class="sc"><div class="si am"><i class="ri-file-list-3-line"></i></div><div><div class="sv">1,247</div><div class="sl">总订单数</div></div></div>
+          <div class="sc"><div class="si rd"><i class="ri-timer-line"></i></div><div><div class="sv">3.2h</div><div class="sl">平均停车时长</div></div></div>
+        </div>
+        <el-card shadow="never" class="pc">
+          <template #header><span style="font-weight:600">每日收入趋势</span></template>
+          <div class="bc" style="height:200px">
+            <div class="col" v-for="d in barData" :key="d.l"><div class="bar gn" :style="{height:d.h+'%'}"></div><span class="lbl">{{d.l}}</span></div>
+          </div>
+        </el-card>
+      </template>
+
+      <!-- TRAFFIC -->
+      <template v-if="p==='traf'">
+        <div class="pg-hd"><div><h1 class="pg-title">车流量统计</h1><p class="pg-desc">各时段车辆进出场流量分析</p></div></div>
+        <div class="s4 c3">
+          <div class="sc"><div class="si bl"><i class="ri-login-box-line"></i></div><div><div class="sv">2,847</div><div class="sl">总进场</div></div></div>
+          <div class="sc"><div class="si gn"><i class="ri-logout-box-line"></i></div><div><div class="sv">2,651</div><div class="sl">总出场</div></div></div>
+          <div class="sc"><div class="si am"><i class="ri-line-chart-line"></i></div><div><div class="sv">89.3%</div><div class="sl">周转率</div></div></div>
+        </div>
+        <el-card shadow="never" class="pc">
+          <template #header><span style="font-weight:600">每小时车流量</span></template>
+          <div class="bc" style="height:200px">
+            <div class="col" v-for="d in tfd" :key="d.l"><div class="bar bl" :style="{height:d.h+'%'}"></div><span class="lbl">{{d.l}}</span></div>
+          </div>
+        </el-card>
+      </template>
+
+      <!-- ACCOUNT -->
+      <template v-if="p==='acct'">
+        <div class="pg-hd"><div><h1 class="pg-title">账号管理</h1><p class="pg-desc">管理系统操作员账号</p></div><el-button type="primary"><i class="ri-add-line" style="margin-right:4px"></i>新增账号</el-button></div>
+        <el-card shadow="never" class="pc">
+          <el-table :data="accts" stripe>
+            <el-table-column prop="u" label="用户名"><template #default="{row}"><span style="font-weight:500;color:var(--text)">{{row.u}}</span></template></el-table-column>
+            <el-table-column prop="n" label="姓名"/><el-table-column prop="ph" label="手机号"><template #default="{row}"><span class="mono">{{row.ph}}</span></template></el-table-column>
+            <el-table-column prop="rl" label="角色"><template #default="{row}"><el-tag type="primary" size="small" effect="light">{{row.rl}}</el-tag></template></el-table-column>
+            <el-table-column prop="pk" label="关联车场" show-overflow-tooltip/>
+            <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.en?'success':'info'" size="small">{{row.en?'启用':'禁用'}}</el-tag></template></el-table-column>
+            <el-table-column label="操作" width="130" align="right"><template #default><el-button type="primary" link size="small">编辑</el-button><el-button type="danger" link size="small">删除</el-button></template></el-table-column>
+          </el-table>
+        </el-card>
+      </template>
+
+      <!-- ROLE PERMS -->
+      <template v-if="p==='role'">
+        <div class="pg-hd"><div><h1 class="pg-title">角色权限</h1><p class="pg-desc">配置角色菜单和操作权限</p></div></div>
+        <el-card shadow="never" class="pc">
+          <el-table :data="pmData" stripe border>
+            <el-table-column prop="menu" label="菜单 / 权限" min-width="140" fixed><template #default="{row}"><span style="font-weight:500;color:var(--text)">{{row.menu}}</span></template></el-table-column>
+            <el-table-column v-for="r in roles" :key="r" :label="r" width="110" align="center"><template #default="{row}"><el-checkbox :model-value="row[r]" @change="row[r]=$event"/></template></el-table-column>
+          </el-table>
+        </el-card>
+      </template>
+
+      <!-- PARAMS -->
+      <template v-if="p==='param'">
+        <div class="pg-hd"><div><h1 class="pg-title">系统参数</h1><p class="pg-desc">配置全局系统参数</p></div><el-button type="primary" @click="ElMessage.success('参数已保存')"><i class="ri-save-line" style="margin-right:4px"></i>保存配置</el-button></div>
+        <el-card shadow="never" class="pc">
+          <div class="ps-t">基本设置</div>
+          <div class="pr" v-for="(q,i) in sps" :key="i">
+            <div><div class="pr-l">{{q.lb}}</div><div class="pr-d">{{q.dc}}</div></div>
+            <div><el-switch v-if="q.tp==='t'" v-model="q.v"/><el-input v-else :model-value="q.v" style="width:160px" size="small"/></div>
+          </div>
+        </el-card>
+      </template>
+
+      <!-- LOG -->
+      <template v-if="p==='log'">
+        <div class="pg-hd"><div><h1 class="pg-title">操作日志</h1><p class="pg-desc">查看所有系统操作记录</p></div></div>
+        <el-card shadow="never" class="pc">
+          <el-input v-model="lgs" placeholder="搜索操作内容..." style="width:260px;margin-bottom:16px" clearable><template #prefix><i class="ri-search-line"></i></template></el-input>
+          <el-table :data="fLogs" stripe>
+            <el-table-column prop="tm" label="时间" width="180"><template #default="{row}"><span class="mono" style="font-size:13px">{{row.tm}}</span></template></el-table-column>
+            <el-table-column prop="ur" label="操作人" width="140"><template #default="{row}"><div style="display:flex;align-items:center;gap:8px"><div class="sb-av" style="width:28px;height:28px;font-size:11px">{{row.ur[0]}}</div>{{row.ur}}</div></template></el-table-column>
+            <el-table-column prop="ac" label="操作内容"/>
+            <el-table-column prop="ip" label="IP" width="140"><template #default="{row}"><span class="mono" style="font-size:13px;color:var(--text-muted)">{{row.ip}}</span></template></el-table-column>
+          </el-table>
+          <el-pagination layout="total,prev,pager,next" :total="fLogs.length" :page-size="10" style="margin-top:16px"/>
+        </el-card>
+      </template>
+
+      <!-- REMOTE GATE -->
+      <template v-if="p==='remote'">
+        <div class="pg-hd"><div><h1 class="pg-title">远程开闸</h1><p class="pg-desc">选择车场和通道，远程控制道闸</p></div></div>
+        <el-card shadow="never" class="pc" style="margin-bottom:16px">
+          <template #header><span style="font-weight:600">第一步：选择车场</span></template>
+          <div class="gcg">
+            <div v-for="k in parks" :key="k.id" class="gcc" :class="{on:rp2===k.id}" @click="rp2=k.id">
+              <i class="ri-building-2-line"></i><div class="gn2">{{k.name}}</div><div class="ga2">{{k.addr}}</div>
+            </div>
+          </div>
+        </el-card>
+        <el-card shadow="never" class="pc" style="margin-bottom:16px">
+          <template #header><span style="font-weight:600">第二步：选择通道</span></template>
+          <div class="scs c4">
+            <div class="scc" :class="{on:rch==='e1'}" @click="rch='e1'"><i class="ri-login-box-line"></i><div class="sl2">入口1</div></div>
+            <div class="scc" :class="{on:rch==='e2'}" @click="rch='e2'"><i class="ri-login-box-line"></i><div class="sl2">入口2</div></div>
+            <div class="scc" :class="{on:rch==='x1'}" @click="rch='x1'"><i class="ri-logout-box-line"></i><div class="sl2">出口1</div></div>
+            <div class="scc" :class="{on:rch==='x2'}" @click="rch='x2'"><i class="ri-logout-box-line"></i><div class="sl2">出口2</div></div>
+          </div>
+        </el-card>
+        <el-card shadow="never" class="pc">
+          <template #header><span style="font-weight:600">第三步：填写开闸原因</span></template>
+          <el-input v-model="rrs" type="textarea" :rows="3" placeholder="请输入开闸原因（必填）" style="margin-bottom:16px"/>
+          <el-button type="primary" size="large" style="width:100%;height:48px;font-size:16px;font-weight:600" :disabled="!rp2||!rch||!rrs" @click="doOpen">
+            <i class="ri-lock-unlock-line" style="margin-right:8px"></i>确认开闸
+          </el-button>
+        </el-card>
+      </template>
+
+    </el-main>
+  </el-container>
+</el-container>
+</div>
+
+<script>
+const{createApp,ref,reactive,computed}=Vue
+const{ElMessage,ElMessageBox}=ElementPlus
+
+createApp({
+  setup(){
+    const logged=ref(false),dk=ref(false),p=ref('dash')
+    const tdk=()=>{dk.value=!dk.value;document.documentElement.classList.toggle('dark',dk.value)}
+
+    const titles={dash:'仪表盘',park:'车场管理',area:'区域/车位',gate:'出入口管理',dev:'设备管理',mon:'月卡管理',fix:'固定车位',bw:'黑白名单',bill:'收费规则',order:'订单中心',access:'通行记录',excp:'异常记录',mgate:'手动开闸记录',rev:'收入报表',traf:'车流量统计',acct:'账号管理',role:'角色权限',param:'系统参数',log:'操作日志',remote:'远程开闸'}
+
+    // Login
+    const lf=reactive({user:'admin',pass:'123456',rem:true})
+    const lr={user:[{required:true,message:'请输入用户名',trigger:'blur'}],pass:[{required:true,message:'请输入密码',trigger:'blur'}]}
+    const lfLoad=ref(false),lfRef=ref()
+    const doLogin=()=>{lfLoad.value=true;setTimeout(()=>{lfLoad.value=false;logged.value=true;ElMessage.success('登录成功，欢迎回来！')},600)}
+
+    // Charts
+    const barData=[{l:'周一',h:65},{l:'周二',h:80},{l:'周三',h:55},{l:'周四',h:90},{l:'周五',h:100},{l:'周六',h:75},{l:'周日',h:45}]
+    const tfd=[{l:'6时',h:15},{l:'8时',h:55},{l:'10时',h:80},{l:'12时',h:60},{l:'14时',h:45},{l:'16时',h:70},{l:'18时',h:100},{l:'20时',h:65},{l:'22时',h:30}]
+
+    // Exceptions
+    const excps=reactive([
+      {t:'2024-01-15 14:32:18',tp:'车牌识别失败',pl:'京A****5',ch:'入口1',ds:'车牌遮挡严重',ok:false},
+      {t:'2024-01-15 13:21:05',tp:'道闸异常',pl:'—',ch:'出口2',ds:'道闸电机故障',ok:true},
+      {t:'2024-01-15 11:05:42',tp:'欠费离场',pl:'京B****8',ch:'出口1',ds:'余额不足离场',ok:false},
+      {t:'2024-01-15 09:30:18',tp:'车辆夹伤',pl:'—',ch:'入口1',ds:'道闸落杆触碰车辆',ok:true},
+    ])
+
+    // Parks
+    const ps=ref(''),pfv=ref(false),pe=ref(null)
+    const pf=reactive({name:'',tot:100,on:true,addr:''})
+    const parks=reactive([
+      {id:1,name:'智慧停车场A',addr:'北京市朝阳区建国路88号',tot:500,used:347,on:true},
+      {id:2,name:'商业广场B',addr:'北京市海淀区中关村大街100号',tot:300,used:156,on:true},
+      {id:3,name:'科技园C区',addr:'北京市海淀区西二旗中路12号',tot:200,used:89,on:false},
+      {id:4,name:'万达广场D',addr:'北京市通州区新华西街58号',tot:800,used:612,on:true},
+      {id:5,name:'高铁站E区',addr:'北京市丰台区莲花池东路118号',tot:1200,used:1056,on:true},
+    ])
+    const fParks=computed(()=>{const s=ps.value.toLowerCase();return parks.filter(q=>!s||q.name.toLowerCase().includes(s)||q.addr.toLowerCase().includes(s))})
+    const openPark=(row)=>{pe.value=row||null;Object.assign(pf,row?{name:row.name,tot:row.tot,on:row.on,addr:row.addr}:{name:'',tot:100,on:true,addr:''});pfv.value=true}
+    const savePark=()=>{if(!pf.name){ElMessage.warning('请填写车场名称');return}if(pe.value){Object.assign(pe.value,{name:pf.name,tot:pf.tot,on:pf.on,addr:pf.addr})}else{parks.push({id:Date.now(),...JSON.parse(JSON.stringify(pf)),used:0})}pfv.value=false;ElMessage.success(pe.value?'车场已更新':'车场已创建')}
+    const delPark=(row)=>{ElMessageBox.confirm('确认删除该车场？','提示',{type:'warning'}).then(()=>{parks.splice(parks.indexOf(row),1);ElMessage.success('已删除')}).catch(()=>{})}
+
+    // Monthly
+    const ms=ref(''),mf2=ref('全部'),mfv=ref(false)
+    const mform=reactive({pl:'',ow:'',pk:'',exp:''})
+    const mons=reactive([
+      {id:1,pl:'京A12345',ow:'张三',pk:'智慧停车场A',exp:'2024-12-31',st:'生效中'},
+      {id:2,pl:'京B67890',ow:'李四',pk:'商业广场B',exp:'2024-06-30',st:'已过期'},
+      {id:3,pl:'京C11111',ow:'王五',pk:'智慧停车场A',exp:'2024-02-15',st:'即将过期'},
+      {id:4,pl:'京D22222',ow:'赵六',pk:'科技园C区',exp:'2024-03-20',st:'待审核'},
+      {id:5,pl:'京E33333',ow:'孙七',pk:'万达广场D',exp:'2024-12-01',st:'生效中'},
+    ])
+    const fMon=computed(()=>mons.filter(m=>{const s=ms.value.toLowerCase();return(!s||m.pl.toLowerCase().includes(s)||m.ow.includes(s))&&(mf2.value==='全部'||m.st===mf2.value||(mf2.value==='生效中'&&m.st==='即将过期'))}))
+    const addMon=()=>{if(!mform.pl||!mform.ow){ElMessage.warning('请填写必填项');return}mons.unshift({id:Date.now(),...JSON.parse(JSON.stringify(mform)),st:'待审核'});mfv.value=false;mform.pl='';mform.ow='';ElMessage.success('月卡申请已提交')}
+
+    // Orders
+    const os=ref(''),of=ref('全部')
+    const orders=reactive([
+      {no:'PK20240115001',pl:'京A12345',et:'08:30',xt:'12:45',du:'4h15m',am:'15.00',st:'已支付'},
+      {no:'PK20240115002',pl:'京B67890',et:'09:15',xt:'11:30',du:'2h15m',am:'8.00',st:'待支付'},
+      {no:'PK20240115003',pl:'京C11111',et:'10:00',xt:'',du:'—',am:'0.00',st:'待支付'},
+      {no:'PK20240115004',pl:'京D22222',et:'07:45',xt:'18:30',du:'10h45m',am:'50.00',st:'已支付'},
+      {no:'PK20240115005',pl:'京E33333',et:'14:00',xt:'15:20',du:'1h20m',am:'5.00',st:'已退款'},
+      {no:'PK20240115006',pl:'京F44444',et:'11:30',xt:'',du:'—',am:'25.00',st:'欠费'},
+      {no:'PK20240115007',pl:'京G55555',et:'16:00',xt:'17:45',du:'1h45m',am:'8.00',st:'已支付'},
+    ])
+    const fOrd=computed(()=>orders.filter(o=>{const s=os.value.toLowerCase();return(!s||o.pl.toLowerCase().includes(s)||o.no.toLowerCase().includes(s))&&(of.value==='全部'||o.st===of.value)}))
+
+    // Access
+    const acs=ref(''),acf=ref('全部')
+    const accs=reactive([
+      {tm:'2024-01-15 14:32:18',pl:'京A12345',tp:'入场',ch:'入口1',mt:'车牌识别'},
+      {tm:'2024-01-15 14:28:05',pl:'京B67890',tp:'出场',ch:'出口1',mt:'车牌识别'},
+      {tm:'2024-01-15 14:15:42',pl:'京C11111',tp:'入场',ch:'入口2',mt:'车牌识别'},
+      {tm:'2024-01-15 14:10:30',pl:'京D22222',tp:'出场',ch:'出口2',mt:'手动开闸'},
+      {tm:'2024-01-15 13:55:18',pl:'京E33333',tp:'入场',ch:'入口1',mt:'车牌识别'},
+      {tm:'2024-01-15 13:42:05',pl:'京F44444',tp:'出场',ch:'出口1',mt:'车牌识别'},
+    ])
+    const fAcc=computed(()=>accs.filter(r=>{const s=acs.value.toLowerCase();return(!s||r.pl.toLowerCase().includes(s))&&(acf.value==='全部'||r.tp===acf.value)}))
+
+    // Devices
+    const devs=reactive([
+      {n:'入口1-车牌识别',tp:'车牌识别一体机',pk:'智慧停车场A',ip:'192.168.1.101',on:true,lb:'14:32:18'},
+      {n:'出口1-车牌识别',tp:'车牌识别一体机',pk:'智慧停车场A',ip:'192.168.1.102',on:true,lb:'14:32:15'},
+      {n:'入口2-车牌识别',tp:'车牌识别一体机',pk:'智慧停车场A',ip:'192.168.1.103',on:false,lb:'12:05:42'},
+      {n:'入口1-道闸',tp:'自动道闸',pk:'商业广场B',ip:'192.168.2.101',on:true,lb:'14:32:19'},
+      {n:'出口1-LED屏',tp:'LED显示屏',pk:'商业广场B',ip:'192.168.2.102',on:true,lb:'14:31:50'},
+    ])
+
+    // Billing
+    const bm=ref('d')
+
+    // B/W
+    const bt=ref('w')
+    const wl=reactive([{pl:'京A00001',tp:'公务车',ow:'总经理办',tm:'2024-01-01',rm:'公司车辆'},{pl:'京B00002',tp:'公务车',ow:'行政部',tm:'2024-01-05',rm:'行政用车'},{pl:'京C00003',tp:'VIP',ow:'张总',tm:'2024-01-10',rm:'业主VIP'}])
+    const bl=reactive([{pl:'京X99999',tp:'黑名单',ow:'—',tm:'2024-01-08',rm:'多次欠费'},{pl:'京Y88888',tp:'黑名单',ow:'—',tm:'2024-01-12',rm:'恶意占位'}])
+
+    // Entrance
+    const gates=reactive([{n:'主入口',pk:'智慧停车场A',tp:'入口',dev:'入口1-车牌识别',on:true},{n:'东出口',pk:'智慧停车场A',tp:'出口',dev:'出口1-车牌识别',on:true},{n:'北入口',pk:'智慧停车场A',tp:'双向',dev:'入口2-车牌识别',on:false},{n:'正门入口',pk:'商业广场B',tp:'入口',dev:'入口1-道闸',on:true}])
+
+    // Area
+    const aTab=ref('a')
+    const areas=reactive([{n:'A区-地上',pk:'智慧停车场A',t:200,u:142},{n:'B区-地下一层',pk:'智慧停车场A',t:150,u:105},{n:'C区-地下二层',pk:'智慧停车场A',t:150,u:100},{n:'D区-地面',pk:'商业广场B',t:300,u:156}])
+    const fixes=reactive([{sn:'A-001',pk:'智慧停车场A',ar:'A区',pl:'京A00001',exp:'2024-12-31'},{sn:'A-002',pk:'智慧停车场A',ar:'A区',pl:'京B00002',exp:'2024-06-30'},{sn:'A-003',pk:'智慧停车场A',ar:'A区',pl:'',exp:''},{sn:'B-001',pk:'智慧停车场A',ar:'B区',pl:'京C00003',exp:'2024-12-31'},{sn:'B-002',pk:'智慧停车场A',ar:'B区',pl:'',exp:''}])
+
+    // Manual gates
+    const mgates=reactive([{tm:'2024-01-15 14:32:18',ur:'管理员',pk:'智慧停车场A',ch:'出口1',rs:'系统异常手动放行'},{tm:'2024-01-15 12:15:05',ur:'王五',pk:'商业广场B',ch:'入口2',rs:'军车免费通行'},{tm:'2024-01-15 10:05:42',ur:'张三',pk:'智慧停车场A',ch:'出口2',rs:'VIP客户放行'}])
+
+    // Revenue
+    const rp=ref('本周')
+
+    // Accounts
+    const accts=reactive([{u:'admin',n:'超级管理员',ph:'138****1234',rl:'超级管理员',pk:'全部',en:true},{u:'zhangsan',n:'张三',ph:'139****5678',rl:'运营主管',pk:'智慧停车场A, 商业广场B',en:true},{u:'lisi',n:'李四',ph:'137****9012',rl:'财务',pk:'全部',en:true},{u:'wangwu',n:'王五',ph:'136****3456',rl:'场站管理员',pk:'智慧停车场A',en:false}])
+
+    // Roles
+    const roles=['超级管理员','运营主管','财务','场站管理员','查看者']
+    const pmData=reactive([
+      {menu:'仪表盘',超级管理员:true,运营主管:true,财务:true,场站管理员:true,查看者:true},
+      {menu:'车场管理',超级管理员:true,运营主管:true,财务:false,场站管理员:true,查看者:false},
+      {menu:'区域/车位',超级管理员:true,运营主管:false,财务:false,场站管理员:true,查看者:false},
+      {menu:'设备管理',超级管理员:true,运营主管:false,财务:false,场站管理员:true,查看者:false},
+      {menu:'月卡管理',超级管理员:true,运营主管:true,财务:false,场站管理员:true,查看者:false},
+      {menu:'收费规则',超级管理员:true,运营主管:true,财务:false,场站管理员:false,查看者:false},
+      {menu:'订单中心',超级管理员:true,运营主管:true,财务:true,场站管理员:false,查看者:false},
+      {menu:'通行记录',超级管理员:true,运营主管:true,财务:false,场站管理员:true,查看者:false},
+      {menu:'收入报表',超级管理员:true,运营主管:true,财务:true,场站管理员:false,查看者:false},
+      {menu:'账号管理',超级管理员:true,运营主管:false,财务:false,场站管理员:false,查看者:false},
+      {menu:'系统参数',超级管理员:true,运营主管:false,财务:false,场站管理员:false,查看者:false},
+      {menu:'操作日志',超级管理员:true,运营主管:true,财务:false,场站管理员:false,查看者:false},
+    ])
+
+    // Params
+    const sps=reactive([
+      {lb:'自动放行白名单车辆',dc:'白名单车辆自动开闸',tp:'t',v:true},
+      {lb:'车牌识别失败告警',dc:'识别失败时岗亭端弹出告警',tp:'t',v:true},
+      {lb:'欠费自动抬杆',dc:'允许欠费车辆离场',tp:'t',v:false},
+      {lb:'入场自动拍照',dc:'车辆入场时自动拍照存档',tp:'t',v:true},
+      {lb:'满位禁止入场',dc:'车位已满时禁止外部车辆',tp:'t',v:true},
+      {lb:'月卡到期提醒天数',dc:'到期前N天提醒',tp:'i',v:'7'},
+      {lb:'最大免费时长(分钟)',dc:'超过不享受免费',tp:'i',v:'15'},
+    ])
+
+    // Logs
+    const lgs=ref('')
+    const logs=reactive([
+      {tm:'2024-01-15 14:32:18',ur:'管理员',ac:'登录系统',ip:'192.168.1.100'},
+      {tm:'2024-01-15 14:30:05',ur:'张三',ac:'新增月卡：京A12345',ip:'192.168.1.101'},
+      {tm:'2024-01-15 13:45:42',ur:'李四',ac:'导出收入报表',ip:'192.168.1.102'},
+      {tm:'2024-01-15 12:15:30',ur:'管理员',ac:'修改计费规则',ip:'192.168.1.100'},
+      {tm:'2024-01-15 11:05:18',ur:'王五',ac:'远程开闸：出口2',ip:'192.168.1.103'},
+      {tm:'2024-01-15 10:30:00',ur:'管理员',ac:'添加设备：入口3-摄像头',ip:'192.168.1.100'},
+    ])
+    const fLogs=computed(()=>{const s=lgs.value.toLowerCase();return logs.filter(l=>!s||l.ac.toLowerCase().includes(s))})
+
+    // Remote
+    const rp2=ref(null),rch=ref(null),rrs=ref('')
+    const doOpen=()=>{ElMessage.success('道闸已远程开启！');rrs.value='';rch.value=null}
+
+    return{logged,dk,p,tdk,titles,lf,lr,lfLoad,lfRef,doLogin,barData,tfd,excps,
+      ps,pfv,pe,pf,parks,fParks,openPark,savePark,delPark,
+      ms,mf2,mfv,mform,mons,fMon,addMon,
+      os,of,orders,fOrd,
+      acs,acf,fAcc,
+      devs,
+      bm,
+      bt,wl,bl,
+      gates,aTab,areas,fixes,
+      mgates,
+      rp,
+      accts,
+      roles,pmData,
+      sps,
+      lgs,fLogs,
+      rp2,rch,rrs,doOpen,
+      ElMessage
+    }
+  }
+}).use(ElementPlus).mount('#app')
+</script>
+</body>
+</html>

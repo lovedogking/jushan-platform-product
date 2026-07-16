@@ -57,4 +57,18 @@ public class RecognitionEventController {
         log.info("人工开闸: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
         return R.ok(result);
     }
+
+    /**
+     * 人工关闸。
+     */
+    @PostMapping("/manual-close-gate")
+    @RequirePermission("booth:operate")
+    public R<RecognitionResultVO> manualCloseGate(
+            @RequestParam Long laneId,
+            @RequestParam String reason) {
+        Long operatorId = com.jushan.common.auth.TenantContext.getUserId();
+        RecognitionResultVO result = recognitionEventService.manualCloseGate(laneId, operatorId, reason);
+        log.info("人工关闸: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+        return R.ok(result);
+    }
 }

@@ -7,6 +7,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.util.List;
+
 /**
  * 平台设备台账 Mapper（T20）。
  *
@@ -35,4 +37,22 @@ public interface DeviceMapper extends BaseMapper<Device> {
     @InterceptorIgnore(tenantLine = "true")
     @Select("SELECT * FROM device WHERE device_sn = #{deviceSn} AND status = 'ENABLED' LIMIT 1")
     Device selectByDeviceSn(@Param("deviceSn") String deviceSn);
+
+    /**
+     * 按车道 ID 和设备类型查询启用的设备，忽略租户拦截器。
+     * <p>
+     * 用于岗亭端开闸等场景：super_admin 无租户上下文时仍可查到绑定设备。
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT * FROM device WHERE lane_id = #{laneId} AND device_type = #{deviceType} AND status = 'ENABLED' LIMIT 1")
+    Device selectByLaneIdAndTypeIgnoreTenant(@Param("laneId") Long laneId, @Param("deviceType") String deviceType);
+
+    /**
+     * 按停车场 ID 查找具备 OPEN_GATE 能力的 CAMERA 设备，忽略租户拦截器。
+     * <p>
+     * 用于岗亭端人工开闸回退场景：出口车道无独立设备时，使用同一停车场的相机开闸。
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT * FROM device WHERE parking_lot_id = #{parkingLotId} AND device_type = 'CAMERA' AND status = 'ENABLED' AND capabilities LIKE '%OPEN_GATE%' LIMIT 1")
+    Device selectCameraWithOpenGateByLotIdIgnoreTenant(@Param("parkingLotId") Long parkingLotId);
 }

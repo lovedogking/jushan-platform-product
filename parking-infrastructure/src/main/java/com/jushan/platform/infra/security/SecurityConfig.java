@@ -51,6 +51,8 @@ public class SecurityConfig {
                 // 演示与内部 mock 接口
                 .requestMatchers("/demo/**").permitAll()
                 .requestMatchers("/api/v1/internal/mock/**").permitAll()
+                // 岗亭端登录转发（booth-web 通过 /auth/login 访问）
+                .requestMatchers("/auth/login").permitAll()
                 // Device Access Webhook 接收端（Device Access 系统调用，无需用户认证）
                 .requestMatchers("/api/v1/device-webhook/**").permitAll()
                 // 支付回调接口（外部系统调用，无需认证）

@@ -116,7 +116,7 @@ public class BillingRuleService {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后创建收费规则");
+                    "平台用户需指定租户上下文后创建收费规则");
         }
         Long userId = TenantContext.requireUserId();
 
@@ -177,7 +177,7 @@ public class BillingRuleService {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后修改收费规则");
+                    "平台用户需指定租户上下文后修改收费规则");
         }
         Long userId = TenantContext.requireUserId();
 
@@ -330,7 +330,7 @@ public class BillingRuleService {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后切换收费规则");
+                    "平台用户需指定租户上下文后切换收费规则");
         }
         Long userId = TenantContext.requireUserId();
 

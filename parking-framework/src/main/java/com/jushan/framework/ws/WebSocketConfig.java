@@ -52,7 +52,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     /** 允许跨域来源（本地开发 + Nginx 反向代理） */
     static final String[] ALLOWED_ORIGINS = {"http://localhost:5173", "http://localhost:5174",
-            "http://localhost:8080", "http://localhost:8088"};
+            "http://localhost:8080", "http://localhost:8088", "http://localhost:3000", "http://localhost:3001"};
 
     /** 应用目标前缀（客户端 → 服务端） */
     static final String APP_DESTINATION_PREFIX = "/app";

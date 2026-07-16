@@ -169,6 +169,36 @@ export interface ChargeRequest {
 /** 支付方式 */
 export type PaymentMethod = 'CASH' | 'WECHAT' | 'ALIPAY' | 'FREE'
 
+/** 收费规则片段（岗亭端临时调整用） */
+export interface FeeRuleSegment {
+  id?: number
+  startTime: string
+  endTime: string
+  price: number
+  unitMinutes: number
+  cap?: number
+}
+
+/** 收费规则（岗亭端查看/调整用） */
+export interface FeeRule {
+  id: number
+  name: string
+  lotId: number
+  zoneId?: number
+  billingMode: number
+  freeMinutes: number
+  unitMinutes: number
+  firstPeriodPrice: number
+  subsequentPrice: number
+  dailyCap?: number
+  nightCap?: number
+  priority: number
+  status: number
+  effectiveStart?: string
+  effectiveEnd?: string
+  timeSegments: FeeRuleSegment[]
+}
+
 /** 开闸结果（对应后端 RecognitionResultVO） */
 export interface GateOpenResult {
   eventId?: number

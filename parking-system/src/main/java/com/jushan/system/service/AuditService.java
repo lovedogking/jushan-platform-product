@@ -199,42 +199,7 @@ public class AuditService {
         }
     }
 
-    // ==================== 代操作审计 ====================
-
-    /**
-     * 记录代操作启动审计日志。
-     *
-     * @param operatorId     操作人 ID
-     * @param operatorName   操作人名称
-     * @param targetTenantId 目标租户 ID
-     * @param reason         代操作原因
-     */
-    public void logProxyStart(Long operatorId, String operatorName, Long targetTenantId, String reason) {
-        writeAuditLogDirect(
-                null, TARGET_TYPE_TENANT, String.valueOf(targetTenantId), "proxy_start",
-                operatorId, operatorName, targetTenantId, 1,
-                null, null,
-                RESULT_SUCCESS, null, reason, null,
-                false
-        );
-    }
-
-    /**
-     * 记录代操作停止审计日志。
-     *
-     * @param operatorId     操作人 ID
-     * @param operatorName   操作人名称
-     * @param targetTenantId 目标租户 ID
-     */
-    public void logProxyStop(Long operatorId, String operatorName, Long targetTenantId) {
-        writeAuditLogDirect(
-                null, TARGET_TYPE_TENANT, String.valueOf(targetTenantId), "proxy_stop",
-                operatorId, operatorName, targetTenantId, 1,
-                null, null,
-                RESULT_SUCCESS, null, null, null,
-                false
-        );
-    }
+    // 代操作审计方法已移除（代操作功能已废弃）
 
     // ==================== 查询 ====================
 

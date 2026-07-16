@@ -90,7 +90,7 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后创建收费规则");
+                    "平台用户需指定租户上下文后创建收费规则");
         }
 
         // 校验生效时间
@@ -156,7 +156,7 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后更新收费规则");
+                    "平台用户需指定租户上下文后更新收费规则");
         }
         FeeRule existing = getAndCheck(ruleId, tenantId);
 
@@ -222,7 +222,7 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后删除收费规则");
+                    "平台用户需指定租户上下文后删除收费规则");
         }
         getAndCheck(ruleId, tenantId);
 
@@ -247,7 +247,7 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后复制收费规则");
+                    "平台用户需指定租户上下文后复制收费规则");
         }
         FeeRule source = getAndCheck(ruleId, tenantId);
 
@@ -387,7 +387,7 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后变更收费规则状态");
+                    "平台用户需指定租户上下文后变更收费规则状态");
         }
         FeeRule rule = getAndCheck(ruleId, tenantId);
 

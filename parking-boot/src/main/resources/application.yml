@@ -54,6 +54,11 @@ spring:
 # ---- 服务端口 ----
 server:
   port: 8080
+  servlet:
+    encoding:
+      enabled: true
+      charset: UTF-8
+      force: true
 
 # ---- Actuator 健康检查与监控 ----
 management:

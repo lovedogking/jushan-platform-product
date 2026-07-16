@@ -135,7 +135,7 @@ public class BoothMonitorService {
     // ==================== 私有方法 ====================
 
     private ParkingLot getParkingLotWithAuth(Long parkingLotId) {
-        ParkingLot lot = parkingLotMapper.selectById(parkingLotId);
+        ParkingLot lot = parkingLotMapper.selectByIdIgnoreTenant(parkingLotId);
         if (lot == null) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "停车场不存在");
         }
@@ -155,9 +155,7 @@ public class BoothMonitorService {
             return Collections.emptyList();
         }
 
-        Map<Long, ParkingLane> laneMap = laneMapper.selectList(
-                        new LambdaQueryWrapper<ParkingLane>()
-                                .eq(ParkingLane::getLotId, parkingLotId))
+        Map<Long, ParkingLane> laneMap = laneMapper.selectByLotIdIgnoreTenant(parkingLotId)
                 .stream()
                 .collect(Collectors.toMap(ParkingLane::getId, l -> l));
 
@@ -173,10 +171,7 @@ public class BoothMonitorService {
     }
 
     private List<BoothLaneVO> loadLanes(Long parkingLotId) {
-        List<ParkingLane> lanes = laneMapper.selectList(
-                new LambdaQueryWrapper<ParkingLane>()
-                        .eq(ParkingLane::getLotId, parkingLotId)
-                        .orderByAsc(ParkingLane::getId));
+        List<ParkingLane> lanes = laneMapper.selectByLotIdIgnoreTenant(parkingLotId);
 
         if (lanes.isEmpty()) {
             return Collections.emptyList();

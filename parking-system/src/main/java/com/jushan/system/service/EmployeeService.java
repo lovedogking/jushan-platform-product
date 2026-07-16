@@ -101,7 +101,7 @@ public class EmployeeService {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后操作员工");
+                    "平台用户需指定租户上下文后操作员工");
         }
         DataScope.requireCustomerAdmin();
 
@@ -181,7 +181,7 @@ public class EmployeeService {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后操作员工");
+                    "平台用户需指定租户上下文后操作员工");
         }
         DataScope.requireCustomerAdmin();
 
@@ -277,7 +277,7 @@ public class EmployeeService {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后操作员工");
+                    "平台用户需指定租户上下文后操作员工");
         }
         DataScope.requireCustomerAdmin();
         getEmployeeInTenant(employeeId, tenantId); // 校验归属
@@ -308,7 +308,7 @@ public class EmployeeService {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户请通过代操作模式进入目标租户后操作员工");
+                    "平台用户需指定租户上下文后操作员工");
         }
         DataScope.requireCustomerAdmin();
 

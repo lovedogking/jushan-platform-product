@@ -37,6 +37,7 @@ import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.SysAuditLogMapper;
 import com.jushan.system.vo.DeviceStatusVO;
 import com.jushan.system.vo.DeviceVO;
+import com.jushan.system.service.GpioGateService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -118,6 +119,7 @@ public class DeviceService {
     private final SysAuditLogMapper auditLogMapper;
     private final DeviceCommandAuditMapper commandAuditMapper;
     private final ParkingLotScopeResolver scopeResolver;
+    private final GpioGateService gpioGateService;
 
     public DeviceService(DeviceMapper deviceMapper,
                          DeviceVendorMapper vendorMapper,
@@ -128,7 +130,8 @@ public class DeviceService {
                          DeviceStatusSnapshotMapper snapshotMapper,
                          SysAuditLogMapper auditLogMapper,
                          DeviceCommandAuditMapper commandAuditMapper,
-                         ParkingLotScopeResolver scopeResolver) {
+                         ParkingLotScopeResolver scopeResolver,
+                         GpioGateService gpioGateService) {
         this.deviceMapper = deviceMapper;
         this.vendorMapper = vendorMapper;
         this.modelMapper = modelMapper;
@@ -139,6 +142,7 @@ public class DeviceService {
         this.auditLogMapper = auditLogMapper;
         this.commandAuditMapper = commandAuditMapper;
         this.scopeResolver = scopeResolver;
+        this.gpioGateService = gpioGateService;
     }
 
     // ==================== 创建设备 ====================
@@ -823,7 +827,19 @@ public class DeviceService {
                 COMMAND_TYPE_OPEN_GATE, reason, null, now);
 
         try {
-            CommandResultDTO result = deviceAccessClient.openGate(deviceSn);
+            CommandResultDTO result;
+
+            // CAMERA 设备通过 GPIO 控制（臻识 C5H）
+            if ("CAMERA".equals(deviceType) && hasOpenGateCapability(device)) {
+                boolean success = gpioGateService.openGate(deviceSn);
+                result = buildCommandResult(success, success ? 200 : 500,
+                        success ? "GPIO开闸成功" : "GPIO开闸失败");
+                log.info("GPIO开闸: deviceId={}, deviceSn={}, success={}", deviceId, deviceSn, success);
+            } else {
+                // GATE 设备通过 DA 开闸
+                result = deviceAccessClient.openGate(deviceSn);
+            }
+
             audit.setStatus(result.isSuccessful() ? AUDIT_STATUS_SUCCESS : AUDIT_STATUS_FAILED);
             audit.setUncertain(false);
             audit.setResponsePayload(buildCommandResponseJson(result));
@@ -852,6 +868,25 @@ public class DeviceService {
                     deviceId, audit.getId(), e.getMessage());
             throw e;
         }
+    }
+
+    /**
+     * 检查设备是否具备 OPEN_GATE 能力（CAMERA 类型通过 GPIO 直接控制道闸）。
+     */
+    private boolean hasOpenGateCapability(Device device) {
+        String capabilities = device.getCapabilities();
+        return capabilities != null && capabilities.contains("OPEN_GATE");
+    }
+
+    /**
+     * 构造 CommandResultDTO。
+     */
+    private CommandResultDTO buildCommandResult(boolean success, int deviceCode, String message) {
+        CommandResultDTO dto = new CommandResultDTO();
+        dto.setSuccess(success);
+        dto.setDeviceCode(deviceCode);
+        dto.setMessage(message);
+        return dto;
     }
 
     /**
@@ -887,7 +922,18 @@ public class DeviceService {
                 "CLOSE_GATE", reason, null, now);
 
         try {
-            CommandResultDTO result = deviceAccessClient.closeGate(deviceSn);
+            CommandResultDTO result;
+
+            // CAMERA 设备通过 GPIO 控制（臻识 C5H）
+            if ("CAMERA".equals(deviceType) && hasOpenGateCapability(device)) {
+                boolean success = gpioGateService.closeGate(deviceSn);
+                result = buildCommandResult(success, success ? 200 : 500,
+                        success ? "GPIO关闸成功" : "GPIO关闸失败");
+                log.info("GPIO关闸: deviceId={}, deviceSn={}, success={}", deviceId, deviceSn, success);
+            } else {
+                result = deviceAccessClient.closeGate(deviceSn);
+            }
+
             audit.setStatus(result.isSuccessful() ? AUDIT_STATUS_SUCCESS : AUDIT_STATUS_FAILED);
             audit.setUncertain(false);
             audit.setResponsePayload(buildCommandResponseJson(result));

@@ -59,7 +59,7 @@ export class MonitorWebSocketClient {
     const { token, parkingLotId } = this.options
 
     this.client = new Client({
-      brokerURL: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/ws?token=${encodeURIComponent(token)}`,
+      brokerURL: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws?token=${encodeURIComponent(token)}`,
       reconnectDelay: 0, // 由本类自行管理重连
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,

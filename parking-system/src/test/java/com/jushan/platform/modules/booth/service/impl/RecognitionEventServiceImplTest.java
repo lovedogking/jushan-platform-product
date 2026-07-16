@@ -16,7 +16,10 @@ import com.jushan.system.client.DeviceAccessClient;
 import com.jushan.system.client.dto.CommandResultDTO;
 import com.jushan.system.entity.Device;
 import com.jushan.system.mapper.DeviceMapper;
+import com.jushan.system.mapper.ParkingLaneMapper;
 import com.jushan.system.service.BillingEngine;
+import com.jushan.system.service.DeviceService;
+import com.jushan.system.service.GpioGateService;
 import com.jushan.system.service.MonitorAlertService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,6 +74,15 @@ class RecognitionEventServiceImplTest {
     @Mock
     private MonitorAlertService monitorAlertService;
 
+    @Mock
+    private GpioGateService gpioGateService;
+
+    @Mock
+    private DeviceService deviceService;
+
+    @Mock
+    private ParkingLaneMapper parkingLaneMapper;
+
     private RecognitionEventServiceImpl service;
 
     private static final Long TENANT_ID = 1L;
@@ -83,7 +95,8 @@ class RecognitionEventServiceImplTest {
     void setUp() {
         service = new RecognitionEventServiceImpl(
                 vehicleTypeDecisionService, parkingSessionService, billingEngine,
-                deviceMapper, deviceAccessClient, monitorAlertService);
+                deviceMapper, deviceAccessClient, monitorAlertService, gpioGateService,
+                deviceService, parkingLaneMapper);
         // 设置租户上下文
         TenantContext.set(new TenantContext.Snapshot(TENANT_ID, 1L, "tenant", null, null));
     }

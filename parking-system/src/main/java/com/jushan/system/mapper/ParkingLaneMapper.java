@@ -7,6 +7,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.util.List;
+
 /**
  * 车道 Mapper。
  *
@@ -16,12 +18,11 @@ import org.apache.ibatis.annotations.Select;
 @Mapper
 public interface ParkingLaneMapper extends BaseMapper<ParkingLane> {
 
-    /**
-     * 按 ID 查询，忽略租户拦截器。
-     * <p>
-     * 用于需要先查询实体再做停车场/租户归属校验的场景。
-     */
     @InterceptorIgnore(tenantLine = "true")
     @Select("SELECT * FROM parking_lane WHERE id = #{id}")
     ParkingLane selectByIdIgnoreTenant(@Param("id") Long id);
+
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT * FROM parking_lane WHERE lot_id = #{lotId} ORDER BY id ASC")
+    List<ParkingLane> selectByLotIdIgnoreTenant(@Param("lotId") Long lotId);
 }

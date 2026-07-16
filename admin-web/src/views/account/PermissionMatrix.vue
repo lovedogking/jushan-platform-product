@@ -83,7 +83,7 @@ const operationKeys = OPERATIONS.map(op => op.key)
 const MODULES = [
   { code: 'company', name: '公司管理' },
   { code: 'account', name: '账号管理' },
-  { code: 'auth-code', name: '授权码管理' },
+
 ]
 
 // 表格列定义

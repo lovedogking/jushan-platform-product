@@ -44,8 +44,20 @@ public class DeviceWebhookService {
      */
     private final Map<String, LocalDateTime> processedEvents = new ConcurrentHashMap<>();
 
+    /**
+     * 基于（车牌+方向）的去重缓存，窗口 5 秒。
+     * <p>
+     * 臻识 C5H 每次识别会同时发两条 MQTT 消息（quick_ivs_result + ivs_result），
+     * DA 会为两者分别生成不同 eventId 并推送 Webhook。
+     * 此缓存按（车牌+方向）在 5 秒窗口内去重，避免同一辆车创建多条 ParkingSession。
+     */
+    private final Map<String, LocalDateTime> recentPlateEvents = new ConcurrentHashMap<>();
+
     /** 事件去重保留时间（小时） */
     private static final int EVENT_RETENTION_HOURS = 24;
+
+    /** 车牌级去重窗口（秒） */
+    private static final int PLATE_DEDUP_WINDOW_SECONDS = 60;
 
     private final DeviceMapper deviceMapper;
     private final ParkingLaneMapper laneMapper;
@@ -155,6 +167,28 @@ public class DeviceWebhookService {
             }
         }
 
+        // 5b. 车牌级去重：同一（车牌+方向）在 60 秒窗口内去重
+        //     臻识 C5H 每次识别发两条 MQTT（quick_ivs_result + ivs_result），
+        //     DA 为两者分别生成不同 eventId 但车牌相同，两事件可能几乎同时到达。
+        //     使用 ConcurrentHashMap.computeIfAbsent 原子操作避免竞态条件。
+        //     方向在步骤 3 中已从车道绑定推断，此时有效。
+        if (normalizedPlate != null && event.getDirection() != null) {
+            String plateKey = normalizedPlate + ":" + event.getDirection();
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime existing = recentPlateEvents.compute(plateKey, (k, v) -> {
+                if (v != null && v.plusSeconds(PLATE_DEDUP_WINDOW_SECONDS).isAfter(now)) {
+                    return v; // 窗口内不更新，保留旧值
+                }
+                return now; // 窗口已过或新记录，更新时间
+            });
+            // 如果 existing 不等于 now，说明窗口内已有记录（compute 返回了旧值）
+            if (!existing.equals(now)) {
+                log.info("Webhook 同一车牌短时重复，已跳过: plate={}, direction={}, eventId={}",
+                        normalizedPlate, event.getDirection(), event.getEventId());
+                return;
+            }
+        }
+
         // 6. 设置租户上下文（Webhook 无 JWT Token，需手动注入）
         TenantContext.Snapshot previousContext = TenantContext.get();
         try {
@@ -206,5 +240,9 @@ public class DeviceWebhookService {
     private void cleanupExpiredEvents() {
         LocalDateTime cutoff = LocalDateTime.now().minusHours(EVENT_RETENTION_HOURS);
         processedEvents.entrySet().removeIf(entry -> entry.getValue().isBefore(cutoff));
+
+        // 清理车牌去重缓存中超过 1 分钟的旧记录
+        LocalDateTime plateCutoff = LocalDateTime.now().minusMinutes(1);
+        recentPlateEvents.entrySet().removeIf(entry -> entry.getValue().isBefore(plateCutoff));
     }
 }

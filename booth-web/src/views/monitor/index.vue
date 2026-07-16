@@ -98,6 +98,29 @@
                   {{ store.formatTime(lane.latestEvent.eventTime) }}
                 </div>
               </div>
+              <div class="lane-actions">
+                <a-space>
+                  <a-button
+                    type="primary"
+                    size="small"
+                    @click="handleManualOpenGate(lane.laneId)"
+                  >
+                    开闸
+                  </a-button>
+                  <a-button
+                    size="small"
+                    @click="handleManualCloseGate(lane.laneId)"
+                  >
+                    关闸
+                  </a-button>
+                  <a-button
+                    size="small"
+                    @click="handleEditFeeRule(lane.laneId)"
+                  >
+                    修改收费
+                  </a-button>
+                </a-space>
+              </div>
             </a-card>
           </div>
         </a-spin>
@@ -178,6 +201,22 @@
 
     <!-- 收费面板 -->
     <ChargePanel />
+
+    <!-- 人工放行弹窗 -->
+    <ManualReleaseModal
+      v-model:open="manualReleaseOpen"
+      :lane-id="manualReleaseLaneId"
+      plate-number=""
+      @success="handleManualReleaseResult"
+    />
+
+    <!-- 收费规则编辑弹窗 -->
+    <FeeRuleEditModal
+      v-model:open="feeRuleEditOpen"
+      :lane-id="feeRuleEditLaneId"
+      :fee-rule="currentFeeRule"
+      @save="handleSaveFeeRule"
+    />
   </div>
 </template>
 
@@ -189,6 +228,8 @@ import { useMonitorStore } from '@/stores/monitor'
 import { MonitorWebSocketClient, type ConnectionStatus } from '@/utils/websocket'
 import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPayload, RecognitionEvent } from '@/api/monitor-types'
 import ChargePanel from '@/components/ChargePanel.vue'
+import ManualReleaseModal from '@/components/ManualReleaseModal.vue'
+import FeeRuleEditModal from '@/components/FeeRuleEditModal.vue'
 
 const TOKEN_KEY = 'jushan_access_token'
 const LOT_ID_KEY = 'booth_selected_lot_id'
@@ -196,6 +237,78 @@ const LOT_ID_KEY = 'booth_selected_lot_id'
 const store = useMonitorStore()
 const selectedLotId = ref<number | null>(null)
 let wsClient: MonitorWebSocketClient | null = null
+
+// 人工放行
+const manualReleaseOpen = ref(false)
+const manualReleaseLaneId = ref(0)
+
+// 收费规则编辑
+const feeRuleEditOpen = ref(false)
+const feeRuleEditLaneId = ref(0)
+const currentFeeRule = ref<any>(null)
+
+function handleManualOpenGate(laneId: number) {
+  manualReleaseLaneId.value = laneId
+  manualReleaseOpen.value = true
+}
+
+/** 直接关闸（无需选择原因） */
+async function handleManualCloseGate(laneId: number) {
+  try {
+    const { manualCloseGate } = await import('@/api/charge')
+    const result = await manualCloseGate(laneId, '岗亭手动关闸')
+    if (result.gateDeviceAck) {
+      message.success('关闸成功')
+    } else {
+      message.warning(result.gateResult || '关闸失败')
+    }
+  } catch (e: any) {
+    message.error(e?.message || '关闸失败')
+  }
+}
+
+/** 修改收费规则 */
+async function handleEditFeeRule(laneId: number) {
+  feeRuleEditLaneId.value = laneId
+  feeRuleEditOpen.value = true
+  currentFeeRule.value = null
+  try {
+    const { getCurrentFeeRule } = await import('@/api/charge')
+    const lotId = store.currentLotId
+    if (!lotId) {
+      message.warning('请先连接停车场')
+      return
+    }
+    // 查询当前生效规则（简化：按车场查询，不区分区域）
+    const rule = await getCurrentFeeRule(lotId)
+    currentFeeRule.value = rule
+  } catch (e: any) {
+    message.error(e?.message || '加载收费规则失败')
+  }
+}
+
+/** 保存收费规则调整 */
+async function handleSaveFeeRule(data: any) {
+  try {
+    const { updateFeeRule } = await import('@/api/charge')
+    if (currentFeeRule.value?.id) {
+      await updateFeeRule(currentFeeRule.value.id, data)
+      message.success('收费规则已更新')
+    }
+    feeRuleEditOpen.value = false
+  } catch (e: any) {
+    message.error(e?.message || '更新收费规则失败')
+  }
+}
+
+function handleManualReleaseResult(result: { success: boolean; message: string; gateOpened: boolean | null }) {
+  manualReleaseOpen.value = false
+  if (result.success) {
+    message.success('开闸成功')
+  } else {
+    message.warning(result.message || '开闸失败')
+  }
+}
 
 const parkingLot = computed(() => store.parkingLot)
 
@@ -453,6 +566,11 @@ onUnmounted(() => {
 
   .lane-direction {
     margin-bottom: 12px;
+  }
+
+  .lane-actions {
+    margin-top: 8px;
+    text-align: right;
   }
 
   .lane-event {
