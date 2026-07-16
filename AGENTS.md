@@ -1,296 +1,75 @@
-# 智慧停车 SaaS 平台协作规范
+# AGENTS.md — 停车SaaS系统
 
-本文件是仓库级、工具无关的项目边界。用户当前明确指令优先；用户级 Codex 规范负责通用 Git、权限和输出规则，本文件只保留停车平台特有约束。
+## 项目概述
+多租户停车SaaS管理平台，支持运营端(Web)、岗亭端(Web)、小程序端(微信)三端，通过适配器层对接停车场硬件设备。
 
-## 1. 规范输入与事实等级
+## 技术栈
+- 后端: Java 21 + Spring Boot 3.x + MyBatis-Plus + MySQL 8 + Flyway
+- 前端: Vue 3 + Ant Design Vue (admin-web/booth-web)
+- 小程序: 微信小程序原生
+- 通信: HTTP REST (平台↔适配器) + MQTT (适配器↔设备) + WebSocket (岗亭实时推送)
+- 中间件: RabbitMQ (平台内部事件总线) + Redis (缓存)
 
-规范性业务输入：
+## 构建命令
+```bash
+# 后端编译
+mvn clean compile -pl parking-system -am
 
-- `docs/需求文档/` 目录下的产品需求文档（PRD）
-- `docs/contracts/platform-device-access/`（共享契约，替代旧 v0.1 接口规范）
-- `docs/开发计划/` 目录下的开发计划文档（section_01 ~ section_06），包含任务拆分、核心算法、DDL、API 接口、预留扩展和技术架构
+# 后端测试
+mvn test -pl parking-boot -am
 
-文件带版本号或后缀时，必须定位实际文件。找不到规范性输入时，涉及该契约的实现必须暂停，不得从旧代码、Demo 或文件名反推接口。
+# 后端打包
+mvn clean package -pl parking-boot -am
 
-事实等级从高到低：当前用户指令、冻结规范、当前代码与迁移、当前测试结果、历史文档。目标架构和需求愿景不得描述为已实现能力；Mock 不得描述为生产联调。
+# admin-web 构建
+cd admin-web && pnpm build
 
-## 2. 系统边界
+# booth-web 构建
+cd booth-web && pnpm build
 
-本仓库只建设停车业务平台侧。Device Access 是独立系统，由其他开发人员维护。
-
-禁止：
-
-- 修改、复制或嵌入 Device Access 源码；
-- 平台、浏览器、管理后台或小程序直连厂商设备；
-- 平台解析厂商协议、拼装厂商 MQTT Topic 或调用厂商 SDK/DLL/SO；
-- 浏览器或小程序直接调用 Device Access；
-- 把 Device Access 当作停车、计费、订单、支付或放行规则的数据源。
-
-平台侧只维护设备业务台账、可信设备编码/SN 映射、租户与停车场绑定、车道与出入口方向、Device Access Client、调用审计和业务决策。
-
-第一阶段采用模块化单体（Maven 多模块聚合）。模块通过公开 Service、Facade 或领域事件协作；禁止跨模块直接操作 Mapper/实体、循环依赖和在 Controller 中承载复杂业务。
-
-### 模块结构
-
-当前采用 `parking-system`（核心 domain）+ `parking-boot`（启动器）+ `parking-common`（公共）+ `parking-framework`（框架）的 Maven 多模块聚合。后续可按业务域拆分：
-
-| 模块 | 职责 |
-|------|------|
-| `parking-admin` | 运营平台后端：车场配置、车辆登记、收费规则、账号权限、报表 |
-| `parking-booth` | 岗亭端接口：车道状态、在场车辆、人工放行、收费面板、离线同步 |
-| `parking-mini` | 微信小程序后端：车牌绑定、缴费、月卡续费、优惠券、发票、访客预约 |
-| `parking-pay` | 支付中心：统一下单、回调、退款、对账、商户配置 |
-| `parking-device` | 设备接入调度：相机/道闸管理，统一 DeviceAccessClient（禁止直连厂商） |
-| `parking-pass` | 通行调度：入出场事件识别、匹配、开闸决策、异常处理 |
-| `parking-fee` | 计费引擎：规则解析、费用计算、分时段/封顶/优惠叠加 |
-| `parking-coupon` | 优惠/积分/商家券：发券、核销、库存、积分抵扣 |
-| `parking-report` | 报表与对账：统计报表、财务报表、审计查询 |
-| `parking-visitor` | 访客预约：来访单位、预约申请、审核、岗亭下发 |
-
-关键边界：`parking-device` 是唯一允许调用 Device Access 的模块；支付密钥和回调收敛在 `parking-pay`；跨模块只通过 API 或内部 RPC，禁止直接访问其他模块数据库。
-
-## 3. 固定协作分工
-
-Claude Code + Kimi K2.7 Code 是主力工程开发 Agent，负责：
-
-- 按用户已确认的任务书或需求持续实现；
-- 运行测试、修复普通实现问题；
-- 通过项目内 Skills 完成日常风险审查与完成度自检；
-- 输出完整交付报告。
-
-Codex + GPT-5.6 不再参与日常实现与审查，仅作为阶段性工具保留，负责：
-
-- 大版本架构评审；
-- 关键安全/支付/设备契约上线前审查；
-- 用户明确指定的复杂方案决策。
-
-Codex 默认只读，只有在用户明确要求亲自修改且使用允许写入的 Profile 时，才可进行范围明确的局部修改。
-
-## 4. Device Access 当前冻结契约
-
-### 当前 v0.4 事实（2026-07-15 更新）
-
-Device Access v0.4 当前实际提供 16 个 HTTP 端点：
-
-```text
-POST   /api/v1/devices
-GET    /api/v1/devices
-GET    /api/v1/devices/{deviceId}
-PUT    /api/v1/devices/{deviceId}
-DELETE /api/v1/devices/{deviceId}
-POST   /api/v1/devices/{deviceId}/time/sync
-GET    /api/v1/devices/{deviceId}/status
-POST   /api/v1/devices/{deviceId}/gate/open       ← v0.4 新增（臻识/信路通）
-POST   /api/v1/devices/{deviceId}/gate/close        ← v0.4 新增
-POST   /api/v1/devices/{deviceId}/peripheral/display ← v0.4 新增
-POST   /api/v1/devices/{deviceId}/display/text      ← v0.4 新增
-POST   /api/v1/devices/{deviceId}/display/save       ← v0.4 新增
-POST   /api/v1/devices/{deviceId}/display/config    ← v0.4 新增
-POST   /api/v1/devices/{deviceId}/voice/control     ← v0.4 新增
-GET    /api/v1/products
-GET    /api/v1/devices/{deviceId}/relations
+# 小程序构建
+cd miniapp && npm run build:mp-weixin
 ```
-
-当前实现事实：
-- ✅ **gate/open 已实现**（臻识 gate_direct_open + 信路通 OPEN_GATE，待真机验证）
-- ✅ **车牌识别事件已支持**：PlateRecognizedEvent 通过 HTTP Webhook 异步推送到平台
-- ✅ **心跳已支持**：DeviceHeartbeatRecorder 记录心跳
-- ✅ **显示屏控制已支持**：三接口分离（配置/内容/语音）
-- ⚠️ 没有 commandId 幂等（一期不得自动重试开闸）
-- ⚠️ 没有 HMAC 服务间认证（当前使用 API Key 认证）
-- ⚠️ 没有 RabbitMQ 业务事件（使用 HTTP Webhook 替代）
-- 当前响应格式为 code=200 风格
-- 当前 deviceId 主要对应厂商 SN
-
-### B01～B08 联合决策
-
-B01～B08 已获得双方 ACCEPTED（2026-07-11），v0.4 代码已实现其中与设备控制相关的决策。
-
-详细决策见共享契约 `docs/contracts/platform-device-access/08-联合评审决策表.md`。
-
-### V01～V04 真机验证
-
-- V01：C5H 型号和固件 — 代码已实现，待真机验证
-- V02：真实车牌识别 Topic、字段和报文 — 代码已实现，待真机验证
-- V03：真实心跳 Topic、频率和超时 — 代码已实现，信路通真机验证通过
-- V04：真实开闸 Topic、命令、回执和实际闸杆动作 — 代码已实现，信路通真机验证通过，臻识待验证
-
-### 开闸三层状态
-
-1. 命令已发送
-2. 厂商设备回复成功
-3. 闸杆实际处于 OPEN
-
-三者不得混为同一状态。当前无 commandId 幂等，不得自动重试开闸。HTTP 202 不等于设备执行成功。
-
-## 5. 设备身份、方向与事件 P0
-
-- 平台必须保留自身设备主键，厂商 SN 单独存为 `device_sn`。
-- 后端必须由平台设备主键查询可信 SN；禁止信任前端自由输入的 SN。
-- 设备必须绑定租户、停车场、车道和出入口方向；设备编码/SN 在约束范围内必须唯一。
-- 入场事件只能匹配入口方向，出场与开闸只能匹配授权方向；方向不一致必须失败关闭并审计。
-- 调用前必须校验操作人权限、租户、停车场、车道、方向、设备启用状态和能力范围。
-- 当前未冻结 MQTT/事件契约，禁止假设 Exchange、Queue、Topic、Routing Key 或事件字段。
-- 契约冻结后，设备事件必须以可信事件 ID 或经确认的业务唯一键幂等消费。
-- MQTT 至少一次投递和重复消息不得重复创建停车记录、订单、支付动作或开闸动作。
-- 重复事件应返回可追溯结果；并发消费必须依靠唯一约束、条件更新或等价机制收敛。
-- 心跳和在线状态只表示设备连接事实，不能替代停车、支付或放行业务状态。
-
-## 6. 多租户与权限 P0
-
-- 客户只能访问本租户数据；停车场人员只能访问已授权停车场。
-- 普通管理员不得跨租户或越过停车场授权范围。
-- 超级管理员拥有全平台所有权限，可直接操作任意租户数据，无需代操作或授权码。
-- 所有查询、详情、导出、修改、删除、统计、批处理、定时任务、消息消费和 WebSocket 推送都必须执行数据隔离（超级管理员除外）。
-- 禁止只依赖前端传入的 `tenantId`、`parkingLotId`、设备主键或设备 SN。
-- 前端隐藏菜单不能代替后端鉴权；非法或缺失数据范围必须失败关闭。
-- 联调问题不得通过扩大白名单、关闭鉴权、跳过数据范围校验或硬编码超级权限解决。
-- 跨租户、跨停车场、普通管理员与超级管理员边界测试是验收必测项。
-
-## 7. 停车记录与计费 P0
-
-- 停车记录必须有显式状态机和集中式合法迁移规则；不得由 Controller 或多个模块任意改状态。
-- 非法、越级、重复和并发状态迁移必须失败关闭或幂等收敛，并保留审计证据。
-- 入场、计费、订单、支付、出场和放行必须使用同一可信租户、停车场、车辆和停车记录上下文。
-- 计费规则必须来自已确认配置；缺失、冲突或未生效规则不得猜测费用。
-- 月卡的有效期、适用停车场、车辆绑定和状态必须由后端校验。
-- 核心状态变更必须使用带旧状态条件的精确字段更新、乐观锁、唯一约束或等价并发保护。
-- 禁止用携带未知字段的整实体 `updateById` 修改金额、订单、支付或停车状态。
-
-## 8. 金额与支付 P0
-
-- Java 金额计算和比较必须使用 `BigDecimal`，明确精度、舍入规则和单位；数据库使用精确 `DECIMAL`。
-- 禁止使用 `float`、`double` 或前端浮点数处理资金。
-- 支付结果只能以服务端主动查询和验签回调为准。
-- 回调必须验签，并校验 `appid`、`mchid`、`outTradeNo` 和金额。
-- 回调必须幂等；重复回调不得重复更新订单、退款、记账或触发开闸。
-- 免费订单是金额合法为零的可追溯业务分支；负金额是非法输入，必须拒绝，二者不得混淆。
-- 退款金额不得超过实际支付金额，重复退款和并发退款必须受状态条件与唯一约束保护。
-- 支付成功与开闸必须解耦，具备补偿、人工兜底和完整审计。
-- 日志禁止记录支付密钥、证书私钥、完整签名、Token、密码或敏感个人信息明文。
-
-## 9. 开闸 P0
-
-自动或人工开闸前必须同时满足并记录：
-
-- 操作人或业务触发来源合法；
-- 租户、停车场、车道、出入口方向和设备映射一致；
-- 设备启用且具备已冻结的开闸能力；
-- 停车记录处于允许放行的合法状态；
-- 已支付、合法免费或经授权人工放行条件成立；
-- 调用前已创建可持久化审计，调用后记录请求结果、耗时和 `UNCERTAIN` 处置状态。
-
-支付模块不得直接调用 Device Access；设备模块不得直接改支付状态。任何超时都不得自动重试或直接判定为未开闸。
-
-## 10. 数据库与迁移
-
-- 数据库变更必须使用 Flyway；已发布迁移禁止修改。
-- 每次变更使用独立版本脚本，并验证前向执行、约束、索引、重复执行保护和回滚方案。
-- 核心表必须有支持租户、停车场、状态查询和幂等的必要索引与唯一约束。
-- 生产迁移必须先备份；不可逆迁移必须停止并升级给用户决策。
-- 详细 DDL 规范见 `docs/开发计划/section_03_ddl.md`。
-- 所有表主键使用雪花算法（Snowflake）或数据库号段，避免自增 ID 跨库冲突。
-- 所有业务表必须包含 `tenant_id BIGINT NOT NULL` 和 `deleted_at DATETIME DEFAULT NULL`。
-
-## 11. 测试与验收
-
-按修改范围执行编译、单元/模块测试、迁移检查、接口、权限、隔离、幂等、并发和异常路径测试。不得删除、跳过、改弱或禁用测试来伪造通过。
-
-涉及基础设施时优先使用 Testcontainers。Device Access 使用 WireMock、MockWebServer 或项目确认的等价 HTTP Mock，至少覆盖：200、404、500、503、约 10 秒超时、客户端超时、解析失败、跨停车场、方向不匹配、重复开闸、`UNCERTAIN` 和审计。
-
-不能运行的测试必须列出原因、风险和后续命令；旧报告和“理论上可行”不能作为当前证据。
-
-验收发现任一 P0 时必须 `FAIL`，不得进入联调。
-
-# 12. 任务书、检查单与报告
-
-项目专属审查 Skills 位于 `.agents/skills/`，面向阶段性深度审查，只审查并输出任务书，不持续实现。
-
-Claude Code 日常开发与自检 Skills 位于 `.claude/skills/`，包括 `review-risk-gate`、`self-review-before-finish` 等，供每个任务或完成前调用。
-
-架构、冻结接口、支付模式、测试或部署方式发生变化时，必须同步评估本文件及相关需求、ADR、README 和验收文档；不在当前范围内的更新列为待办。
-
-## 13. 开发计划与 Sprint 执行
-
-### 13.1 三期路线
-
-| 阶段 | Sprint | 周期 | 目标 |
-|------|--------|------|------|
-| 一期 MVP | S1-S10 | 约 14-16 周 | 租户体系、车场设置、收费规则、车辆登记、进出策略、余位管控、云岗亭、车主小程序、订单支付、日志审计 |
-| 二期 增值运营 | S11-S18 | 约 10-12 周 | 商家优惠、会员积分、充电优惠、访客管理、电子发票、短信增值、报表中心 |
-| 三期 生态扩展 | S19-S23 | 约 6-8 周 | 相机设备档案与指令预留、高级审批流、数据开放平台、智能分析 |
-
-详细任务拆分见 `docs/开发计划/01-开发任务拆分.md`。
-
-### 13.2 Sprint 执行规则
-
-- 每个 Sprint 结束时必须有联调与测试任务，通过后方可进入下一 Sprint。
-- 每个 TASK 必须包含：任务类型、描述、前置任务、API 接口、核心算法要点、测试要点和验收标准。
-- 前置任务未完成的 TASK 禁止开始实施。
-- 一期 MVP 目标：一条标准车场可完成 **识别→计费→收费→放行** 闭环。
-
-### 13.3 全局约束落地清单
-
-所有任务必须遵守以下全局约束，不可跳过：
-
-| 约束项 | 落地要求 |
-|--------|----------|
-| 多租户 `tenant_id` | 所有表必须包含 `tenant_id`；MyBatis-Plus 租户插件自动注入；禁止信任前端 `tenantId` |
-| 软删除 `deleted_at` | 所有业务表使用 `deleted_at` 软删除；禁止物理删除 |
-| 金额 `BigDecimal` | 所有金额字段使用 `BigDecimal`；分位四舍五入；禁止浮点数；DB 使用 `DECIMAL(18,2)` |
-| 车牌大写存储 | 入库前 `toUpperCase()`；查询使用大写匹配 |
-| 操作日志 | 记录操作人、IP、时间、变更前后 JSON、操作结果；敏感字段脱敏 |
-| 并发控制 | 余额/库存/积分扣减使用 Redis 分布式锁（Redisson）+ 数据库乐观锁（version 字段） |
-| 预留接口 | 税控、第三方支付等标注【预留】，返回 mock 但数据结构完整；开闸/设备控制已通过 v0.4 实现 |
-| 时间字段 | 统一使用 `DATETIME(3)` 或 `DATETIME`；接口使用 ISO 8601 |
-| 幂等 | 除只读接口外，所有 POST/PUT/DELETE 必须携带 `X-Idempotency-Key`（UUID），服务端 24 小时内同一键返回首次结果 |
-| PWA 离线缓存 | 岗亭端 Service Worker 缓存静态资源与关键数据；离线操作队列 + 冲突处理 |
-
-## 14. 技术架构约束
-
-### 14.1 三端一体架构
-
-- **后端**：Java 21 + Spring Boot 3.5 + MyBatis-Plus + MySQL 8.4 + Redis 7 + RabbitMQ 4
-- **PC 运营平台**：Vue 3 + Ant Design Vue
-- **岗亭端**：Vue 3 + PWA，支持离线缓存与弱网环境
-- **车主小程序**：微信小程序原生框架
-- **部署**：Docker 容器化，初期 Docker Compose，后续可迁移 K8s
-
-### 14.2 缓存策略
-
-- L1 本地缓存（Caffeine）：热点配置、字典，5 分钟过期，监听 Redis Pub/Sub 刷新
-- L2 Redis：业务对象、会话、锁、实时计数，10-60 分钟过期，Cache-Aside + 更新失效
-- L3 数据库：持久化数据
-
-Redis Key 设计见 `docs/开发计划/section_06_architecture.md`。
-
-### 14.3 消息队列
-
-使用 RabbitMQ，核心场景：设备事件异步处理、支付回调处理、订单状态变更通知、优惠券核销、积分扣减、操作审计日志、短信推送、数据归档、岗亭离线同步。所有消息消费必须保证幂等。
-
-### 14.4 数据归档
-
-| 数据类型 | 线上保留期 | 归档后保留期 |
-|----------|------------|-------------|
-| 操作日志 | 1 年 | 3 年 |
-| 车辆进出记录 | 3 年 | 5 年以上 |
-| 订单数据 | 2 年 | 5 年 |
-| 支付流水 | 5 年 | 永久 |
-| 抓拍图片 | 30 天（正常）/90 天（异常） | 争议解决后保留 |
-
-### 14.5 API 规范
-
-详细接口定义见 `docs/开发计划/section_04_api.md`，预留扩展接口见 `docs/开发计划/section_05_extensions.md`。
-
-- 鉴权：Sa-Token/JWT，请求头 `Authorization: Bearer {token}`
-- 超管跨租户：直接操作，无需额外请求头或代操作模式
-- 统一返回结构：所有接口遵循项目统一响应格式
-- 核心算法伪代码见 `docs/开发计划/section_02_algorithms.md`
-
-### 14.6 关键依赖与风险
-
-1. **Device Access 接口**：开闸/关闸/显示屏/校时/状态查询等控制指令已通过 v0.4 HTTP API 实现，当前可对接联调。二期依赖统一设备事件管道（MQTT）和 commandId 幂等。
-2. **微信支付/支付宝真实参数**：一期使用 mock/沙箱，正式上线前需替换真实商户号、证书、密钥。
-3. **税控系统对接**：电子发票税控对接【预留】，需商务确认服务商。
-4. **第三方充电桩 API**：充电优惠第三方同步接口【预留】，需确认合作方。
-5. **地图服务**：车场地图选点需申请高德/百度地图 Key。
+架构约束
+多租户: 所有业务表必须含 tenant_id，MyBatis-Plus TenantLineInnerInterceptor 自动拦截
+数据隔离: 超级管理员全平台，租户管理员仅被分配车场，岗亭管理员仅授权车场
+通信: 平台→适配器走 HTTP REST，适配器→设备走 MQTT，平台内部识别事件走 RabbitMQ
+支付: 本期仅模拟支付，禁止连接任何真实支付平台，MockPaymentService 是唯一支付入口
+设备: 开闸/关闸/校时通过 DeviceAccessClient HTTP REST 下发，事件通过 Webhook 接收
+代码规范
+所有实体类必须含 tenant_id, created_at, updated_at, deleted_at
+金额统一用 BigDecimal（数据库 DECIMAL(10,2)），禁止 float/double
+时间统一用 LocalDateTime，禁止 java.util.Date
+所有 Controller 必须加 @RequirePermission 权限注解
+敏感操作（开闸/收费规则修改/手动开闸）必须加 @BusinessLog 记录操作日志
+数据库变更必须用 Flyway 迁移，命名 V{日期序号}__{描述}.sql
+接口返回统一格式 {code, message, data, timestamp}
+异常统一全局处理，Controller 中禁止写 try-catch
+安全红线
+禁止生产环境加载 InternalGateController（已标记 @Profile("dev")）
+禁止 pyun.mock=false（真实支付已物理切断）
+禁止前端传入 deviceSn 直接操作设备，必须通过 laneId 查询数据库可信记录
+禁止未授权访问其他租户数据，所有查询必须带 tenant_id 或 ParkingLotScopeResolver
+禁止在 Controller 中写 SQL 拼接，所有查询通过 MyBatis-Plus 或 @Query JPQL
+测试要求
+单元测试覆盖率 ≥ 70%（核心业务模块）
+新增功能必须附带单元测试
+提交前必须运行 mvn test 确保通过
+已有失败测试（RecognitionEventServiceImplTest、DeviceWebhookControllerTest）为已知问题，不阻塞提交
+模块结构
+plain
+parking-boot/          # 启动模块 + Flyway 迁移 + 集成测试
+├── parking-system/    # 业务模块 (~13,500+ 行)
+├── parking-infrastructure/  # 安全/JWT/权限/租户/日志
+├── parking-framework/ # Redis/MQ/WebSocket/分布式锁
+└── parking-common/    # BaseEntity/R/ErrorCode
+admin-web/             # 运营端 Vue 3
+booth-web/             # 岗亭端 Vue 3
+miniapp/               # 微信小程序
+关键文件
+parking-boot/src/main/resources/application.yml — 主配置（pyun.mock 必须 true）
+parking-system/src/main/java/com/jushan/system/service/MockPaymentService.java — 模拟支付核心
+parking-system/src/main/java/com/jushan/system/service/EntryService.java — 入场核心
+parking-system/src/main/java/com/jushan/system/service/ExitService.java — 出场核心
+parking-infrastructure/.../TenantLineInnerInterceptor.java — 多租户拦截器
+plain

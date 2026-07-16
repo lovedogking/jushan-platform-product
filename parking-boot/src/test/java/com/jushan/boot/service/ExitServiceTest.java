@@ -15,6 +15,7 @@ import com.jushan.system.mapper.ParkingRecordMapper;
 import com.jushan.system.service.BillingEngine;
 import com.jushan.system.service.ExitResult;
 import com.jushan.system.service.ExitService;
+import com.jushan.system.service.FixedSpaceService;
 import com.jushan.system.service.PrepaidDeductionService;
 import com.jushan.system.ws.BoothWebSocketPublisher;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
@@ -79,11 +80,14 @@ class ExitServiceTest extends TestcontainersBaseTest {
     @Mock
     private PrepaidDeductionService prepaidDeductionService;
 
+    @Mock
+    private FixedSpaceService fixedSpaceService;
+
     private ExitService exitService;
 
     @BeforeEach
     void setUp() {
-        exitService = new ExitService(recordMapper, exitRecordMapper, parkingOrderService, parkingLotMapper, billingEngine, boothWebSocketPublisher, parkingSessionService, prepaidDeductionService);
+        exitService = new ExitService(recordMapper, exitRecordMapper, parkingOrderService, parkingLotMapper, billingEngine, boothWebSocketPublisher, parkingSessionService, prepaidDeductionService, fixedSpaceService);
     }
 
     @Test

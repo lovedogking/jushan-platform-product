@@ -84,6 +84,13 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Spring Boot Test（@SpringBootTest, @AutoConfigureMockMvc 等） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Testcontainers + Spring Boot 集成 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

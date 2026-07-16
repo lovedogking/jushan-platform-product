@@ -1,3 +1,13 @@
+## 开发指南
+
+本项目使用 [AGENTS.md](AGENTS.md) 作为 AI 开发助手的通用上下文文件，使用 [CLAUDE.md](CLAUDE.md) 作为 Claude Code 的专用上下文文件。
+
+新开发者或 AI 助手接手项目时，请先阅读上述文件了解项目架构、构建命令和代码规范。
+
+- 需求文档：`docs/requirements/停车SaaS系统需求规格说明书_v1.0.md`
+- 部署文档：`docs/deployment/部署检查清单-P0-3.md`
+- 二期规划：`docs/roadmap/二期需求优先级-P0-P3.md`
+
 # 智慧停车 SaaS 平台 (jushan-platform)
 
 > 文档状态：**Sprint 1 执行中**
