@@ -2,30 +2,28 @@ package com.jushan.system.controller;
 
 import com.jushan.common.R;
 import com.jushan.system.entity.ParkingOrder;
-import com.jushan.system.entity.PayMerchantConfig;
+import com.jushan.system.service.MockPaymentService;
 import com.jushan.system.service.ParkingOrderService;
-import com.jushan.system.service.PyunPaymentClient;
 import com.jushan.system.mapper.ParkingOrderMapper;
-import com.jushan.system.mapper.PayMerchantConfigMapper;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 订单支付 Controller（Sprint 8）。
+ * 订单支付 Controller（Sprint 8 / Phase 0 S0-3 改造）。
  * <p>
  * 提供：
  * <ul>
- *   <li>POST /api/v1/orders/{orderId}/pay —— 订单支付（P云预请求）</li>
+ *   <li>POST /api/v1/orders/{orderId}/pay —— 订单支付（模拟支付）</li>
  *   <li>POST /api/v1/orders/{orderId}/cancel —— 取消订单</li>
  *   <li>GET /api/v1/orders/{orderId} —— 查询订单</li>
  * </ul>
+ * <p>
+ * <strong>Phase 0 改造</strong>：已切换为模拟支付模式（{@link MockPaymentService}），
+ * 不再依赖真实支付平台（4pyun.com）。
  *
  * @author Jushan Platform
  * @since 1.0.0
@@ -38,24 +36,20 @@ public class ParkingOrderController {
 
     private final ParkingOrderService orderService;
     private final ParkingOrderMapper orderMapper;
-    private final PyunPaymentClient pyunClient;
-    private final PayMerchantConfigMapper merchantConfigMapper;
-    private final ObjectMapper objectMapper;
+    private final MockPaymentService mockPaymentService;
 
     public ParkingOrderController(ParkingOrderService orderService,
                                    ParkingOrderMapper orderMapper,
-                                   PyunPaymentClient pyunClient,
-                                   PayMerchantConfigMapper merchantConfigMapper,
-                                   ObjectMapper objectMapper) {
+                                   MockPaymentService mockPaymentService) {
         this.orderService = orderService;
         this.orderMapper = orderMapper;
-        this.pyunClient = pyunClient;
-        this.merchantConfigMapper = merchantConfigMapper;
-        this.objectMapper = objectMapper;
+        this.mockPaymentService = mockPaymentService;
     }
 
     /**
-     * 订单支付 —— 调用 P云交易预请求。
+     * 订单支付 —— 模拟支付（Phase 0 改造，替代 P云预请求）。
+     * <p>
+     * 创建模拟支付记录，小程序端直接调用 /notify 确认支付即可。
      */
     @PostMapping("/{orderId}/pay")
     public R<?> payOrder(@PathVariable Long orderId,
@@ -76,79 +70,25 @@ public class ParkingOrderController {
             return R.fail(4002, "订单已过期");
         }
 
-        // 获取商户配置
-        PayMerchantConfig config = merchantConfigMapper.selectActiveByParkingLot(order.getTenantId(), order.getParkingLotId());
-        if (config == null) {
-            log.warn("停车场未配置 P云商户: parkingLotId={}", order.getParkingLotId());
-            return R.fail(4003, "支付渠道未配置");
-        }
-
         // 标记支付中
-        boolean started = orderService.startPaying(orderId, request.getPayChannel());
+        String channel = request.getPayChannel() != null ? request.getPayChannel() : ParkingOrder.PAY_CHANNEL_PYUN;
+        boolean started = orderService.startPaying(orderId, channel);
         if (!started) {
             return R.fail(4002, "订单状态变更失败");
         }
 
-        // 一期仅支持 P云，其他渠道【预留】
-        if (!"PYUN".equals(request.getPayChannel())) {
-            log.info("支付渠道预留: channel={}", request.getPayChannel());
-            return R.ok(Map.of(
-                    "orderId", orderId,
-                    "orderNo", order.getOrderNo(),
-                    "payChannel", request.getPayChannel(),
-                    "status", "RESERVED",
-                    "message", "该支付渠道一期预留，请使用 P云"
-            ));
-        }
+        // 创建模拟支付记录
+        order = orderService.getById(orderId);
+        mockPaymentService.preparePay(order);
 
-        // 调用 P云交易预请求
-        Map<String, String> params = new HashMap<>();
-        params.put("pay_order", order.getOrderNo());
-        params.put("subject", "停车支付" + formatYuan(order.getPayableAmount()) + "元(" + order.getPlateNumber() + ")");
-        params.put("body", "【" + order.getPlateNumber() + "】在停车场支付" + formatYuan(order.getPayableAmount()) + "元");
-        params.put("value", String.valueOf(order.getPayableAmount()));
-        params.put("payer", request.getPayerOpenId());
-        params.put("notify_url", config.getNotifyUrl());
-        params.put("callback_url", config.getCallbackUrl());
-        params.put("expire_time", PyunPaymentClient.formatExpireTime(15));
-        params.put("trade_scene", "PARKING");
-
-        // extra 字段：停车场景信息
-        Map<String, Object> extra = new HashMap<>();
-        extra.put("plate", order.getPlateNumber());
-        extra.put("plate_color", "-1");
-        extra.put("parking_serial", String.valueOf(order.getParkingRecordId()));
-        extra.put("park_name", "停车场");
-        extra.put("enter_time", String.valueOf(System.currentTimeMillis()));
-        extra.put("parking_time", String.valueOf(order.getPayableAmount()));
-        try {
-            params.put("extra", objectMapper.writeValueAsString(extra));
-        } catch (Exception e) {
-            log.warn("extra JSON 序列化失败", e);
-        }
-
-        JsonNode response = pyunClient.tradePrepare(config, params);
-        String code = response.path("code").asText("");
-
-        if ("1000".equals(code) || "1001".equals(code)) {
-            String paySerial = response.path("pay_serial").asText("");
-            log.info("P云预请求成功: orderId={} paySerial={}", orderId, paySerial);
-            return R.ok(Map.of(
-                    "orderId", orderId,
-                    "orderNo", order.getOrderNo(),
-                    "payChannel", "PYUN",
-                    "status", "PAYING",
-                    "paySerial", paySerial,
-                    "prepayParams", Map.of(
-                            "paySerial", paySerial,
-                            "appId", config.getAppId()
-                    )
-            ));
-        } else {
-            log.warn("P云预请求失败: orderId={} code={} message={}", orderId, code, response.path("message").asText());
-            orderService.markPayFailed(orderId);
-            return R.fail(4003, "支付预请求失败: " + response.path("message").asText("未知错误"));
-        }
+        log.info("模拟支付预请求成功: orderId={}", orderId);
+        return R.ok(Map.of(
+                "orderId", orderId,
+                "orderNo", order.getOrderNo(),
+                "payChannel", channel,
+                "status", "PAYING",
+                "message", "模拟支付已就绪，请调用确认接口完成支付"
+        ));
     }
 
     /**

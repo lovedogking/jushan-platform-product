@@ -213,22 +213,24 @@ public class PyunPaymentClient {
 
     /**
      * 通用 Form 表单 POST（P云内部接口使用）。
+     * <p>
+     * <strong>已废弃</strong>：系统已切换为模拟支付模式（mockEnabled 始终为 true）。
+     * 当 mockEnabled=true 时直接返回模拟成功响应，不调用真实接口。
      *
      * @param url    完整 URL
      * @param config 商户配置
      * @param params 业务参数
      * @return P云响应 JSON
      */
-
-    /**
-     * 通用 Form 表单 POST（P云内部接口使用）。
-     *
-     * @param url    完整 URL
-     * @param config 商户配置
-     * @param params 业务参数
-     * @return P云响应 JSON
-     */
+    @Deprecated
     public JsonNode postForm(String url, PayMerchantConfig config, Map<String, String> params) {
+        // Mock 模式：直接返回成功响应，不调用真实 P云接口
+        if (mockEnabled) {
+            log.info("[MOCK] P云表单请求已跳过: url={}", url);
+            return objectMapper.createObjectNode()
+                    .put("code", "1001")
+                    .put("message", "mock success — parking sync skipped in mock mode");
+        }
         TreeMap<String, String> sorted = new TreeMap<>(params);
         if (config.getAppId() != null) {
             sorted.put("app_id", config.getAppId());
