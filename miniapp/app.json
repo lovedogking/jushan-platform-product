@@ -5,7 +5,10 @@
     "pages/plate/plate",
     "pages/records/records",
     "pages/parking/parking",
-    "pages/pay/pay"
+    "pages/pay/pay",
+    "pages/proxy-pay/proxy-pay",
+    "pages/lot-space/lot-space",
+    "pages/messages/messages"
   ],
   "lazyCodeLoading": "requiredComponents",
   "window": {

@@ -22,6 +22,10 @@
 
     <!-- 功能菜单 -->
     <view class="card menu-card">
+      <view class="menu-item" bindtap="goToMessages">
+        <text>消息中心</text>
+        <text class="menu-arrow">›</text>
+      </view>
       <view class="menu-item" bindtap="goToVehicles">
         <text>我的车辆</text>
         <text class="menu-arrow">›</text>

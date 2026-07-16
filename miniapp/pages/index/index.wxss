@@ -134,3 +134,37 @@
   align-items: center;
   justify-content: center;
 }
+
+/* Phase 3 功能入口 */
+.feature-entry {
+  margin-top: 24rpx;
+  background: #fff;
+  border-radius: 28rpx;
+  box-shadow: 0 10rpx 28rpx rgba(24, 42, 68, 0.07);
+  overflow: hidden;
+}
+.feature-item {
+  display: flex;
+  align-items: center;
+  padding: 28rpx 28rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+.feature-item:last-child {
+  border-bottom: none;
+}
+.feature-icon {
+  font-size: 36rpx;
+  margin-right: 16rpx;
+  width: 48rpx;
+  text-align: center;
+}
+.feature-name {
+  flex: 1;
+  font-size: 28rpx;
+  color: #1a1a1a;
+  font-weight: 500;
+}
+.feature-arrow {
+  font-size: 32rpx;
+  color: #b0b8c1;
+}

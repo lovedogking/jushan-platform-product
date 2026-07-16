@@ -81,8 +81,22 @@
 
     <!-- 快捷操作 -->
     <view class="quick-actions">
-      <button class="btn-primary btn-full" bindtap="goToPlateManage">管理车牌</button>
+      <button class="btn-secondary btn-full" bindtap="goToPlateManage">管理车牌</button>
       <button class="btn-secondary btn-full" bindtap="goToRecords">全部记录</button>
+    </view>
+
+    <!-- Phase 3 增值功能入口 -->
+    <view class="feature-entry">
+      <view class="feature-item" bindtap="goToProxyPay">
+        <text class="feature-icon">💰</text>
+        <text class="feature-name">代缴停车费</text>
+        <text class="feature-arrow">›</text>
+      </view>
+      <view class="feature-item" bindtap="goToLotSpace">
+        <text class="feature-icon">🅿</text>
+        <text class="feature-name">余位查询</text>
+        <text class="feature-arrow">›</text>
+      </view>
     </view>
   </block>
 </view>

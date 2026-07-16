@@ -1,0 +1,227 @@
+.page {
+  min-height: 100vh;
+  padding: 24rpx;
+  background-color: #F5F7FA;
+}
+
+/* 头部 */
+.page-header {
+  text-align: center;
+  padding: 40rpx 0 28rpx;
+}
+.page-title {
+  font-size: 38rpx;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+.page-desc {
+  display: block;
+  font-size: 26rpx;
+  color: #87989f;
+  margin-top: 8rpx;
+}
+
+/* 卡片 */
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
+  padding: 36rpx 32rpx;
+  margin-bottom: 20rpx;
+}
+
+/* 输入区域 */
+.input-card {
+  margin-top: 20rpx;
+}
+.input-group {
+  margin-bottom: 32rpx;
+}
+.input-label {
+  font-size: 28rpx;
+  color: #333;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 12rpx;
+}
+.plate-input {
+  width: 100%;
+  height: 88rpx;
+  border: 2rpx solid #e5eaf3;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  font-size: 36rpx;
+  font-weight: 700;
+  letter-spacing: 4rpx;
+  background: #fafafa;
+  color: #1a1a1a;
+}
+.plate-input:focus {
+  border-color: #1677FF;
+  background: #fff;
+}
+
+.search-btn {
+  height: 88rpx;
+  line-height: 88rpx;
+  font-size: 32rpx;
+}
+
+/* 错误提示 */
+.error-bar {
+  background: #FFF1F0;
+  border: 1rpx solid #FFCCC7;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  margin-top: 20rpx;
+}
+.error-text { font-size: 26rpx; color: #FF4D4F; }
+
+/* 详情卡片 */
+.detail-card { margin-top: 20rpx; }
+.plate-display {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28rpx;
+}
+.plate-text {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: 4rpx;
+}
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14rpx 0;
+}
+.detail-label { font-size: 28rpx; color: #87989f; }
+.detail-value { font-size: 28rpx; color: #333; }
+.detail-value.duration { font-weight: 600; }
+.divider {
+  height: 1rpx;
+  background: #f0f0f0;
+  margin: 24rpx 0;
+}
+.fee-display {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.fee-label { font-size: 30rpx; color: #333; }
+.fee-amount {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: #FF4D4F;
+}
+
+/* 支付按钮区 */
+.pay-section {
+  padding: 0 8rpx;
+  margin-top: 32rpx;
+}
+.btn-pay-primary {
+  width: 100%;
+  height: 96rpx;
+  line-height: 96rpx;
+  background: linear-gradient(135deg, #1677FF, #4096FF);
+  color: #fff;
+  font-size: 34rpx;
+  font-weight: 600;
+  border: none;
+  border-radius: 48rpx;
+  box-shadow: 0 8rpx 24rpx rgba(22, 119, 255, 0.3);
+  text-align: center;
+}
+.btn-pay-primary[disabled] {
+  background: #d9d9d9;
+  color: #999;
+  box-shadow: none;
+}
+.pay-hint {
+  display: block;
+  text-align: center;
+  font-size: 24rpx;
+  color: #b0b8c1;
+  margin-top: 16rpx;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40rpx 0;
+  text-align: center;
+}
+.empty-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.empty-desc {
+  font-size: 26rpx;
+  color: #b0b8c1;
+  margin-top: 8rpx;
+}
+
+/* 结果页 */
+.result-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 80rpx 40rpx 40rpx;
+  text-align: center;
+}
+.result-icon {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 56rpx;
+  font-weight: 700;
+  margin-bottom: 32rpx;
+}
+.success-icon { background: #F6FFED; color: #52C41A; border: 4rpx solid #52C41A; }
+.fail-icon { background: #FFF1F0; color: #FF4D4F; border: 4rpx solid #FF4D4F; }
+.result-title {
+  font-size: 38rpx;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 16rpx;
+}
+.result-desc {
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 8rpx;
+}
+.error-msg { color: #FF4D4F; }
+.result-actions {
+  width: 100%;
+  margin-top: 48rpx;
+}
+
+/* 通用按钮 */
+.btn-primary {
+  background: #1677FF;
+  color: #fff;
+  border: none;
+  font-size: 30rpx;
+  border-radius: 12rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+}
+.btn-full { width: 100%; }
+.btn-secondary {
+  background: #fff;
+  color: #1677FF;
+  border: 2rpx solid #1677FF;
+  font-size: 30rpx;
+  border-radius: 12rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+}

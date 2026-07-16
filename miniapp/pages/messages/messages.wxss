@@ -1,0 +1,160 @@
+.page {
+  min-height: 100vh;
+  padding: 24rpx;
+  background-color: #F5F7FA;
+}
+
+/* 头部 */
+.page-header {
+  text-align: center;
+  padding: 32rpx 0 20rpx;
+}
+.page-title {
+  font-size: 38rpx;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+.page-desc {
+  display: block;
+  font-size: 24rpx;
+  color: #87989f;
+  margin-top: 6rpx;
+}
+
+/* 加载 */
+.loading-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 200rpx 0;
+}
+.loading-text { font-size: 28rpx; color: #b0b8c1; }
+
+/* 卡片公共 */
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
+  padding: 36rpx 32rpx;
+  margin-bottom: 20rpx;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60rpx 0;
+  text-align: center;
+}
+.empty-icon {
+  font-size: 72rpx;
+  margin-bottom: 16rpx;
+}
+.empty-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.empty-desc {
+  font-size: 26rpx;
+  color: #b0b8c1;
+  margin-top: 8rpx;
+}
+
+/* 消息卡片 */
+.msg-card {
+  padding: 28rpx 28rpx;
+}
+.msg-card.msg-unread {
+  border-left: 6rpx solid #1677FF;
+}
+.msg-card.msg-read {
+  border-left: 6rpx solid transparent;
+}
+.msg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+.msg-type-area {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+.msg-unread-dot {
+  font-size: 24rpx;
+  color: #1677FF;
+  line-height: 1;
+}
+.msg-type {
+  font-size: 22rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 6rpx;
+  font-weight: 500;
+}
+.type-pay {
+  background: #F0FFF4;
+  color: #00b578;
+}
+.type-system {
+  background: #F0F5FF;
+  color: #1677FF;
+}
+.msg-time {
+  font-size: 22rpx;
+  color: #b0b8c1;
+}
+
+.msg-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 8rpx;
+}
+
+.msg-preview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+.msg-plate {
+  font-size: 26rpx;
+  color: #1677FF;
+  font-weight: 500;
+}
+.msg-amount {
+  font-size: 28rpx;
+  color: #FF4D4F;
+  font-weight: 700;
+}
+
+.msg-content {
+  margin-top: 4rpx;
+}
+.msg-content-text {
+  font-size: 24rpx;
+  color: #87989f;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 加载更多 */
+.load-more {
+  text-align: center;
+  padding: 20rpx;
+  font-size: 24rpx;
+  color: #b0b8c1;
+}
+
+/* 底部提示 */
+.footer-tip {
+  text-align: center;
+  padding: 20rpx 0 40rpx;
+  font-size: 24rpx;
+  color: #d0d5de;
+}

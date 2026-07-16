@@ -40,6 +40,11 @@ Page({
     })
   },
 
+  /** 跳转消息中心 */
+  goToMessages() {
+    wx.navigateTo({ url: '/pages/messages/messages' })
+  },
+
   /** 跳转我的车辆 */
   goToVehicles() {
     wx.showToast({ title: '我的车辆 — 后续版本开放', icon: 'none' })

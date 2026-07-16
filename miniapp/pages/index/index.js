@@ -163,4 +163,14 @@ Page({
       wx.navigateTo({ url: `/pages/pay/pay?recordId=${recordId}` })
     }
   },
+
+  /** Phase 3 E1: 代缴停车费 */
+  goToProxyPay() {
+    wx.navigateTo({ url: '/pages/proxy-pay/proxy-pay' })
+  },
+
+  /** Phase 3 E2: 余位查询 */
+  goToLotSpace() {
+    wx.navigateTo({ url: '/pages/lot-space/lot-space' })
+  },
 })
