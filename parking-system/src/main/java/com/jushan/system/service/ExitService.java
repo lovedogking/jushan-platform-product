@@ -120,11 +120,29 @@ public class ExitService {
             feeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
         }
 
-        // 3. 生成订单（使用 ParkingOrderService）
-        //    固定车位车辆不生成临停订单（类似月卡在 booth 路径的行为）
+        // 3. 获取订单（任务包 1-2）：优先复用该记录现有订单（入场预订单/提前缴费订单）；
+        //    预订单→计费置待支付（零费→直接完成）；已建单（待支付/支付中/已支付）直接复用；
+        //    查不到时按现行逻辑建单（兼容旧无预订单在场数据）。固定车位车辆免费通行，不生成临停订单。
         ParkingOrder order = null;
         if (!isFixedSpace) {
-            order = parkingOrderService.createOrder(record, feeCents, null);
+            ParkingOrder existing = parkingOrderService.findReusableOrderForRecord(record.getId());
+            if (existing == null) {
+                // 兼容期：旧在场记录无预订单，保持原出场建单逻辑
+                order = parkingOrderService.createOrder(record, feeCents, null);
+            } else if (ParkingOrder.STATUS_PRE_ORDER.equals(existing.getStatus())) {
+                if (feeCents <= 0) {
+                    // 免费放行：预订单直接完成（PRE_ORDER → COMPLETED）
+                    parkingOrderService.preOrderToCompleted(existing.getId(), exitTime);
+                } else {
+                    // 出场计费：预订单 → 待支付（PRE_ORDER → PENDING_PAY）
+                    parkingOrderService.preOrderToPending(existing.getId(), feeCents,
+                            LocalDateTime.now().plusMinutes(15));
+                }
+                order = parkingOrderService.getById(existing.getId());
+            } else {
+                // 提前缴费/岗亭等已建订单（待支付/支付中/已支付），直接复用，避免重复建单
+                order = existing;
+            }
         }
 
         // 3b. 储值车余额自动扣费（在订单创建后、放行决策前）
@@ -173,11 +191,12 @@ public class ExitService {
             syncParkingSessionExit(record, payload, exitTime, feeCents, orderId);
         }
 
+        Long orderIdForResult = order != null ? order.getId() : null;
         log.info("出场处理完成: recordId={} plate={} feeCents={} paidCents={} decision={} orderId={}",
                 record.getId(), standardizedPlate, feeCents, actualPaidCents,
-                decision.getDecisionCode(), order.getId());
+                decision.getDecisionCode(), orderIdForResult);
 
-        return ExitResult.of(decision, exitRecord.getId(), order.getId(), feeCents);
+        return ExitResult.of(decision, exitRecord.getId(), orderIdForResult, feeCents);
     }
 
     /**

@@ -33,6 +33,18 @@ public interface VehicleTypeDecisionService {
     VehicleTypeDecisionVO decide(String plateNumber);
 
     /**
+     * 根据车牌号 + 可信租户 ID 判定车辆类型（任务包 1-2）。
+     * <p>
+     * 供无 {@link com.jushan.common.auth.TenantContext} 的链路（如 MQ 识别事件入场）使用，
+     * 租户 ID 由调用方从可信设备/停车记录推导，不信任外部传入。
+     *
+     * @param plateNumber 车牌号
+     * @param tenantId    可信租户 ID
+     * @return 判定结果
+     */
+    VehicleTypeDecisionVO decide(String plateNumber, Long tenantId);
+
+    /**
      * 检查车辆是否允许入场。
      *
      * @param plateNumber 车牌号

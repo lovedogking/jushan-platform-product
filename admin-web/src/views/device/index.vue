@@ -32,6 +32,16 @@
             {{ record.deviceType === 'CAMERA' ? '相机' : '道闸' }}
           </a-tag>
         </template>
+        <template v-if="column.key === 'recognitionDirection'">
+          <a-tag v-if="record.recognitionDirection === 1" color="green">入场</a-tag>
+          <a-tag v-else-if="record.recognitionDirection === 2" color="red">出场</a-tag>
+          <span v-else style="color: #999">-</span>
+        </template>
+        <template v-if="column.key === 'cameraRole'">
+          <a-tag v-if="record.cameraRole === 1" color="blue">主</a-tag>
+          <a-tag v-else-if="record.cameraRole === 2" color="orange">备</a-tag>
+          <span v-else style="color: #999">-</span>
+        </template>
         <template v-if="column.key === 'status'">
           <a-tag :color="record.status === 'ENABLED' ? 'green' : 'red'">
             {{ record.status === 'ENABLED' ? '启用' : '停用' }}
@@ -94,6 +104,18 @@
           <a-select v-model:value="formData.deviceType" placeholder="请选择设备类型">
             <a-select-option value="CAMERA">相机</a-select-option>
             <a-select-option value="GATE">道闸</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="识别方向" v-if="formData.deviceType === 'CAMERA'">
+          <a-select v-model:value="formData.recognitionDirection" placeholder="请选择识别方向" allow-clear>
+            <a-select-option :value="1">入场</a-select-option>
+            <a-select-option :value="2">出场</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="主备角色" v-if="formData.deviceType === 'CAMERA'">
+          <a-select v-model:value="formData.cameraRole" placeholder="请选择主备角色" allow-clear>
+            <a-select-option :value="1">主相机</a-select-option>
+            <a-select-option :value="2">备相机</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="厂商" required>
@@ -207,6 +229,8 @@ const columns = [
   { title: '名称', dataIndex: 'name', key: 'name', width: 130 },
   { title: '编码', dataIndex: 'code', key: 'code', width: 90 },
   { title: '类型', key: 'deviceType', width: 70 },
+  { title: '识别方向', key: 'recognitionDirection', width: 80 },
+  { title: '主备', key: 'cameraRole', width: 60 },
   { title: '序列号', dataIndex: 'deviceSn', key: 'deviceSn', width: 130, ellipsis: true },
   { title: '厂商', dataIndex: 'vendorName', key: 'vendorName', width: 90 },
   { title: '型号', dataIndex: 'modelName', key: 'modelName', width: 100 },
@@ -245,6 +269,8 @@ const editingId = ref<number | null>(null)
 const formData = reactive({
   parkingLotId: undefined as number | undefined,
   name: '', code: '', deviceSn: '', deviceType: 'CAMERA',
+  recognitionDirection: undefined as number | undefined,
+  cameraRole: undefined as number | undefined,
   vendorId: undefined as number | undefined, modelId: undefined as number | undefined,
   capabilities: '', description: '',
 })
@@ -374,7 +400,8 @@ function handleCreate() {
   formModalTitle.value = '新增设备'
   formData.parkingLotId = queryParkingLotId.value || undefined
   formData.name = ''; formData.code = ''; formData.deviceSn = ''
-  formData.deviceType = 'CAMERA'; formData.vendorId = undefined; formData.modelId = undefined
+  formData.deviceType = 'CAMERA'; formData.recognitionDirection = undefined; formData.cameraRole = undefined
+  formData.vendorId = undefined; formData.modelId = undefined
   formData.capabilities = ''; formData.description = ''
   modelOptions.value = []
   formModalOpen.value = true
@@ -386,6 +413,8 @@ function handleEdit(record: any) {
   formData.parkingLotId = record.parkingLotId
   formData.name = record.name; formData.code = record.code
   formData.deviceSn = record.deviceSn; formData.deviceType = record.deviceType
+  formData.recognitionDirection = record.recognitionDirection
+  formData.cameraRole = record.cameraRole
   formData.vendorId = record.vendorId; formData.modelId = record.modelId
   formData.capabilities = record.capabilities || ''; formData.description = record.description || ''
   // 加载型号
@@ -406,6 +435,8 @@ async function handleFormSubmit() {
       await updateDevice(editingId.value, {
         name: formData.name.trim(), code: formData.code.trim(),
         deviceType: formData.deviceType,
+        recognitionDirection: formData.recognitionDirection,
+        cameraRole: formData.cameraRole,
         capabilities: formData.capabilities.trim(),
         description: formData.description.trim(),
       })
@@ -416,6 +447,8 @@ async function handleFormSubmit() {
         vendorId: formData.vendorId!, modelId: formData.modelId!,
         name: formData.name.trim(), code: formData.code.trim(),
         deviceSn: formData.deviceSn.trim(), deviceType: formData.deviceType,
+        recognitionDirection: formData.recognitionDirection,
+        cameraRole: formData.cameraRole,
         capabilities: formData.capabilities.trim(),
         description: formData.description.trim(),
       })

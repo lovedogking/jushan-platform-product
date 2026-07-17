@@ -63,4 +63,12 @@ public final class RedisKeyPrefix {
 
     /** WebSocket 会话与连接 */
     public static final String WS_SESSION = "ws:session:";
+
+    // ==================== Webhook 签名校验 ====================
+
+    /** Webhook 事件幂等（eventId 去重） */
+    public static final String WEBHOOK_EVENT = "webhook:event:";
+
+    /** Webhook nonce 防重放 */
+    public static final String WEBHOOK_NONCE = "webhook:nonce:";
 }

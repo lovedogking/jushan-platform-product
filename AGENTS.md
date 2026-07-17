@@ -3,6 +3,11 @@
 ## 项目概述
 多租户停车SaaS管理平台，支持运营端(Web)、岗亭端(Web)、小程序端(微信)三端，通过适配器层对接停车场硬件设备。
 
+## 包架构说明
+- **com.jushan.system** — 本期业务主战场，受控使用。承载进出场、计费引擎、订单、模拟支付、设备、车场/车道、月卡/固定车位、系统参数、岗亭监控等约 80% 核心业务。V1.1 新功能需对应功能编号标注，二期统一迁移至 com.jushan.platform.modules。
+- **com.jushan.platform.modules** — 已成型模块（auth/account/company/department、device-webhook、miniapp、parking-session/recognition-event）。
+- **com.jushan.platform.modules.parking** — fee_rule 计费体系代码已实现但本期冻结为二期候选。本期以旧 billing_rule 为唯一计费体系。
+
 ## 技术栈
 - 后端: Java 21 + Spring Boot 3.x + MyBatis-Plus + MySQL 8 + Flyway
 - 前端: Vue 3 + Ant Design Vue (admin-web/booth-web)

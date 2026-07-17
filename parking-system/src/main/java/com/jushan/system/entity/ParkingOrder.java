@@ -95,6 +95,15 @@ public class ParkingOrder implements Serializable {
     /** 订单过期时间 */
     private LocalDateTime expiredAt;
 
+    /** 退款原因（任务包 1-2 模拟退款必填） */
+    private String refundReason;
+
+    /** 退款时间 */
+    private LocalDateTime refundTime;
+
+    /** 退款操作人（sys_user.id） */
+    private Long refundOperatorId;
+
     /** 乐观锁版本号 */
     @Version
     private Integer version;
@@ -112,12 +121,16 @@ public class ParkingOrder implements Serializable {
     public static final String ORDER_TYPE_VISITOR = "VISITOR";
     public static final String ORDER_TYPE_TOP_UP = "TOP_UP";
 
+    /** 预订单（入场生成，尚未计费）——任务包 1-2 */
+    public static final String STATUS_PRE_ORDER = "PRE_ORDER";
     public static final String STATUS_PENDING_PAY = "PENDING_PAY";
     public static final String STATUS_PAYING = "PAYING";
     public static final String STATUS_PAID = "PAID";
     public static final String STATUS_COMPLETED = "COMPLETED";
     public static final String STATUS_CANCELLED = "CANCELLED";
     public static final String STATUS_PAY_FAILED = "PAY_FAILED";
+    /** 欠费中——任务包 1-2 */
+    public static final String STATUS_ARREARS = "ARREARS";
     public static final String STATUS_REFUNDING = "REFUNDING";
     public static final String STATUS_REFUNDED = "REFUNDED";
 
@@ -206,4 +219,13 @@ public class ParkingOrder implements Serializable {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getRefundReason() { return refundReason; }
+    public void setRefundReason(String refundReason) { this.refundReason = refundReason; }
+
+    public LocalDateTime getRefundTime() { return refundTime; }
+    public void setRefundTime(LocalDateTime refundTime) { this.refundTime = refundTime; }
+
+    public Long getRefundOperatorId() { return refundOperatorId; }
+    public void setRefundOperatorId(Long refundOperatorId) { this.refundOperatorId = refundOperatorId; }
 }

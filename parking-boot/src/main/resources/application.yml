@@ -107,12 +107,18 @@ pyun:
   mock: true
 
 # ---- Device Access Webhook 接收端配置 ----
-# 生产环境通过环境变量覆盖：DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS
+# 生产环境必须通过环境变量覆盖：DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS
+# 所有环境必须配置 webhook 签名密钥（webhook_secret 表），否则请求被拒绝
 device-access:
   webhook:
-    # IP 白名单（逗号分隔），* 表示放行所有（仅限开发/测试环境）
+    # IP 白名单（逗号分隔），默认空表示不启用 IP 过滤
     # 生产环境必须配置为 Device Access 服务的具体 IP 地址
-    allowed-ips: "*"
+    # 禁止使用 *（全放行），仅测试可按需启用
+    allowed-ips: ""
+    # 签名校验（HMAC-SHA256），默认启用。仅 dev 环境可关闭用于调试
+    signature-enabled: true
+    # 时间戳容忍偏差（秒），默认 300 秒（5 分钟）
+    timestamp-tolerance-seconds: 300
 
 # ---- JWT 配置 ----
 # 生产环境必须通过环境变量 JWT_SECRET 覆盖，至少 32 字符

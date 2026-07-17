@@ -7,6 +7,7 @@ import com.jushan.platform.modules.parking.dto.ParkingZoneCreateCmd;
 import com.jushan.platform.modules.parking.dto.ParkingZoneUpdateCmd;
 import com.jushan.platform.modules.parking.service.ParkingZoneService;
 import com.jushan.platform.modules.parking.vo.ParkingZoneVO;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +27,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/parking-zones")
+@Tag(name = "二期计费体系候选(冻结)")
 public class ParkingZoneController {
 
     private final ParkingZoneService parkingZoneService;

@@ -450,6 +450,8 @@ public class ParkingLaneService {
         vo.setCode(device.getCode());
         vo.setDeviceSn(device.getDeviceSn());
         vo.setDeviceType(device.getDeviceType());
+        vo.setRecognitionDirection(device.getRecognitionDirection());
+        vo.setCameraRole(device.getCameraRole());
         vo.setStatus(device.getStatus());
         vo.setCapabilities(device.getCapabilities());
         vo.setDescription(device.getDescription());

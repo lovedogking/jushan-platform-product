@@ -24,6 +24,8 @@ public class DeviceVO {
     private String code;
     private String deviceSn;
     private String deviceType;
+    private Integer recognitionDirection;
+    private Integer cameraRole;
     private String status;
     private String capabilities;
     private String description;
@@ -67,6 +69,12 @@ public class DeviceVO {
 
     public String getDeviceType() { return deviceType; }
     public void setDeviceType(String deviceType) { this.deviceType = deviceType; }
+
+    public Integer getRecognitionDirection() { return recognitionDirection; }
+    public void setRecognitionDirection(Integer recognitionDirection) { this.recognitionDirection = recognitionDirection; }
+
+    public Integer getCameraRole() { return cameraRole; }
+    public void setCameraRole(Integer cameraRole) { this.cameraRole = cameraRole; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

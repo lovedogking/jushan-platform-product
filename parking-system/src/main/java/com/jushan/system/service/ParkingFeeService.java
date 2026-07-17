@@ -336,7 +336,8 @@ public class ParkingFeeService {
         ParkingOrder pendingOrder = parkingOrderMapper.selectOne(
                 new LambdaQueryWrapper<ParkingOrder>()
                         .eq(ParkingOrder::getParkingRecordId, record.getId())
-                        .eq(ParkingOrder::getStatus, ParkingOrder.STATUS_PENDING_PAY)
+                        .in(ParkingOrder::getStatus,
+                                ParkingOrder.STATUS_PRE_ORDER, ParkingOrder.STATUS_PENDING_PAY)
                         .orderByDesc(ParkingOrder::getCreatedAt)
                         .last("LIMIT 1"));
         if (pendingOrder != null) {

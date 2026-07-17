@@ -78,6 +78,15 @@ public class OrderAdminVO implements Serializable {
     /** 操作人姓名 */
     private String operatorName;
 
+    /** 退款原因（任务包 1-2） */
+    private String refundReason;
+
+    /** 退款时间 */
+    private LocalDateTime refundTime;
+
+    /** 退款操作人姓名 */
+    private String refundOperatorName;
+
     /** 创建时间 */
     private LocalDateTime createdAt;
 
@@ -154,4 +163,13 @@ public class OrderAdminVO implements Serializable {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getRefundReason() { return refundReason; }
+    public void setRefundReason(String refundReason) { this.refundReason = refundReason; }
+
+    public LocalDateTime getRefundTime() { return refundTime; }
+    public void setRefundTime(LocalDateTime refundTime) { this.refundTime = refundTime; }
+
+    public String getRefundOperatorName() { return refundOperatorName; }
+    public void setRefundOperatorName(String refundOperatorName) { this.refundOperatorName = refundOperatorName; }
 }

@@ -52,6 +52,7 @@
           <a-space>
             <a @click="handleEdit(record)">编辑</a>
             <a @click="handleManageZones(record)">区域</a>
+            <a v-permission="'parking:read'" @click="handleManageParams(record)">参数</a>
             <a-divider type="vertical" />
             <a v-if="record.status !== 1" @click="handleToggleStatus(record, 1)">启用</a>
             <a v-else style="color: #dc2626" @click="handleToggleStatus(record, 2)">停用</a>
@@ -146,6 +147,9 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 车场参数配置抽屉（任务包 1-1） -->
+    <ParkingLotParamDrawer ref="paramDrawerRef" />
   </div>
 </template>
 
@@ -155,6 +159,7 @@ import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { SearchOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import MapLocationPicker from '@/components/MapLocationPicker.vue'
+import ParkingLotParamDrawer from './ParkingLotParamDrawer.vue'
 import {
   getParkingLots,
   createParkingLot,
@@ -187,6 +192,9 @@ const dataSource = ref<ParkingLotVO[]>([])
 const queryName = ref('')
 const queryStatus = ref<number | undefined>(undefined)
 const companyOptions = ref<{ id: number; name: string }[]>([])
+
+// 车场参数抽屉引用
+const paramDrawerRef = ref()
 
 const pagination = reactive({
   current: 1,
@@ -379,6 +387,10 @@ async function handleDelete(record: any) {
 
 function handleManageZones(record: any) {
   router.push(`/parking-zones?lotId=${record.id}`)
+}
+
+function handleManageParams(record: any) {
+  paramDrawerRef.value?.open({ id: record.id, name: record.name })
 }
 
 function handleMapChange(data: { address: string; province: string; city: string; district: string; longitude: string; latitude: string }) {

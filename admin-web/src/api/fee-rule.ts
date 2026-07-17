@@ -74,35 +74,35 @@ export function getFeeRules(params: {
   billingMode?: number
   status?: number
 }) {
-  return request.get<PageResult<FeeRuleVO>>('/api/v1/fee-rules', params)
+  return request.get<PageResult<FeeRuleVO>>('/v1/fee-rules', params)
 }
 
 /** 查询收费规则详情 */
 export function getFeeRule(id: number) {
-  return request.get<FeeRuleVO>(`/api/v1/fee-rules/${id}`)
+  return request.get<FeeRuleVO>(`/v1/fee-rules/${id}`)
 }
 
 /** 创建收费规则 */
 export function createFeeRule(data: Record<string, any>) {
-  return request.post<FeeRuleVO>('/api/v1/fee-rules', data)
+  return request.post<FeeRuleVO>('/v1/fee-rules', data)
 }
 
 /** 更新收费规则 */
 export function updateFeeRule(id: number, data: Record<string, any>) {
-  return request.put<FeeRuleVO>(`/api/v1/fee-rules/${id}`, data)
+  return request.put<FeeRuleVO>(`/v1/fee-rules/${id}`, data)
 }
 
 /** 删除收费规则（软删除） */
 export function deleteFeeRule(id: number) {
-  return request.delete<void>(`/api/v1/fee-rules/${id}`)
+  return request.delete<void>(`/v1/fee-rules/${id}`)
 }
 
 /** 复制收费规则 */
 export function copyFeeRule(id: number) {
-  return request.post<FeeRuleVO>(`/api/v1/fee-rules/${id}/copy`)
+  return request.post<FeeRuleVO>(`/v1/fee-rules/${id}/copy`)
 }
 
 /** 更新收费规则状态 */
 export function updateFeeRuleStatus(id: number, status: number) {
-  return request.post<void>(`/api/v1/fee-rules/${id}/status`, { action: status === 1 ? "ENABLED" : "DISABLED" })
+  return request.post<void>(`/v1/fee-rules/${id}/status`, { action: status === 1 ? "ENABLED" : "DISABLED" })
 }

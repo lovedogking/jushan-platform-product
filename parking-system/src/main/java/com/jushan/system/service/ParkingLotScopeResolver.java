@@ -189,6 +189,80 @@ public class ParkingLotScopeResolver {
     }
 
     /**
+     * 校验当前用户是否有权<b>修改指定车场的车场级参数</b>（任务包 1-1）。
+     * <p>
+     * 授权口径（严于 {@link #validateAccess(Long)}）：<b>仅超级管理员与租户管理员（本车场）</b>。
+     * <ul>
+     *   <li>平台用户（super_admin）：全平台放行。</li>
+     *   <li>租户管理员（customer_admin）：必须且仅能修改<b>本租户</b>的车场参数——
+     *       此处显式校验目标车场归属租户（{@link #validateAccess(Long)} 对全量角色直接放行，
+     *       无法拦截跨租户，故不能复用）。</li>
+     *   <li>其余受限角色（parking_manager / booth_operator 等）：一律拒绝，即便其对该车场有读权限。</li>
+     * </ul>
+     *
+     * @param parkingLotId 车场 ID
+     * @throws BusinessException 未登录 / 非管理员 / 跨租户访问时抛出
+     */
+    public void validateParamWriteAccess(Long parkingLotId) {
+        if (parkingLotId == null) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "停车场 ID 不能为空");
+        }
+        TenantContext.Snapshot ctx = TenantContext.get();
+        if (ctx == null) {
+            throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "未登录或会话已过期");
+        }
+        // 1. 平台超级管理员：全平台放行
+        if (ctx.isPlatformUser()) {
+            return;
+        }
+        // 2. 仅租户管理员可改；其余受限角色拒绝
+        List<String> roles = parseRoles(ctx.roles());
+        if (!hasAnyRole(roles, FULL_TENANT_ACCESS_ROLES)) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN,
+                    "仅超级管理员与租户管理员可修改车场参数");
+        }
+        // 3. 租户管理员：显式校验目标车场归属本租户（受 TenantLineInnerInterceptor 约束，
+        //    非本租户车场查询结果为空）
+        ParkingLot lot = parkingLotMapper.selectById(parkingLotId);
+        if (lot == null) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN, "无权访问该停车场");
+        }
+    }
+
+    /**
+     * 校验当前用户是否有权<b>查看指定车场</b>（租户安全，供车场级参数只读接口使用）。
+     * <p>
+     * 与 {@link #validateAccess(Long)} 的差异：对客户管理员（全量租户角色）额外显式校验目标车场
+     * 归属本租户，避免越权读取其它租户车场（{@code sys_config} 为租户豁免表，不受拦截器保护）。
+     *
+     * @param parkingLotId 车场 ID
+     * @throws BusinessException 未登录 / 跨租户 / 无授权时抛出
+     */
+    public void validateReadAccess(Long parkingLotId) {
+        if (parkingLotId == null) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "停车场 ID 不能为空");
+        }
+        TenantContext.Snapshot ctx = TenantContext.get();
+        if (ctx == null) {
+            throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "未登录或会话已过期");
+        }
+        if (ctx.isPlatformUser()) {
+            return;
+        }
+        Set<Long> authorizedIds = resolveAuthorizedIds();
+        if (authorizedIds == null) {
+            // 客户管理员：全量租户访问 → 显式校验车场归属本租户
+            if (parkingLotMapper.selectById(parkingLotId) == null) {
+                throw new BusinessException(CommonErrorCode.FORBIDDEN, "无权访问该停车场");
+            }
+            return;
+        }
+        if (!authorizedIds.contains(parkingLotId)) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN, "无权访问该停车场");
+        }
+    }
+
+    /**
      * 判断当前是否为全量访问角色（平台用户 / 客户管理员）。
      * <p>
      * 供调用方在列表查询中决定是否需要添加停车场 IN 过滤条件。

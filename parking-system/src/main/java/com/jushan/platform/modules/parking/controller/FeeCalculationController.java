@@ -5,6 +5,7 @@ import com.jushan.platform.infra.security.RequirePermission;
 import com.jushan.platform.modules.parking.dto.FeeCalculateCmd;
 import com.jushan.platform.modules.parking.service.FeeCalculationService;
 import com.jushan.platform.modules.parking.vo.FeeCalculateResultVO;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/fee")
+@Tag(name = "二期计费体系候选(冻结)")
 public class FeeCalculationController {
 
     private final FeeCalculationService feeCalculationService;

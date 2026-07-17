@@ -12,6 +12,8 @@ import com.jushan.platform.modules.parking.mapper.ParkingSpacePolicyMapper;
 import com.jushan.platform.modules.parking.service.ParkingSpacePolicyService;
 import com.jushan.platform.modules.parking.vo.ParkingSpacePolicyVO;
 import com.jushan.platform.modules.parking.vo.ParkingSpaceRemainVO;
+import com.jushan.system.entity.ParkingRecord;
+import com.jushan.system.mapper.ParkingRecordMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -33,6 +35,12 @@ import java.util.stream.Collectors;
 @Service
 public class ParkingSpacePolicyServiceImpl extends ServiceImpl<ParkingSpacePolicyMapper, ParkingSpacePolicy>
         implements ParkingSpacePolicyService {
+
+    private final ParkingRecordMapper parkingRecordMapper;
+
+    public ParkingSpacePolicyServiceImpl(ParkingRecordMapper parkingRecordMapper) {
+        this.parkingRecordMapper = parkingRecordMapper;
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -157,9 +165,7 @@ public class ParkingSpacePolicyServiceImpl extends ServiceImpl<ParkingSpacePolic
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "该停车场未配置车位管控策略");
         }
 
-        // TODO: 从 Redis/数据库获取实际在场车辆数量（TASK-0601 实现）
-        // 当前使用模拟数据，后续接入 parking_session 表
-        int usedSpaces = 0; // 占位，后续实现
+        int usedSpaces = countParkingVehicles(parkingLotId, tenantId);
 
         int totalSpaces = policy.getTotalSpaces();
         int remainSpaces = totalSpaces - usedSpaces;
@@ -176,6 +182,23 @@ public class ParkingSpacePolicyServiceImpl extends ServiceImpl<ParkingSpacePolic
         remainVO.setFull(full);
 
         return remainVO;
+    }
+
+    /**
+     * 基于 parking_record 表实时统计指定停车场的在场车辆数。
+     * <p>
+     * 后续接入车场参数体系（任务包 1-1）后，根据参数
+     * "monthly_card_count_in_remain" 和 "fixed_space_count_in_remain"
+     * 决定是否排除月卡/固定车位的在场记录。
+     */
+    private int countParkingVehicles(Long parkingLotId, Long tenantId) {
+        Long count = parkingRecordMapper.selectCount(
+                new LambdaQueryWrapper<ParkingRecord>()
+                        .eq(ParkingRecord::getParkingLotId, parkingLotId)
+                        .eq(ParkingRecord::getTenantId, tenantId)
+                        .eq(ParkingRecord::getStatus, ParkingRecord.STATUS_PARKING)
+                        .isNull(ParkingRecord::getDeletedAt));
+        return count != null ? count.intValue() : 0;
     }
 
     private ParkingSpacePolicyVO toVO(ParkingSpacePolicy entity) {

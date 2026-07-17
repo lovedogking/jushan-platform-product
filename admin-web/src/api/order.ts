@@ -23,17 +23,34 @@ export interface OrderAdminVO {
   exitTime?: string
   parkingDurationMinutes?: number
   operatorName?: string
+  refundReason?: string
+  refundTime?: string
+  refundOperatorName?: string
   createdAt: string
   updatedAt?: string
 }
 
+export interface OrderStatusLogVO {
+  fromStatus?: string
+  fromStatusLabel?: string
+  toStatus: string
+  toStatusLabel: string
+  triggerSource: string
+  triggerSourceLabel: string
+  operatorName?: string
+  remark?: string
+  createdAt: string
+}
+
 export const ORDER_STATUS_MAP: Record<string, string> = {
+  PRE_ORDER: '预订单',
   PENDING_PAY: '待支付',
   PAYING: '支付中',
   PAID: '已支付',
   COMPLETED: '已完成',
   CANCELLED: '已取消',
   PAY_FAILED: '支付失败',
+  ARREARS: '欠费中',
   REFUNDING: '退款中',
   REFUNDED: '已退款',
 }
@@ -73,6 +90,14 @@ export function getOrderDetail(id: number) {
 
 export function closeOrder(id: number) {
   return request.post<{ orderId: number; status: string }>(`/v1/admin/orders/${id}/close`)
+}
+
+export function refundOrder(id: number, reason: string) {
+  return request.post<{ orderId: number; status: string }>(`/v1/admin/orders/${id}/refund`, { reason })
+}
+
+export function getOrderStatusLogs(id: number) {
+  return request.get<OrderStatusLogVO[]>(`/v1/admin/orders/${id}/status-logs`)
 }
 
 export function exportOrders(params: {

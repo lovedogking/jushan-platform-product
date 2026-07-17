@@ -8,8 +8,11 @@ import com.jushan.system.entity.ParkingLane;
 import com.jushan.system.mapper.DeviceMapper;
 import com.jushan.system.mapper.ParkingLaneMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,13 +41,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class DeviceWebhookService {
 
     /**
-     * 已处理事件 ID 缓存（内存去重，24 小时 TTL）。
-     * <p>
-     * TODO: 多实例部署时升级为 Redis Set + TTL。
-     */
-    private final Map<String, LocalDateTime> processedEvents = new ConcurrentHashMap<>();
-
-    /**
      * 基于（车牌+方向）的去重缓存，窗口 5 秒。
      * <p>
      * 臻识 C5H 每次识别会同时发两条 MQTT 消息（quick_ivs_result + ivs_result），
@@ -53,8 +49,15 @@ public class DeviceWebhookService {
      */
     private final Map<String, LocalDateTime> recentPlateEvents = new ConcurrentHashMap<>();
 
-    /** 事件去重保留时间（小时） */
-    private static final int EVENT_RETENTION_HOURS = 24;
+    /**
+     * 事件去重 Redis key 前缀
+     */
+    static final String EVENT_KEY_PREFIX = "webhook:event:";
+
+    /**
+     * 事件去重 TTL：24 小时
+     */
+    static final Duration EVENT_TTL = Duration.ofHours(24);
 
     /** 车牌级去重窗口（秒） */
     private static final int PLATE_DEDUP_WINDOW_SECONDS = 60;
@@ -62,13 +65,16 @@ public class DeviceWebhookService {
     private final DeviceMapper deviceMapper;
     private final ParkingLaneMapper laneMapper;
     private final DeviceWebhookEventHandler eventHandler;
+    private final StringRedisTemplate stringRedisTemplate;
 
     public DeviceWebhookService(DeviceMapper deviceMapper,
                                 ParkingLaneMapper laneMapper,
-                                DeviceWebhookEventHandler eventHandler) {
+                                DeviceWebhookEventHandler eventHandler,
+                                ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
         this.deviceMapper = deviceMapper;
         this.laneMapper = laneMapper;
         this.eventHandler = eventHandler;
+        this.stringRedisTemplate = redisTemplateProvider.getIfAvailable();
     }
 
     /**
@@ -80,14 +86,16 @@ public class DeviceWebhookService {
      * @param event Webhook 推送事件
      */
     public void processEvent(DeviceWebhookEvent event) {
-        // 0. 清理过期事件缓存
-        cleanupExpiredEvents();
+        // 0. 清理过期车牌去重缓存
+        cleanupExpiredPlateEvents();
 
-        // 1. 幂等校验
-        if (event.getEventId() != null && processedEvents.containsKey(event.getEventId())) {
-            log.info("Webhook 事件重复，已跳过: eventId={}, deviceSn={}, plate={}",
-                    event.getEventId(), event.getDeviceSn(), event.getPlateNumber());
-            return;
+        // 1. 幂等校验（Redis SETNX，24h TTL，多实例安全）
+        if (event.getEventId() != null && !event.getEventId().isBlank()) {
+            if (!markEventProcessed(event.getEventId())) {
+                log.info("Webhook 事件重复，已跳过: eventId={}, deviceSn={}, plate={}",
+                        event.getEventId(), event.getDeviceSn(), event.getPlateNumber());
+                return;
+            }
         }
 
         // 2. 设备身份校验：从 deviceSn 查询平台设备记录
@@ -122,31 +130,9 @@ public class DeviceWebhookService {
                     event.getEventId(), event.getParkingLotId(), trustedParkingLotId);
         }
 
-        // 3. 方向推断与校验：对比事件方向与车道绑定方向（DB type: 1=ENTRY, 2=EXIT, 3=MIXED）
-        //    臻识 C5H 等相机可能不发送方向或发送未知值（direction=4），此时从车道类型推断
-        if (trustedLaneId != null) {
-            ParkingLane lane = laneMapper.selectByIdIgnoreTenant(trustedLaneId);
-            if (lane != null && lane.getType() != null && lane.getType() != 3) {
-                // 非 MIXED 车道：方向由车道物理绑定决定
-                String laneDirection = lane.getType() == 1 ? "ENTRY" : "EXIT";
-
-                if (event.getDirection() != null) {
-                    // 有方向时校验是否匹配
-                    if (!laneDirection.equals(event.getDirection())) {
-                        log.error("Webhook 事件方向与车道方向不匹配，拒绝处理: eventId={}, deviceSn={}, laneId={}, " +
-                                        "eventDirection={}, laneDirection={}",
-                                event.getEventId(), event.getDeviceSn(), trustedLaneId,
-                                event.getDirection(), laneDirection);
-                        return;
-                    }
-                } else {
-                    // 方向未知时从车道类型推断（臻识 C5H direction=4 等场景）
-                    log.info("Webhook 事件方向为空，从车道绑定推断: laneId={}, type={} → {}",
-                            trustedLaneId, lane.getType(), laneDirection);
-                    event.setDirection(laneDirection);
-                }
-            }
-        }
+        // 3. 方向判定：优先按相机 recognition_direction，兜底车道类型推断
+        //    臻识 C5H direction=4 等场景由兜底逻辑处理
+        determineDirection(event, device, trustedLaneId);
 
         // 4. 车牌标准化
         String normalizedPlate = event.getPlateNumber() != null
@@ -214,9 +200,7 @@ public class DeviceWebhookService {
                     event.getCaptureTime()
             );
 
-            // 8. 记录处理成功
-            processedEvents.put(event.getEventId(), LocalDateTime.now());
-
+            // 8. 记录处理完成
             log.info("Webhook 事件处理完成: eventId={}, plate={}, allowPass={}, sessionId={}",
                     event.getEventId(), normalizedPlate, result.getAllowPass(), result.getSessionId());
 
@@ -235,14 +219,78 @@ public class DeviceWebhookService {
     }
 
     /**
-     * 清理超过保留时间的已处理事件记录。
+     * 判定识别事件方向，优先级：
+     * <ol>
+     *   <li>相机 recognition_direction（1=ENTRY, 2=EXIT）→ 直接采用</li>
+     *   <li>非 MIXED 车道类型反推方向（兼容臻识 direction=4 等场景）</li>
+     *   <li>MIXED 车道 + 相机无方向 → 保留事件原始 direction 或 null</li>
+     * </ol>
      */
-    private void cleanupExpiredEvents() {
-        LocalDateTime cutoff = LocalDateTime.now().minusHours(EVENT_RETENTION_HOURS);
-        processedEvents.entrySet().removeIf(entry -> entry.getValue().isBefore(cutoff));
+    private void determineDirection(DeviceWebhookEvent event, Device device, Long laneId) {
+        // 优先：相机识别方向
+        if (device.getRecognitionDirection() != null) {
+            String deviceDirection = device.getRecognitionDirection() == 1 ? "ENTRY" : "EXIT";
+            log.info("Webhook 方向取自相机识别方向: deviceId={}, recognitionDirection={} → {}",
+                    device.getId(), device.getRecognitionDirection(), deviceDirection);
+            if (event.getDirection() != null && !deviceDirection.equals(event.getDirection())) {
+                log.warn("Webhook 事件方向({})与相机识别方向({})不一致，以相机方向为准: eventId={}, deviceSn={}",
+                        event.getDirection(), deviceDirection, event.getEventId(), event.getDeviceSn());
+            }
+            event.setDirection(deviceDirection);
+            return;
+        }
 
-        // 清理车牌去重缓存中超过 1 分钟的旧记录
+        // 兜底：从车道类型推断
+        if (laneId != null) {
+            ParkingLane lane = laneMapper.selectByIdIgnoreTenant(laneId);
+            if (lane != null && lane.getType() != null && lane.getType() != 3) {
+                String laneDirection = lane.getType() == 1 ? "ENTRY" : "EXIT";
+                if (event.getDirection() != null) {
+                    if (!laneDirection.equals(event.getDirection())) {
+                        log.warn("Webhook 事件方向与车道方向不匹配（兜底，以车道为准）: eventId={}, deviceSn={}, laneId={}, " +
+                                        "eventDirection={}, laneDirection={}",
+                                event.getEventId(), event.getDeviceSn(), laneId,
+                                event.getDirection(), laneDirection);
+                    }
+                }
+                log.info("Webhook 方向兜底取自车道类型: laneId={}, type={} → {}",
+                        laneId, lane.getType(), laneDirection);
+                event.setDirection(laneDirection);
+                return;
+            }
+        }
+
+        // MIXED 车道且相机无方向：保留事件方向原值（可能为 null）
+        if (event.getDirection() == null || event.getDirection().isBlank()) {
+            log.warn("Webhook 无法确定识别方向（相机无识别方向 + 车道为双向或无车道绑定）: eventId={}, deviceSn={}",
+                    event.getEventId(), event.getDeviceSn());
+        }
+    }
+
+    /**
+     * 清理车牌去重缓存中超过 1 分钟的旧记录。
+     */
+    private void cleanupExpiredPlateEvents() {
         LocalDateTime plateCutoff = LocalDateTime.now().minusMinutes(1);
         recentPlateEvents.entrySet().removeIf(entry -> entry.getValue().isBefore(plateCutoff));
+    }
+
+    /**
+     * 标记事件为已处理（Redis SETNX），返回 true 表示首次处理（即未重复）。
+     * <p>
+     * 多实例安全：使用 Redis SETNX 原子操作，只有一个节点能成功标记。
+     *
+     * @param eventId 事件 ID
+     * @return true=首次（继续处理），false=重复（跳过）
+     */
+    private boolean markEventProcessed(String eventId) {
+        if (stringRedisTemplate == null) {
+            log.warn("Redis 不可用，跳过事件幂等检查: eventId={}", eventId);
+            return true;
+        }
+        String key = EVENT_KEY_PREFIX + eventId;
+        Boolean success = stringRedisTemplate.opsForValue()
+                .setIfAbsent(key, "1", EVENT_TTL);
+        return Boolean.TRUE.equals(success);
     }
 }

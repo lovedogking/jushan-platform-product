@@ -1,6 +1,7 @@
 package com.jushan.system.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.jushan.system.constant.ParamKeys;
 import com.jushan.system.entity.MockPaymentConfig;
 import com.jushan.system.entity.MockPaymentRecord;
 import com.jushan.system.entity.ParkingOrder;
@@ -49,6 +50,10 @@ class MockPaymentServiceTest {
     private ParkingOrderMapper orderMapper;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private ParamResolver paramResolver;
+    @Mock
+    private OrderStatusLogService orderStatusLogService;
 
     private MockPaymentService mockPaymentService;
 
@@ -57,7 +62,7 @@ class MockPaymentServiceTest {
 
     @BeforeEach
     void setUp() {
-        mockPaymentService = new MockPaymentService(configMapper, recordMapper, orderMapper, eventPublisher);
+        mockPaymentService = new MockPaymentService(configMapper, recordMapper, orderMapper, eventPublisher, paramResolver, orderStatusLogService);
 
         defaultConfig = new MockPaymentConfig();
         defaultConfig.setId(1L);
@@ -255,6 +260,8 @@ class MockPaymentServiceTest {
         MockPaymentConfig updated = mockPaymentService.updateConfig(1L, 1L, 30, true);
 
         assertThat(updated.getTimeoutMinutes()).isEqualTo(30);
+        // 超时时长权威写入车场级参数体系（任务包 1-1）
+        verify(paramResolver).setLotParam(eq(1L), eq(ParamKeys.MOCK_PAYMENT_TIMEOUT_MINUTES), eq("30"));
         verify(configMapper).updateById(any(MockPaymentConfig.class));
     }
 }

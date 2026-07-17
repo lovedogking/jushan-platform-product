@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.framework.redis.CacheNames;
+import com.jushan.system.constant.ParamKeys;
 import com.jushan.system.dto.SystemParamUpdateRequest;
 import com.jushan.system.entity.SysConfig;
 import com.jushan.system.mapper.SysConfigMapper;
@@ -37,8 +38,9 @@ import java.util.stream.Collectors;
  *   <li>全量查询不缓存（sys_config 表极小，全表扫描性能可忽略）</li>
  * </ul>
  * <p>
- * <strong>注意</strong>：{@code mock_payment.timeout_minutes} 已按车场在 {@code mock_payment_config} 表中独立配置，
- * sys_config 中的同一 key 仅作为全局兜底默认值。业务方应优先使用车场级别的配置。
+ * <strong>注意</strong>（任务包 1-1）：{@code sys_config} 现为参数分层存储（全局行 {@code parking_lot_id=0}）。
+ * 本服务只管理<b>全局参数</b>（系统参数页仅展示全局）；车场级读写由 {@code ParamResolver} 统一处理。
+ * 全局参数更新后会同步失效 {@code ParamResolver} 的全局缓存层，使回退到全局的车场立即生效。
  *
  * @author Jushan Platform
  * @since 1.0.0
@@ -49,9 +51,11 @@ public class SystemParamService {
     private static final Logger log = LoggerFactory.getLogger(SystemParamService.class);
 
     private final SysConfigMapper configMapper;
+    private final ParamResolver paramResolver;
 
-    public SystemParamService(SysConfigMapper configMapper) {
+    public SystemParamService(SysConfigMapper configMapper, ParamResolver paramResolver) {
         this.configMapper = configMapper;
+        this.paramResolver = paramResolver;
     }
 
     // ==================== 查询 ====================
@@ -66,6 +70,7 @@ public class SystemParamService {
     public List<SystemParamVO> getAllParams() {
         List<SysConfig> configs = configMapper.selectList(
                 new QueryWrapper<SysConfig>()
+                        .eq("parking_lot_id", ParamKeys.GLOBAL_LOT_ID)
                         .orderByAsc("group_name", "config_key"));
 
         return configs.stream().map(this::toVO).collect(Collectors.toList());
@@ -94,7 +99,9 @@ public class SystemParamService {
     @Cacheable(cacheNames = CacheNames.SYS_DICT, key = "'sys:param:' + #key", unless = "#result == null")
     public String getValue(String key) {
         SysConfig config = configMapper.selectOne(
-                new QueryWrapper<SysConfig>().eq("config_key", key));
+                new QueryWrapper<SysConfig>()
+                        .eq("config_key", key)
+                        .eq("parking_lot_id", ParamKeys.GLOBAL_LOT_ID));
         if (config == null) {
             log.warn("系统参数不存在，返回 null: key={}", key);
             return null;
@@ -125,6 +132,9 @@ public class SystemParamService {
         config.setUpdatedAt(LocalDateTime.now());
         configMapper.updateById(config);
 
+        // 同步失效车场级解析器的全局缓存层，使所有回退到全局的车场立即拿到新值
+        paramResolver.evictGlobal(key);
+
         log.info("系统参数已更新: key={} oldValue={} newValue={}", key, oldValue, newValue);
 
         return toVO(config);
@@ -137,7 +147,9 @@ public class SystemParamService {
      */
     private SysConfig getByKeyOrThrow(String key) {
         SysConfig config = configMapper.selectOne(
-                new QueryWrapper<SysConfig>().eq("config_key", key));
+                new QueryWrapper<SysConfig>()
+                        .eq("config_key", key)
+                        .eq("parking_lot_id", ParamKeys.GLOBAL_LOT_ID));
         if (config == null) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "系统参数不存在: " + key);
         }

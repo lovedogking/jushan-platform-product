@@ -42,5 +42,5 @@ export function calculateFee(data: {
   entryTime: string
   exitTime: string
 }) {
-  return request.post<FeeCalculateResultVO>('/api/v1/fee/calculate', data)
+  return request.post<FeeCalculateResultVO>('/v1/fee/calculate', data)
 }

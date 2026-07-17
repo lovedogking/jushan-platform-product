@@ -2,9 +2,13 @@ package com.jushan.system.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
+import com.jushan.common.BusinessException;
+import com.jushan.common.CommonErrorCode;
+import com.jushan.common.auth.TenantContext;
+import com.jushan.system.entity.OrderStatusLog;
 import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.entity.ParkingRecord;
+import com.jushan.system.enums.OrderStatus;
 import com.jushan.system.mapper.ParkingOrderMapper;
 import com.jushan.system.mapper.ParkingRecordMapper;
 import org.slf4j.Logger;
@@ -17,9 +21,20 @@ import java.time.format.DateTimeFormatter;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 停车订单服务（Sprint 8）。
+ * 停车订单服务（Sprint 8 + 任务包 1-2 状态机扩展）。
  * <p>
- * 负责订单创建、状态机管理、订单号生成、幂等控制。
+ * 负责订单创建、状态机管理、订单号生成、幂等控制、状态流转留痕。
+ * <p>
+ * <strong>状态机（V1.1 附录 10.2）</strong>：
+ * <pre>
+ * PRE_ORDER --出场计费--> PENDING_PAY --支付--> PAID --出场完成--> COMPLETED
+ * PENDING_PAY --超时关闭--> CANCELLED
+ * PENDING_PAY --允许欠费--> ARREARS --补缴--> COMPLETED
+ * PAID --退款--> REFUNDED
+ * PRE_ORDER --免费放行--> COMPLETED
+ * </pre>
+ * 全部流转经 {@link OrderStatus#assertCanTransition(String, String)} 守卫，非法流转抛业务异常；
+ * 每次成功流转写入 {@code order_status_log}（{@link OrderStatusLogService}）。
  * <p>
  * <strong>安全约束</strong>：
  * <ul>
@@ -39,20 +54,60 @@ public class ParkingOrderService {
 
     private final ParkingOrderMapper orderMapper;
     private final ParkingRecordMapper recordMapper;
+    private final OrderStatusLogService orderStatusLogService;
 
     private final AtomicInteger sequence = new AtomicInteger(0);
     private volatile String lastSequenceDate = "";
 
-    public ParkingOrderService(ParkingOrderMapper orderMapper, ParkingRecordMapper recordMapper) {
+    public ParkingOrderService(ParkingOrderMapper orderMapper,
+                               ParkingRecordMapper recordMapper,
+                               OrderStatusLogService orderStatusLogService) {
         this.orderMapper = orderMapper;
         this.recordMapper = recordMapper;
+        this.orderStatusLogService = orderStatusLogService;
+    }
+
+    // ==================== 创建 ====================
+
+    /**
+     * 创建预订单（入场时调用，任务包 1-2）。
+     * <p>
+     * 临停车辆入场即生成 PRE_ORDER，金额为 0，出场计费后再流转为 PENDING_PAY。
+     *
+     * @param record 停车记录（可信）
+     * @return 创建的预订单
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ParkingOrder createPreOrder(ParkingRecord record) {
+        ParkingOrder order = new ParkingOrder();
+        order.setTenantId(record.getTenantId());
+        order.setParkingLotId(record.getParkingLotId());
+        order.setParkingRecordId(record.getId());
+        order.setOrderNo(generateOrderNo(record.getParkingLotId()));
+        order.setOrderType(ParkingOrder.ORDER_TYPE_PARKING);
+        order.setPlateNumber(record.getStandardizedPlate());
+        order.setAmountCents(0);
+        order.setDiscountAmount(0);
+        order.setPointsDiscount(0);
+        order.setPayableAmount(0);
+        order.setPaidAmount(0);
+        order.setStatus(ParkingOrder.STATUS_PRE_ORDER);
+        order.setCreatedAt(LocalDateTime.now());
+        order.setUpdatedAt(LocalDateTime.now());
+
+        orderMapper.insert(order);
+        orderStatusLogService.record(order, null, ParkingOrder.STATUS_PRE_ORDER,
+                currentTriggerSource(), currentOperatorId(), null, "入场生成预订单");
+        log.info("预订单创建成功: orderId={} orderNo={} recordId={}",
+                order.getId(), order.getOrderNo(), record.getId());
+        return order;
     }
 
     /**
-     * 创建停车订单（出场时调用）。
+     * 创建停车订单（出场时调用/兼容旧无预订单数据）。
      *
-     * @param record      停车记录（可信）
-     * @param feeCents    计算费用（分）
+     * @param record         停车记录（可信）
+     * @param feeCents       计算费用（分）
      * @param idempotencyKey 幂等键
      * @return 创建的订单
      */
@@ -99,9 +154,86 @@ public class ParkingOrderService {
         order.setUpdatedAt(LocalDateTime.now());
 
         orderMapper.insert(order);
+        // 创建即留痕（源状态为空）
+        orderStatusLogService.record(order, null, order.getStatus(),
+                currentTriggerSource(), currentOperatorId(), null, "出场建单");
         log.info("订单创建成功: orderId={} orderNo={} feeCents={} status={}",
                 order.getId(), order.getOrderNo(), feeCents, order.getStatus());
         return order;
+    }
+
+    // ==================== 状态流转 ====================
+
+    /**
+     * 预订单出场计费 → 待支付（PRE_ORDER → PENDING_PAY，任务包 1-2）。
+     *
+     * @param orderId   预订单 ID
+     * @param feeCents  计费金额（分）
+     * @param expiredAt 支付过期时间
+     * @return 是否成功
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean preOrderToPending(Long orderId, int feeCents, LocalDateTime expiredAt) {
+        ParkingOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            return false;
+        }
+        String from = order.getStatus();
+        if (ParkingOrder.STATUS_PENDING_PAY.equals(from)) {
+            return true; // 幂等：已计费
+        }
+        OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_PENDING_PAY);
+
+        int amount = Math.max(0, feeCents);
+        UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
+                .set("status", ParkingOrder.STATUS_PENDING_PAY)
+                .set("amount_cents", amount)
+                .set("payable_amount", amount)
+                .set("expired_at", expiredAt)
+                .set("updated_at", LocalDateTime.now())
+                .eq("id", orderId)
+                .eq("status", ParkingOrder.STATUS_PRE_ORDER);
+        int updated = orderMapper.update(null, wrapper);
+        if (updated > 0) {
+            orderStatusLogService.record(order, from, ParkingOrder.STATUS_PENDING_PAY,
+                    currentTriggerSource(), currentOperatorId(), null, "出场计费，应付" + amount + "分");
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 预订单免费放行 → 已完成（PRE_ORDER → COMPLETED，任务包 1-2）。
+     *
+     * @param orderId  预订单 ID
+     * @param exitTime 出场时间
+     * @return 是否成功
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean preOrderToCompleted(Long orderId, LocalDateTime exitTime) {
+        ParkingOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            return false;
+        }
+        String from = order.getStatus();
+        if (ParkingOrder.STATUS_COMPLETED.equals(from)) {
+            return true; // 幂等
+        }
+        OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_COMPLETED);
+
+        UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
+                .set("status", ParkingOrder.STATUS_COMPLETED)
+                .set("exit_time", exitTime)
+                .set("updated_at", LocalDateTime.now())
+                .eq("id", orderId)
+                .eq("status", ParkingOrder.STATUS_PRE_ORDER);
+        int updated = orderMapper.update(null, wrapper);
+        if (updated > 0) {
+            orderStatusLogService.record(order, from, ParkingOrder.STATUS_COMPLETED,
+                    currentTriggerSource(), currentOperatorId(), null, "免费放行");
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -113,6 +245,16 @@ public class ParkingOrderService {
      */
     @Transactional(rollbackFor = Exception.class)
     public boolean startPaying(Long orderId, String payChannel) {
+        ParkingOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            return false;
+        }
+        String from = order.getStatus();
+        if (ParkingOrder.STATUS_PAYING.equals(from)) {
+            return true;
+        }
+        OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_PAYING);
+
         UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
                 .set("status", ParkingOrder.STATUS_PAYING)
                 .set("pay_channel", payChannel)
@@ -121,15 +263,20 @@ public class ParkingOrderService {
                 .eq("status", ParkingOrder.STATUS_PENDING_PAY)
                 .gt("expired_at", LocalDateTime.now());
         int updated = orderMapper.update(null, wrapper);
-        return updated > 0;
+        if (updated > 0) {
+            orderStatusLogService.record(order, from, ParkingOrder.STATUS_PAYING,
+                    currentTriggerSource(), currentOperatorId(), null, "发起支付:" + payChannel);
+            return true;
+        }
+        return false;
     }
 
     /**
      * 完成支付（回调时使用，更新状态为 PAID 并设置支付流水）。
      *
-     * @param orderId    订单ID
-     * @param paySerial  P云支付流水
-     * @param payTime    支付时间
+     * @param orderId   订单ID
+     * @param paySerial P云支付流水
+     * @param payTime   支付时间
      * @return 是否成功
      */
     @Transactional(rollbackFor = Exception.class)
@@ -138,6 +285,12 @@ public class ParkingOrderService {
         if (order == null) {
             return false;
         }
+        String from = order.getStatus();
+        if (ParkingOrder.STATUS_PAID.equals(from)) {
+            return true;
+        }
+        OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_PAID);
+
         UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
                 .set("status", ParkingOrder.STATUS_PAID)
                 .set("pay_serial", paySerial)
@@ -147,7 +300,12 @@ public class ParkingOrderService {
                 .eq("id", orderId)
                 .in("status", ParkingOrder.STATUS_PENDING_PAY, ParkingOrder.STATUS_PAYING);
         int updated = orderMapper.update(null, wrapper);
-        return updated > 0;
+        if (updated > 0) {
+            orderStatusLogService.record(order, from, ParkingOrder.STATUS_PAID,
+                    currentTriggerSource(), currentOperatorId(), null, "支付完成");
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -160,6 +318,16 @@ public class ParkingOrderService {
      */
     @Transactional(rollbackFor = Exception.class)
     public boolean markPaid(Long orderId, String paySerial, int paidAmount) {
+        ParkingOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            return false;
+        }
+        String from = order.getStatus();
+        if (ParkingOrder.STATUS_PAID.equals(from)) {
+            return true;
+        }
+        OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_PAID);
+
         UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
                 .set("status", ParkingOrder.STATUS_PAID)
                 .set("pay_serial", paySerial)
@@ -169,7 +337,12 @@ public class ParkingOrderService {
                 .eq("id", orderId)
                 .in("status", ParkingOrder.STATUS_PENDING_PAY, ParkingOrder.STATUS_PAYING);
         int updated = orderMapper.update(null, wrapper);
-        return updated > 0;
+        if (updated > 0) {
+            orderStatusLogService.record(order, from, ParkingOrder.STATUS_PAID,
+                    currentTriggerSource(), currentOperatorId(), null, "标记已支付");
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -181,6 +354,16 @@ public class ParkingOrderService {
      */
     @Transactional(rollbackFor = Exception.class)
     public boolean completeOrder(Long orderId, LocalDateTime exitTime) {
+        ParkingOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            return false;
+        }
+        String from = order.getStatus();
+        if (ParkingOrder.STATUS_COMPLETED.equals(from)) {
+            return true; // 幂等：已完成
+        }
+        OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_COMPLETED);
+
         UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
                 .set("status", ParkingOrder.STATUS_COMPLETED)
                 .set("exit_time", exitTime)
@@ -188,24 +371,44 @@ public class ParkingOrderService {
                 .eq("id", orderId)
                 .in("status", ParkingOrder.STATUS_PAID, ParkingOrder.STATUS_PENDING_PAY);
         int updated = orderMapper.update(null, wrapper);
-        return updated > 0;
+        if (updated > 0) {
+            orderStatusLogService.record(order, from, ParkingOrder.STATUS_COMPLETED,
+                    currentTriggerSource(), currentOperatorId(), null, "出场完成");
+            return true;
+        }
+        return false;
     }
 
     /**
-     * 取消订单。
+     * 取消订单（超时关闭/手动关闭）。
      *
      * @param orderId 订单ID
      * @return 是否成功
      */
     @Transactional(rollbackFor = Exception.class)
     public boolean cancelOrder(Long orderId) {
+        ParkingOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            return false;
+        }
+        String from = order.getStatus();
+        if (ParkingOrder.STATUS_CANCELLED.equals(from)) {
+            return true;
+        }
+        OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_CANCELLED);
+
         UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
                 .set("status", ParkingOrder.STATUS_CANCELLED)
                 .set("updated_at", LocalDateTime.now())
                 .eq("id", orderId)
                 .eq("status", ParkingOrder.STATUS_PENDING_PAY);
         int updated = orderMapper.update(null, wrapper);
-        return updated > 0;
+        if (updated > 0) {
+            orderStatusLogService.record(order, from, ParkingOrder.STATUS_CANCELLED,
+                    currentTriggerSource(), currentOperatorId(), null, "订单取消");
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -216,13 +419,103 @@ public class ParkingOrderService {
      */
     @Transactional(rollbackFor = Exception.class)
     public boolean markPayFailed(Long orderId) {
+        ParkingOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            return false;
+        }
+        String from = order.getStatus();
+        if (ParkingOrder.STATUS_PAY_FAILED.equals(from)) {
+            return true;
+        }
+        OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_PAY_FAILED);
+
         UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
                 .set("status", ParkingOrder.STATUS_PAY_FAILED)
                 .set("updated_at", LocalDateTime.now())
                 .eq("id", orderId)
                 .in("status", ParkingOrder.STATUS_PENDING_PAY, ParkingOrder.STATUS_PAYING);
         int updated = orderMapper.update(null, wrapper);
-        return updated > 0;
+        if (updated > 0) {
+            orderStatusLogService.record(order, from, ParkingOrder.STATUS_PAY_FAILED,
+                    currentTriggerSource(), currentOperatorId(), null, "支付失败");
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 允许欠费（待支付 → 欠费中，PENDING_PAY → ARREARS，任务包 1-2）。
+     * <p>
+     * 供"允许欠费放行"策略调用（策略读取与放行链路在收费闭环任务包落地）。
+     *
+     * @param orderId       订单ID
+     * @param triggerSource 触发源
+     * @param operatorId    操作人（可为 null）
+     * @param remark        备注
+     * @return 是否成功
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean allowArrears(Long orderId, String triggerSource, Long operatorId, String remark) {
+        ParkingOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            return false;
+        }
+        String from = order.getStatus();
+        if (ParkingOrder.STATUS_ARREARS.equals(from)) {
+            return true;
+        }
+        OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_ARREARS);
+
+        UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
+                .set("status", ParkingOrder.STATUS_ARREARS)
+                .set("updated_at", LocalDateTime.now())
+                .eq("id", orderId)
+                .eq("status", ParkingOrder.STATUS_PENDING_PAY);
+        int updated = orderMapper.update(null, wrapper);
+        if (updated > 0) {
+            orderStatusLogService.record(order, from, ParkingOrder.STATUS_ARREARS,
+                    triggerSource != null ? triggerSource : currentTriggerSource(),
+                    operatorId, null, remark != null ? remark : "允许欠费放行");
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 欠费补缴（欠费中 → 已完成，ARREARS → COMPLETED，任务包 1-2）。
+     *
+     * @param orderId       订单ID
+     * @param triggerSource 触发源
+     * @param operatorId    操作人（可为 null）
+     * @return 是否成功
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean payArrears(Long orderId, String triggerSource, Long operatorId) {
+        ParkingOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            return false;
+        }
+        String from = order.getStatus();
+        if (ParkingOrder.STATUS_COMPLETED.equals(from)) {
+            return true;
+        }
+        OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_COMPLETED);
+
+        UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
+                .set("status", ParkingOrder.STATUS_COMPLETED)
+                .set("paid_amount", order.getPayableAmount())
+                .set("pay_time", LocalDateTime.now())
+                .set("updated_at", LocalDateTime.now())
+                .eq("id", orderId)
+                .eq("status", ParkingOrder.STATUS_ARREARS);
+        int updated = orderMapper.update(null, wrapper);
+        if (updated > 0) {
+            orderStatusLogService.record(order, from, ParkingOrder.STATUS_COMPLETED,
+                    triggerSource != null ? triggerSource : currentTriggerSource(),
+                    operatorId, null, "欠费补缴");
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -230,13 +523,22 @@ public class ParkingOrderService {
      * <p>
      * 使用条件更新确保仅从 PENDING_PAY 状态更新，并记录余额支付明细。
      *
-     * @param orderId       订单ID
-     * @param paidAmount    余额支付金额（分）
-     * @param fullyPaid     是否全额支付（true → PAID, false → 保持 PENDING_PAY）
+     * @param orderId    订单ID
+     * @param paidAmount 余额支付金额（分）
+     * @param fullyPaid  是否全额支付（true → PAID, false → 保持 PENDING_PAY）
      * @return 是否成功
      */
     @Transactional(rollbackFor = Exception.class)
     public boolean applyBalancePayment(Long orderId, int paidAmount, boolean fullyPaid) {
+        ParkingOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            return false;
+        }
+        String from = order.getStatus();
+        if (fullyPaid) {
+            OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_PAID);
+        }
+
         UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
                 .set("pay_channel", ParkingOrder.PAY_CHANNEL_BALANCE)
                 .set("paid_amount", paidAmount)
@@ -251,11 +553,86 @@ public class ParkingOrderService {
 
         int updated = orderMapper.update(null, wrapper);
         if (updated > 0) {
+            if (fullyPaid) {
+                orderStatusLogService.record(order, from, ParkingOrder.STATUS_PAID,
+                        currentTriggerSource(), currentOperatorId(), null, "储值车余额全额支付");
+            }
             log.info("余额支付应用成功: orderId={} paidAmount={} fullyPaid={}", orderId, paidAmount, fullyPaid);
         } else {
             log.warn("余额支付应用失败（订单状态可能已变更）: orderId={}", orderId);
         }
         return updated > 0;
+    }
+
+    /**
+     * 模拟退款（已支付 → 已退款，PAID → REFUNDED，任务包 1-2）。
+     * <p>
+     * 仅 PAID 订单可退，其他状态发起被拒；记录退款原因/时间/操作人；本期无真实资金流动。
+     *
+     * @param orderId    订单ID
+     * @param reason     退款原因（必填）
+     * @param operatorId 操作人 ID
+     * @return 是否成功
+     * @throws BusinessException 订单不存在 / 非 PAID 状态 / 原因为空 / 并发变更
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean refund(Long orderId, String reason, Long operatorId) {
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "退款原因不能为空");
+        }
+        ParkingOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "订单不存在");
+        }
+        String from = order.getStatus();
+        // 仅 PAID 可退
+        if (!ParkingOrder.STATUS_PAID.equals(from)) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "仅已支付(PAID)订单可发起退款，当前状态: " + OrderStatus.fromCode(from).getLabel());
+        }
+        OrderStatus.assertCanTransition(from, ParkingOrder.STATUS_REFUNDED);
+
+        LocalDateTime now = LocalDateTime.now();
+        String trimmedReason = reason.trim();
+        UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
+                .set("status", ParkingOrder.STATUS_REFUNDED)
+                .set("refund_reason", trimmedReason)
+                .set("refund_time", now)
+                .set("refund_operator_id", operatorId)
+                .set("updated_at", now)
+                .eq("id", orderId)
+                .eq("status", ParkingOrder.STATUS_PAID);
+        int updated = orderMapper.update(null, wrapper);
+        if (updated == 0) {
+            throw new BusinessException(CommonErrorCode.CONFLICT, "订单状态已变更，退款失败，请刷新后重试");
+        }
+        orderStatusLogService.record(order, from, ParkingOrder.STATUS_REFUNDED,
+                OrderStatusLog.TRIGGER_USER, operatorId, null, "退款原因: " + trimmedReason);
+        log.info("模拟退款成功: orderId={} operatorId={} reason={}", orderId, operatorId, trimmedReason);
+        return true;
+    }
+
+    // ==================== 查询 ====================
+
+    /**
+     * 查询停车记录当前可复用的订单，无则返回 null。
+     * <p>
+     * 任务包 1-2：为保证"入场→查费→缴费→出场"全链路单一订单，出场与小程序查费/缴费均复用本方法定位的订单：
+     * 命中 PRE_ORDER 时出场计费/免费放行；命中 PENDING_PAY/PAYING/PAID 时（提前缴费/岗亭等已建单）直接复用，避免重复建单。
+     * 终态订单（COMPLETED/CANCELLED/REFUNDED/PAY_FAILED）不作为可复用订单。
+     */
+    public ParkingOrder findReusableOrderForRecord(Long parkingRecordId) {
+        if (parkingRecordId == null) {
+            return null;
+        }
+        return orderMapper.selectOne(
+                new QueryWrapper<ParkingOrder>()
+                        .eq("parking_record_id", parkingRecordId)
+                        .in("status", ParkingOrder.STATUS_PRE_ORDER, ParkingOrder.STATUS_PENDING_PAY,
+                                ParkingOrder.STATUS_PAYING, ParkingOrder.STATUS_PAID)
+                        .isNull("deleted_at")
+                        .orderByDesc("created_at")
+                        .last("LIMIT 1"));
     }
 
     /**
@@ -270,6 +647,31 @@ public class ParkingOrderService {
      */
     public ParkingOrder getByOrderNo(String orderNo) {
         return orderMapper.selectByOrderNo(orderNo);
+    }
+
+    // ==================== 收入报表口径（任务包 1-2 预留，报表在任务包 6-1 实现） ====================
+
+    /**
+     * 判断订单是否计入收入统计（实付金额口径）。
+     * <p>
+     * 已退款（REFUNDED）订单不计入实付收入；任务包 6-1 收入报表统一使用本口径。
+     */
+    public static boolean isCountedInRevenue(String status) {
+        return !ParkingOrder.STATUS_REFUNDED.equals(status);
+    }
+
+    // ==================== 内部辅助 ====================
+
+    /**
+     * 当前触发源：存在登录用户上下文视为 USER，否则视为 SYSTEM（识别事件/出场等自动链路）。
+     */
+    private String currentTriggerSource() {
+        return TenantContext.getUserId() != null
+                ? OrderStatusLog.TRIGGER_USER : OrderStatusLog.TRIGGER_SYSTEM;
+    }
+
+    private Long currentOperatorId() {
+        return TenantContext.getUserId();
     }
 
     /**

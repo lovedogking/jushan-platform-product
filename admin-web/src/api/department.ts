@@ -2,14 +2,14 @@ import request from '@/utils/request'
 
 export function getDepartmentTree() {
   return request({
-    url: '/api/v1/departments/tree',
+    url: '/v1/departments/tree',
     method: 'get'
   })
 }
 
 export function getDepartmentPage(params: any) {
   return request({
-    url: '/api/v1/departments',
+    url: '/v1/departments',
     method: 'get',
     params
   })
@@ -17,14 +17,14 @@ export function getDepartmentPage(params: any) {
 
 export function getDepartmentDetail(id: number) {
   return request({
-    url: `/api/v1/departments/${id}`,
+    url: `/v1/departments/${id}`,
     method: 'get'
   })
 }
 
 export function createDepartment(data: any) {
   return request({
-    url: '/api/v1/departments',
+    url: '/v1/departments',
     method: 'post',
     data
   })
@@ -32,7 +32,7 @@ export function createDepartment(data: any) {
 
 export function updateDepartment(id: number, data: any) {
   return request({
-    url: `/api/v1/departments/${id}`,
+    url: `/v1/departments/${id}`,
     method: 'put',
     data
   })
@@ -40,7 +40,7 @@ export function updateDepartment(id: number, data: any) {
 
 export function deleteDepartment(id: number) {
   return request({
-    url: `/api/v1/departments/${id}`,
+    url: `/v1/departments/${id}`,
     method: 'delete'
   })
 }

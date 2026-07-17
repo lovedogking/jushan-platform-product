@@ -1,7 +1,7 @@
 import request from '@/utils/request'
 import type { PageResult } from '@/types'
 
-/** 收费规则视图 */
+/** 收费规则视图（旧 billing_rule 体系） */
 export interface BillingRuleVO {
   id: number
   tenantId: number
@@ -19,7 +19,6 @@ export interface BillingRuleVO {
   updatedBy: number
   createdAt: string
   updatedAt: string
-  // 当前生效版本信息
   activeVersionId: number
   activeVersion: number
   configSummary: string
@@ -36,8 +35,6 @@ export interface BillingRuleVO {
 export interface BillingRuleVersionVO {
   id: number
   ruleId: number
-  tenantId: number
-  parkingLotId: number
   version: number
   isActive: number
   config: string
@@ -49,15 +46,31 @@ export interface BillingRuleVersionVO {
   unitAmount: number
   dailyCap: number
   maxAmount: number
-  effectiveFrom: string
-  effectiveTo: string
-  createdBy: number
-  createdByName: string
+  effectiveFrom: string | null
+  effectiveTo: string | null
   createdAt: string
 }
 
+/** 计费类型选项 */
+export const RULE_TYPE_OPTIONS = [
+  { label: '按时计费', value: 'HOURLY' },
+  { label: '按次计费', value: 'FIXED' },
+  { label: '免费', value: 'NO_FEE' },
+]
+
+/** 状态选项 */
+export const RULE_STATUS_OPTIONS = [
+  { label: '启用', value: 'ENABLED' },
+  { label: '禁用', value: 'DISABLED' },
+]
+
 /** 分页查询收费规则列表 */
-export function getBillingRules(params: { page: number; size: number; parkingLotId?: number; status?: string }) {
+export function getBillingRules(params: {
+  page?: number
+  size?: number
+  parkingLotId?: number
+  status?: string
+}) {
   return request.get<PageResult<BillingRuleVO>>('/admin/billing-rules', params)
 }
 
@@ -72,7 +85,6 @@ export function createBillingRule(data: {
   name: string
   description?: string
   ruleType: string
-  isDefault?: boolean
   freeMinutes?: number
   firstPeriod?: number
   firstAmount?: number
@@ -85,11 +97,22 @@ export function createBillingRule(data: {
 }
 
 /** 更新收费规则 */
-export function updateBillingRule(id: number, data: Record<string, any>) {
+export function updateBillingRule(id: number, data: {
+  name?: string
+  description?: string
+  ruleType?: string
+  freeMinutes?: number
+  firstPeriod?: number
+  firstAmount?: number
+  unitPeriod?: number
+  unitAmount?: number
+  dailyCap?: number
+  maxAmount?: number
+}) {
   return request.put<BillingRuleVO>(`/admin/billing-rules/${id}`, data)
 }
 
-/** 查询规则版本历史 */
+/** 查询版本历史 */
 export function getBillingRuleVersions(id: number) {
   return request.get<BillingRuleVersionVO[]>(`/admin/billing-rules/${id}/versions`)
 }
@@ -97,8 +120,8 @@ export function getBillingRuleVersions(id: number) {
 /** 切换收费规则 */
 export function switchBillingRule(parkingLotId: number, data: {
   targetRuleId: number
-  applyToExisting: boolean
+  applyToExisting?: boolean
   reason: string
 }) {
-  return request.post(`/admin/billing-rules/parking-lots/${parkingLotId}/switch`, data)
+  return request.post<void>(`/admin/billing-rules/parking-lots/${parkingLotId}/switch`, data)
 }

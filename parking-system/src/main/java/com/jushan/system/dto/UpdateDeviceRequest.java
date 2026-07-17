@@ -23,6 +23,12 @@ public class UpdateDeviceRequest {
     /** 设备类型 */
     private String deviceType;
 
+    /** 识别方向：1=入场, 2=出场（仅 CAMERA 使用） */
+    private Integer recognitionDirection;
+
+    /** 主备角色：1=主相机, 2=备相机（仅 CAMERA 使用） */
+    private Integer cameraRole;
+
     /** 设备能力 */
     @Size(max = 500, message = "设备能力描述最长500个字符")
     private String capabilities;
@@ -41,6 +47,12 @@ public class UpdateDeviceRequest {
 
     public String getDeviceType() { return deviceType; }
     public void setDeviceType(String deviceType) { this.deviceType = deviceType; }
+
+    public Integer getRecognitionDirection() { return recognitionDirection; }
+    public void setRecognitionDirection(Integer recognitionDirection) { this.recognitionDirection = recognitionDirection; }
+
+    public Integer getCameraRole() { return cameraRole; }
+    public void setCameraRole(Integer cameraRole) { this.cameraRole = cameraRole; }
 
     public String getCapabilities() { return capabilities; }
     public void setCapabilities(String capabilities) { this.capabilities = capabilities; }

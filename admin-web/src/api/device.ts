@@ -15,6 +15,8 @@ export interface DeviceVO {
   code: string
   deviceSn: string
   deviceType: string
+  recognitionDirection: number | null
+  cameraRole: number | null
   status: string
   capabilities: string
   description: string
@@ -131,6 +133,8 @@ export function createDevice(data: {
   code: string
   deviceSn: string
   deviceType: string
+  recognitionDirection?: number
+  cameraRole?: number
   capabilities?: string
   description?: string
 }) {

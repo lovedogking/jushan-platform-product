@@ -57,8 +57,12 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
 
     @Override
     public VehicleTypeDecisionVO decide(String plateNumber) {
+        return decide(plateNumber, TenantContext.getTenantId());
+    }
+
+    @Override
+    public VehicleTypeDecisionVO decide(String plateNumber, Long tenantId) {
         String standardizedPlate = plateNumber.toUpperCase();
-        Long tenantId = TenantContext.getTenantId();
 
         VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
         result.setPlateNumber(standardizedPlate);

@@ -55,4 +55,27 @@ public interface DeviceMapper extends BaseMapper<Device> {
     @InterceptorIgnore(tenantLine = "true")
     @Select("SELECT * FROM device WHERE parking_lot_id = #{parkingLotId} AND device_type = 'CAMERA' AND status = 'ENABLED' AND capabilities LIKE '%OPEN_GATE%' LIMIT 1")
     Device selectCameraWithOpenGateByLotIdIgnoreTenant(@Param("parkingLotId") Long parkingLotId);
+
+    /**
+     * 按车道 ID 和识别方向查询启用的主相机，忽略租户拦截器。
+     * <p>
+     * 用于 Webhook 事件处理：优先按相机识别方向选择主相机。
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT * FROM device WHERE lane_id = #{laneId} AND device_type = 'CAMERA' AND status = 'ENABLED' AND recognition_direction = #{recognitionDirection} AND (camera_role = 1 OR camera_role IS NULL) LIMIT 1")
+    Device selectPrimaryCameraByLaneAndDirectionIgnoreTenant(@Param("laneId") Long laneId, @Param("recognitionDirection") Integer recognitionDirection);
+
+    /**
+     * 按车道 ID 和识别方向查询启用的备相机，忽略租户拦截器。
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT * FROM device WHERE lane_id = #{laneId} AND device_type = 'CAMERA' AND status = 'ENABLED' AND recognition_direction = #{recognitionDirection} AND camera_role = 2 LIMIT 1")
+    Device selectBackupCameraByLaneAndDirectionIgnoreTenant(@Param("laneId") Long laneId, @Param("recognitionDirection") Integer recognitionDirection);
+
+    /**
+     * 按车道 ID 查询所有启用的 CAMERA 设备，忽略租户拦截器。
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT * FROM device WHERE lane_id = #{laneId} AND device_type = 'CAMERA' AND status = 'ENABLED'")
+    List<Device> selectCamerasByLaneIdIgnoreTenant(@Param("laneId") Long laneId);
 }

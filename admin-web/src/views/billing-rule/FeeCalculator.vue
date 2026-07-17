@@ -1,34 +1,43 @@
 <template>
   <div class="fee-calculator-page">
-    <a-card title="费用试算" class="calculator-card">
+    <a-alert
+      message="费用试算功能已冻结，二期恢复。"
+      description="当前使用旧 billing_rule 计费体系，费用试算在新 fee_rule 体系上线后恢复。"
+      type="warning"
+      show-icon
+      closable
+      style="margin-bottom: 16px"
+    />
+
+    <a-card title="费用试算（二期恢复）" class="calculator-card">
       <a-form :model="formData" :label-col="{ span: 6 }" :wrapper-col="{ span: 14 }">
         <a-form-item label="所属停车场" required>
-          <a-select v-model:value="formData.lotId" placeholder="请选择停车场" @change="handleLotChange">
+          <a-select v-model:value="formData.lotId" placeholder="请选择停车场" @change="handleLotChange" disabled>
             <a-select-option v-for="lot in parkingLotOptions" :key="lot.id" :value="lot.id">{{ lot.name }}</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="适用区域">
-          <a-select v-model:value="formData.zoneId" placeholder="车场通用（不选）" allow-clear :disabled="!formData.lotId">
+          <a-select v-model:value="formData.zoneId" placeholder="车场通用（不选）" allow-clear disabled>
             <a-select-option v-for="zone in zoneOptions" :key="zone.id" :value="zone.id">{{ zone.name }}</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="车牌号" required>
-          <a-input v-model:value="formData.plateNumber" placeholder="如：京A12345" />
+          <a-input v-model:value="formData.plateNumber" placeholder="如：京A12345" disabled />
         </a-form-item>
         <a-form-item label="车辆类型" required>
-          <a-select v-model:value="formData.vehicleType" placeholder="请选择车辆类型">
+          <a-select v-model:value="formData.vehicleType" placeholder="请选择车辆类型" disabled>
             <a-select-option v-for="opt in VEHICLE_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="入场时间" required>
-          <a-date-picker v-model:value="formData.entryTime" show-time style="width: 100%" placeholder="选择入场时间" />
+          <a-date-picker v-model:value="formData.entryTime" show-time style="width: 100%" placeholder="选择入场时间" disabled />
         </a-form-item>
         <a-form-item label="出场时间" required>
-          <a-date-picker v-model:value="formData.exitTime" show-time style="width: 100%" placeholder="选择出场时间" />
+          <a-date-picker v-model:value="formData.exitTime" show-time style="width: 100%" placeholder="选择出场时间" disabled />
         </a-form-item>
         <a-form-item :wrapper-col="{ offset: 6, span: 14 }">
-          <a-button type="primary" :loading="calculating" @click="handleCalculate">
-            <CalculatorOutlined />开始试算
+          <a-button type="primary" disabled>
+            <CalculatorOutlined />开始试算（二期恢复）
           </a-button>
         </a-form-item>
       </a-form>

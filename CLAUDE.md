@@ -2,6 +2,11 @@
 
 @AGENTS.md
 
+## 包架构约束（任务包 0-1 更新）
+- **com.jushan.system** 本期为主战场，允许受控新增（标注 V1.1 功能编号），二期统一迁移。
+- **com.jushan.platform.modules.parking**（fee_rule 体系）本期冻结，禁止接入计费链路；只允许读代码参考，不允许修改。
+- 本期唯一计费引擎：com.jushan.system.service.BillingEngine（旧 billing_rule）。
+
 ## Claude 特有指令
 
 ### 开发模式

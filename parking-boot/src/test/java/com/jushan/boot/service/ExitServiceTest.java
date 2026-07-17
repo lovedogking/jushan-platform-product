@@ -385,6 +385,68 @@ class ExitServiceTest extends TestcontainersBaseTest {
         verify(exitRecordMapper, never()).insert(any(ExitRecord.class));
     }
 
+    // ==================== 预订单出场（任务包 1-2） ====================
+
+    @Test
+    @DisplayName("存在预订单且有费用：预订单→待支付，不放行")
+    void shouldTransitionPreOrderToPendingWhenFeePositive() {
+        ParkingRecord record = activeRecord(1L, 100L, 100L, "粤B12345");
+        when(recordMapper.selectList(any())).thenReturn(Collections.singletonList(record));
+        when(billingEngine.calculateFee(100L, record.getEntryTime(), FIXED_EXIT_TIME)).thenReturn(500);
+
+        ParkingOrder preOrder = new ParkingOrder();
+        preOrder.setId(777L);
+        preOrder.setStatus(ParkingOrder.STATUS_PRE_ORDER);
+        when(parkingOrderService.findReusableOrderForRecord(1L)).thenReturn(preOrder);
+
+        ParkingOrder pending = new ParkingOrder();
+        pending.setId(777L);
+        pending.setStatus(ParkingOrder.STATUS_PENDING_PAY);
+        when(parkingOrderService.getById(777L)).thenReturn(pending);
+
+        when(prepaidDeductionService.tryDeduct(any(), anyInt(), any()))
+                .thenReturn(PrepaidDeductionService.DeductionResult.skipped());
+
+        ExitResult result = exitService.handleExit(exitPayload(1L, 100L, 1L, "粤B12345"), "粤B12345");
+
+        assertThat(result.isAllowExit()).isFalse();
+        assertThat(result.getDecisionCode()).isEqualTo(ExitRecord.DECISION_PENDING_PAYMENT);
+        assertThat(result.getFeeCents()).isEqualTo(500);
+
+        // 走预订单计费路径，不再兼容建单
+        verify(parkingOrderService).preOrderToPending(eq(777L), eq(500), any(LocalDateTime.class));
+        verify(parkingOrderService, never()).createOrder(any(), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("存在预订单且零费用：预订单→已完成，放行")
+    void shouldCompletePreOrderWhenFree() {
+        ParkingRecord record = activeRecord(1L, 100L, 100L, "粤B12345");
+        when(recordMapper.selectList(any())).thenReturn(Collections.singletonList(record));
+        when(billingEngine.calculateFee(100L, record.getEntryTime(), FIXED_EXIT_TIME)).thenReturn(0);
+
+        ParkingOrder preOrder = new ParkingOrder();
+        preOrder.setId(777L);
+        preOrder.setStatus(ParkingOrder.STATUS_PRE_ORDER);
+        when(parkingOrderService.findReusableOrderForRecord(1L)).thenReturn(preOrder);
+
+        ParkingOrder completed = new ParkingOrder();
+        completed.setId(777L);
+        completed.setStatus(ParkingOrder.STATUS_COMPLETED);
+        when(parkingOrderService.getById(777L)).thenReturn(completed);
+
+        when(recordMapper.update(any(), any())).thenReturn(1);
+        when(parkingLotMapper.update(any(), any())).thenReturn(1);
+
+        ExitResult result = exitService.handleExit(exitPayload(1L, 100L, 1L, "粤B12345"), "粤B12345");
+
+        assertThat(result.isAllowExit()).isTrue();
+        assertThat(result.getDecisionCode()).isEqualTo(ExitRecord.DECISION_ZERO_FEE);
+
+        verify(parkingOrderService).preOrderToCompleted(eq(777L), any(LocalDateTime.class));
+        verify(parkingOrderService, never()).createOrder(any(), anyInt(), any());
+    }
+
     private ParkingRecord activeRecord(Long id, Long tenantId, Long parkingLotId, String plate) {
         ParkingRecord record = new ParkingRecord();
         record.setId(id);

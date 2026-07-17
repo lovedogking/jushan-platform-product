@@ -35,6 +35,9 @@ class SystemParamServiceTest {
     @Mock
     private SysConfigMapper configMapper;
 
+    @Mock
+    private ParamResolver paramResolver;
+
     private SystemParamService systemParamService;
 
     private SysConfig refreshIntervalConfig;
@@ -43,7 +46,7 @@ class SystemParamServiceTest {
 
     @BeforeEach
     void setUp() {
-        systemParamService = new SystemParamService(configMapper);
+        systemParamService = new SystemParamService(configMapper, paramResolver);
 
         // available_space.refresh_interval_minutes — INT
         refreshIntervalConfig = new SysConfig();

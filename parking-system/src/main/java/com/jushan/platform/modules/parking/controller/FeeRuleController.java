@@ -7,6 +7,7 @@ import com.jushan.platform.modules.parking.dto.FeeRuleCreateCmd;
 import com.jushan.platform.modules.parking.dto.FeeRuleUpdateCmd;
 import com.jushan.platform.modules.parking.service.FeeRuleService;
 import com.jushan.platform.modules.parking.vo.FeeRuleVO;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/fee-rules")
+@Tag(name = "二期计费体系候选(冻结)")
 public class FeeRuleController {
 
     private final FeeRuleService feeRuleService;

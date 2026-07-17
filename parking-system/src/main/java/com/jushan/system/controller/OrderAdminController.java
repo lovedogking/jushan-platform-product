@@ -19,7 +19,11 @@ import com.jushan.system.mapper.ParkingRecordMapper;
 import com.jushan.system.mapper.SysUserMapper;
 import com.jushan.system.service.ParkingLotScopeResolver;
 import com.jushan.system.service.ParkingOrderService;
+import com.jushan.system.service.OrderStatusLogService;
+import com.jushan.system.entity.OrderStatusLog;
 import com.jushan.system.vo.OrderAdminVO;
+import com.jushan.system.vo.OrderStatusLogVO;
+import com.jushan.common.auth.TenantContext;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,19 +62,22 @@ public class OrderAdminController {
     private final ParkingLotMapper parkingLotMapper;
     private final SysUserMapper userMapper;
     private final ParkingLotScopeResolver scopeResolver;
+    private final OrderStatusLogService orderStatusLogService;
 
     public OrderAdminController(ParkingOrderMapper orderMapper,
                                  ParkingOrderService orderService,
                                  ParkingRecordMapper recordMapper,
                                  ParkingLotMapper parkingLotMapper,
                                  SysUserMapper userMapper,
-                                 ParkingLotScopeResolver scopeResolver) {
+                                 ParkingLotScopeResolver scopeResolver,
+                                 OrderStatusLogService orderStatusLogService) {
         this.orderMapper = orderMapper;
         this.orderService = orderService;
         this.recordMapper = recordMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.userMapper = userMapper;
         this.scopeResolver = scopeResolver;
+        this.orderStatusLogService = orderStatusLogService;
     }
 
     // ==================== 常量映射 ====================
@@ -82,15 +89,24 @@ public class OrderAdminController {
             ParkingOrder.ORDER_TYPE_TOP_UP, "充值订单"
     );
 
-    private static final Map<String, String> STATUS_LABEL = Map.of(
-            ParkingOrder.STATUS_PENDING_PAY, "待支付",
-            ParkingOrder.STATUS_PAYING, "支付中",
-            ParkingOrder.STATUS_PAID, "已支付",
-            ParkingOrder.STATUS_COMPLETED, "已完成",
-            ParkingOrder.STATUS_CANCELLED, "已取消",
-            ParkingOrder.STATUS_PAY_FAILED, "支付失败",
-            ParkingOrder.STATUS_REFUNDING, "退款中",
-            ParkingOrder.STATUS_REFUNDED, "已退款"
+    private static final Map<String, String> STATUS_LABEL = Map.ofEntries(
+            Map.entry(ParkingOrder.STATUS_PRE_ORDER, "预订单"),
+            Map.entry(ParkingOrder.STATUS_PENDING_PAY, "待支付"),
+            Map.entry(ParkingOrder.STATUS_PAYING, "支付中"),
+            Map.entry(ParkingOrder.STATUS_PAID, "已支付"),
+            Map.entry(ParkingOrder.STATUS_COMPLETED, "已完成"),
+            Map.entry(ParkingOrder.STATUS_CANCELLED, "已取消"),
+            Map.entry(ParkingOrder.STATUS_PAY_FAILED, "支付失败"),
+            Map.entry(ParkingOrder.STATUS_ARREARS, "欠费中"),
+            Map.entry(ParkingOrder.STATUS_REFUNDING, "退款中"),
+            Map.entry(ParkingOrder.STATUS_REFUNDED, "已退款")
+    );
+
+    private static final Map<String, String> TRIGGER_SOURCE_LABEL = Map.of(
+            OrderStatusLog.TRIGGER_SYSTEM, "系统",
+            OrderStatusLog.TRIGGER_USER, "用户",
+            OrderStatusLog.TRIGGER_BOOTH, "岗亭",
+            OrderStatusLog.TRIGGER_TIMER, "定时任务"
     );
 
     private static final Map<String, String> PAY_CHANNEL_LABEL = Map.of(
@@ -234,6 +250,60 @@ public class OrderAdminController {
             return R.ok(Map.of("orderId", id, "status", ParkingOrder.STATUS_CANCELLED));
         }
         return R.fail(CommonErrorCode.BUSINESS_ERROR.getCode(), "订单关闭失败（状态可能已变更）");
+    }
+
+    /**
+     * 模拟退款（任务包 1-2）。
+     * <p>
+     * 仅已支付（PAID）订单可退，必填退款原因；状态置 REFUNDED，记录退款原因/时间/操作人；
+     * 本期无真实资金流动。
+     */
+    @PostMapping("/{id}/refund")
+    @RequirePermission("order:manage")
+    @BusinessLog(value = "订单退款", module = "order", operationType = "UPDATE",
+            operationObject = "订单", objectIdExpression = "#id")
+    public R<Map<String, Object>> refundOrder(@PathVariable Long id, @RequestBody RefundRequest request) {
+        ParkingOrder order = orderMapper.selectById(id);
+        if (order == null || order.getDeletedAt() != null) {
+            return R.fail(CommonErrorCode.NOT_FOUND.getCode(), "订单不存在");
+        }
+
+        // 数据范围校验
+        scopeResolver.validateAccess(order.getParkingLotId());
+        DataScope.validateTenantMatch(order.getTenantId(), "订单");
+
+        // 退款原因必填
+        if (request == null || request.getReason() == null || request.getReason().isBlank()) {
+            return R.fail(CommonErrorCode.PARAM_ERROR.getCode(), "退款原因不能为空");
+        }
+        // 仅 PAID 可退，其他状态发起被拒
+        if (!ParkingOrder.STATUS_PAID.equals(order.getStatus())) {
+            return R.fail(CommonErrorCode.BUSINESS_ERROR.getCode(),
+                    "仅已支付订单可退款，当前状态: " + STATUS_LABEL.getOrDefault(order.getStatus(), order.getStatus()));
+        }
+
+        orderService.refund(id, request.getReason(), TenantContext.getUserId());
+        log.info("订单退款成功: orderId={} operatorId={}", id, TenantContext.getUserId());
+        return R.ok(Map.of("orderId", id, "status", ParkingOrder.STATUS_REFUNDED));
+    }
+
+    /**
+     * 查询订单状态流转日志（任务包 1-2）。
+     */
+    @GetMapping("/{id}/status-logs")
+    @RequirePermission("order:manage")
+    public R<List<OrderStatusLogVO>> getStatusLogs(@PathVariable Long id) {
+        ParkingOrder order = orderMapper.selectById(id);
+        if (order == null || order.getDeletedAt() != null) {
+            return R.fail(CommonErrorCode.NOT_FOUND.getCode(), "订单不存在");
+        }
+        scopeResolver.validateAccess(order.getParkingLotId());
+        DataScope.validateTenantMatch(order.getTenantId(), "订单");
+
+        List<OrderStatusLogVO> logs = orderStatusLogService.listByOrderId(id).stream()
+                .map(this::convertLogToVO)
+                .collect(Collectors.toList());
+        return R.ok(logs);
     }
 
     /**
@@ -395,7 +465,53 @@ public class OrderAdminController {
             }
         }
 
+        // 退款信息（任务包 1-2）
+        vo.setRefundReason(order.getRefundReason());
+        vo.setRefundTime(order.getRefundTime());
+        if (order.getRefundOperatorId() != null) {
+            SysUser refundUser = userMapper.selectById(order.getRefundOperatorId());
+            if (refundUser != null) {
+                vo.setRefundOperatorName(refundUser.getDisplayName() != null
+                        ? refundUser.getDisplayName() : refundUser.getUsername());
+            }
+        }
+
         return vo;
+    }
+
+    /**
+     * 转换状态流转日志为 VO。
+     */
+    private OrderStatusLogVO convertLogToVO(OrderStatusLog entry) {
+        OrderStatusLogVO vo = new OrderStatusLogVO();
+        vo.setFromStatus(entry.getFromStatus());
+        vo.setFromStatusLabel(entry.getFromStatus() != null
+                ? STATUS_LABEL.getOrDefault(entry.getFromStatus(), entry.getFromStatus()) : null);
+        vo.setToStatus(entry.getToStatus());
+        vo.setToStatusLabel(STATUS_LABEL.getOrDefault(entry.getToStatus(), entry.getToStatus()));
+        vo.setTriggerSource(entry.getTriggerSource());
+        vo.setTriggerSourceLabel(TRIGGER_SOURCE_LABEL.getOrDefault(entry.getTriggerSource(), entry.getTriggerSource()));
+        vo.setRemark(entry.getRemark());
+        vo.setCreatedAt(entry.getCreatedAt());
+        String operatorName = entry.getOperatorName();
+        if ((operatorName == null || operatorName.isBlank()) && entry.getOperatorId() != null) {
+            SysUser user = userMapper.selectById(entry.getOperatorId());
+            if (user != null) {
+                operatorName = user.getDisplayName() != null ? user.getDisplayName() : user.getUsername();
+            }
+        }
+        vo.setOperatorName(operatorName);
+        return vo;
+    }
+
+    /**
+     * 退款请求 DTO。
+     */
+    public static class RefundRequest {
+        private String reason;
+
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
     }
 
     private String formatYuan(Integer cents) {

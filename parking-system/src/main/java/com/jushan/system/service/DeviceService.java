@@ -38,6 +38,7 @@ import com.jushan.system.mapper.SysAuditLogMapper;
 import com.jushan.system.vo.DeviceStatusVO;
 import com.jushan.system.vo.DeviceVO;
 import com.jushan.system.service.GpioGateService;
+import com.jushan.system.service.CameraFailoverService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -107,6 +108,14 @@ public class DeviceService {
     private static final String DEFAULT_DEVICE_TYPE = "CAMERA";
     private static final String DEFAULT_CAPABILITIES = "";
 
+    /** 识别方向 */
+    public static final int DIRECTION_ENTRY = 1;
+    public static final int DIRECTION_EXIT = 2;
+
+    /** 主备角色 */
+    public static final int CAMERA_ROLE_PRIMARY = 1;
+    public static final int CAMERA_ROLE_BACKUP = 2;
+
     /** 快照过期阈值（秒），超过此时间的快照标记为 stale */
     static final long STALE_THRESHOLD_SECONDS = 60;
 
@@ -121,6 +130,7 @@ public class DeviceService {
     private final DeviceCommandAuditMapper commandAuditMapper;
     private final ParkingLotScopeResolver scopeResolver;
     private final GpioGateService gpioGateService;
+    private final CameraFailoverService cameraFailoverService;
 
     public DeviceService(DeviceMapper deviceMapper,
                          DeviceVendorMapper vendorMapper,
@@ -132,7 +142,8 @@ public class DeviceService {
                          SysAuditLogMapper auditLogMapper,
                          DeviceCommandAuditMapper commandAuditMapper,
                          ParkingLotScopeResolver scopeResolver,
-                         GpioGateService gpioGateService) {
+                         GpioGateService gpioGateService,
+                         CameraFailoverService cameraFailoverService) {
         this.deviceMapper = deviceMapper;
         this.vendorMapper = vendorMapper;
         this.modelMapper = modelMapper;
@@ -144,6 +155,7 @@ public class DeviceService {
         this.commandAuditMapper = commandAuditMapper;
         this.scopeResolver = scopeResolver;
         this.gpioGateService = gpioGateService;
+        this.cameraFailoverService = cameraFailoverService;
     }
 
     // ==================== 创建设备 ====================
@@ -207,6 +219,8 @@ public class DeviceService {
         device.setCode(code);
         device.setDeviceSn(deviceSn);
         device.setDeviceType(deviceType);
+        device.setRecognitionDirection(validateDirection(request.getRecognitionDirection(), deviceType));
+        device.setCameraRole(validateCameraRole(request.getCameraRole(), deviceType));
         device.setStatus(STATUS_ENABLED);
         device.setCapabilities(defaultString(request.getCapabilities(), DEFAULT_CAPABILITIES));
         device.setDescription(defaultString(request.getDescription(), ""));
@@ -267,6 +281,14 @@ public class DeviceService {
                         "无效的设备类型: " + deviceType + "，仅支持 " + String.join(", ", VALID_DEVICE_TYPES));
             }
             wrapper.set(Device::getDeviceType, deviceType);
+            hasUpdate = true;
+        }
+        if (request.getRecognitionDirection() != null) {
+            wrapper.set(Device::getRecognitionDirection, validateDirection(request.getRecognitionDirection(), device.getDeviceType()));
+            hasUpdate = true;
+        }
+        if (request.getCameraRole() != null) {
+            wrapper.set(Device::getCameraRole, validateCameraRole(request.getCameraRole(), device.getDeviceType()));
             hasUpdate = true;
         }
         if (request.getCapabilities() != null) {
@@ -457,15 +479,9 @@ public class DeviceService {
                     "设备与车道不属于同一停车场，不允许绑定");
         }
 
-        // 同车道同类型设备唯一（排除自身）
-        Long existing = deviceMapper.selectCount(
-                new LambdaQueryWrapper<Device>()
-                        .eq(Device::getLaneId, laneId)
-                        .eq(Device::getDeviceType, device.getDeviceType())
-                        .ne(Device::getId, deviceId));
-        if (existing > 0) {
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "该车道已绑定了一台 " + device.getDeviceType() + " 设备，不允许重复绑定");
+        // CAMERA 设备绑定校验（识别方向 + 主备关系 + 车道类型约束）
+        if ("CAMERA".equals(device.getDeviceType())) {
+            validateCameraLaneBinding(device, lane);
         }
 
         // 更新 laneId
@@ -574,6 +590,115 @@ public class DeviceService {
         DeviceVendor vendor = vendorMapper.selectById(gate.getVendorId());
         DeviceModel model = modelMapper.selectById(gate.getModelId());
         return toVO(gate, vendor, model);
+    }
+
+    // ==================== 识别方向/主备角色校验 ====================
+
+    /**
+     * 校验识别方向值合法性（仅 CAMERA 可设置）。
+     */
+    private Integer validateDirection(Integer direction, String deviceType) {
+        if (direction == null) return null;
+        if (!"CAMERA".equals(deviceType)) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "仅相机（CAMERA）设备可以设置识别方向");
+        }
+        if (direction != DIRECTION_ENTRY && direction != DIRECTION_EXIT) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR,
+                    "无效的识别方向: " + direction + "，仅支持 1=入场 / 2=出场");
+        }
+        return direction;
+    }
+
+    /**
+     * 校验主备角色值合法性（仅 CAMERA 可设置）。
+     */
+    private Integer validateCameraRole(Integer role, String deviceType) {
+        if (role == null) return null;
+        if (!"CAMERA".equals(deviceType)) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "仅相机（CAMERA）设备可以设置主备角色");
+        }
+        if (role != CAMERA_ROLE_PRIMARY && role != CAMERA_ROLE_BACKUP) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR,
+                    "无效的主备角色: " + role + "，仅支持 1=主相机 / 2=备相机");
+        }
+        return role;
+    }
+
+    /**
+     * CAMERA 设备绑定车道校验（解除一车道一相机限制后的新规则）。
+     * <p>
+     * 单向通道（type=1/2）：允许 1 台相机（单相机模式）或 2 台（主备双相机）。
+     *   同车道同方向最多一主一备。
+     * <p>
+     * 双向通道（type=3）：必须覆盖入场+出场两个识别方向的相机。
+     *   每个方向允许 1 台（单相机）或 2 台（主备）。
+     *
+     * @param device 待绑定的设备
+     * @param lane   目标车道
+     */
+    private void validateCameraLaneBinding(Device device, ParkingLane lane) {
+        Integer laneType = lane.getType();
+        if (laneType == null) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "车道类型未设置，无法绑定相机");
+        }
+
+        // 收集已绑定到此车道的所有 CAMERA 设备（排除自身）
+        List<Device> existingCameras = deviceMapper.selectList(
+                new LambdaQueryWrapper<Device>()
+                        .eq(Device::getLaneId, lane.getId())
+                        .eq(Device::getDeviceType, "CAMERA")
+                        .ne(Device::getId, device.getId()));
+
+        // 校验当前设备的识别方向必填（创建时未填则拦截）
+        Integer direction = device.getRecognitionDirection();
+        if (laneType == 3) {
+            // 双向通道：识别方向必填
+            if (direction == null) {
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR,
+                        "双向通道绑定的相机必须指定识别方向（1=入场 / 2=出场），请先在设备信息中设置识别方向");
+            }
+        }
+
+        if (direction != null) {
+            // 校验同车道同方向同角色不重复
+            for (Device existing : existingCameras) {
+                if (direction.equals(existing.getRecognitionDirection())
+                        && device.getCameraRole() != null
+                        && device.getCameraRole().equals(existing.getCameraRole())) {
+                    String roleLabel = device.getCameraRole() == CAMERA_ROLE_PRIMARY ? "主相机" : "备相机";
+                    throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                            "该车道已存在相同识别方向和角色的相机（方向=" + directionLabel(direction) + "，" + roleLabel + "），同方向同角色不允许重复");
+                }
+            }
+
+            // 校验同车道同方向最多一主一备
+            long sameDirectionCount = existingCameras.stream()
+                    .filter(c -> direction.equals(c.getRecognitionDirection()))
+                    .count();
+            if (sameDirectionCount >= 2) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "该车道 " + directionLabel(direction) + " 方向已绑定 " + sameDirectionCount + " 台相机，最多允许一主一备共 2 台");
+            }
+        }
+
+        if (laneType == 3) {
+            // 双向通道：校验绑定后两个方向都需覆盖
+            boolean hasEntry = direction != null && direction == DIRECTION_ENTRY
+                    || existingCameras.stream().anyMatch(c -> Integer.valueOf(DIRECTION_ENTRY).equals(c.getRecognitionDirection()));
+            boolean hasExit = direction != null && direction == DIRECTION_EXIT
+                    || existingCameras.stream().anyMatch(c -> Integer.valueOf(DIRECTION_EXIT).equals(c.getRecognitionDirection()));
+            if (!hasEntry) {
+                log.warn("双向通道缺少入场方向相机: laneId={}, deviceId={}", lane.getId(), device.getId());
+            }
+            if (!hasExit) {
+                log.warn("双向通道缺少出场方向相机: laneId={}, deviceId={}", lane.getId(), device.getId());
+            }
+        }
+    }
+
+    private static String directionLabel(Integer direction) {
+        if (direction == null) return "未知";
+        return direction == DIRECTION_ENTRY ? "入场" : "出场";
     }
 
     // ==================== 设备校时（T25） ====================
@@ -1311,6 +1436,13 @@ public class DeviceService {
             log.info("设备状态查询成功: deviceId={}, deviceSn={}, online={}, gateStatus={}",
                     deviceId, deviceSn, dto.getOnline(), dto.getGateStatus());
 
+            // 主备切换：检测到离线时触发故障切换
+            if (Boolean.FALSE.equals(dto.getOnline()) && "CAMERA".equals(device.getDeviceType())) {
+                cameraFailoverService.onDeviceOffline(deviceId, deviceSn);
+            } else if (Boolean.TRUE.equals(dto.getOnline()) && "CAMERA".equals(device.getDeviceType())) {
+                cameraFailoverService.onDeviceOnline(deviceId);
+            }
+
         } catch (BusinessException e) {
             // DA 返回错误或网络异常：持久化失败快照
             snapshot.setQuerySuccess(false);
@@ -1608,6 +1740,8 @@ public class DeviceService {
         vo.setCode(device.getCode());
         vo.setDeviceSn(device.getDeviceSn());
         vo.setDeviceType(device.getDeviceType());
+        vo.setRecognitionDirection(device.getRecognitionDirection());
+        vo.setCameraRole(device.getCameraRole());
         vo.setStatus(device.getStatus());
         vo.setCapabilities(device.getCapabilities());
         vo.setDescription(device.getDescription());

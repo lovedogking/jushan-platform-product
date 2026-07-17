@@ -96,12 +96,12 @@ export const constantRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/billing-rule/index.vue'),
         meta: { title: '收费规则', icon: 'DollarOutlined', cache: true },
       },
-      // Sprint 3：费用试算
+      // Sprint 3：费用试算（二期恢复）
       {
         path: 'fee-calculator',
         name: 'FeeCalculator',
         component: () => import('@/views/billing-rule/FeeCalculator.vue'),
-        meta: { title: '费用试算', icon: 'CalculatorOutlined' },
+        meta: { title: '费用试算（二期恢复）', icon: 'CalculatorOutlined' },
       },
       // Sprint 1：公司管理
       {

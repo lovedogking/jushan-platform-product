@@ -124,9 +124,19 @@ public class MiniPayController {
             return R.fail(4002, "无需支付（当前仍在免费时段内）");
         }
 
-        // 2. 如果已有待支付订单，复用
+        // 2. 复用已有订单（任务包 1-2：优先复用入场预订单，保证入场→查费→缴费→出场全链路单一订单）
         if (Boolean.TRUE.equals(feeVo.getHasPendingOrder()) && feeVo.getPendingOrderId() != null) {
             ParkingOrder pendingOrder = orderService.getById(feeVo.getPendingOrderId());
+            if (pendingOrder != null && ParkingOrder.STATUS_PRE_ORDER.equals(pendingOrder.getStatus())) {
+                // 提前缴费：将入场预订单按当前费用计费置待支付，再走模拟支付
+                int preFeeCents = feeVo.getFeeCents() != null ? feeVo.getFeeCents() : 0;
+                orderService.preOrderToPending(pendingOrder.getId(), preFeeCents,
+                        LocalDateTime.now().plusMinutes(15));
+                pendingOrder = orderService.getById(pendingOrder.getId());
+                orderService.startPaying(pendingOrder.getId(), ParkingOrder.PAY_CHANNEL_PYUN);
+                mockPaymentService.preparePay(pendingOrder);
+                return buildPrepareResult(pendingOrder);
+            }
             if (pendingOrder != null && ParkingOrder.STATUS_PENDING_PAY.equals(pendingOrder.getStatus())) {
                 return buildPrepareResult(pendingOrder);
             }

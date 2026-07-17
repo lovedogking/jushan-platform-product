@@ -3,8 +3,10 @@ package com.jushan.system.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jushan.system.constant.ParamKeys;
 import com.jushan.system.entity.MockPaymentConfig;
 import com.jushan.system.entity.MockPaymentRecord;
+import com.jushan.system.entity.OrderStatusLog;
 import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.event.PaymentSuccessEvent;
 import com.jushan.system.mapper.MockPaymentConfigMapper;
@@ -33,7 +35,8 @@ import java.util.List;
  *   <li>确认支付（更新订单为已支付）</li>
  *   <li>定时扫描超时订单并关闭</li>
  *   <li>运营端手动标记支付</li>
- *   <li>按车场配置支付超时时间</li>
+ *   <li>按车场配置支付超时时间（任务包 1-1 起：权威来源为车场级参数 {@link ParamKeys#MOCK_PAYMENT_TIMEOUT_MINUTES}，
+ *       {@code mock_payment_config.timeout_minutes} 列已废弃，仅作兼容同步）</li>
  *   <li>查询模拟支付流水</li>
  * </ul>
  *
@@ -49,15 +52,21 @@ public class MockPaymentService {
     private final MockPaymentRecordMapper recordMapper;
     private final ParkingOrderMapper orderMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final ParamResolver paramResolver;
+    private final OrderStatusLogService orderStatusLogService;
 
     public MockPaymentService(MockPaymentConfigMapper configMapper,
                               MockPaymentRecordMapper recordMapper,
                               ParkingOrderMapper orderMapper,
-                              ApplicationEventPublisher eventPublisher) {
+                              ApplicationEventPublisher eventPublisher,
+                              ParamResolver paramResolver,
+                              OrderStatusLogService orderStatusLogService) {
         this.configMapper = configMapper;
         this.recordMapper = recordMapper;
         this.orderMapper = orderMapper;
         this.eventPublisher = eventPublisher;
+        this.paramResolver = paramResolver;
+        this.orderStatusLogService = orderStatusLogService;
     }
 
     // ==================== 核心支付方法 ====================
@@ -79,8 +88,8 @@ public class MockPaymentService {
             log.warn("模拟支付未启用，但流程继续（默认启用）: parkingLotId={}", order.getParkingLotId());
         }
 
-        // 更新订单过期时间（按车场配置）
-        int timeoutMinutes = config.getTimeoutMinutes() != null ? config.getTimeoutMinutes() : 15;
+        // 更新订单过期时间（超时时长权威来源：任务包 1-1 车场级参数，车场级→全局→默认 15）
+        int timeoutMinutes = paramResolver.getInt(ParamKeys.MOCK_PAYMENT_TIMEOUT_MINUTES, order.getParkingLotId(), 15);
         orderMapper.updateOrderExpiry(order.getId(), LocalDateTime.now().plusMinutes(timeoutMinutes));
 
         // 创建模拟支付记录
@@ -158,6 +167,9 @@ public class MockPaymentService {
         );
 
         if (updated > 0) {
+            // 状态流转留痕（任务包 1-2）：待支付/支付中 → 已支付
+            orderStatusLogService.record(order, order.getStatus(), ParkingOrder.STATUS_PAID,
+                    OrderStatusLog.TRIGGER_USER, null, paidBy, "模拟支付确认");
             // 发布支付成功事件（同步），监听者包括月卡续费生效
             eventPublisher.publishEvent(new PaymentSuccessEvent(order, paySerial, paidBy));
         }
@@ -219,6 +231,9 @@ public class MockPaymentService {
                 recordMapper.insert(record);
             }
 
+            // 状态流转留痕（任务包 1-2）：手动标记 → 已支付
+            orderStatusLogService.record(order, order.getStatus(), ParkingOrder.STATUS_PAID,
+                    OrderStatusLog.TRIGGER_USER, null, operatorId, "运营端手动标记支付");
             // 发布支付成功事件（同步），监听者包括月卡续费生效
             eventPublisher.publishEvent(new PaymentSuccessEvent(order, paySerial, operatorId));
 
@@ -259,7 +274,13 @@ public class MockPaymentService {
         for (ParkingOrder order : expiredOrders) {
             try {
                 // 取消订单（条件更新：仅 PENDING_PAY/PAYING + 已过期）
-                orderMapper.cancelExpiredOrder(order.getId());
+                int cancelled = orderMapper.cancelExpiredOrder(order.getId());
+                if (cancelled > 0) {
+                    // 状态流转留痕（任务包 1-2）：定时任务超时关闭 → 已取消
+                    orderStatusLogService.record(order, order.getStatus(),
+                            ParkingOrder.STATUS_CANCELLED, OrderStatusLog.TRIGGER_TIMER,
+                            null, "系统超时关闭", "支付超时自动关闭");
+                }
                 // 标记支付记录超时
                 markRecordTimeout(order.getId());
                 log.info("超时订单已关闭: orderId={} plate={}", order.getId(), order.getPlateNumber());
@@ -319,6 +340,10 @@ public class MockPaymentService {
                                            Integer timeoutMinutes, Boolean enabled) {
         MockPaymentConfig config = getOrCreateConfig(tenantId, parkingLotId);
         if (timeoutMinutes != null) {
+            // 权威写入：车场级参数体系（任务包 1-1）
+            paramResolver.setLotParam(parkingLotId, ParamKeys.MOCK_PAYMENT_TIMEOUT_MINUTES,
+                    String.valueOf(timeoutMinutes));
+            // 已废弃列：仅兼容同步，便于回显与安全回滚（非权威读取源）
             config.setTimeoutMinutes(timeoutMinutes);
         }
         if (enabled != null) {

@@ -67,15 +67,19 @@
         <template v-if="column.key === 'action'">
           <a-space>
             <a @click="openDetail(record as OrderAdminVO)">查看详情</a>
-            <a-divider type="vertical" />
-            <a-popconfirm
-              v-if="canClose(record.status)"
-              title="确定手动关闭此订单？关闭后订单状态将变为已取消。"
-              @confirm="handleClose(record as OrderAdminVO)"
-            >
-              <a class="text-danger">关闭</a>
-            </a-popconfirm>
-            <span v-else class="text-disabled">—</span>
+            <template v-if="canClose(record.status)">
+              <a-divider type="vertical" />
+              <a-popconfirm
+                title="确定手动关闭此订单？关闭后订单状态将变为已取消。"
+                @confirm="handleClose(record as OrderAdminVO)"
+              >
+                <a class="text-danger">关闭</a>
+              </a-popconfirm>
+            </template>
+            <template v-if="canRefund(record.status)">
+              <a-divider type="vertical" />
+              <a class="text-warning" @click="openRefund(record as OrderAdminVO)">退款</a>
+            </template>
           </a-space>
         </template>
       </template>
@@ -109,6 +113,61 @@
         <a-descriptions-item label="创建时间">{{ formatDateTime(detailRecord.createdAt) }}</a-descriptions-item>
         <a-descriptions-item label="更新时间">{{ formatDateTime(detailRecord.updatedAt) || '—' }}</a-descriptions-item>
       </a-descriptions>
+
+      <div v-if="detailRecord && detailRecord.refundReason" class="detail-section">
+        <div class="section-title">退款信息</div>
+        <a-descriptions :column="1" bordered size="small">
+          <a-descriptions-item label="退款原因">{{ detailRecord.refundReason }}</a-descriptions-item>
+          <a-descriptions-item label="退款时间">{{ formatDateTime(detailRecord.refundTime) || '—' }}</a-descriptions-item>
+          <a-descriptions-item label="退款操作人">{{ detailRecord.refundOperatorName || '—' }}</a-descriptions-item>
+        </a-descriptions>
+      </div>
+
+      <div class="detail-section">
+        <div class="section-title">状态流转日志</div>
+        <a-spin :spinning="logsLoading">
+          <a-timeline v-if="statusLogs.length">
+            <a-timeline-item v-for="(item, idx) in statusLogs" :key="idx" :color="statusColor(item.toStatus) === 'default' ? 'gray' : undefined">
+              <div>
+                <a-tag :color="statusColor(item.toStatus)">{{ item.toStatusLabel }}</a-tag>
+                <span v-if="item.fromStatusLabel" class="log-from">（由 {{ item.fromStatusLabel }}）</span>
+              </div>
+              <div class="log-meta">
+                {{ formatDateTime(item.createdAt) }} · {{ item.triggerSourceLabel }}
+                <span v-if="item.operatorName"> · {{ item.operatorName }}</span>
+              </div>
+              <div v-if="item.remark" class="log-remark">{{ item.remark }}</div>
+            </a-timeline-item>
+          </a-timeline>
+          <a-empty v-else description="暂无流转记录" />
+        </a-spin>
+      </div>
+    </a-modal>
+
+    <!-- 退款弹窗 -->
+    <a-modal
+      v-model:open="refundOpen"
+      title="订单退款"
+      :confirm-loading="refundSubmitting"
+      @ok="submitRefund"
+    >
+      <a-alert
+        type="warning"
+        show-icon
+        message="仅已支付订单可退款；本期为模拟退款（无真实资金流动）。"
+        style="margin-bottom: 12px"
+      />
+      <a-form layout="vertical">
+        <a-form-item label="退款原因" required>
+          <a-textarea
+            v-model:value="refundReason"
+            :rows="3"
+            :maxlength="200"
+            show-count
+            placeholder="请填写退款原因（必填）"
+          />
+        </a-form-item>
+      </a-form>
     </a-modal>
   </div>
 </template>
@@ -123,11 +182,14 @@ import dayjs from 'dayjs'
 import {
   getOrderPage,
   closeOrder,
+  refundOrder,
+  getOrderStatusLogs,
   exportOrders,
   ORDER_STATUS_MAP,
   ORDER_TYPE_MAP,
   PAY_CHANNEL_MAP,
   type OrderAdminVO,
+  type OrderStatusLogVO,
 } from '@/api/order'
 import { getParkingLots, type ParkingLotVO } from '@/api/parking-lot'
 
@@ -137,12 +199,14 @@ const orderTypeOptions = Object.entries(ORDER_TYPE_MAP).map(([value, label]) => 
 
 function statusColor(status: string) {
   switch (status) {
+    case 'PRE_ORDER': return 'purple'
     case 'PENDING_PAY': return 'orange'
     case 'PAYING': return 'processing'
     case 'PAID': return 'green'
     case 'COMPLETED': return 'blue'
     case 'CANCELLED': return 'default'
     case 'PAY_FAILED': return 'red'
+    case 'ARREARS': return 'volcano'
     case 'REFUNDING': return 'warning'
     case 'REFUNDED': return 'default'
     default: return 'default'
@@ -151,6 +215,10 @@ function statusColor(status: string) {
 
 function canClose(status: string) {
   return status === 'PENDING_PAY' || status === 'PAYING'
+}
+
+function canRefund(status: string) {
+  return status === 'PAID'
 }
 
 // ==================== 表格列 ====================
@@ -251,10 +319,21 @@ function filterLotOption(input: string, option: { value: number; label: string }
 // ==================== 详情 ====================
 const detailOpen = ref(false)
 const detailRecord = ref<OrderAdminVO | null>(null)
+const statusLogs = ref<OrderStatusLogVO[]>([])
+const logsLoading = ref(false)
 
-function openDetail(record: OrderAdminVO) {
+async function openDetail(record: OrderAdminVO) {
   detailRecord.value = record
   detailOpen.value = true
+  statusLogs.value = []
+  logsLoading.value = true
+  try {
+    statusLogs.value = await getOrderStatusLogs(record.id)
+  } catch {
+    // 错误由拦截器处理
+  } finally {
+    logsLoading.value = false
+  }
 }
 
 // ==================== 关闭订单 ====================
@@ -265,6 +344,37 @@ async function handleClose(record: OrderAdminVO) {
     fetchData()
   } catch {
     // 错误由拦截器处理
+  }
+}
+
+// ==================== 退款 ====================
+const refundOpen = ref(false)
+const refundReason = ref('')
+const refundTarget = ref<OrderAdminVO | null>(null)
+const refundSubmitting = ref(false)
+
+function openRefund(record: OrderAdminVO) {
+  refundTarget.value = record
+  refundReason.value = ''
+  refundOpen.value = true
+}
+
+async function submitRefund() {
+  if (!refundReason.value.trim()) {
+    message.warning('请填写退款原因')
+    return
+  }
+  if (!refundTarget.value) return
+  refundSubmitting.value = true
+  try {
+    await refundOrder(refundTarget.value.id, refundReason.value.trim())
+    message.success('退款成功')
+    refundOpen.value = false
+    fetchData()
+  } catch {
+    // 错误由拦截器处理
+  } finally {
+    refundSubmitting.value = false
   }
 }
 
@@ -364,7 +474,38 @@ onMounted(() => {
   color: #dc2626;
 }
 
+.text-warning {
+  color: #d46b08;
+}
+
 .text-disabled {
   color: rgba(0, 0, 0, 0.25);
+}
+
+.detail-section {
+  margin-top: $spacing-lg;
+}
+
+.section-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.log-from {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+.log-meta {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.log-remark {
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 12px;
+  margin-top: 2px;
 }
 </style>

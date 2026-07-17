@@ -71,6 +71,14 @@ springdoc:
   swagger-ui:
     enabled: false
 
+# ---- Device Access Webhook 生产环境强制配置 ----
+# 必须通过环境变量配置实际 IP 地址，禁止使用 *（全放行）
+# DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS  = Device Access 服务的 IP 地址（逗号分隔多个）
+device-access:
+  webhook:
+    allowed-ips: ${DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS:}
+    signature-enabled: true
+
 # ---- 生产日志 ----
 logging:
   level:

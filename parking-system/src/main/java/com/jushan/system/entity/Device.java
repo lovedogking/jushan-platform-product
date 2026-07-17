@@ -68,6 +68,19 @@ public class Device implements Serializable {
     /** 设备类型：CAMERA-相机, GATE-道闸 */
     private String deviceType;
 
+    /**
+     * 识别方向（仅 CAMERA 使用）。
+     * <p>1=入场(ENTRY), 2=出场(EXIT), NULL=未指定。</p>
+     * <p>双向通道绑定的相机必须指定识别方向。</p>
+     */
+    private Integer recognitionDirection;
+
+    /**
+     * 主备角色（仅 CAMERA 使用）。
+     * <p>1=主相机, 2=备相机, NULL=单相机模式或无主备。</p>
+     */
+    private Integer cameraRole;
+
     /** 状态：ENABLED-启用, DISABLED-停用 */
     private String status;
 
@@ -115,6 +128,12 @@ public class Device implements Serializable {
 
     public String getDeviceType() { return deviceType; }
     public void setDeviceType(String deviceType) { this.deviceType = deviceType; }
+
+    public Integer getRecognitionDirection() { return recognitionDirection; }
+    public void setRecognitionDirection(Integer recognitionDirection) { this.recognitionDirection = recognitionDirection; }
+
+    public Integer getCameraRole() { return cameraRole; }
+    public void setCameraRole(Integer cameraRole) { this.cameraRole = cameraRole; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

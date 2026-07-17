@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.system.entity.ParkingLot;
+import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.entity.ParkingRecord;
 import com.jushan.system.event.RecognitionEventPayload;
 import com.jushan.system.mapper.ParkingLotMapper;
@@ -18,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jushan.platform.modules.parking.dto.ParkingSessionEntryCmd;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import com.jushan.platform.modules.parking.vo.ParkingSessionVO;
+import com.jushan.platform.modules.vehicle.service.VehicleTypeDecisionService;
+import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
 
 import java.time.LocalDateTime;
 
@@ -56,19 +59,25 @@ public class EntryService {
     private final BoothWebSocketPublisher boothWebSocketPublisher;
     private final ParkingSessionService parkingSessionService;
     private final FixedSpaceService fixedSpaceService;
+    private final ParkingOrderService parkingOrderService;
+    private final VehicleTypeDecisionService vehicleTypeDecisionService;
 
     public EntryService(ParkingRecordMapper recordMapper,
                         ParkingLotMapper parkingLotMapper,
                         DuplicateEntryHandler duplicateEntryHandler,
                         BoothWebSocketPublisher boothWebSocketPublisher,
                         ParkingSessionService parkingSessionService,
-                        FixedSpaceService fixedSpaceService) {
+                        FixedSpaceService fixedSpaceService,
+                        ParkingOrderService parkingOrderService,
+                        VehicleTypeDecisionService vehicleTypeDecisionService) {
         this.recordMapper = recordMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.duplicateEntryHandler = duplicateEntryHandler;
         this.boothWebSocketPublisher = boothWebSocketPublisher;
         this.parkingSessionService = parkingSessionService;
         this.fixedSpaceService = fixedSpaceService;
+        this.parkingOrderService = parkingOrderService;
+        this.vehicleTypeDecisionService = vehicleTypeDecisionService;
     }
 
     /**
@@ -153,7 +162,43 @@ public class EntryService {
                     parkingLotId, standardizedPlate);
         }
 
+        // 5. 临停车辆生成预订单（任务包 1-2）；
+        //    月卡/固定车位/白名单等无需计费车辆仅生成通行记录，不建订单
+        if (isNewRecordCreated(record, existingRecord)) {
+            createPreOrderIfChargeable(record);
+        }
+
         return record;
+    }
+
+    /**
+     * 为需计费的临停车辆生成预订单（任务包 1-2）。
+     * <p>
+     * 口径与全链路一致：根据车辆类型判定，月卡（有效）/固定车位/白名单（VIP/SUPER/FREE）
+     * 等 {@code needCharge=false} 的车辆不生成订单；临停/储值/过期月卡等需计费车辆生成 PRE_ORDER。
+     * <p>
+     * 车辆类型判定失败时采取 fail-safe：跳过预订单创建（避免错建），出场链路对无预订单有兼容建单逻辑。
+     * 预订单插入与入场处于同一事务，保证一致性。
+     */
+    private void createPreOrderIfChargeable(ParkingRecord record) {
+        VehicleTypeDecisionVO decision;
+        try {
+            decision = vehicleTypeDecisionService.decide(record.getStandardizedPlate(), record.getTenantId());
+        } catch (Exception e) {
+            // 判定失败不阻塞入场，也不错建预订单（出场走兼容建单）
+            log.warn("入场车辆类型判定失败，跳过预订单创建: plate={} lotId={} error={}",
+                    record.getStandardizedPlate(), record.getParkingLotId(), e.getMessage());
+            return;
+        }
+        if (decision == null || !Boolean.TRUE.equals(decision.getNeedCharge())) {
+            log.info("入场免建预订单（无需计费车辆 type={}）: plate={} lotId={}",
+                    decision != null ? decision.getVehicleType() : "UNKNOWN",
+                    record.getStandardizedPlate(), record.getParkingLotId());
+            return;
+        }
+        ParkingOrder preOrder = parkingOrderService.createPreOrder(record);
+        log.info("临停入场生成预订单: orderId={} plate={} lotId={}",
+                preOrder.getId(), record.getStandardizedPlate(), record.getParkingLotId());
     }
 
     /**
