@@ -118,6 +118,7 @@ public class ParkingRecordAdminController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) Integer tempPlateFlag,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
 
@@ -152,6 +153,9 @@ public class ParkingRecordAdminController {
         }
         if (status != null && !status.isBlank()) {
             wrapper.eq("status", status);
+        }
+        if (tempPlateFlag != null) {
+            wrapper.eq("temp_plate_flag", tempPlateFlag);
         }
         if (authorizedLotIds != null) {
             wrapper.in("parking_lot_id", authorizedLotIds);
@@ -361,6 +365,7 @@ public class ParkingRecordAdminController {
             vo.setExitTime(record.getExitTime());
             vo.setStatus(record.getStatus());
             vo.setStatusLabel(STATUS_LABEL.getOrDefault(record.getStatus(), record.getStatus()));
+            vo.setTempPlateFlag(record.getTempPlateFlag());
 
             // 停车时长
             if (record.getEntryTime() != null && record.getExitTime() != null) {
