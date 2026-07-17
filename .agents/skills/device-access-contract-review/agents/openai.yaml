@@ -1,4 +1,0 @@
-interface:
-  display_name: "Device Access Contract Review"
-  short_description: "Review trusted device identity events and command contracts"
-  default_prompt: "Use $device-access-contract-review to review the Device Access boundary and evidence."

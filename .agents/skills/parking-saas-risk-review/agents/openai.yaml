@@ -1,4 +1,0 @@
-interface:
-  display_name: "Parking SaaS Risk Review"
-  short_description: "Review parking SaaS isolation state and gate risks"
-  default_prompt: "Use $parking-saas-risk-review to review this parking change and produce a task brief."
