@@ -128,10 +128,11 @@ public class MiniPayController {
         if (Boolean.TRUE.equals(feeVo.getHasPendingOrder()) && feeVo.getPendingOrderId() != null) {
             ParkingOrder pendingOrder = orderService.getById(feeVo.getPendingOrderId());
             if (pendingOrder != null && ParkingOrder.STATUS_PRE_ORDER.equals(pendingOrder.getStatus())) {
-                // 提前缴费：将入场预订单按当前费用计费置待支付，再走模拟支付
+                // 提前缴费：将入场预订单按当前费用计费置待支付，再走模拟支付，场景 ADVANCE
                 int preFeeCents = feeVo.getFeeCents() != null ? feeVo.getFeeCents() : 0;
                 orderService.preOrderToPending(pendingOrder.getId(), preFeeCents,
-                        LocalDateTime.now().plusMinutes(15));
+                        LocalDateTime.now().plusMinutes(15),
+                        ParkingOrder.PAY_SCENE_ADVANCE, null);
                 pendingOrder = orderService.getById(pendingOrder.getId());
                 orderService.startPaying(pendingOrder.getId(), ParkingOrder.PAY_CHANNEL_PYUN);
                 mockPaymentService.preparePay(pendingOrder);
@@ -148,10 +149,11 @@ public class MiniPayController {
             return R.fail(1003, "停车记录不存在");
         }
 
-        // 4. 创建订单
+        // 4. 创建订单（提前缴费场景）
         String idempotencyKey = "MINI_" + request.getRecordId() + "_" + System.currentTimeMillis();
         int feeCents = feeVo.getFeeCents() != null ? feeVo.getFeeCents() : 0;
-        ParkingOrder order = orderService.createOrder(record, feeCents, idempotencyKey);
+        ParkingOrder order = orderService.createOrder(record, feeCents, idempotencyKey,
+                ParkingOrder.PAY_SCENE_ADVANCE);
 
         // 零元订单直接完成
         if (ParkingOrder.STATUS_COMPLETED.equals(order.getStatus())) {
@@ -354,9 +356,10 @@ public class MiniPayController {
             return R.fail(4002, "当前仍在免费时段内，无需缴费");
         }
 
-        // 5. 创建订单（幂等键使用 PROXY_ + recordId + 时间戳）
+        // 5. 创建订单（幂等键使用 PROXY_ + recordId + 时间戳，提前缴费场景）
         String idempotencyKey = "PROXY_" + record.getId() + "_" + System.currentTimeMillis();
-        ParkingOrder order = orderService.createOrder(record, feeCents, idempotencyKey);
+        ParkingOrder order = orderService.createOrder(record, feeCents, idempotencyKey,
+                ParkingOrder.PAY_SCENE_ADVANCE);
 
         // 零元订单（理论不会发生，但 createOrder 内部可能处理为 COMPLETED）
         if (ParkingOrder.STATUS_COMPLETED.equals(order.getStatus())) {

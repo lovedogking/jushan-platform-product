@@ -33,6 +33,12 @@ public class CreateBillingRuleRequest {
     /** 是否设为默认规则 */
     private Boolean isDefault = false;
 
+    /** 生效方式：IMMEDIATE-立即生效, NEW_ENTRY_ONLY-仅新入场生效, SCHEDULED-定时生效 */
+    private String effectType;
+
+    /** 定时生效时间（effect_type=SCHEDULED 时必填） */
+    private String effectTime;
+
     // 计费配置字段
     /** 免费时长（分钟） */
     @Min(value = 0, message = "免费时长不能为负数")
@@ -78,6 +84,12 @@ public class CreateBillingRuleRequest {
 
     public Boolean getIsDefault() { return isDefault; }
     public void setIsDefault(Boolean isDefault) { this.isDefault = isDefault; }
+
+    public String getEffectType() { return effectType; }
+    public void setEffectType(String effectType) { this.effectType = effectType; }
+
+    public String getEffectTime() { return effectTime; }
+    public void setEffectTime(String effectTime) { this.effectTime = effectTime; }
 
     public Integer getFreeMinutes() { return freeMinutes; }
     public void setFreeMinutes(Integer freeMinutes) { this.freeMinutes = freeMinutes; }

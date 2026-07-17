@@ -54,19 +54,25 @@ public class MockPaymentService {
     private final ApplicationEventPublisher eventPublisher;
     private final ParamResolver paramResolver;
     private final OrderStatusLogService orderStatusLogService;
+    private final DeviceService deviceService;
+    private final ParkingOrderService parkingOrderService;
 
     public MockPaymentService(MockPaymentConfigMapper configMapper,
-                              MockPaymentRecordMapper recordMapper,
-                              ParkingOrderMapper orderMapper,
-                              ApplicationEventPublisher eventPublisher,
-                              ParamResolver paramResolver,
-                              OrderStatusLogService orderStatusLogService) {
+                               MockPaymentRecordMapper recordMapper,
+                               ParkingOrderMapper orderMapper,
+                               ApplicationEventPublisher eventPublisher,
+                               ParamResolver paramResolver,
+                               OrderStatusLogService orderStatusLogService,
+                               DeviceService deviceService,
+                               ParkingOrderService parkingOrderService) {
         this.configMapper = configMapper;
         this.recordMapper = recordMapper;
         this.orderMapper = orderMapper;
         this.eventPublisher = eventPublisher;
         this.paramResolver = paramResolver;
         this.orderStatusLogService = orderStatusLogService;
+        this.deviceService = deviceService;
+        this.parkingOrderService = parkingOrderService;
     }
 
     // ==================== 核心支付方法 ====================
@@ -172,11 +178,68 @@ public class MockPaymentService {
                     OrderStatusLog.TRIGGER_USER, null, paidBy, "模拟支付确认");
             // 发布支付成功事件（同步），监听者包括月卡续费生效
             eventPublisher.publishEvent(new PaymentSuccessEvent(order, paySerial, paidBy));
+
+            // 任务包 2-1：支付后处理（AT_EXIT 立即开闸 / ADVANCE 设置窗口期）
+            handlePostPay(order, paySerial, paidBy);
         }
 
         log.info("模拟支付成功: orderId={} paySerial={} paidBy={} updated={}",
                 orderId, paySerial, paidBy, updated > 0);
         return updated > 0;
+    }
+
+    /**
+     * 支付后处理（任务包 2-1）：根据支付场景决定后续动作。
+     * <ul>
+     *   <li>AT_EXIT（出口缴费）：立即开闸 + 订单完成</li>
+     *   <li>ADVANCE（提前缴费）：写入 pay_window_deadline，订单保持 PAID 待出场</li>
+     * </ul>
+     */
+    private void handlePostPay(ParkingOrder order, String paySerial, String paidBy) {
+        String payScene = order.getPayScene();
+        if (ParkingOrder.PAY_SCENE_AT_EXIT.equals(payScene)) {
+            handleAtExitPostPay(order, paidBy);
+        } else {
+            handleAdvancePostPay(order);
+        }
+    }
+
+    /**
+     * AT_EXIT 支付后处理：开闸 + 完成订单。
+     */
+    private void handleAtExitPostPay(ParkingOrder order, String paidBy) {
+        Long exitLaneId = order.getExitLaneId();
+        if (exitLaneId != null) {
+            try {
+                deviceService.openGateByLane(exitLaneId, "出口缴费自动开闸（订单:" + order.getOrderNo() + "）");
+                log.info("出口缴费开闸成功: orderId={} laneId={}", order.getId(), exitLaneId);
+            } catch (Exception e) {
+                log.warn("出口缴费开闸失败（订单仍标记为已支付，需人工处理）: orderId={} laneId={} error={}",
+                        order.getId(), exitLaneId, e.getMessage());
+                orderStatusLogService.record(order, ParkingOrder.STATUS_PAID,
+                        ParkingOrder.STATUS_PAID, OrderStatusLog.TRIGGER_SYSTEM, null,
+                        paidBy, "开闸失败: " + e.getMessage() + "，请人工开闸");
+                return;
+            }
+        } else {
+            log.warn("AT_EXIT 支付但缺 exitLaneId，跳过开闸: orderId={}", order.getId());
+        }
+        LocalDateTime exitTime = LocalDateTime.now();
+        parkingOrderService.completeOrder(order.getId(), exitTime);
+        log.info("出口缴费订单完成: orderId={} exitTime={}", order.getId(), exitTime);
+    }
+
+    /**
+     * ADVANCE 支付后处理：设置支付窗口截止时间。
+     */
+    private void handleAdvancePostPay(ParkingOrder order) {
+        int windowMinutes = paramResolver.getInt(ParamKeys.PAY_EXIT_WINDOW_MINUTES,
+                order.getParkingLotId(), 15);
+        LocalDateTime deadline = LocalDateTime.now().plusMinutes(windowMinutes);
+        parkingOrderService.setPayWindowDeadline(order.getId(), deadline,
+                ParkingOrder.PAY_SCENE_ADVANCE);
+        log.info("提前缴费窗口期已设置: orderId={} deadline={} windowMinutes={}",
+                order.getId(), deadline, windowMinutes);
     }
 
     /**
@@ -236,6 +299,9 @@ public class MockPaymentService {
                     OrderStatusLog.TRIGGER_USER, null, operatorId, "运营端手动标记支付");
             // 发布支付成功事件（同步），监听者包括月卡续费生效
             eventPublisher.publishEvent(new PaymentSuccessEvent(order, paySerial, operatorId));
+
+            // 任务包 2-1：支付后处理
+            handlePostPay(order, paySerial, operatorId);
 
             log.info("手动标记支付成功: orderId={} operatorId={}", orderId, operatorId);
         }

@@ -67,6 +67,9 @@ public class ParkingRecord implements Serializable {
     /** 收费规则版本（占位，T34 实现） */
     private String feeRuleVersion;
 
+    /** 入场时的计费规则快照 JSON（NEW_ENTRY_ONLY 生效方式使用） */
+    private String ruleSnapshot;
+
     /** 入场抓拍图片路径（UPDATE 策略时更新为最新抓拍） */
     private String entryImagePath;
 
@@ -114,6 +117,9 @@ public class ParkingRecord implements Serializable {
 
     public String getFeeRuleVersion() { return feeRuleVersion; }
     public void setFeeRuleVersion(String feeRuleVersion) { this.feeRuleVersion = feeRuleVersion; }
+
+    public String getRuleSnapshot() { return ruleSnapshot; }
+    public void setRuleSnapshot(String ruleSnapshot) { this.ruleSnapshot = ruleSnapshot; }
 
     public String getEntryImagePath() { return entryImagePath; }
     public void setEntryImagePath(String entryImagePath) { this.entryImagePath = entryImagePath; }

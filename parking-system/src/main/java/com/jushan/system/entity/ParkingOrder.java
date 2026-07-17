@@ -104,6 +104,18 @@ public class ParkingOrder implements Serializable {
     /** 退款操作人（sys_user.id） */
     private Long refundOperatorId;
 
+    /** 支付窗口截止时间（ADVANCE 场景，now + 窗口期分钟数），任务包 2-1 */
+    private LocalDateTime payWindowDeadline;
+
+    /** 支付场景：AT_EXIT=出口缴费 / ADVANCE=提前缴费，任务包 2-1 */
+    private String payScene;
+
+    /** 重算来源原订单号（超期重算新订单关联原订单），任务包 2-1 */
+    private Long recalcSourceOrderId;
+
+    /** 出口车道ID（AT_EXIT 场景用于开闸），任务包 2-1 */
+    private Long exitLaneId;
+
     /** 乐观锁版本号 */
     @Version
     private Integer version;
@@ -139,6 +151,11 @@ public class ParkingOrder implements Serializable {
     public static final String PAY_CHANNEL_ALIPAY = "ALIPAY";
     public static final String PAY_CHANNEL_CASH = "CASH";
     public static final String PAY_CHANNEL_BALANCE = "BALANCE";
+
+    /** 出口缴费（车辆已在出口，支付后立即开闸），任务包 2-1 */
+    public static final String PAY_SCENE_AT_EXIT = "AT_EXIT";
+    /** 提前缴费（用户远程支付，进入出场窗口期），任务包 2-1 */
+    public static final String PAY_SCENE_ADVANCE = "ADVANCE";
 
     // ==================== getter / setter ====================
 
@@ -228,4 +245,16 @@ public class ParkingOrder implements Serializable {
 
     public Long getRefundOperatorId() { return refundOperatorId; }
     public void setRefundOperatorId(Long refundOperatorId) { this.refundOperatorId = refundOperatorId; }
+
+    public LocalDateTime getPayWindowDeadline() { return payWindowDeadline; }
+    public void setPayWindowDeadline(LocalDateTime payWindowDeadline) { this.payWindowDeadline = payWindowDeadline; }
+
+    public String getPayScene() { return payScene; }
+    public void setPayScene(String payScene) { this.payScene = payScene; }
+
+    public Long getRecalcSourceOrderId() { return recalcSourceOrderId; }
+    public void setRecalcSourceOrderId(Long recalcSourceOrderId) { this.recalcSourceOrderId = recalcSourceOrderId; }
+
+    public Long getExitLaneId() { return exitLaneId; }
+    public void setExitLaneId(Long exitLaneId) { this.exitLaneId = exitLaneId; }
 }

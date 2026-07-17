@@ -53,6 +53,29 @@ public interface ParkingOrderMapper extends BaseMapper<ParkingOrder> {
                        @Param("payTime") LocalDateTime payTime);
 
     /**
+     * 标记订单为已支付，同时设置支付窗口截止时间和支付场景。
+     * 仅当订单当前为 PENDING_PAY 或 PAYING 状态时更新。
+     */
+    @Update("UPDATE parking_order SET status = 'PAID', pay_serial = #{paySerial}, " +
+            "paid_amount = #{paidAmount}, pay_time = #{payTime}, " +
+            "pay_window_deadline = #{payWindowDeadline}, pay_scene = #{payScene}, updated_at = NOW() " +
+            "WHERE id = #{orderId} AND status IN ('PENDING_PAY', 'PAYING') AND deleted_at IS NULL")
+    int markPaidWithWindow(@Param("orderId") Long orderId,
+                           @Param("paySerial") String paySerial,
+                           @Param("paidAmount") Integer paidAmount,
+                           @Param("payTime") LocalDateTime payTime,
+                           @Param("payWindowDeadline") LocalDateTime payWindowDeadline,
+                           @Param("payScene") String payScene);
+
+    /**
+     * 查询停车记录下处于 PAID 状态且未删除的订单。
+     * 按创建时间倒序，用于窗口期判定。
+     */
+    @Select("SELECT * FROM parking_order WHERE parking_record_id = #{parkingRecordId} " +
+            "AND status = 'PAID' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1")
+    ParkingOrder selectPaidByRecordId(@Param("parkingRecordId") Long parkingRecordId);
+
+    /**
      * 取消订单（待支付或支付中）。
      * 仅当订单当前为 PENDING_PAY 或 PAYING 状态时取消。
      */

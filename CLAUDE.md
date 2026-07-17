@@ -31,6 +31,6 @@
 - 禁止开发"本期不做"清单功能：优惠券、访客预约、商家优惠、真实支付、电子发票、寻车导航、短信推送
 
 ### 上下文参考
-- 需求文档：`docs/requirements/停车SaaS系统需求规格说明书_v1.0.md`
+- 需求文档：`docs/Kimi_Agent_停车SaaS架构评审/停车SaaS系统需求规格说明书_v1.1.md`
 - 部署文档：`docs/deployment/部署检查清单-P0-3.md`
 - 二期规划：`docs/roadmap/二期需求优先级-P0-P3.md`

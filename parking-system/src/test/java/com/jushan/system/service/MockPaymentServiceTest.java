@@ -54,6 +54,10 @@ class MockPaymentServiceTest {
     private ParamResolver paramResolver;
     @Mock
     private OrderStatusLogService orderStatusLogService;
+    @Mock
+    private DeviceService deviceService;
+    @Mock
+    private ParkingOrderService parkingOrderService;
 
     private MockPaymentService mockPaymentService;
 
@@ -62,7 +66,8 @@ class MockPaymentServiceTest {
 
     @BeforeEach
     void setUp() {
-        mockPaymentService = new MockPaymentService(configMapper, recordMapper, orderMapper, eventPublisher, paramResolver, orderStatusLogService);
+        mockPaymentService = new MockPaymentService(configMapper, recordMapper, orderMapper,
+                eventPublisher, paramResolver, orderStatusLogService, deviceService, parkingOrderService);
 
         defaultConfig = new MockPaymentConfig();
         defaultConfig.setId(1L);

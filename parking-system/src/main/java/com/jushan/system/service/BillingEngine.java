@@ -5,8 +5,10 @@ import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.system.entity.BillingRule;
 import com.jushan.system.entity.BillingRuleVersion;
+import com.jushan.system.entity.BillingRuleSwitchLog;
 import com.jushan.system.mapper.BillingRuleMapper;
 import com.jushan.system.mapper.BillingRuleVersionMapper;
+import com.jushan.system.mapper.BillingRuleSwitchLogMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -53,13 +55,16 @@ public class BillingEngine {
 
     private final BillingRuleMapper ruleMapper;
     private final BillingRuleVersionMapper versionMapper;
+    private final BillingRuleSwitchLogMapper switchLogMapper;
     private final ObjectMapper objectMapper;
 
     public BillingEngine(BillingRuleMapper ruleMapper,
                          BillingRuleVersionMapper versionMapper,
+                         BillingRuleSwitchLogMapper switchLogMapper,
                          ObjectMapper objectMapper) {
         this.ruleMapper = ruleMapper;
         this.versionMapper = versionMapper;
+        this.switchLogMapper = switchLogMapper;
         this.objectMapper = objectMapper;
     }
 
@@ -129,15 +134,160 @@ public class BillingEngine {
 
     /**
      * 查询停车场当前生效的收费规则版本。
+     * <p>
+     * 支持 SCHEDULED 生效方式：若当前激活版本的父规则为 SCHEDULED 且 effect_time 尚未到达，
+     * 则退回上一个激活版本。
      *
      * @param parkingLotId 停车场 ID
      * @return 生效版本，可能为 null
      */
     public BillingRuleVersion findActiveVersion(Long parkingLotId) {
-        return versionMapper.selectOne(
+        BillingRuleVersion active = versionMapper.selectOne(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<BillingRuleVersion>()
                         .eq(BillingRuleVersion::getParkingLotId, parkingLotId)
                         .eq(BillingRuleVersion::getIsActive, 1));
+
+        if (active == null) {
+            return null;
+        }
+
+        BillingRule rule = ruleMapper.selectById(active.getRuleId());
+        if (rule != null
+                && BillingRule.EFFECT_SCHEDULED.equals(rule.getEffectType())
+                && rule.getEffectTime() != null
+                && rule.getEffectTime().isAfter(LocalDateTime.now())) {
+            // SCHEDULED 规则尚未到达生效时间，回退到上一个版本
+            BillingRuleVersion previous = findPreviousActiveVersion(parkingLotId, active.getRuleId());
+            if (previous != null) {
+                log.info("SCHEDULED 规则尚未生效，回退到版本: ruleId={} version={}",
+                        previous.getRuleId(), previous.getVersion());
+                return previous;
+            }
+            // 无上一版本（首个规则即 SCHEDULED），不返回生效规则
+            log.warn("SCHEDULED 规则尚未生效且无上一版本: parkingLotId={}", parkingLotId);
+            return null;
+        }
+
+        return active;
+    }
+
+    /**
+     * 查找该停车场上一激活版本（通过 switch_log 回查 before_rule_id）。
+     */
+    private BillingRuleVersion findPreviousActiveVersion(Long parkingLotId, Long currentRuleId) {
+        BillingRuleSwitchLog lastSwitch = switchLogMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<BillingRuleSwitchLog>()
+                        .eq(BillingRuleSwitchLog::getParkingLotId, parkingLotId)
+                        .eq(BillingRuleSwitchLog::getAfterRuleId, currentRuleId)
+                        .orderByDesc(BillingRuleSwitchLog::getCreatedAt)
+                        .last("LIMIT 1"));
+        if (lastSwitch == null || lastSwitch.getBeforeRuleId() == null) {
+            return null;
+        }
+        BillingRule previousRule = ruleMapper.selectById(lastSwitch.getBeforeRuleId());
+        if (previousRule == null) {
+            return null;
+        }
+        return versionMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<BillingRuleVersion>()
+                        .eq(BillingRuleVersion::getRuleId, previousRule.getId())
+                        .orderByDesc(BillingRuleVersion::getVersion)
+                        .last("LIMIT 1"));
+    }
+
+    /**
+     * 基于规则快照 JSON 计算停车费用。
+     * <p>
+     * 用于 NEW_ENTRY_ONLY 生效方式，已在场车辆按入场时的规则快照计费。
+     *
+     * @param ruleSnapshotJson 入场时保存的规则快照 JSON（仅计费必需字段）
+     * @param entryTime        入场时间
+     * @param exitTime         出场时间
+     * @return 费用（分），非负
+     */
+    public int calculateFeeFromSnapshot(String ruleSnapshotJson, LocalDateTime entryTime, LocalDateTime exitTime) {
+        if (ruleSnapshotJson == null || ruleSnapshotJson.isBlank()) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "规则快照为空");
+        }
+        BillingRuleConfig config;
+        try {
+            config = objectMapper.readValue(ruleSnapshotJson, BillingRuleConfig.class);
+        } catch (Exception e) {
+            log.warn("规则快照 JSON 解析失败: {}", ruleSnapshotJson, e);
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "规则快照解析失败");
+        }
+        return calculateByConfig(config, entryTime, exitTime);
+    }
+
+    /**
+     * 基于 BillingRuleConfig 对象直接计算费用（不查库）。
+     */
+    public int calculateByConfig(BillingRuleConfig config, LocalDateTime entryTime, LocalDateTime exitTime) {
+        validateTimes(entryTime, exitTime);
+
+        int fee = switch (resolveRuleTypeFromConfig(config)) {
+            case BillingRule.RULE_TYPE_NO_FEE -> 0;
+            case BillingRule.RULE_TYPE_FIXED -> calculateFixed(config);
+            case BillingRule.RULE_TYPE_HOURLY -> calculateHourly(config, entryTime, exitTime);
+            default -> throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "不支持的规则类型");
+        };
+
+        int maxAmount = defaultZero(config.getMaxAmount());
+        if (maxAmount > 0) {
+            fee = Math.min(fee, maxAmount);
+        }
+
+        if (fee < 0) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "计算费用为负值: " + fee);
+        }
+
+        return fee;
+    }
+
+    /**
+     * 从计费配置推断规则类型。
+     */
+    private String resolveRuleTypeFromConfig(BillingRuleConfig config) {
+        if (config.getFixedAmount() != null && config.getFixedAmount() > 0) {
+            return BillingRule.RULE_TYPE_FIXED;
+        }
+        if (config.getFirstAmount() != null && config.getFirstAmount() > 0) {
+            return BillingRule.RULE_TYPE_HOURLY;
+        }
+        if (config.getUnitAmount() != null && config.getUnitAmount() > 0) {
+            return BillingRule.RULE_TYPE_HOURLY;
+        }
+        return BillingRule.RULE_TYPE_NO_FEE;
+    }
+
+    /**
+     * 构建规则快照 JSON（仅计费必需字段，避免大 JSON）。
+     * <p>
+     * 用于 NEW_ENTRY_ONLY 生效方式入场时保存。
+     */
+    public String buildSnapshot(BillingRuleVersion version, String ruleType) {
+        Map<String, Object> snapshot = new HashMap<>();
+        snapshot.put("ruleType", ruleType);
+        BillingRuleConfig config = parseConfig(version);
+        snapshot.put("freeMinutes", config.getFreeMinutes() != null ? config.getFreeMinutes() : 0);
+        snapshot.put("firstPeriod", config.getFirstPeriod() != null ? config.getFirstPeriod() : 0);
+        snapshot.put("firstAmount", config.getFirstAmount() != null ? config.getFirstAmount() : 0);
+        snapshot.put("unitPeriod", config.getUnitPeriod() != null ? config.getUnitPeriod() : 0);
+        snapshot.put("unitAmount", config.getUnitAmount() != null ? config.getUnitAmount() : 0);
+        snapshot.put("dailyCap", config.getDailyCap() != null ? config.getDailyCap() : 0);
+        snapshot.put("maxAmount", config.getMaxAmount() != null ? config.getMaxAmount() : 0);
+        if (config.getFixedAmount() != null) {
+            snapshot.put("fixedAmount", config.getFixedAmount());
+        }
+        if (config.getTimeSegments() != null && !config.getTimeSegments().isEmpty()) {
+            snapshot.put("timeSegments", config.getTimeSegments());
+        }
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (Exception e) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "规则快照序列化失败");
+        }
     }
 
     private String resolveRuleType(BillingRuleVersion version) {

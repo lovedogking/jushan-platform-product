@@ -13,6 +13,7 @@ import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.service.ParkingOrderService;
 import com.jushan.system.mapper.ParkingRecordMapper;
 import com.jushan.system.service.BillingEngine;
+import com.jushan.system.service.DeviceService;
 import com.jushan.system.service.ExitResult;
 import com.jushan.system.service.ExitService;
 import com.jushan.system.service.FixedSpaceService;
@@ -83,11 +84,16 @@ class ExitServiceTest extends TestcontainersBaseTest {
     @Mock
     private FixedSpaceService fixedSpaceService;
 
+    @Mock
+    private DeviceService deviceService;
+
     private ExitService exitService;
 
     @BeforeEach
     void setUp() {
-        exitService = new ExitService(recordMapper, exitRecordMapper, parkingOrderService, parkingLotMapper, billingEngine, boothWebSocketPublisher, parkingSessionService, prepaidDeductionService, fixedSpaceService);
+        exitService = new ExitService(recordMapper, exitRecordMapper, parkingOrderService,
+                parkingLotMapper, billingEngine, boothWebSocketPublisher, parkingSessionService,
+                prepaidDeductionService, fixedSpaceService, deviceService);
     }
 
     @Test
@@ -101,7 +107,8 @@ class ExitServiceTest extends TestcontainersBaseTest {
         ParkingOrder mockOrder = new ParkingOrder();
         mockOrder.setId(999L);
         mockOrder.setStatus(ParkingOrder.STATUS_COMPLETED);
-        when(parkingOrderService.createOrder(any(), anyInt(), any())).thenReturn(mockOrder);
+        when(parkingOrderService.createOrder(any(), anyInt(), isNull(), eq(ParkingOrder.PAY_SCENE_AT_EXIT))).thenReturn(mockOrder);
+        when(parkingOrderService.findPaidOrderForRecord(any())).thenReturn(null);
 
         ExitResult result = exitService.handleExit(exitPayload(1L, 100L, 1L, "粤B12345"), "粤B12345");
 
@@ -109,7 +116,7 @@ class ExitServiceTest extends TestcontainersBaseTest {
         assertThat(result.getDecisionCode()).isEqualTo(ExitRecord.DECISION_ZERO_FEE);
         assertThat(result.getFeeCents()).isZero();
 
-        verify(parkingOrderService).createOrder(any(ParkingRecord.class), anyInt(), isNull());
+        verify(parkingOrderService).createOrder(any(ParkingRecord.class), anyInt(), isNull(), eq(ParkingOrder.PAY_SCENE_AT_EXIT));
         verify(parkingOrderService).completeOrder(any(Long.class), any(LocalDateTime.class));
 
         verify(recordMapper).update(any(), any());
@@ -129,7 +136,7 @@ class ExitServiceTest extends TestcontainersBaseTest {
         ParkingOrder mockOrder = new ParkingOrder();
         mockOrder.setId(999L);
         mockOrder.setStatus(ParkingOrder.STATUS_PENDING_PAY);
-        when(parkingOrderService.createOrder(any(), anyInt(), any())).thenReturn(mockOrder);
+        when(parkingOrderService.createOrder(any(), anyInt(), any(), any())).thenReturn(mockOrder);
 
         // mock 非储值车跳过扣费
         when(prepaidDeductionService.tryDeduct(any(), anyInt(), any()))
@@ -141,7 +148,7 @@ class ExitServiceTest extends TestcontainersBaseTest {
         assertThat(result.getDecisionCode()).isEqualTo(ExitRecord.DECISION_PENDING_PAYMENT);
         assertThat(result.getFeeCents()).isEqualTo(500);
 
-        verify(parkingOrderService).createOrder(any(ParkingRecord.class), anyInt(), isNull());
+        verify(parkingOrderService).createOrder(any(ParkingRecord.class), anyInt(), isNull(), eq(ParkingOrder.PAY_SCENE_AT_EXIT));
 
         verify(recordMapper, never()).update(any(), any());
         verify(parkingLotMapper, never()).update(any(), any());
@@ -162,7 +169,7 @@ class ExitServiceTest extends TestcontainersBaseTest {
         assertThat(result.isAllowExit()).isFalse();
         assertThat(result.getDecisionCode()).isEqualTo(ExitRecord.DECISION_NO_RECORD);
 
-        verify(parkingOrderService, never()).createOrder(any(), anyInt(), any());
+        verify(parkingOrderService, never()).createOrder(any(), anyInt(), any(), any());
         verify(recordMapper, never()).update(any(), any());
 
         ArgumentCaptor<ExitRecord> exitCaptor = ArgumentCaptor.forClass(ExitRecord.class);
@@ -204,7 +211,7 @@ class ExitServiceTest extends TestcontainersBaseTest {
         ParkingOrder mockOrder = new ParkingOrder();
         mockOrder.setId(999L);
         mockOrder.setStatus(ParkingOrder.STATUS_PENDING_PAY);
-        when(parkingOrderService.createOrder(any(), anyInt(), any())).thenReturn(mockOrder);
+        when(parkingOrderService.createOrder(any(), anyInt(), any(), any())).thenReturn(mockOrder);
 
         // mock 储值车余额充足：全额扣除 500 分
         PrepaidDeductionService.DeductionResult deduction =
@@ -255,7 +262,7 @@ class ExitServiceTest extends TestcontainersBaseTest {
         ParkingOrder mockOrder = new ParkingOrder();
         mockOrder.setId(999L);
         mockOrder.setStatus(ParkingOrder.STATUS_PENDING_PAY);
-        when(parkingOrderService.createOrder(any(), anyInt(), any())).thenReturn(mockOrder);
+        when(parkingOrderService.createOrder(any(), anyInt(), any(), any())).thenReturn(mockOrder);
 
         // mock 储值车余额不足：仅扣除 1000 分，剩余 500 分
         PrepaidDeductionService.DeductionResult deduction =
@@ -303,7 +310,7 @@ class ExitServiceTest extends TestcontainersBaseTest {
         ParkingOrder mockOrder = new ParkingOrder();
         mockOrder.setId(999L);
         mockOrder.setStatus(ParkingOrder.STATUS_PENDING_PAY);
-        when(parkingOrderService.createOrder(any(), anyInt(), any())).thenReturn(mockOrder);
+        when(parkingOrderService.createOrder(any(), anyInt(), any(), any())).thenReturn(mockOrder);
 
         // mock 非储值车：跳过扣费
         PrepaidDeductionService.DeductionResult skipped =
@@ -336,7 +343,7 @@ class ExitServiceTest extends TestcontainersBaseTest {
         ParkingOrder mockOrder = new ParkingOrder();
         mockOrder.setId(999L);
         mockOrder.setStatus(ParkingOrder.STATUS_PENDING_PAY);
-        when(parkingOrderService.createOrder(any(), anyInt(), any())).thenReturn(mockOrder);
+        when(parkingOrderService.createOrder(any(), anyInt(), any(), any())).thenReturn(mockOrder);
 
         // mock 余额为零
         PrepaidDeductionService.DeductionResult noBalance =
@@ -364,7 +371,7 @@ class ExitServiceTest extends TestcontainersBaseTest {
         ParkingOrder mockOrder = new ParkingOrder();
         mockOrder.setId(999L);
         mockOrder.setStatus(ParkingOrder.STATUS_PENDING_PAY);
-        when(parkingOrderService.createOrder(any(), anyInt(), any())).thenReturn(mockOrder);
+        when(parkingOrderService.createOrder(any(), anyInt(), any(), any())).thenReturn(mockOrder);
 
         // mock 并发冲突：乐观锁版本不匹配
         when(prepaidDeductionService.tryDeduct(any(), anyInt(), any()))
@@ -414,8 +421,9 @@ class ExitServiceTest extends TestcontainersBaseTest {
         assertThat(result.getFeeCents()).isEqualTo(500);
 
         // 走预订单计费路径，不再兼容建单
-        verify(parkingOrderService).preOrderToPending(eq(777L), eq(500), any(LocalDateTime.class));
-        verify(parkingOrderService, never()).createOrder(any(), anyInt(), any());
+        verify(parkingOrderService).preOrderToPending(eq(777L), eq(500), any(LocalDateTime.class),
+                eq(ParkingOrder.PAY_SCENE_AT_EXIT), any());
+        verify(parkingOrderService, never()).createOrder(any(), anyInt(), any(), any());
     }
 
     @Test
@@ -444,7 +452,7 @@ class ExitServiceTest extends TestcontainersBaseTest {
         assertThat(result.getDecisionCode()).isEqualTo(ExitRecord.DECISION_ZERO_FEE);
 
         verify(parkingOrderService).preOrderToCompleted(eq(777L), any(LocalDateTime.class));
-        verify(parkingOrderService, never()).createOrder(any(), anyInt(), any());
+        verify(parkingOrderService, never()).createOrder(any(), anyInt(), any(), any());
     }
 
     private ParkingRecord activeRecord(Long id, Long tenantId, Long parkingLotId, String plate) {

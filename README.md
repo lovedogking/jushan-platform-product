@@ -4,7 +4,7 @@
 
 新开发者或 AI 助手接手项目时，请先阅读上述文件了解项目架构、构建命令和代码规范。
 
-- 需求文档：`docs/requirements/停车SaaS系统需求规格说明书_v1.0.md`
+- 需求文档：`docs/Kimi_Agent_停车SaaS架构评审/停车SaaS系统需求规格说明书_v1.1.md`
 - 部署文档：`docs/deployment/部署检查清单-P0-3.md`
 - 二期规划：`docs/roadmap/二期需求优先级-P0-P3.md`
 

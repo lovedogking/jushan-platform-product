@@ -14,6 +14,9 @@ export interface BillingRuleVO {
   status: string
   statusDesc: string
   isDefault: number
+  effectType: string
+  effectTypeDesc: string
+  effectTime: string | null
   createdBy: number
   createdByName: string
   updatedBy: number
@@ -64,6 +67,13 @@ export const RULE_STATUS_OPTIONS = [
   { label: '禁用', value: 'DISABLED' },
 ]
 
+/** 生效方式选项 */
+export const EFFECT_TYPE_OPTIONS = [
+  { label: '立即生效', value: 'IMMEDIATE' },
+  { label: '仅新入场生效', value: 'NEW_ENTRY_ONLY' },
+  { label: '定时生效', value: 'SCHEDULED' },
+]
+
 /** 分页查询收费规则列表 */
 export function getBillingRules(params: {
   page?: number
@@ -85,6 +95,8 @@ export function createBillingRule(data: {
   name: string
   description?: string
   ruleType: string
+  effectType?: string
+  effectTime?: string
   freeMinutes?: number
   firstPeriod?: number
   firstAmount?: number
@@ -101,6 +113,8 @@ export function updateBillingRule(id: number, data: {
   name?: string
   description?: string
   ruleType?: string
+  effectType?: string
+  effectTime?: string
   freeMinutes?: number
   firstPeriod?: number
   firstAmount?: number

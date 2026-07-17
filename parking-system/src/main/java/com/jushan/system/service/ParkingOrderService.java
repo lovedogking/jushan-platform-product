@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.common.auth.TenantContext;
+import com.jushan.system.constant.ParamKeys;
 import com.jushan.system.entity.OrderStatusLog;
 import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.entity.ParkingRecord;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -109,10 +111,22 @@ public class ParkingOrderService {
      * @param record         停车记录（可信）
      * @param feeCents       计算费用（分）
      * @param idempotencyKey 幂等键
+     * @param payScene       支付场景（AT_EXIT / ADVANCE）
      * @return 创建的订单
      */
     @Transactional(rollbackFor = Exception.class)
-    public ParkingOrder createOrder(ParkingRecord record, int feeCents, String idempotencyKey) {
+    public ParkingOrder createOrder(ParkingRecord record, int feeCents, String idempotencyKey,
+                                     String payScene) {
+        return createOrderInternal(record, feeCents, idempotencyKey, payScene, null, null, null);
+    }
+
+    /**
+     * 内部建单，支持支付场景、出口车道、重算来源。
+     */
+    private ParkingOrder createOrderInternal(ParkingRecord record, int feeCents,
+                                               String idempotencyKey, String payScene,
+                                               Long exitLaneId, Long recalcSourceOrderId,
+                                               String remark) {
         // 幂等检查
         if (idempotencyKey != null && !idempotencyKey.isEmpty()) {
             ParkingOrder existing = orderMapper.selectOne(
@@ -138,6 +152,9 @@ public class ParkingOrderService {
         order.setPayableAmount(Math.max(0, feeCents));
         order.setPaidAmount(0);
         order.setIdempotencyKey(idempotencyKey);
+        order.setPayScene(payScene);
+        order.setExitLaneId(exitLaneId);
+        order.setRecalcSourceOrderId(recalcSourceOrderId);
 
         // 零元订单直接完成
         if (feeCents <= 0) {
@@ -154,12 +171,19 @@ public class ParkingOrderService {
         order.setUpdatedAt(LocalDateTime.now());
 
         orderMapper.insert(order);
-        // 创建即留痕（源状态为空）
+        String logRemark = remark != null ? remark : "出场建单";
         orderStatusLogService.record(order, null, order.getStatus(),
-                currentTriggerSource(), currentOperatorId(), null, "出场建单");
-        log.info("订单创建成功: orderId={} orderNo={} feeCents={} status={}",
-                order.getId(), order.getOrderNo(), feeCents, order.getStatus());
+                currentTriggerSource(), currentOperatorId(), null, logRemark);
+        log.info("订单创建成功: orderId={} orderNo={} feeCents={} status={} payScene={}",
+                order.getId(), order.getOrderNo(), feeCents, order.getStatus(), payScene);
         return order;
+    }
+
+    /**
+     * 创建停车订单（出场时调用/兼容旧无预订单数据）——保留兼容签名。
+     */
+    public ParkingOrder createOrder(ParkingRecord record, int feeCents, String idempotencyKey) {
+        return createOrder(record, feeCents, idempotencyKey, null);
     }
 
     // ==================== 状态流转 ====================
@@ -167,13 +191,16 @@ public class ParkingOrderService {
     /**
      * 预订单出场计费 → 待支付（PRE_ORDER → PENDING_PAY，任务包 1-2）。
      *
-     * @param orderId   预订单 ID
-     * @param feeCents  计费金额（分）
-     * @param expiredAt 支付过期时间
+     * @param orderId     预订单 ID
+     * @param feeCents    计费金额（分）
+     * @param expiredAt   支付过期时间
+     * @param payScene    支付场景（AT_EXIT / ADVANCE），任务包 2-1
+     * @param exitLaneId  出口车道ID（AT_EXIT 场景），可为 null
      * @return 是否成功
      */
     @Transactional(rollbackFor = Exception.class)
-    public boolean preOrderToPending(Long orderId, int feeCents, LocalDateTime expiredAt) {
+    public boolean preOrderToPending(Long orderId, int feeCents, LocalDateTime expiredAt,
+                                      String payScene, Long exitLaneId) {
         ParkingOrder order = orderMapper.selectById(orderId);
         if (order == null) {
             return false;
@@ -190,16 +217,26 @@ public class ParkingOrderService {
                 .set("amount_cents", amount)
                 .set("payable_amount", amount)
                 .set("expired_at", expiredAt)
+                .set("pay_scene", payScene)
+                .set("exit_lane_id", exitLaneId)
                 .set("updated_at", LocalDateTime.now())
                 .eq("id", orderId)
                 .eq("status", ParkingOrder.STATUS_PRE_ORDER);
         int updated = orderMapper.update(null, wrapper);
         if (updated > 0) {
             orderStatusLogService.record(order, from, ParkingOrder.STATUS_PENDING_PAY,
-                    currentTriggerSource(), currentOperatorId(), null, "出场计费，应付" + amount + "分");
+                    currentTriggerSource(), currentOperatorId(), null,
+                    "出场计费，应付" + amount + "分，场景:" + payScene);
             return true;
         }
         return false;
+    }
+
+    /**
+     * 预订单出场计费 → 待支付——保留兼容签名。
+     */
+    public boolean preOrderToPending(Long orderId, int feeCents, LocalDateTime expiredAt) {
+        return preOrderToPending(orderId, feeCents, expiredAt, null, null);
     }
 
     /**
@@ -620,6 +657,8 @@ public class ParkingOrderService {
      * 任务包 1-2：为保证"入场→查费→缴费→出场"全链路单一订单，出场与小程序查费/缴费均复用本方法定位的订单：
      * 命中 PRE_ORDER 时出场计费/免费放行；命中 PENDING_PAY/PAYING/PAID 时（提前缴费/岗亭等已建单）直接复用，避免重复建单。
      * 终态订单（COMPLETED/CANCELLED/REFUNDED/PAY_FAILED）不作为可复用订单。
+     * <p>
+     * 任务包 2-1：PAID 状态订单需区分窗口期内（可复用直接放行）vs 窗口期外（需重算）。
      */
     public ParkingOrder findReusableOrderForRecord(Long parkingRecordId) {
         if (parkingRecordId == null) {
@@ -633,6 +672,87 @@ public class ParkingOrderService {
                         .isNull("deleted_at")
                         .orderByDesc("created_at")
                         .last("LIMIT 1"));
+    }
+
+    /**
+     * 查询停车记录下 PAID 订单，供窗口期判定，任务包 2-1。
+     */
+    public ParkingOrder findPaidOrderForRecord(Long parkingRecordId) {
+        if (parkingRecordId == null) {
+            return null;
+        }
+        return orderMapper.selectPaidByRecordId(parkingRecordId);
+    }
+
+    /**
+     * 窗口期判定结果，任务包 2-1。
+     * @param order PAID 状态订单
+     * @param payWindowDeadline 窗口截止时间
+     */
+    public boolean isWithinPayWindow(ParkingOrder order, LocalDateTime payWindowDeadline) {
+        return PayWindowResult.isWithinWindow(order, payWindowDeadline);
+    }
+
+    /**
+     * 窗口期判定：是否在窗口期内，任务包 2-1。
+     */
+    public record PayWindowResult(boolean withinWindow, LocalDateTime deadline) {
+        public static boolean isWithinWindow(ParkingOrder order, LocalDateTime payWindowDeadline) {
+            return payWindowDeadline != null && !LocalDateTime.now().isAfter(payWindowDeadline);
+        }
+    }
+
+    /**
+     * 创建重算订单（超期未出场重计费），任务包 2-1。
+     * <p>
+     * 原订单保持 PAID（状态日志备注"超期未出场"），以实际停车时长重新计费生成新 PENDING_PAY 订单，
+     * 新订单通过 recalc_source_order_id 关联原订单。
+     *
+     * @param record        停车记录
+     * @param feeCents      重新计算的费用（分）
+     * @param sourceOrderId 原订单 ID
+     * @param exitLaneId    出口车道ID（用于 AT_EXIT 支付后开闸）
+     * @return 新创建的订单
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ParkingOrder createRecalcOrder(ParkingRecord record, int feeCents, Long sourceOrderId,
+                                           Long exitLaneId) {
+        // 对原订单追加"超期未出场"状态日志
+        if (sourceOrderId != null) {
+            ParkingOrder sourceOrder = orderMapper.selectById(sourceOrderId);
+            if (sourceOrder != null) {
+                orderStatusLogService.record(sourceOrder, sourceOrder.getStatus(),
+                        sourceOrder.getStatus(), currentTriggerSource(), currentOperatorId(),
+                        null, "超期未出场，触发重算，生成新订单");
+            }
+        }
+
+        String remark = "超期未出场重算";
+        if (sourceOrderId != null) {
+            remark += "，原订单:" + sourceOrderId;
+        }
+        return createOrderInternal(record, feeCents, null,
+                ParkingOrder.PAY_SCENE_AT_EXIT, exitLaneId, sourceOrderId, remark);
+    }
+
+    /**
+     * 设置订单的支付窗口截止时间和支付场景（供 MockPaymentService pay 后使用），任务包 2-1。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean setPayWindowDeadline(Long orderId, LocalDateTime deadline, String payScene) {
+        UpdateWrapper<ParkingOrder> wrapper = new UpdateWrapper<ParkingOrder>()
+                .set("pay_window_deadline", deadline)
+                .set("pay_scene", payScene)
+                .set("updated_at", LocalDateTime.now())
+                .eq("id", orderId);
+        int updated = orderMapper.update(null, wrapper);
+        if (updated > 0) {
+            ParkingOrder order = orderMapper.selectById(orderId);
+            orderStatusLogService.record(order, order.getStatus(), order.getStatus(),
+                    currentTriggerSource(), currentOperatorId(), null,
+                    "设置支付窗口截止时间:" + deadline + " 场景:" + payScene);
+        }
+        return updated > 0;
     }
 
     /**
@@ -654,7 +774,8 @@ public class ParkingOrderService {
     /**
      * 判断订单是否计入收入统计（实付金额口径）。
      * <p>
-     * 已退款（REFUNDED）订单不计入实付收入；任务包 6-1 收入报表统一使用本口径。
+     * 已退款（REFUNDED）订单不计入实付收入。
+     * DashboardMapper 金额类查询已同步加 status != 'REFUNDED'，任务包 6-1 收入报表统一使用本口径。
      */
     public static boolean isCountedInRevenue(String status) {
         return !ParkingOrder.STATUS_REFUNDED.equals(status);

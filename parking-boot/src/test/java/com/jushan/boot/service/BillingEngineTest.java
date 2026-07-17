@@ -6,7 +6,10 @@ import com.jushan.system.entity.BillingRule;
 import com.jushan.system.entity.BillingRuleVersion;
 import com.jushan.system.mapper.BillingRuleMapper;
 import com.jushan.system.mapper.BillingRuleVersionMapper;
+import com.jushan.system.mapper.BillingRuleSwitchLogMapper;
 import com.jushan.system.service.BillingEngine;
+import com.jushan.system.service.BillingRuleConfig;
+import com.jushan.system.service.TimeSegmentConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,11 +40,16 @@ class BillingEngineTest {
     @Mock
     private BillingRuleVersionMapper versionMapper;
 
+    @Mock
+    private BillingRuleSwitchLogMapper switchLogMapper;
+
     private BillingEngine billingEngine;
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        billingEngine = new BillingEngine(ruleMapper, versionMapper, new ObjectMapper());
+        objectMapper = new ObjectMapper();
+        billingEngine = new BillingEngine(ruleMapper, versionMapper, switchLogMapper, objectMapper);
     }
 
     @Test
@@ -206,11 +215,261 @@ class BillingEngineTest {
         assertThat(fee).isEqualTo(500);
     }
 
+    // ==================== 1-3: Snapshot 快照计费 ====================
+
+    @Test
+    @DisplayName("基于规则快照 JSON 计算费用 —— HOURLY 首时段+后续单位")
+    void shouldCalculateFromSnapshotHourly() {
+        BillingRuleConfig config = config(15, 60, 500, 30, 200, 0, 0);
+        String snapshot = toJson(config);
+        LocalDateTime entry = LocalDateTime.of(2026, 7, 10, 8, 0);
+        LocalDateTime exit = LocalDateTime.of(2026, 7, 10, 10, 20);
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot, entry, exit);
+
+        assertThat(fee).isEqualTo(1100);
+    }
+
+    @Test
+    @DisplayName("基于规则快照 JSON 计算费用 —— FIXED 固定金额")
+    void shouldCalculateFromSnapshotFixed() {
+        BillingRuleConfig config = new BillingRuleConfig();
+        config.setFixedAmount(1000);
+        String snapshot = toJson(config);
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot,
+                LocalDateTime.now().minusHours(3), LocalDateTime.now());
+
+        assertThat(fee).isEqualTo(1000);
+    }
+
+    @Test
+    @DisplayName("基于规则快照 JSON 计算费用 —— 免费时长内为 0")
+    void shouldReturnZeroWithinFreeMinutesFromSnapshot() {
+        BillingRuleConfig config = config(30, 60, 500, 30, 200, 0, 0);
+        String snapshot = toJson(config);
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot,
+                LocalDateTime.now().minusMinutes(20), LocalDateTime.now());
+
+        assertThat(fee).isZero();
+    }
+
+    @Test
+    @DisplayName("基于规则快照 JSON —— 跨天单日封顶")
+    void shouldApplyDailyCapFromSnapshot() {
+        BillingRuleConfig config = config(0, 60, 500, 60, 300, 1000, 5000);
+        String snapshot = toJson(config);
+        LocalDateTime entry = LocalDateTime.of(2026, 7, 10, 12, 0);
+        LocalDateTime exit = LocalDateTime.of(2026, 7, 11, 14, 0);
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot, entry, exit);
+
+        assertThat(fee).isEqualTo(2000);
+    }
+
+    @Test
+    @DisplayName("基于规则快照 JSON —— 分时段计费")
+    void shouldApplyTimeSegmentsFromSnapshot() {
+        BillingRuleConfig config = new BillingRuleConfig();
+        config.setFirstPeriod(60);
+        config.setFirstAmount(500);
+        config.setUnitPeriod(60);
+        config.setUnitAmount(200);
+        config.setTimeSegments(List.of(
+                segment("08:00", "20:00", 300),
+                segment("20:00", "08:00", 100)));
+        String snapshot = toJson(config);
+        LocalDateTime entry = LocalDateTime.of(2026, 7, 10, 8, 0);
+        LocalDateTime exit = LocalDateTime.of(2026, 7, 10, 21, 0);
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot, entry, exit);
+
+        assertThat(fee).isEqualTo(3900);
+    }
+
+    @Test
+    @DisplayName("快照为空时抛异常")
+    void shouldThrowWhenSnapshotIsBlank() {
+        assertThatThrownBy(() -> billingEngine.calculateFeeFromSnapshot("",
+                LocalDateTime.now().minusHours(1), LocalDateTime.now()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("规则快照为空");
+    }
+
+    // ==================== 1-3: 生效方式组合场景 ====================
+
+    @Test
+    @DisplayName("IMMEDIATE：已在场车辆按新规则计费（现行行为）")
+    void shouldUseCurrentRuleForImmediate() {
+        BillingRule rule = ruleWithEffect(BillingRule.RULE_TYPE_HOURLY, BillingRule.EFFECT_IMMEDIATE, null);
+        BillingRuleVersion version = version(0, 60, 800, 30, 300, 0, 0);
+        // 规则变更后，已在场车辆出场按新规则 800 分/首小时计算
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        int fee = billingEngine.calculateFee(1L,
+                LocalDateTime.now().minusMinutes(40), LocalDateTime.now());
+        assertThat(fee).isEqualTo(800);
+    }
+
+    @Test
+    @DisplayName("NEW_ENTRY_ONLY：使用入场快照计算，不受新规则影响")
+    void shouldUseSnapshotForNewEntryOnly() {
+        BillingRuleConfig oldConfig = config(0, 60, 500, 30, 200, 0, 0);
+        String snapshot = toJson(oldConfig);
+        LocalDateTime entry = LocalDateTime.of(2026, 7, 10, 8, 0);
+        LocalDateTime exit = LocalDateTime.of(2026, 7, 10, 9, 0);
+        // 已在场车辆用旧快照，应为 500 分
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot, entry, exit);
+        assertThat(fee).isEqualTo(500);
+    }
+
+    @Test
+    @DisplayName("NEW_ENTRY_ONLY：新入场车辆使用新规则（无快照）")
+    void shouldUseNewRuleForNewEntry() {
+        BillingRule rule = ruleWithEffect(BillingRule.RULE_TYPE_HOURLY, BillingRule.EFFECT_NEW_ENTRY_ONLY, null);
+        BillingRuleVersion version = version(0, 60, 800, 30, 300, 0, 0);
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        int fee = billingEngine.calculateFee(1L,
+                LocalDateTime.now().minusMinutes(40), LocalDateTime.now());
+        assertThat(fee).isEqualTo(800);
+    }
+
+    @Test
+    @DisplayName("SCHEDULED 未到生效时间：回退到上一版本")
+    void shouldFallbackWhenScheduledNotYetEffective() {
+        BillingRule rule = ruleWithEffect(BillingRule.RULE_TYPE_HOURLY, BillingRule.EFFECT_SCHEDULED,
+                LocalDateTime.now().plusHours(1));
+        BillingRuleVersion version = version(0, 60, 999, 30, 999, 0, 0);
+        version.setRuleId(2L);
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(2L)).thenReturn(rule);
+
+        // switchLog 返回上一个规则
+        when(switchLogMapper.selectOne(any())).thenReturn(null);
+
+        assertThatThrownBy(() -> billingEngine.calculateFee(1L,
+                LocalDateTime.now().minusMinutes(40), LocalDateTime.now()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("未配置生效");
+    }
+
+    @Test
+    @DisplayName("SCHEDULED 已到生效时间：正常生效")
+    void shouldApplyWhenScheduledEffective() {
+        BillingRule rule = ruleWithEffect(BillingRule.RULE_TYPE_HOURLY, BillingRule.EFFECT_SCHEDULED,
+                LocalDateTime.now().minusHours(1));
+        BillingRuleVersion version = version(0, 60, 500, 30, 200, 0, 0);
+        when(versionMapper.selectOne(any())).thenReturn(version);
+        when(ruleMapper.selectById(version.getRuleId())).thenReturn(rule);
+
+        int fee = billingEngine.calculateFee(1L,
+                LocalDateTime.now().minusMinutes(40), LocalDateTime.now());
+        assertThat(fee).isEqualTo(500);
+    }
+
+    // ==================== 1-3: 组合场景 ====================
+
+    @Test
+    @DisplayName("组合：HOURLY + 免费时长 + 单日封顶 + 跨天（3天）")
+    void shouldHandleMultiDayWithFreeAndDailyCap() {
+        BillingRuleConfig config = config(30, 60, 500, 60, 300, 1500, 0);
+        String snapshot = toJson(config);
+        LocalDateTime entry = LocalDateTime.of(2026, 7, 10, 8, 0);
+        LocalDateTime exit = LocalDateTime.of(2026, 7, 12, 18, 0);
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot, entry, exit);
+
+        assertThat(fee).isEqualTo(4500);
+    }
+
+    @Test
+    @DisplayName("组合：HOURLY + 分时段 + 单日封顶 + 跨天")
+    void shouldHandleSegmentsWithDailyCapAndCrossDay() {
+        BillingRuleConfig config = new BillingRuleConfig();
+        config.setFreeMinutes(0);
+        config.setFirstPeriod(60);
+        config.setFirstAmount(500);
+        config.setUnitPeriod(60);
+        config.setUnitAmount(200);
+        config.setDailyCap(2000);
+        config.setTimeSegments(List.of(
+                segment("08:00", "20:00", 300),
+                segment("20:00", "08:00", 100)));
+        String snapshot = toJson(config);
+        LocalDateTime entry = LocalDateTime.of(2026, 7, 10, 8, 0);
+        LocalDateTime exit = LocalDateTime.of(2026, 7, 11, 10, 0);
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot, entry, exit);
+
+        assertThat(fee).isEqualTo(3400);
+    }
+
+    @Test
+    @DisplayName("组合：HOURLY + 最大封顶")
+    void shouldApplyMaxAmountCap() {
+        BillingRuleConfig config = config(0, 60, 500, 30, 200, 0, 800);
+        String snapshot = toJson(config);
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot,
+                LocalDateTime.now().minusHours(10), LocalDateTime.now());
+        assertThat(fee).isEqualTo(800);
+    }
+
+    @Test
+    @DisplayName("组合：FIXED + 最大封顶")
+    void shouldApplyMaxAmountToFixed() {
+        BillingRuleConfig config = new BillingRuleConfig();
+        config.setFixedAmount(1500);
+        config.setMaxAmount(1000);
+        String snapshot = toJson(config);
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot,
+                LocalDateTime.now().minusHours(3), LocalDateTime.now());
+        assertThat(fee).isEqualTo(1000);
+    }
+
+    @Test
+    @DisplayName("组合：NO_FEE 始终为 0")
+    void shouldReturnZeroForNoFeeSnapshot() {
+        BillingRuleConfig config = new BillingRuleConfig();
+        String snapshot = toJson(config);
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot,
+                LocalDateTime.now().minusHours(10), LocalDateTime.now());
+        assertThat(fee).isZero();
+    }
+
+    @Test
+    @DisplayName("buildSnapshot 构建快照 JSON")
+    void shouldBuildValidSnapshotJson() {
+        BillingRuleVersion version = version(15, 60, 500, 30, 200, 1000, 5000);
+        String snapshot = billingEngine.buildSnapshot(version, BillingRule.RULE_TYPE_HOURLY);
+        assertThat(snapshot).isNotBlank();
+        assertThat(snapshot).contains("\"freeMinutes\":15");
+        assertThat(snapshot).contains("\"firstAmount\":500");
+        assertThat(snapshot).contains("\"dailyCap\":1000");
+
+        int fee = billingEngine.calculateFeeFromSnapshot(snapshot,
+                LocalDateTime.now().minusHours(2), LocalDateTime.now());
+        assertThat(fee).isGreaterThan(0);
+    }
+
+    @Test
+    @DisplayName("calculateByConfig 直接基于配置对象计算")
+    void shouldCalculateByConfigDirectly() {
+        BillingRuleConfig config = config(15, 60, 500, 30, 200, 0, 0);
+        LocalDateTime entry = LocalDateTime.of(2026, 7, 10, 8, 0);
+        LocalDateTime exit = LocalDateTime.of(2026, 7, 10, 10, 20);
+        int fee = billingEngine.calculateByConfig(config, entry, exit);
+        assertThat(fee).isEqualTo(1100);
+    }
+
     private BillingRule rule(String ruleType) {
         BillingRule rule = new BillingRule();
         rule.setId(1L);
         rule.setRuleType(ruleType);
         rule.setStatus(BillingRule.STATUS_ENABLED);
+        return rule;
+    }
+
+    private BillingRule ruleWithEffect(String ruleType, String effectType, LocalDateTime effectTime) {
+        BillingRule rule = rule(ruleType);
+        rule.setEffectType(effectType);
+        rule.setEffectTime(effectTime);
         return rule;
     }
 
@@ -231,9 +490,30 @@ class BillingEngineTest {
         return version;
     }
 
+    private BillingRuleConfig config(int freeMinutes, int firstPeriod, int firstAmount,
+                                      int unitPeriod, int unitAmount, int dailyCap, int maxAmount) {
+        BillingRuleConfig c = new BillingRuleConfig();
+        c.setFreeMinutes(freeMinutes);
+        c.setFirstPeriod(firstPeriod);
+        c.setFirstAmount(firstAmount);
+        c.setUnitPeriod(unitPeriod);
+        c.setUnitAmount(unitAmount);
+        c.setDailyCap(dailyCap);
+        c.setMaxAmount(maxAmount);
+        return c;
+    }
+
+    private String toJson(BillingRuleConfig config) {
+        try {
+            return objectMapper.writeValueAsString(config);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private BillingRuleVersion versionWithTimeSegments(int freeMinutes, int firstPeriod, int firstAmount,
-                                                        int unitPeriod, int unitAmount,
-                                                        Segment... segments) {
+                                                         int unitPeriod, int unitAmount,
+                                                         Segment... segments) {
         BillingRuleVersion version = version(freeMinutes, firstPeriod, firstAmount,
                 unitPeriod, unitAmount, 0, 0);
         StringBuilder config = new StringBuilder();
@@ -257,5 +537,13 @@ class BillingEngineTest {
     }
 
     private record Segment(String start, String end, int unitAmount) {
+    }
+
+    private TimeSegmentConfig segment(String startTime, String endTime, int unitAmount) {
+        TimeSegmentConfig seg = new TimeSegmentConfig();
+        seg.setStartTime(startTime);
+        seg.setEndTime(endTime);
+        seg.setUnitAmount(unitAmount);
+        return seg;
     }
 }

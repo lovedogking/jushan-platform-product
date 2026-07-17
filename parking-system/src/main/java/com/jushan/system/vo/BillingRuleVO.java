@@ -24,6 +24,9 @@ public class BillingRuleVO implements Serializable {
     private String status;
     private String statusDesc;
     private Integer isDefault;
+    private String effectType;
+    private String effectTypeDesc;
+    private String effectTime;
     private Long createdBy;
     private String createdByName;
     private Long updatedBy;
@@ -76,6 +79,15 @@ public class BillingRuleVO implements Serializable {
 
     public Integer getIsDefault() { return isDefault; }
     public void setIsDefault(Integer isDefault) { this.isDefault = isDefault; }
+
+    public String getEffectType() { return effectType; }
+    public void setEffectType(String effectType) { this.effectType = effectType; }
+
+    public String getEffectTypeDesc() { return effectTypeDesc; }
+    public void setEffectTypeDesc(String effectTypeDesc) { this.effectTypeDesc = effectTypeDesc; }
+
+    public String getEffectTime() { return effectTime; }
+    public void setEffectTime(String effectTime) { this.effectTime = effectTime; }
 
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }

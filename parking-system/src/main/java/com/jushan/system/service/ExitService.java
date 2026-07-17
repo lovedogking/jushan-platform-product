@@ -2,6 +2,7 @@ package com.jushan.system.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.jushan.common.BusinessException;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import com.jushan.system.entity.ExitRecord;
 import com.jushan.system.entity.ParkingLot;
@@ -60,6 +61,7 @@ public class ExitService {
     private final ParkingSessionService parkingSessionService;
     private final PrepaidDeductionService prepaidDeductionService;
     private final FixedSpaceService fixedSpaceService;
+    private final DeviceService deviceService;
 
     public ExitService(ParkingRecordMapper recordMapper,
                         ExitRecordMapper exitRecordMapper,
@@ -69,7 +71,8 @@ public class ExitService {
                         BoothWebSocketPublisher boothWebSocketPublisher,
                         ParkingSessionService parkingSessionService,
                         PrepaidDeductionService prepaidDeductionService,
-                        FixedSpaceService fixedSpaceService) {
+                        FixedSpaceService fixedSpaceService,
+                        DeviceService deviceService) {
         this.recordMapper = recordMapper;
         this.exitRecordMapper = exitRecordMapper;
         this.parkingOrderService = parkingOrderService;
@@ -79,6 +82,7 @@ public class ExitService {
         this.parkingSessionService = parkingSessionService;
         this.prepaidDeductionService = prepaidDeductionService;
         this.fixedSpaceService = fixedSpaceService;
+        this.deviceService = deviceService;
     }
 
     /**
@@ -111,11 +115,22 @@ public class ExitService {
         boolean isFixedSpace = record.getTenantId() != null
                 && fixedSpaceService.hasActiveBinding(standardizedPlate, parkingLotId, record.getTenantId());
 
-        // 2b. 计算费用
+        // 2b. 计算费用（NEW_ENTRY_ONLY 优先使用入场快照）
         int feeCents;
         if (isFixedSpace) {
             feeCents = 0;
             log.info("固定车位车辆出场，跳过计费: plate={} parkingLotId={}", standardizedPlate, parkingLotId);
+        } else if (record.getRuleSnapshot() != null && !record.getRuleSnapshot().isBlank()) {
+            try {
+                feeCents = billingEngine.calculateFeeFromSnapshot(
+                        record.getRuleSnapshot(), record.getEntryTime(), exitTime);
+                log.info("使用入场规则快照计费: recordId={} snapshotHash={}",
+                        record.getId(), record.getRuleSnapshot().hashCode());
+            } catch (BusinessException e) {
+                log.warn("规则快照计费失败，回退到当前规则: recordId={} error={}",
+                        record.getId(), e.getMessage());
+                feeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+            }
         } else {
             feeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
         }
@@ -123,31 +138,71 @@ public class ExitService {
         // 3. 获取订单（任务包 1-2）：优先复用该记录现有订单（入场预订单/提前缴费订单）；
         //    预订单→计费置待支付（零费→直接完成）；已建单（待支付/支付中/已支付）直接复用；
         //    查不到时按现行逻辑建单（兼容旧无预订单在场数据）。固定车位车辆免费通行，不生成临停订单。
+        //    任务包 2-1：PAID 订单需判定窗口期（窗口期内自动开闸 / 超期重算）。
         ParkingOrder order = null;
+        boolean windowPass = false;
         if (!isFixedSpace) {
-            ParkingOrder existing = parkingOrderService.findReusableOrderForRecord(record.getId());
-            if (existing == null) {
-                // 兼容期：旧在场记录无预订单，保持原出场建单逻辑
-                order = parkingOrderService.createOrder(record, feeCents, null);
-            } else if (ParkingOrder.STATUS_PRE_ORDER.equals(existing.getStatus())) {
-                if (feeCents <= 0) {
-                    // 免费放行：预订单直接完成（PRE_ORDER → COMPLETED）
-                    parkingOrderService.preOrderToCompleted(existing.getId(), exitTime);
+            ParkingOrder paidOrder = parkingOrderService.findPaidOrderForRecord(record.getId());
+            if (paidOrder != null) {
+                // 已支付订单：判定窗口期
+                if (paidOrder.getPayWindowDeadline() != null
+                        && !LocalDateTime.now().isAfter(paidOrder.getPayWindowDeadline())) {
+                    // 窗口期内：自动开闸放行
+                    order = paidOrder;
+                    windowPass = true;
+                    log.info("窗口期内出场，自动放行: orderId={} plate={} deadline={}",
+                            order.getId(), standardizedPlate, paidOrder.getPayWindowDeadline());
                 } else {
-                    // 出场计费：预订单 → 待支付（PRE_ORDER → PENDING_PAY）
-                    parkingOrderService.preOrderToPending(existing.getId(), feeCents,
-                            LocalDateTime.now().plusMinutes(15));
+                    // 超期未出场：保留原订单 PAID，重新计费生成新订单
+                    log.info("支付窗口期已过，触发重算: orderId={} plate={} deadline={}",
+                            paidOrder.getId(), standardizedPlate, paidOrder.getPayWindowDeadline());
+                    ParkingOrder recalcOrder = parkingOrderService.createRecalcOrder(
+                            record, feeCents, paidOrder.getId(), payload.getLaneId());
+                    order = recalcOrder;
+                    // 推送 WebSocket：超期重算通知
+                    boothWebSocketPublisher.sendPaymentCompleted(
+                            record.getParkingLotId(), recalcOrder.getId(),
+                            recalcOrder.getOrderNo(), record.getStandardizedPlate(), feeCents);
                 }
-                order = parkingOrderService.getById(existing.getId());
             } else {
-                // 提前缴费/岗亭等已建订单（待支付/支付中/已支付），直接复用，避免重复建单
-                order = existing;
+                ParkingOrder existing = parkingOrderService.findReusableOrderForRecord(record.getId());
+                if (existing == null) {
+                    // 兼容期：旧在场记录无预订单，保持原出场建单逻辑
+                    order = parkingOrderService.createOrder(record, feeCents, null,
+                            ParkingOrder.PAY_SCENE_AT_EXIT);
+                } else if (ParkingOrder.STATUS_PRE_ORDER.equals(existing.getStatus())) {
+                    if (feeCents <= 0) {
+                        // 免费放行：预订单直接完成（PRE_ORDER → COMPLETED）
+                        parkingOrderService.preOrderToCompleted(existing.getId(), exitTime);
+                    } else {
+                        // 出场计费：预订单 → 待支付（PRE_ORDER → PENDING_PAY），场景 AT_EXIT
+                        parkingOrderService.preOrderToPending(existing.getId(), feeCents,
+                                LocalDateTime.now().plusMinutes(15),
+                                ParkingOrder.PAY_SCENE_AT_EXIT, payload.getLaneId());
+                    }
+                    order = parkingOrderService.getById(existing.getId());
+                } else {
+                    // 提前缴费/岗亭等已建订单（待支付/支付中），直接复用，避免重复建单
+                    order = existing;
+                }
             }
         }
 
-        // 3b. 储值车余额自动扣费（在订单创建后、放行决策前）
+        // 3b. 窗口期内自动开闸放行（在订单完成前先开闸）
+        if (windowPass) {
+            try {
+                // 开闸：使用 payload 中的 laneId
+                deviceService.openGateByLane(payload.getLaneId(), "窗口期内出场自动开闸");
+            } catch (Exception e) {
+                log.warn("窗口期自动开闸失败: orderId={} laneId={} error={}",
+                        order.getId(), payload.getLaneId(), e.getMessage());
+                // 开闸失败不阻断流程，订单仍标记完成
+            }
+        }
+
+        // 3b. 储值车余额自动扣费（在订单创建后、放行决策前，窗口期内已付订单跳过）
         int actualPaidCents = 0;
-        if (feeCents > 0) {
+        if (feeCents > 0 && !windowPass) {
             PrepaidDeductionService.DeductionResult deduction =
                     prepaidDeductionService.tryDeduct(record, feeCents, order);
             if (deduction.isApplicable() && deduction.getDeductedCents() > 0) {

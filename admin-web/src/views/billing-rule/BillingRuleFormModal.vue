@@ -25,6 +25,22 @@
         </a-select>
       </a-form-item>
 
+      <a-form-item label="生效方式" name="effectType">
+        <a-select v-model:value="formData.effectType" placeholder="请选择生效方式">
+          <a-select-option v-for="opt in EFFECT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
+        </a-select>
+      </a-form-item>
+
+      <a-form-item v-if="formData.effectType === 'SCHEDULED'" label="定时生效时间" name="effectTime">
+        <a-date-picker
+          v-model:value="formData.effectTime"
+          show-time
+          format="YYYY-MM-DD HH:mm:ss"
+          placeholder="选择定时生效时间"
+          style="width: 100%"
+        />
+      </a-form-item>
+
       <!-- 按时计费字段 -->
       <template v-if="formData.ruleType === 'HOURLY'">
         <a-form-item label="免费时长(分钟)">
@@ -71,8 +87,10 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue'
 import { message } from 'ant-design-vue'
+import dayjs from 'dayjs'
 import {
   RULE_TYPE_OPTIONS,
+  EFFECT_TYPE_OPTIONS,
   type BillingRuleVO,
 } from '@/api/billing-rule'
 
@@ -112,6 +130,8 @@ const formData = reactive({
   name: '',
   description: '',
   ruleType: 'HOURLY' as string,
+  effectType: 'IMMEDIATE' as string,
+  effectTime: null as any,
   freeMinutes: 0,
   firstPeriod: 60,
   firstAmount: undefined as number | undefined,
@@ -125,6 +145,7 @@ const formRules: Record<string, any> = {
   parkingLotId: [{ required: true, message: '请选择所属停车场', trigger: 'change' }],
   name: [{ required: true, message: '请输入规则名称', trigger: 'blur' }],
   ruleType: [{ required: true, message: '请选择计费类型', trigger: 'change' }],
+  effectType: [{ required: true, message: '请选择生效方式', trigger: 'change' }],
 }
 
 // 编辑时回填数据
@@ -134,6 +155,8 @@ watch(() => props.editingRecord, (record) => {
     formData.name = record.name || ''
     formData.description = record.description || ''
     formData.ruleType = record.ruleType || 'HOURLY'
+    formData.effectType = record.effectType || 'IMMEDIATE'
+    formData.effectTime = record.effectTime ? dayjs(record.effectTime) : null
     formData.freeMinutes = record.freeMinutes || 0
     formData.firstPeriod = record.firstPeriod || 0
     formData.firstAmount = centsToYuan(record.firstAmount)
@@ -151,6 +174,8 @@ function resetForm() {
   formData.name = ''
   formData.description = ''
   formData.ruleType = 'HOURLY'
+  formData.effectType = 'IMMEDIATE'
+  formData.effectTime = null
   formData.freeMinutes = 0
   formData.firstPeriod = 60
   formData.firstAmount = undefined
@@ -181,7 +206,12 @@ function handleSubmit() {
       name: formData.name.trim(),
       description: formData.description.trim() || undefined,
       ruleType: formData.ruleType,
+      effectType: formData.effectType,
       freeMinutes: formData.freeMinutes,
+    }
+
+    if (formData.effectType === 'SCHEDULED' && formData.effectTime) {
+      payload.effectTime = formData.effectTime.format('YYYY-MM-DDTHH:mm:ss')
     }
 
     if (formData.ruleType === 'HOURLY' || formData.ruleType === 'FIXED') {

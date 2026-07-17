@@ -44,6 +44,12 @@ public class BillingRule implements Serializable {
     /** 是否为默认规则：1-是, 0-否 */
     private Integer isDefault;
 
+    /** 生效方式：IMMEDIATE-立即生效, NEW_ENTRY_ONLY-仅新入场生效, SCHEDULED-定时生效 */
+    private String effectType;
+
+    /** 定时生效时间（effect_type=SCHEDULED 时必填） */
+    private LocalDateTime effectTime;
+
     /** 创建人 ID */
     private Long createdBy;
 
@@ -64,6 +70,11 @@ public class BillingRule implements Serializable {
     /** 状态 */
     public static final String STATUS_ENABLED = "ENABLED";
     public static final String STATUS_DISABLED = "DISABLED";
+
+    /** 生效方式 */
+    public static final String EFFECT_IMMEDIATE = "IMMEDIATE";
+    public static final String EFFECT_NEW_ENTRY_ONLY = "NEW_ENTRY_ONLY";
+    public static final String EFFECT_SCHEDULED = "SCHEDULED";
 
     // ==================== getter / setter ====================
 
@@ -90,6 +101,12 @@ public class BillingRule implements Serializable {
 
     public Integer getIsDefault() { return isDefault; }
     public void setIsDefault(Integer isDefault) { this.isDefault = isDefault; }
+
+    public String getEffectType() { return effectType; }
+    public void setEffectType(String effectType) { this.effectType = effectType; }
+
+    public LocalDateTime getEffectTime() { return effectTime; }
+    public void setEffectTime(LocalDateTime effectTime) { this.effectTime = effectTime; }
 
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }

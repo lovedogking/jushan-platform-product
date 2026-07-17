@@ -3,9 +3,11 @@ package com.jushan.system.controller;
 import com.jushan.platform.infra.security.RequirePermission;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.jushan.common.R;
+import com.jushan.platform.infra.log.BusinessLog;
 import com.jushan.system.dto.CreateBillingRuleRequest;
 import com.jushan.system.dto.SwitchBillingRuleRequest;
 import com.jushan.system.dto.UpdateBillingRuleRequest;
+import com.jushan.system.service.BillingEngine;
 import com.jushan.system.service.BillingRuleService;
 import com.jushan.system.vo.BillingRuleVersionVO;
 import com.jushan.system.vo.BillingRuleVO;
@@ -14,7 +16,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 收费规则管理控制器（运营端）。
@@ -41,9 +46,11 @@ public class BillingRuleController {
     private static final Logger log = LoggerFactory.getLogger(BillingRuleController.class);
 
     private final BillingRuleService billingRuleService;
+    private final BillingEngine billingEngine;
 
-    public BillingRuleController(BillingRuleService billingRuleService) {
+    public BillingRuleController(BillingRuleService billingRuleService, BillingEngine billingEngine) {
         this.billingRuleService = billingRuleService;
+        this.billingEngine = billingEngine;
     }
 
     // ==================== 规则 CRUD ====================
@@ -93,6 +100,8 @@ public class BillingRuleController {
      */
     @PostMapping
     @RequirePermission("billing:write")
+    @BusinessLog(value = "创建收费规则", module = "billing_rule", operationType = "CREATE",
+            operationObject = "收费规则")
     public R<BillingRuleVO> create(@Valid @RequestBody CreateBillingRuleRequest request) {
         BillingRuleVO vo = billingRuleService.create(request);
         log.info("创建收费规则成功: ruleId={}, name={}, parkingLotId={}",
@@ -112,6 +121,8 @@ public class BillingRuleController {
      */
     @PutMapping("/{id}")
     @RequirePermission("billing:write")
+    @BusinessLog(value = "修改收费规则", module = "billing_rule", operationType = "UPDATE",
+            operationObject = "收费规则", objectIdExpression = "#id")
     public R<BillingRuleVO> update(@PathVariable Long id, @Valid @RequestBody UpdateBillingRuleRequest request) {
         BillingRuleVO vo = billingRuleService.update(id, request);
         log.info("更新收费规则成功: ruleId={}", id);
@@ -150,11 +161,40 @@ public class BillingRuleController {
      */
     @PostMapping("/parking-lots/{parkingLotId}/switch")
     @RequirePermission("billing:switch")
+    @BusinessLog(value = "切换收费规则", module = "billing_rule", operationType = "UPDATE",
+            operationObject = "收费规则切换")
     public R<Void> switchRule(@PathVariable Long parkingLotId,
                                @Valid @RequestBody SwitchBillingRuleRequest request) {
         billingRuleService.switchRule(parkingLotId, request);
         log.info("切换收费规则成功: parkingLotId={}, targetRuleId={}, reason={}",
                 parkingLotId, request.getTargetRuleId(), request.getReason());
         return R.ok();
+    }
+
+    // ==================== 费用试算 ====================
+
+    /**
+     * 费用试算（基于当前生效规则）。
+     * <p>
+     * 权限：billing:read
+     *
+     * @param parkingLotId 停车场 ID
+     * @param entryTime    入场时间（yyyy-MM-dd HH:mm:ss）
+     * @param exitTime     出场时间（yyyy-MM-dd HH:mm:ss）
+     */
+    @GetMapping("/calculate")
+    @RequirePermission("billing:read")
+    public R<Map<String, Object>> calculate(@RequestParam Long parkingLotId,
+                                             @RequestParam String entryTime,
+                                             @RequestParam String exitTime) {
+        LocalDateTime entry = LocalDateTime.parse(entryTime.replace(" ", "T"));
+        LocalDateTime exit = LocalDateTime.parse(exitTime.replace(" ", "T"));
+        int feeCents = billingEngine.calculateFee(parkingLotId, entry, exit);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("feeCents", feeCents);
+        result.put("feeYuan", feeCents / 100.0);
+        result.put("parkingLotId", parkingLotId);
+        return R.ok(result);
     }
 }

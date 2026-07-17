@@ -21,13 +21,19 @@ public interface DashboardMapper {
 
     // ==================== 今日收入 ====================
 
+    /**
+     * 收入口径：排除 REFUNDED（任务包 1-2 / 6-1 共用）。
+     */
     @Select("SELECT COALESCE(SUM(paid_amount), 0) FROM parking_order " +
-            "WHERE pay_time IS NOT NULL AND DATE(pay_time) = CURDATE() AND deleted_at IS NULL")
+            "WHERE pay_time IS NOT NULL AND DATE(pay_time) = CURDATE() AND deleted_at IS NULL AND status != 'REFUNDED'")
     Integer sumTodayRevenue();
 
+    /**
+     * 收入口径：排除 REFUNDED（任务包 1-2 / 6-1 共用）。
+     */
     @Select("<script>" +
             "SELECT COALESCE(SUM(paid_amount), 0) FROM parking_order " +
-            "WHERE pay_time IS NOT NULL AND DATE(pay_time) = CURDATE() AND deleted_at IS NULL " +
+            "WHERE pay_time IS NOT NULL AND DATE(pay_time) = CURDATE() AND deleted_at IS NULL AND status != 'REFUNDED' " +
             "AND parking_lot_id IN " +
             "<foreach collection='lotIds' item='id' open='(' separator=',' close=')'>#{id}</foreach>" +
             "</script>")
@@ -132,14 +138,20 @@ public interface DashboardMapper {
 
     // ==================== 按小时收入趋势 ====================
 
+    /**
+     * 收入口径：排除 REFUNDED（任务包 1-2 / 6-1 共用）。
+     */
     @Select("SELECT HOUR(pay_time) AS hour, COALESCE(SUM(paid_amount), 0) AS amount " +
-            "FROM parking_order WHERE pay_time IS NOT NULL AND DATE(pay_time) = CURDATE() AND deleted_at IS NULL " +
+            "FROM parking_order WHERE pay_time IS NOT NULL AND DATE(pay_time) = CURDATE() AND deleted_at IS NULL AND status != 'REFUNDED' " +
             "GROUP BY HOUR(pay_time) ORDER BY HOUR(pay_time)")
     List<Map<String, Object>> selectHourlyRevenue();
 
+    /**
+     * 收入口径：排除 REFUNDED（任务包 1-2 / 6-1 共用）。
+     */
     @Select("<script>" +
             "SELECT HOUR(pay_time) AS hour, COALESCE(SUM(paid_amount), 0) AS amount " +
-            "FROM parking_order WHERE pay_time IS NOT NULL AND DATE(pay_time) = CURDATE() AND deleted_at IS NULL " +
+            "FROM parking_order WHERE pay_time IS NOT NULL AND DATE(pay_time) = CURDATE() AND deleted_at IS NULL AND status != 'REFUNDED' " +
             "AND parking_lot_id IN " +
             "<foreach collection='lotIds' item='id' open='(' separator=',' close=')'>#{id}</foreach> " +
             "GROUP BY HOUR(pay_time) ORDER BY HOUR(pay_time)" +

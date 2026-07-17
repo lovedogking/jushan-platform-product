@@ -1,4 +1,4 @@
-import axios from 'axios'
+import request from '@/utils/request'
 
 export interface RegisterParams {
   companyName: string
@@ -9,5 +9,5 @@ export interface RegisterParams {
 
 /** 客户自助注册（公开接口，无需登录） */
 export function register(data: RegisterParams): Promise<void> {
-  return axios.post('/api/v1/register', data)
+  return request.post('/v1/register', data)
 }

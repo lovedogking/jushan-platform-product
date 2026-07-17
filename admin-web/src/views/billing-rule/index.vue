@@ -139,7 +139,7 @@ async function fetchData() {
 
 async function loadParkingLots() {
   try {
-    const res = await getParkingLots({ current: 1, size: 100 })
+    const res = await getParkingLots({ page: 1, size: 100 })
     parkingLotOptions.value = res.records
   } catch {
     // ignore
@@ -182,7 +182,7 @@ async function handleFormSubmit(data: Record<string, any>) {
       await updateBillingRule(editingRecord.value.id, data)
       message.success('更新成功')
     } else {
-      await createBillingRule(data)
+      await createBillingRule(data as any)
       message.success('创建成功')
     }
     formModalOpen.value = false

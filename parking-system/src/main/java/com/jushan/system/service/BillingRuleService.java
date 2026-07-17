@@ -143,6 +143,8 @@ public class BillingRuleService {
         rule.setRuleType(request.getRuleType().trim());
         rule.setStatus(STATUS_ENABLED);
         rule.setIsDefault(Boolean.TRUE.equals(request.getIsDefault()) ? 1 : 0);
+        rule.setEffectType(resolveEffectType(request.getEffectType()));
+        rule.setEffectTime(parseEffectTime(request.getEffectType(), request.getEffectTime()));
         rule.setCreatedBy(userId);
         rule.setCreatedAt(LocalDateTime.now());
         rule.setUpdatedAt(LocalDateTime.now());
@@ -217,6 +219,17 @@ public class BillingRuleService {
         if (request.getStatus() != null) {
             validateStatus(request.getStatus());
             wrapper.set(BillingRule::getStatus, request.getStatus().trim());
+            hasUpdate = true;
+        }
+        if (request.getEffectType() != null) {
+            validateEffectType(request.getEffectType());
+            wrapper.set(BillingRule::getEffectType, request.getEffectType().trim());
+            hasUpdate = true;
+        }
+        if (request.getEffectTime() != null) {
+            wrapper.set(BillingRule::getEffectTime, parseEffectTime(
+                    request.getEffectType() != null ? request.getEffectType() : rule.getEffectType(),
+                    request.getEffectTime()));
             hasUpdate = true;
         }
 
@@ -351,6 +364,30 @@ public class BillingRuleService {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "目标规则未启用，无法切换");
         }
 
+        // NEW_ENTRY_ONLY：已在场车辆不受新规则影响
+        boolean effectiveApplyToExisting = request.getApplyToExisting();
+        if (BillingRule.EFFECT_NEW_ENTRY_ONLY.equals(targetRule.getEffectType())) {
+            effectiveApplyToExisting = false;
+            log.info("NEW_ENTRY_ONLY 生效方式：已在场车辆不受新规则影响");
+        }
+
+        // SCHEDULED：不立即激活，仅记录切换日志
+        if (BillingRule.EFFECT_SCHEDULED.equals(targetRule.getEffectType())) {
+            if (targetRule.getEffectTime() == null) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "SCHEDULED 规则必须设置定时生效时间");
+            }
+            if (targetRule.getEffectTime().isBefore(LocalDateTime.now())) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "定时生效时间必须在当前时间之后");
+            }
+            // SCHEDULED：记录切换日志但不立即激活，由 BillingEngine.findActiveVersion 惰性激活
+            Long beforeRuleId = getCurrentActiveRuleId(parkingLotId);
+            writeSwitchLog(parkingLotId, tenantId, userId, beforeRuleId, request.getTargetRuleId(),
+                    false, request.getReason());
+            log.info("SCHEDULED 规则切换已记录（尚未激活）: parkingLotId={} targetRuleId={} effectTime={}",
+                    parkingLotId, request.getTargetRuleId(), targetRule.getEffectTime());
+            return;
+        }
+
         // 获取当前生效规则
         LambdaQueryWrapper<BillingRuleVersion> activeWrapper = new LambdaQueryWrapper<BillingRuleVersion>()
                 .eq(BillingRuleVersion::getParkingLotId, parkingLotId)
@@ -384,16 +421,16 @@ public class BillingRuleService {
 
         // 写入切换审计日志
         writeSwitchLog(parkingLotId, tenantId, userId, beforeRuleId, request.getTargetRuleId(),
-                request.getApplyToExisting(), request.getReason());
+                effectiveApplyToExisting, request.getReason());
 
         // 若影响已在场车辆，按新规则重新计算费用并记录审计
-        if (Boolean.TRUE.equals(request.getApplyToExisting())) {
+        if (Boolean.TRUE.equals(effectiveApplyToExisting)) {
             recalcActiveRecords(parkingLotId, tenantId, targetVersion, userId);
         }
 
         log.info("切换收费规则成功: parkingLotId={}, {} -> {}, applyToExisting={}, reason={}",
                 parkingLotId, beforeRuleId, request.getTargetRuleId(),
-                request.getApplyToExisting(), request.getReason());
+                effectiveApplyToExisting, request.getReason());
     }
 
     // ==================== 私有方法 ====================
@@ -636,6 +673,65 @@ public class BillingRuleService {
     }
 
     /**
+     * 校验生效方式。
+     */
+    private void validateEffectType(String effectType) {
+        if (effectType == null || effectType.isBlank()) {
+            return;
+        }
+        String trimmed = effectType.trim();
+        if (!BillingRule.EFFECT_IMMEDIATE.equals(trimmed)
+                && !BillingRule.EFFECT_NEW_ENTRY_ONLY.equals(trimmed)
+                && !BillingRule.EFFECT_SCHEDULED.equals(trimmed)) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR,
+                    "无效的生效方式: " + trimmed + "，仅支持 IMMEDIATE / NEW_ENTRY_ONLY / SCHEDULED");
+        }
+    }
+
+    /**
+     * 解析生效方式，默认 IMMEDIATE。
+     */
+    private String resolveEffectType(String effectType) {
+        if (effectType == null || effectType.isBlank()) {
+            return BillingRule.EFFECT_IMMEDIATE;
+        }
+        String trimmed = effectType.trim();
+        validateEffectType(trimmed);
+        return trimmed;
+    }
+
+    /**
+     * 解析定时生效时间。
+     */
+    private LocalDateTime parseEffectTime(String effectType, String effectTime) {
+        if (effectTime == null || effectTime.isBlank()) {
+            if (BillingRule.EFFECT_SCHEDULED.equals(effectType)) {
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "定时生效方式必须设置生效时间");
+            }
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(effectTime.trim());
+        } catch (Exception e) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "生效时间格式错误，请使用 yyyy-MM-ddTHH:mm:ss 格式");
+        }
+    }
+
+    /**
+     * 获取停车场当前生效的规则 ID。
+     */
+    private Long getCurrentActiveRuleId(Long parkingLotId) {
+        LambdaQueryWrapper<BillingRuleVersion> wrapper = new LambdaQueryWrapper<BillingRuleVersion>()
+                .eq(BillingRuleVersion::getParkingLotId, parkingLotId)
+                .eq(BillingRuleVersion::getIsActive, 1);
+        BillingRuleVersion active = versionMapper.selectOne(wrapper);
+        if (active != null) {
+            return active.getRuleId();
+        }
+        return null;
+    }
+
+    /**
      * BillingRule → BillingRuleVO 转换。
      */
     private BillingRuleVO toVO(BillingRule rule) {
@@ -666,6 +762,12 @@ public class BillingRuleService {
         vo.setRuleTypeDesc(getRuleTypeDesc(rule.getRuleType()));
         // 状态描述
         vo.setStatusDesc(getStatusDesc(rule.getStatus()));
+        // 生效方式
+        vo.setEffectType(rule.getEffectType());
+        vo.setEffectTypeDesc(getEffectTypeDesc(rule.getEffectType()));
+        if (rule.getEffectTime() != null) {
+            vo.setEffectTime(rule.getEffectTime().toString());
+        }
 
         return vo;
     }
@@ -698,6 +800,19 @@ public class BillingRuleService {
      */
     private String getStatusDesc(String status) {
         return STATUS_ENABLED.equals(status) ? "启用" : "禁用";
+    }
+
+    /**
+     * 获取生效方式描述。
+     */
+    private String getEffectTypeDesc(String effectType) {
+        if (effectType == null) return "立即生效";
+        return switch (effectType) {
+            case BillingRule.EFFECT_IMMEDIATE -> "立即生效";
+            case BillingRule.EFFECT_NEW_ENTRY_ONLY -> "仅新入场生效";
+            case BillingRule.EFFECT_SCHEDULED -> "定时生效";
+            default -> effectType;
+        };
     }
 
     private static String defaultString(String value, String defaultValue) {
