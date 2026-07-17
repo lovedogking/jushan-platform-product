@@ -303,7 +303,7 @@ git commit -m "[BOOTH-005] feat: add TempPlateNumberGenerator with Redis INCR te
 - Create: `parking-system/src/main/java/com/jushan/system/dto/TempPlateEntryRequest.java`
 - Create: `parking-system/src/main/java/com/jushan/system/dto/TempPlateExitRequest.java`
 
-- [ ] **Step 1: 创建 TempPlateEntryRequest.java**
+- [x] **Step 1: 创建 TempPlateEntryRequest.java** ✅ Commit: `0c86f1bd`
 
 ```java
 package com.jushan.system.dto;
@@ -344,7 +344,7 @@ public class TempPlateEntryRequest implements Serializable {
 }
 ```
 
-- [ ] **Step 2: 创建 TempPlateExitRequest.java**
+- [x] **Step 2: 创建 TempPlateExitRequest.java**
 
 ```java
 package com.jushan.system.dto;
@@ -386,12 +386,12 @@ public class TempPlateExitRequest implements Serializable {
 }
 ```
 
-- [ ] **Step 3: 验证编译通过**
+- [x] **Step 3: 验证编译通过 (Task 4)**
 
 Run: `mvn clean compile -pl parking-system -am 2>&1 | tail -5`
 Expected: `BUILD SUCCESS`
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交 (Task 4)**
 
 ```bash
 git add parking-system/src/main/java/com/jushan/system/dto/TempPlateEntryRequest.java \

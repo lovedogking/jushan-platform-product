@@ -118,7 +118,7 @@ git commit -m "[任务包3-5] feat: RecognitionEventLog/ParkingRecord/ExitRecord
 **Files:**
 - Modify: `parking-system/src/main/java/com/jushan/system/event/RecognitionEventPayload.java`
 
-- [ ] **Step 1: Add cameraSource field and fluent method**
+- [x] **Step 1: Add cameraSource field and fluent method**
 
 In `RecognitionEventPayload.java`, after the `logId` field (line 91), add:
 
