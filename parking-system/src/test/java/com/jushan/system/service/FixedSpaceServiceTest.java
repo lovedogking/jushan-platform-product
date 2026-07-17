@@ -262,6 +262,7 @@ class FixedSpaceServiceTest {
         when(bindingMapper.selectCount(any(QueryWrapper.class)))
                 .thenReturn(1L) // 车位已占用
                 .thenReturn(0L);
+        when(parkingLotMapper.selectById(1L)).thenReturn(parkingLot);
 
         FixedSpaceCreateRequest request = new FixedSpaceCreateRequest();
         request.setParkingLotId(1L);
@@ -269,6 +270,8 @@ class FixedSpaceServiceTest {
         request.setPlateNumber("京A12345");
         request.setValidStart(LocalDate.of(2026, 7, 1));
         request.setValidEnd(LocalDate.of(2027, 6, 30));
+        request.setPaidAmountCents(50000);
+        request.setPayMethod(FixedSpaceBinding.PAY_METHOD_CASH);
 
         assertThatThrownBy(() -> fixedSpaceService.create(request))
                 .isInstanceOf(BusinessException.class)
@@ -284,6 +287,7 @@ class FixedSpaceServiceTest {
         when(bindingMapper.selectCount(any(QueryWrapper.class)))
                 .thenReturn(0L)
                 .thenReturn(1L);
+        when(parkingLotMapper.selectById(1L)).thenReturn(parkingLot);
 
         FixedSpaceCreateRequest request = new FixedSpaceCreateRequest();
         request.setParkingLotId(1L);
@@ -291,6 +295,8 @@ class FixedSpaceServiceTest {
         request.setPlateNumber("京A12345");
         request.setValidStart(LocalDate.of(2026, 7, 1));
         request.setValidEnd(LocalDate.of(2027, 6, 30));
+        request.setPaidAmountCents(50000);
+        request.setPayMethod(FixedSpaceBinding.PAY_METHOD_CASH);
 
         assertThatThrownBy(() -> fixedSpaceService.create(request))
                 .isInstanceOf(BusinessException.class)
@@ -306,6 +312,8 @@ class FixedSpaceServiceTest {
 
         FixedSpaceRenewRequest request = new FixedSpaceRenewRequest();
         request.setNewValidEnd(LocalDate.of(2027, 12, 31));
+        request.setPaidAmountCents(50000);
+        request.setPayMethod(FixedSpaceBinding.PAY_METHOD_CASH);
 
         FixedSpaceVO result = fixedSpaceService.renew(100L, request);
 
@@ -322,6 +330,8 @@ class FixedSpaceServiceTest {
 
         FixedSpaceRenewRequest request = new FixedSpaceRenewRequest();
         request.setNewValidEnd(LocalDate.of(2027, 12, 31));
+        request.setPaidAmountCents(50000);
+        request.setPayMethod(FixedSpaceBinding.PAY_METHOD_CASH);
 
         assertThatThrownBy(() -> fixedSpaceService.renew(100L, request))
                 .isInstanceOf(BusinessException.class)
@@ -336,6 +346,8 @@ class FixedSpaceServiceTest {
 
         FixedSpaceRenewRequest request = new FixedSpaceRenewRequest();
         request.setNewValidEnd(LocalDate.of(2027, 12, 31));
+        request.setPaidAmountCents(50000);
+        request.setPayMethod(FixedSpaceBinding.PAY_METHOD_CASH);
 
         assertThatThrownBy(() -> fixedSpaceService.renew(100L, request))
                 .isInstanceOf(BusinessException.class)
@@ -397,5 +409,144 @@ class FixedSpaceServiceTest {
         boolean result = fixedSpaceService.hasActiveBinding("京X99999", 1L, 1L);
 
         assertThat(result).isFalse();
+    }
+
+    // ==================== 审核 ====================
+
+    @Test
+    @DisplayName("审核通过待审核的固定车位")
+    void shouldApproveFixedSpace() {
+        activeBinding.setReviewStatus(FixedSpaceBinding.REVIEW_PENDING);
+        when(bindingMapper.selectById(100L)).thenReturn(activeBinding);
+        when(vehicleMapper.selectById(10L)).thenReturn(vehicle);
+
+        FixedSpaceVO result = fixedSpaceService.approve(100L);
+
+        assertThat(result.getReviewStatus()).isEqualTo(FixedSpaceBinding.REVIEW_APPROVED);
+        verify(bindingMapper).updateById(any(FixedSpaceBinding.class));
+        verify(parkingOrderMapper).insert(any(ParkingOrder.class));
+    }
+
+    @Test
+    @DisplayName("已通过的固定车位再次审核抛出异常")
+    void shouldRejectApproveForNonPending() {
+        activeBinding.setReviewStatus(FixedSpaceBinding.REVIEW_APPROVED);
+        when(bindingMapper.selectById(100L)).thenReturn(activeBinding);
+
+        assertThatThrownBy(() -> fixedSpaceService.approve(100L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("仅待审核状态");
+    }
+
+    @Test
+    @DisplayName("驳回待审核的固定车位")
+    void shouldRejectFixedSpace() {
+        activeBinding.setReviewStatus(FixedSpaceBinding.REVIEW_PENDING);
+        when(bindingMapper.selectById(100L)).thenReturn(activeBinding);
+
+        FixedSpaceVO result = fixedSpaceService.reject(100L);
+
+        assertThat(result.getReviewStatus()).isEqualTo(FixedSpaceBinding.REVIEW_REJECTED);
+        verify(bindingMapper).updateById(any(FixedSpaceBinding.class));
+        verify(parkingOrderMapper, never()).insert(any(ParkingOrder.class));
+    }
+
+    // ==================== 审核模式 ====================
+
+    @Test
+    @DisplayName("审核模式 AUTO 时自动设置为已通过")
+    void shouldAutoApproveWhenReviewModeAuto() {
+        when(vehicleMapper.selectByPlateNumber("京AUTO01", 1L)).thenReturn(vehicle);
+        when(bindingMapper.selectCount(any(QueryWrapper.class))).thenReturn(0L);
+        when(parkingLotMapper.selectById(1L)).thenReturn(parkingLot);
+        when(paramResolver.getString(anyString(), eq(1L))).thenReturn("AUTO");
+
+        vehicle.setPlateNumber("京AUTO01");
+
+        FixedSpaceCreateRequest request = new FixedSpaceCreateRequest();
+        request.setParkingLotId(1L);
+        request.setSpaceNo("AUTO-01");
+        request.setPlateNumber("京AUTO01");
+        request.setValidStart(LocalDate.of(2026, 7, 1));
+        request.setValidEnd(LocalDate.of(2027, 6, 30));
+        request.setPaidAmountCents(50000);
+        request.setPayMethod(FixedSpaceBinding.PAY_METHOD_CASH);
+
+        FixedSpaceVO result = fixedSpaceService.create(request);
+
+        assertThat(result.getReviewStatus()).isEqualTo(FixedSpaceBinding.REVIEW_APPROVED);
+        verify(parkingOrderMapper).insert(any(ParkingOrder.class));
+    }
+
+    @Test
+    @DisplayName("审核模式 MANUAL 时设置为待审核")
+    void shouldSetPendingWhenReviewModeManual() {
+        when(vehicleMapper.selectByPlateNumber("京MAN01", 1L)).thenReturn(vehicle);
+        when(bindingMapper.selectCount(any(QueryWrapper.class))).thenReturn(0L);
+        when(parkingLotMapper.selectById(1L)).thenReturn(parkingLot);
+        when(paramResolver.getString(anyString(), eq(1L))).thenReturn("MANUAL");
+
+        vehicle.setPlateNumber("京MAN01");
+
+        FixedSpaceCreateRequest request = new FixedSpaceCreateRequest();
+        request.setParkingLotId(1L);
+        request.setSpaceNo("MAN-01");
+        request.setPlateNumber("京MAN01");
+        request.setValidStart(LocalDate.of(2026, 7, 1));
+        request.setValidEnd(LocalDate.of(2027, 6, 30));
+        request.setPaidAmountCents(50000);
+        request.setPayMethod(FixedSpaceBinding.PAY_METHOD_CASH);
+
+        FixedSpaceVO result = fixedSpaceService.create(request);
+
+        assertThat(result.getReviewStatus()).isEqualTo(FixedSpaceBinding.REVIEW_PENDING);
+        verify(parkingOrderMapper, never()).insert(any(ParkingOrder.class));
+    }
+
+    // ==================== 配额检查 ====================
+
+    @Test
+    @DisplayName("配额检查：区域固定车位已达上限抛出异常")
+    void shouldRejectWhenZoneQuotaExceeded() {
+        when(vehicleMapper.selectByPlateNumber("京QUOTA01", 1L)).thenReturn(vehicle);
+        // 第一次 selectCount：checkDuplicateSpace → 0
+        // 第二次 selectCount：checkDuplicateVehicle → 0
+        // 第三次 selectCount：checkZoneQuota → 3（已占满）
+        when(bindingMapper.selectCount(any(QueryWrapper.class)))
+                .thenReturn(0L)
+                .thenReturn(0L)
+                .thenReturn(3L);
+
+        ParkingSpacePolicy policy = new ParkingSpacePolicy();
+        policy.setFixedSpaces(3);
+        when(spacePolicyMapper.selectByZoneId(1L, 1L)).thenReturn(policy);
+
+        vehicle.setPlateNumber("京QUOTA01");
+
+        FixedSpaceCreateRequest request = new FixedSpaceCreateRequest();
+        request.setParkingLotId(1L);
+        request.setZoneId(1L);
+        request.setSpaceNo("Q-001");
+        request.setPlateNumber("京QUOTA01");
+        request.setValidStart(LocalDate.of(2026, 7, 1));
+        request.setValidEnd(LocalDate.of(2027, 6, 30));
+        request.setPaidAmountCents(50000);
+        request.setPayMethod(FixedSpaceBinding.PAY_METHOD_CASH);
+
+        assertThatThrownBy(() -> fixedSpaceService.create(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("已达上限");
+    }
+
+    // ==================== countActiveByZone ====================
+
+    @Test
+    @DisplayName("统计区域生效中的固定车位绑定数")
+    void shouldCountActiveByZone() {
+        when(bindingMapper.selectCount(any(QueryWrapper.class))).thenReturn(5L);
+
+        long count = fixedSpaceService.countActiveByZone(1L, 1L, 1L);
+
+        assertThat(count).isEqualTo(5L);
     }
 }
