@@ -48,6 +48,18 @@ public class BillingRuleRecalcLog implements Serializable {
     /** 操作人 ID */
     private Long operatorId;
 
+    /** 原订单 ID（重算来源，EXIT_RESCAN 场景下与当前订单相同） */
+    private Long originalOrderId;
+
+    /** 原订单金额（分） */
+    private Integer originalAmountCents;
+
+    /** 重新计算金额（分） */
+    private Integer newAmountCents;
+
+    /** 重算触发原因：EXIT_RESCAN=出场重识别, TIMEOUT_RECALC=超时关单后重算 */
+    private String triggerReason;
+
     private LocalDateTime createdAt;
 
     public Long getId() { return id; }
@@ -76,6 +88,18 @@ public class BillingRuleRecalcLog implements Serializable {
 
     public Long getOperatorId() { return operatorId; }
     public void setOperatorId(Long operatorId) { this.operatorId = operatorId; }
+
+    public Long getOriginalOrderId() { return originalOrderId; }
+    public void setOriginalOrderId(Long originalOrderId) { this.originalOrderId = originalOrderId; }
+
+    public Integer getOriginalAmountCents() { return originalAmountCents; }
+    public void setOriginalAmountCents(Integer originalAmountCents) { this.originalAmountCents = originalAmountCents; }
+
+    public Integer getNewAmountCents() { return newAmountCents; }
+    public void setNewAmountCents(Integer newAmountCents) { this.newAmountCents = newAmountCents; }
+
+    public String getTriggerReason() { return triggerReason; }
+    public void setTriggerReason(String triggerReason) { this.triggerReason = triggerReason; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
