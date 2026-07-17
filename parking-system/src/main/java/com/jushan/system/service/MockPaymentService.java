@@ -312,10 +312,16 @@ public class MockPaymentService {
     // ==================== 定时任务 ====================
 
     /**
-     * 每5分钟扫描一次超时订单。
+     * 每 5 分钟扫描一次超时订单（任务包 2-2）。
      * <p>
      * 查找所有待支付（PENDING_PAY/PAYING）且已超过过期时间的订单，
      * 将其标记为 CANCELLED，并将关联的模拟支付记录标记为 TIMEOUT。
+     * <p>
+     * <strong>超时阈值来源</strong>：订单的 {@code expired_at} 在 {@link #preparePay(ParkingOrder)}
+     * 时通过 {@code paramResolver.getInt(ParamKeys.MOCK_PAYMENT_TIMEOUT_MINUTES, parkingLotId, 15)}
+     * 设置（车场级参数权威源，任务包 1-1）。
+     * 超时关闭的订单将在车辆再次出口识别时由 {@link ExitService#handleExit} 重新计费，
+     * 新订单通过 {@code recalc_source_order_id} 关联原 CANCELLED 订单。
      */
     @Scheduled(fixedRate = 300_000) // 5分钟
     public void timeoutClose() {
