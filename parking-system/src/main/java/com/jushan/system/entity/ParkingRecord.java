@@ -86,6 +86,9 @@ public class ParkingRecord implements Serializable {
     /** 逻辑删除时间（NULL 表示未删除） */
     private LocalDateTime deletedAt;
 
+    /** 相机来源：PRIMARY=主相机, BACKUP=备相机, NULL=单相机或无主备配置 */
+    private String cameraSource;
+
     // ==================== getter / setter ====================
 
     public Long getId() { return id; }
@@ -141,4 +144,7 @@ public class ParkingRecord implements Serializable {
 
     public Integer getTempPlateFlag() { return tempPlateFlag; }
     public void setTempPlateFlag(Integer tempPlateFlag) { this.tempPlateFlag = tempPlateFlag; }
+
+    public String getCameraSource() { return cameraSource; }
+    public void setCameraSource(String cameraSource) { this.cameraSource = cameraSource; }
 }
