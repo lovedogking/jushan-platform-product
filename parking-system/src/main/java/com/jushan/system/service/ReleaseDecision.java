@@ -38,6 +38,21 @@ public class ReleaseDecision {
         return new ReleaseDecision(com.jushan.system.entity.ExitRecord.DECISION_NO_RECORD, false, "未找到在场记录");
     }
 
+    /** 欠费放行：出口未支付但车场策略允许欠费出场 */
+    public static ReleaseDecision arrearsAllowed() {
+        return new ReleaseDecision(com.jushan.system.entity.ExitRecord.DECISION_ARREARS_ALLOWED, true, "车场配置允许欠费放行");
+    }
+
+    /** 欠费提醒放行：再次出场时有欠费订单，策略为 REMIND_ONLY */
+    public static ReleaseDecision arrearsRemind() {
+        return new ReleaseDecision(com.jushan.system.entity.ExitRecord.DECISION_ARREARS_REMIND, true, "欠费提醒放行，订单保持欠费中");
+    }
+
+    /** 欠费合并计费：再次出场时存在欠费订单，需一并补缴 */
+    public static ReleaseDecision arrearsMustPay() {
+        return new ReleaseDecision(com.jushan.system.entity.ExitRecord.DECISION_ARREARS_MUST_PAY, false, "存在欠费订单，需补缴欠费+本次费用");
+    }
+
     public static ReleaseDecision exception(String reason) {
         return new ReleaseDecision(com.jushan.system.entity.ExitRecord.DECISION_EXCEPTION, false, reason);
     }

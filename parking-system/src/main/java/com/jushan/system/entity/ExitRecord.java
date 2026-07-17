@@ -88,6 +88,12 @@ public class ExitRecord implements Serializable {
     public static final String DECISION_NO_RECORD = "NO_RECORD";
     /** 异常 */
     public static final String DECISION_EXCEPTION = "EXCEPTION";
+    /** 欠费放行：车场策略 ALLOW_ARREARS，开闸放行并记录欠费 */
+    public static final String DECISION_ARREARS_ALLOWED = "ARREARS_ALLOWED";
+    /** 欠费提醒放行：REMIND_ONLY 策略，放行并推送提醒 */
+    public static final String DECISION_ARREARS_REMIND = "ARREARS_REMIND";
+    /** 欠费合并计费：MUST_PAY 策略，拦截并提示补缴 */
+    public static final String DECISION_ARREARS_MUST_PAY = "ARREARS_MUST_PAY";
 
     // ==================== getter / setter ====================
 
