@@ -96,6 +96,12 @@ class ExitServiceTest extends TestcontainersBaseTest {
     @Mock
     private com.jushan.system.mapper.BillingRuleRecalcLogMapper recalcLogMapper;
 
+    @Mock
+    private com.jushan.system.mapper.ParkingOrderMapper orderMapper;
+
+    @Mock
+    private com.jushan.system.service.ParamResolver paramResolver;
+
     private ExitService exitService;
 
     @BeforeEach
@@ -103,7 +109,7 @@ class ExitServiceTest extends TestcontainersBaseTest {
         exitService = new ExitService(recordMapper, exitRecordMapper, parkingOrderService,
                 parkingLotMapper, billingEngine, boothWebSocketPublisher, parkingSessionService,
                 prepaidDeductionService, fixedSpaceService, deviceService,
-                distributedLock, recalcLogMapper);
+                distributedLock, recalcLogMapper, orderMapper, paramResolver);
     }
 
     @Test
