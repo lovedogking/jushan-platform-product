@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.common.BusinessException;
 import com.jushan.common.auth.TenantContext;
+import com.jushan.platform.modules.parking.entity.ParkingSpacePolicy;
 import com.jushan.platform.modules.parking.entity.ParkingZone;
+import com.jushan.platform.modules.parking.mapper.ParkingSpacePolicyMapper;
 import com.jushan.platform.modules.parking.mapper.ParkingZoneMapper;
 import com.jushan.platform.modules.vehicle.entity.SysVehicle;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
@@ -13,8 +15,10 @@ import com.jushan.system.dto.FixedSpaceCreateRequest;
 import com.jushan.system.dto.FixedSpaceRenewRequest;
 import com.jushan.system.entity.FixedSpaceBinding;
 import com.jushan.system.entity.ParkingLot;
+import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.mapper.FixedSpaceBindingMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
+import com.jushan.system.mapper.ParkingOrderMapper;
 import com.jushan.system.vo.FixedSpaceVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +37,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -54,6 +60,12 @@ class FixedSpaceServiceTest {
     private ParkingLotMapper parkingLotMapper;
     @Mock
     private ParkingZoneMapper zoneMapper;
+    @Mock
+    private ParamResolver paramResolver;
+    @Mock
+    private ParkingSpacePolicyMapper spacePolicyMapper;
+    @Mock
+    private ParkingOrderMapper parkingOrderMapper;
 
     private FixedSpaceService fixedSpaceService;
 
@@ -64,7 +76,8 @@ class FixedSpaceServiceTest {
     @BeforeEach
     void setUp() {
         fixedSpaceService = new FixedSpaceService(
-                bindingMapper, vehicleMapper, parkingLotMapper, zoneMapper);
+                bindingMapper, vehicleMapper, parkingLotMapper, zoneMapper,
+                paramResolver, spacePolicyMapper, parkingOrderMapper);
 
         // 设置测试租户上下文
         TenantContext.set(new TenantContext.Snapshot(1L, 100L, "TENANT", "", ""));
@@ -91,6 +104,10 @@ class FixedSpaceServiceTest {
         activeBinding.setValidStart(LocalDate.of(2026, 1, 1));
         activeBinding.setValidEnd(LocalDate.of(2026, 12, 31));
         activeBinding.setStatus(FixedSpaceBinding.STATUS_ACTIVE);
+        activeBinding.setPayMethod(FixedSpaceBinding.PAY_METHOD_CASH);
+        activeBinding.setPaidAmountCents(30000);
+        activeBinding.setReviewStatus(FixedSpaceBinding.REVIEW_APPROVED);
+        activeBinding.setSource(FixedSpaceBinding.SOURCE_ADMIN);
         activeBinding.setCreatedAt(LocalDateTime.now());
     }
 
@@ -186,6 +203,7 @@ class FixedSpaceServiceTest {
         when(vehicleMapper.selectByPlateNumber("京B67890", 1L)).thenReturn(vehicle);
         when(bindingMapper.selectCount(any(QueryWrapper.class))).thenReturn(0L);
         when(parkingLotMapper.selectById(1L)).thenReturn(parkingLot);
+        when(paramResolver.getString(anyString(), eq(1L))).thenReturn("AUTO");
 
         vehicle.setPlateNumber("京B67890");
 
@@ -195,13 +213,17 @@ class FixedSpaceServiceTest {
         request.setPlateNumber("京B67890");
         request.setValidStart(LocalDate.of(2026, 7, 1));
         request.setValidEnd(LocalDate.of(2027, 6, 30));
+        request.setPaidAmountCents(50000);
+        request.setPayMethod(FixedSpaceBinding.PAY_METHOD_CASH);
 
         FixedSpaceVO result = fixedSpaceService.create(request);
 
         assertThat(result.getSpaceNo()).isEqualTo("B-002");
         assertThat(result.getStatus()).isEqualTo(1);
         assertThat(result.getParkingLotName()).isEqualTo("测试车场");
+        assertThat(result.getReviewStatus()).isEqualTo(FixedSpaceBinding.REVIEW_APPROVED);
         verify(bindingMapper).insert(any(FixedSpaceBinding.class));
+        verify(parkingOrderMapper).insert(any(ParkingOrder.class));
     }
 
     @Test
@@ -210,6 +232,7 @@ class FixedSpaceServiceTest {
         when(vehicleMapper.selectByPlateNumber("京C12345", 1L)).thenReturn(null);
         when(bindingMapper.selectCount(any(QueryWrapper.class))).thenReturn(0L);
         when(parkingLotMapper.selectById(1L)).thenReturn(parkingLot);
+        when(paramResolver.getString(anyString(), eq(1L))).thenReturn("AUTO");
 
         FixedSpaceCreateRequest request = new FixedSpaceCreateRequest();
         request.setParkingLotId(1L);
@@ -217,13 +240,17 @@ class FixedSpaceServiceTest {
         request.setPlateNumber("京C12345");
         request.setValidStart(LocalDate.of(2026, 7, 1));
         request.setValidEnd(LocalDate.of(2027, 6, 30));
+        request.setPaidAmountCents(50000);
+        request.setPayMethod(FixedSpaceBinding.PAY_METHOD_CASH);
 
         FixedSpaceVO result = fixedSpaceService.create(request);
 
         assertThat(result.getSpaceNo()).isEqualTo("C-003");
         assertThat(result.getStatus()).isEqualTo(1);
+        assertThat(result.getReviewStatus()).isEqualTo(FixedSpaceBinding.REVIEW_APPROVED);
         verify(vehicleMapper).insert(any(SysVehicle.class));
         verify(bindingMapper).insert(any(FixedSpaceBinding.class));
+        verify(parkingOrderMapper).insert(any(ParkingOrder.class));
     }
 
     @Test
