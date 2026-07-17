@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 停车订单 Mapper（P004 骨架）。
@@ -102,4 +103,19 @@ public interface ParkingOrderMapper extends BaseMapper<ParkingOrder> {
     int updatePendingOrderAmount(@Param("orderId") Long orderId,
                                   @Param("amountCents") Integer amountCents,
                                   @Param("expiredAt") LocalDateTime expiredAt);
+
+    /**
+     * 按车牌和车场查询所有欠费中订单（ARREARS 状态，未删除）。
+     * 用于再次出场时检测车辆是否存在未补缴的欠费订单。
+     * 任务包 2-3。
+     *
+     * @param parkingLotId 停车场 ID
+     * @param plateNumber  标准化车牌号
+     * @return 欠费中订单列表，无数据则空列表
+     */
+    @Select("SELECT * FROM parking_order WHERE parking_lot_id = #{parkingLotId} " +
+            "AND plate_number = #{plateNumber} AND status = 'ARREARS' AND deleted_at IS NULL " +
+            "ORDER BY created_at DESC")
+    List<ParkingOrder> selectArrearsByPlate(@Param("parkingLotId") Long parkingLotId,
+                                             @Param("plateNumber") String plateNumber);
 }
