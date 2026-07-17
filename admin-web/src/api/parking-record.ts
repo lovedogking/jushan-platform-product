@@ -21,6 +21,8 @@ export interface ParkingRecordAdminVO {
   payChannelLabel?: string
   operatorName?: string
   releaseReason?: string
+  /** 0=正式车牌, 1=临时车牌 */
+  tempPlateFlag?: number
   createdAt: string
   updatedAt?: string
 }
@@ -44,6 +46,7 @@ export function getParkingRecordPage(params: {
   startTime?: string
   endTime?: string
   status?: string
+  tempPlateFlag?: number | null
 }) {
   return request.get<PageResult<ParkingRecordAdminVO>>('/v1/admin/parking-records', params)
 }
@@ -58,6 +61,7 @@ export function exportParkingRecords(params: {
   startTime?: string
   endTime?: string
   status?: string
+  tempPlateFlag?: number | null
 }) {
   return request.get<Blob>('/v1/admin/parking-records/export', params, {
     responseType: 'blob',

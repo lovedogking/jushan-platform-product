@@ -27,6 +27,10 @@
           style="width: 340px"
         />
         <a-select v-model:value="query.status" placeholder="状态" allow-clear style="width: 120px" :options="statusOptions" />
+        <a-select v-model:value="query.tempPlateFlag" placeholder="车牌类型" allow-clear style="width: 120px">
+          <a-select-option :value="0">正式车牌</a-select-option>
+          <a-select-option :value="1">临时车牌</a-select-option>
+        </a-select>
         <a-button type="primary" @click="handleQuery">
           <template #icon><SearchOutlined /></template>
           查询
@@ -56,6 +60,10 @@
           <a-tag :color="statusColor(record.status)">
             {{ record.statusLabel || RECORD_STATUS_MAP[record.status] || record.status }}
           </a-tag>
+        </template>
+        <template v-if="column.key === 'plateNumber'">
+          <span>{{ record.plateNumber }}</span>
+          <a-tag v-if="record.tempPlateFlag === 1" color="orange" style="margin-left: 4px">临</a-tag>
         </template>
         <template v-if="column.key === 'amount'">
           <span v-if="record.feeAmount != null">¥ {{ formatYuan(record.feeAmount) }}</span>
@@ -129,6 +137,7 @@ const query = reactive({
   laneId: undefined as number | undefined,
   dateRange: undefined as [Dayjs, Dayjs] | undefined,
   status: undefined as string | undefined,
+  tempPlateFlag: null as number | null,
 })
 
 const loading = ref(false)
@@ -152,6 +161,7 @@ async function fetchData() {
     if (query.parkingLotId) params.parkingLotId = query.parkingLotId
     if (query.laneId) params.laneId = query.laneId
     if (query.status) params.status = query.status
+    if (query.tempPlateFlag !== null && query.tempPlateFlag !== undefined) params.tempPlateFlag = query.tempPlateFlag
     if (query.dateRange && query.dateRange.length === 2) {
       params.startTime = query.dateRange[0]?.format('YYYY-MM-DDTHH:mm:ss')
       params.endTime = query.dateRange[1]?.format('YYYY-MM-DDTHH:mm:ss')
@@ -175,6 +185,7 @@ function handleReset() {
   query.laneId = undefined
   query.dateRange = undefined
   query.status = undefined
+  query.tempPlateFlag = null
   pagination.current = 1
   fetchData()
 }
@@ -224,6 +235,7 @@ async function handleExport() {
     if (query.parkingLotId) params.parkingLotId = query.parkingLotId
     if (query.laneId) params.laneId = query.laneId
     if (query.status) params.status = query.status
+    if (query.tempPlateFlag !== null && query.tempPlateFlag !== undefined) params.tempPlateFlag = query.tempPlateFlag
     if (query.dateRange && query.dateRange.length === 2) {
       params.startTime = query.dateRange[0]?.format('YYYY-MM-DDTHH:mm:ss')
       params.endTime = query.dateRange[1]?.format('YYYY-MM-DDTHH:mm:ss')
