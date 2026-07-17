@@ -1,6 +1,7 @@
 package com.jushan.system.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.system.constant.ParamKeys;
@@ -136,7 +137,8 @@ public class MockPaymentService {
 
         // 校验订单状态
         if (!ParkingOrder.STATUS_PENDING_PAY.equals(order.getStatus())
-                && !ParkingOrder.STATUS_PAYING.equals(order.getStatus())) {
+                && !ParkingOrder.STATUS_PAYING.equals(order.getStatus())
+                && !ParkingOrder.STATUS_ARREARS.equals(order.getStatus())) {
             log.warn("订单状态不允许支付: orderId={} status={}", orderId, order.getStatus());
             return false;
         }
@@ -165,21 +167,37 @@ public class MockPaymentService {
 
         // 更新订单状态为已支付
         String paySerial = "MOCK-" + orderId + "-" + System.currentTimeMillis();
-        int updated = orderMapper.markPaidStatus(
-                orderId,
-                paySerial,
-                order.getPayableAmount(),
-                LocalDateTime.now()
-        );
+        int updated;
+        boolean isArrearsPay = ParkingOrder.STATUS_ARREARS.equals(order.getStatus());
+        if (isArrearsPay) {
+            // ARREARS 订单补缴：直接 COMPLETED（不走 PAID 中间态）
+            updated = orderMapper.update(null,
+                    new UpdateWrapper<ParkingOrder>()
+                            .set("status", ParkingOrder.STATUS_COMPLETED)
+                            .set("paid_amount", order.getPayableAmount())
+                            .set("pay_time", LocalDateTime.now())
+                            .set("pay_serial", paySerial)
+                            .set("updated_at", LocalDateTime.now())
+                            .eq("id", orderId)
+                            .eq("status", ParkingOrder.STATUS_ARREARS));
+        } else {
+            updated = orderMapper.markPaidStatus(
+                    orderId,
+                    paySerial,
+                    order.getPayableAmount(),
+                    LocalDateTime.now()
+            );
+        }
 
         if (updated > 0) {
-            // 状态流转留痕（任务包 1-2）：待支付/支付中 → 已支付
-            orderStatusLogService.record(order, order.getStatus(), ParkingOrder.STATUS_PAID,
+            // 状态流转留痕（任务包 1-2）
+            String targetStatus = isArrearsPay ? ParkingOrder.STATUS_COMPLETED : ParkingOrder.STATUS_PAID;
+            orderStatusLogService.record(order, order.getStatus(), targetStatus,
                     OrderStatusLog.TRIGGER_USER, null, paidBy, "模拟支付确认");
             // 发布支付成功事件（同步），监听者包括月卡续费生效
             eventPublisher.publishEvent(new PaymentSuccessEvent(order, paySerial, paidBy));
 
-            // 任务包 2-1：支付后处理（AT_EXIT 立即开闸 / ADVANCE 设置窗口期）
+            // 任务包 2-1 + 2-3：支付后处理
             handlePostPay(order, paySerial, paidBy);
         }
 
@@ -196,6 +214,12 @@ public class MockPaymentService {
      * </ul>
      */
     private void handlePostPay(ParkingOrder order, String paySerial, String paidBy) {
+        // 任务包 2-3：合并订单支付后，逐条补缴关联的欠费订单
+        String arrearsIds = order.getArrearsOrderIds();
+        if (arrearsIds != null && !arrearsIds.isEmpty()) {
+            processArrearsChainPayment(order, arrearsIds, paidBy);
+        }
+
         String payScene = order.getPayScene();
         if (ParkingOrder.PAY_SCENE_AT_EXIT.equals(payScene)) {
             handleAtExitPostPay(order, paidBy);
@@ -467,6 +491,48 @@ public class MockPaymentService {
             record.setPaidBy("系统超时关闭");
             record.setUpdatedAt(LocalDateTime.now());
             recordMapper.updateById(record);
+        }
+    }
+
+    /**
+     * 处理合并订单的关联欠费补缴（任务包 2-3）。
+     * <p>
+     * 合并订单支付完成后，逐条将 arrearsOrderIds 中的欠费订单从 ARREARS → COMPLETED。
+     * 单条失败记录日志不阻断，运营端订单中心可人工核实。
+     */
+    private void processArrearsChainPayment(ParkingOrder mergedOrder, String arrearsIdsJson, String paidBy) {
+        try {
+            String cleaned = arrearsIdsJson.replace("[", "").replace("]", "").replace(" ", "");
+            if (cleaned.isEmpty()) {
+                return;
+            }
+            String[] parts = cleaned.split(",");
+            int successCount = 0;
+            int failCount = 0;
+            for (String part : parts) {
+                try {
+                    Long arrearsOrderId = Long.parseLong(part.trim());
+                    boolean ok = parkingOrderService.payArrears(arrearsOrderId,
+                            OrderStatusLog.TRIGGER_USER, null);
+                    if (ok) {
+                        successCount++;
+                        log.info("合并订单关联欠费补缴成功: mergedOrderId={} arrearsOrderId={}",
+                                mergedOrder.getId(), arrearsOrderId);
+                    } else {
+                        failCount++;
+                        log.error("合并订单关联欠费补缴失败: mergedOrderId={} arrearsOrderId={}",
+                                mergedOrder.getId(), arrearsOrderId);
+                    }
+                } catch (NumberFormatException e) {
+                    failCount++;
+                    log.error("合并订单 arrearsOrderIds 格式异常: mergedOrderId={} part={}",
+                            mergedOrder.getId(), part);
+                }
+            }
+            log.info("合并订单欠费补缴完成: mergedOrderId={} success={} fail={}",
+                    mergedOrder.getId(), successCount, failCount);
+        } catch (Exception e) {
+            log.error("合并订单欠费补缴异常: mergedOrderId={}", mergedOrder.getId(), e);
         }
     }
 }
