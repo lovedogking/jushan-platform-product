@@ -56,7 +56,7 @@ git commit -m "[任务包3-5] feat: 三表新增 camera_source 字段 Flyway 迁
 - Modify: `parking-system/src/main/java/com/jushan/system/entity/ParkingRecord.java`
 - Modify: `parking-system/src/main/java/com/jushan/system/entity/ExitRecord.java`
 
-- [ ] **Step 1: Add cameraSource to RecognitionEventLog**
+- [x] **Step 1: Add cameraSource to RecognitionEventLog**
 
 In `RecognitionEventLog.java`, after the `vendorEventId` field (line 84), add:
 
@@ -72,7 +72,7 @@ Then after the `getVendorEventId/setVendorEventId` methods (after line 143), add
     public void setCameraSource(String cameraSource) { this.cameraSource = cameraSource; }
 ```
 
-- [ ] **Step 2: Add cameraSource to ParkingRecord**
+- [x] **Step 2: Add cameraSource to ParkingRecord**
 
 In `ParkingRecord.java`, after the `deletedAt` field (line 84), add:
 
@@ -88,7 +88,7 @@ Then after the `getDeletedAt/setDeletedAt` methods (after line 137), add:
     public void setCameraSource(String cameraSource) { this.cameraSource = cameraSource; }
 ```
 
-- [ ] **Step 3: Add cameraSource to ExitRecord**
+- [x] **Step 3: Add cameraSource to ExitRecord**
 
 In `ExitRecord.java`, after the `deletedAt` field (line 149), add:
 
@@ -104,7 +104,7 @@ Then after the `getDeletedAt/setDeletedAt` methods (after line 152), add:
     public void setCameraSource(String cameraSource) { this.cameraSource = cameraSource; }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** (af353cfe)
 
 ```bash
 git add parking-system/src/main/java/com/jushan/system/entity/RecognitionEventLog.java parking-system/src/main/java/com/jushan/system/entity/ParkingRecord.java parking-system/src/main/java/com/jushan/system/entity/ExitRecord.java

@@ -89,6 +89,9 @@ public class RecognitionEventPayload implements Serializable {
     /** 平台内部识别事件日志主键（recognition_event_log.id），用于业务关联 */
     private Long logId;
 
+    /** 相机来源：PRIMARY=主相机, BACKUP=备相机, NULL=不适用 */
+    private String cameraSource;
+
     // ==================== 工厂方法 ====================
 
     /**
@@ -163,6 +166,11 @@ public class RecognitionEventPayload implements Serializable {
         return this;
     }
 
+    public RecognitionEventPayload cameraSource(String cameraSource) {
+        this.cameraSource = cameraSource;
+        return this;
+    }
+
     public RecognitionEventPayload eventTime(LocalDateTime eventTime) {
         this.eventTime = eventTime;
         return this;
@@ -214,6 +222,9 @@ public class RecognitionEventPayload implements Serializable {
 
     public Long getLogId() { return logId; }
     public void setLogId(Long logId) { this.logId = logId; }
+
+    public String getCameraSource() { return cameraSource; }
+    public void setCameraSource(String cameraSource) { this.cameraSource = cameraSource; }
 
     @Override
     public String toString() {
