@@ -116,6 +116,9 @@ public class ParkingOrder implements Serializable {
     /** 出口车道ID（AT_EXIT 场景用于开闸），任务包 2-1 */
     private Long exitLaneId;
 
+    /** 关联的欠费订单ID列表（JSON数组），合并计费时记录，如 "[101,102]"。支付后逐条补缴。任务包 2-3 */
+    private String arrearsOrderIds;
+
     /** 乐观锁版本号 */
     @Version
     private Integer version;
@@ -257,4 +260,7 @@ public class ParkingOrder implements Serializable {
 
     public Long getExitLaneId() { return exitLaneId; }
     public void setExitLaneId(Long exitLaneId) { this.exitLaneId = exitLaneId; }
+
+    public String getArrearsOrderIds() { return arrearsOrderIds; }
+    public void setArrearsOrderIds(String arrearsOrderIds) { this.arrearsOrderIds = arrearsOrderIds; }
 }
