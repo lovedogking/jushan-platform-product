@@ -135,6 +135,8 @@ public class ParkingOrder implements Serializable {
     public static final String ORDER_TYPE_MONTH_RENEW = "MONTH_RENEW";
     public static final String ORDER_TYPE_VISITOR = "VISITOR";
     public static final String ORDER_TYPE_TOP_UP = "TOP_UP";
+    /** 月卡首次办理（任务包 3-1） */
+    public static final String ORDER_TYPE_MONTHLY_PASS = "MONTHLY_PASS";
 
     /** 预订单（入场生成，尚未计费）——任务包 1-2 */
     public static final String STATUS_PRE_ORDER = "PRE_ORDER";

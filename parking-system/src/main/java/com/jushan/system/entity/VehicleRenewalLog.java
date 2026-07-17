@@ -23,6 +23,8 @@ public class VehicleRenewalLog implements Serializable {
     private Long tenantId;
     private Long parkingLotId;
     private Long vehicleId;
+    /** 月卡ID（新体系 monthly_pass.id；旧记录为 NULL） */
+    private Long monthlyPassId;
     private String plateNumber;
     private Long orderId;
     private Integer renewalMonths;
@@ -46,6 +48,9 @@ public class VehicleRenewalLog implements Serializable {
 
     public Long getVehicleId() { return vehicleId; }
     public void setVehicleId(Long vehicleId) { this.vehicleId = vehicleId; }
+
+    public Long getMonthlyPassId() { return monthlyPassId; }
+    public void setMonthlyPassId(Long monthlyPassId) { this.monthlyPassId = monthlyPassId; }
 
     public String getPlateNumber() { return plateNumber; }
     public void setPlateNumber(String plateNumber) { this.plateNumber = plateNumber; }
