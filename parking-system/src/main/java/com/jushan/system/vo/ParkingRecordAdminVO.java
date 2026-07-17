@@ -75,6 +75,9 @@ public class ParkingRecordAdminVO implements Serializable {
     /** 更新时间 */
     private LocalDateTime updatedAt;
 
+    /** 临时车牌标记：0=正式车牌, 1=临时车牌 */
+    private Integer tempPlateFlag;
+
     // ==================== getter / setter ====================
 
     public Long getId() { return id; }
@@ -136,4 +139,7 @@ public class ParkingRecordAdminVO implements Serializable {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public Integer getTempPlateFlag() { return tempPlateFlag; }
+    public void setTempPlateFlag(Integer tempPlateFlag) { this.tempPlateFlag = tempPlateFlag; }
 }
