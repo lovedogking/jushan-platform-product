@@ -1,210 +1,152 @@
-## 开发指南
-
-本项目使用 [AGENTS.md](AGENTS.md) 作为 AI 开发助手的通用上下文文件，使用 [CLAUDE.md](CLAUDE.md) 作为 Claude Code 的专用上下文文件。
-
-新开发者或 AI 助手接手项目时，请先阅读上述文件了解项目架构、构建命令和代码规范。
-
-- 需求文档：`docs/Kimi_Agent_停车SaaS架构评审/停车SaaS系统需求规格说明书_v1.1.md`
-- 部署文档：`docs/deployment/部署检查清单-P0-3.md`
-- 二期规划：`docs/roadmap/二期需求优先级-P0-P3.md`
-
 # 智慧停车 SaaS 平台 (jushan-platform)
 
-> 文档状态：**Sprint 1 执行中**
-> 最后更新：2026-07-13
+> 多租户停车SaaS管理平台，支持运营端(Web)、岗亭端(Web)、小程序端(微信)三端，通过适配器层(Device Access)对接停车场硬件设备。
+>
+> **权威需求来源**: [`docs/需求规格说明书_v1.1.md`](docs/需求规格说明书_v1.1.md)
 
-## 项目定位
+## 系统架构
 
-智慧停车 SaaS 平台（jushan-platform）是停车业务的核心业务平台，负责多租户管理、停车场配置、设备台账、停车计费、支付、订单管理、月卡、优惠券等业务功能，并提供管理后台、岗亭端和微信小程序。
+```
+用户层:  运营端(Web)  +  岗亭端(Web)  +  小程序端(微信)
+              │                │  WebSocket(实时推送)
+              └────────────────┴──────────────┘
+                               │
+                      平台服务层(Java/Spring)
+                               │
+                   HTTP REST(下发) / HTTP Webhook(上报)
+                               │
+                    适配器层(Device Access)  + 流媒体网关(RTSP→WebRTC)
+                               │
+                         MQTT / RTSP
+                               │
+                    设备层(相机 / 道闸 / GPIO)
+```
 
-Device Access 是独立的外部服务，负责设备通信、协议适配和事件转换。双方通过共享契约协作。
+### 通信链路
 
-## 当前阶段
+| 方向 | 协议 | 用途 |
+| :--- | :--- | :--- |
+| 平台 → 适配器 | HTTP REST | 设备注册、开闸、关闸、校时、状态查询 |
+| 适配器 → 平台 | HTTP Webhook | 识别事件、设备状态上报（签名校验） |
+| 适配器 ↔ 设备 | MQTT 3.1.1 (EMQX) | 设备控制、状态上报 |
+| 平台 → 岗亭端 | WebSocket | 远程开闸弹窗、设备告警、异常推送 |
+| 岗亭端 → 流媒体网关 | WebRTC | 视频预览（≤500ms延迟） |
 
-**Sprint 1：租户体系与平台底座重构（执行中）**
+### 关键架构决策
 
-- 技术栈从 Sa-Token 切换为 Spring Security + JWT
-- 模块结构：`parking-common` + `parking-infrastructure` + `parking-system` + `parking-boot`
-- 数据库：Flyway 迁移，Snowflake 主键，软删除 `deleted_at`
-- 前端：Ant Design Vue 3
+- **GPIO控制统一经"平台→适配器→MQTT→设备"链路**，平台不直连EMQX
+- 相机RTSP经车场现场流媒体网关转封装为WebRTC供浏览器播放（选型示例: ZLMediaKit/SRS）
+- 现场降级: 平台不可达时，适配器定期同步月卡/固定车位/白名单车牌至相机本地白名单，可自动放行
 
-**当前不可形成真实停车主链路** —— Device Access v0.2 无开闸、无车牌识别事件、无 RabbitMQ。
+## 本期范围
 
-## 文档入口
+**本期包含**: 核心进出场、计费引擎、订单、模拟支付、设备管理、车场/车道、月卡/固定车位、系统参数、岗亭监控、交接班、报表。
 
-### 协作规范（AI 与人类共用）
+**本期不做**: 优惠券/积分、访客预约、商家优惠、真实支付对接、电子发票真实开具、寻车导航、短信推送、岗亭离线操作、地感对接、支付宝小程序。完整清单见[需求文档第8章](docs/需求规格说明书_v1.1.md#8-本期不做清单)。
 
-| 文档 | 用途 |
-|------|------|
-| [AGENTS.md](AGENTS.md) | 仓库级协作规范，停车平台特有约束 |
-| [CLAUDE.md](CLAUDE.md) | Claude Code 执行手册，开发流程与检查清单 |
+## 技术栈
 
-### 项目概述
-
-| 文档 | 用途 |
-|------|------|
-| [项目介绍](docs/项目概述/项目介绍.md) | 项目定位与文档地图 |
-| [技术架构](docs/项目概述/技术架构.md) | 实际技术栈与架构约束 |
-
-### 需求与规范
-
-| 文档 | 用途 | 状态 |
-|------|------|------|
-| [PRD 需求文档](docs/需求文档/停车SaaS系统完整需求文档_PRD_V1.0_最终定稿.md) | 完整产品需求文档 | **权威基线** |
-| [开发计划](docs/开发计划/section_01_dev_plan.md) | 三期任务拆分（Sprint 1-23） | 持续更新 |
-| [核心算法](docs/开发计划/section_02_algorithms.md) | 费用计算、优惠券匹配等伪代码 | 持续更新 |
-| [数据库 DDL](docs/开发计划/section_03_ddl.md) | 完整表结构定义 | 持续更新 |
-| [API 接口](docs/开发计划/section_04_api.md) | 核心 API 接口定义 | 持续更新 |
-| [预留扩展](docs/开发计划/section_05_extensions.md) | 二期/三期预留接口设计 | 持续更新 |
-| [技术架构](docs/开发计划/section_06_architecture.md) | 缓存、消息队列、部署约束 | 持续更新 |
-
-### 部署运维
-
-| 文档 | 用途 |
-|------|------|
-| [部署说明](docs/部署运维/部署说明.md) | Docker Compose 部署 |
-| [配置说明](docs/部署运维/配置说明.md) | 应用配置与环境变量 |
-
-### 共享契约（Platform ↔ Device Access）
-
-| 文档 | 用途 | 优先级 |
-|------|------|--------|
-| [08-联合评审决策表](docs/contracts/platform-device-access/08-联合评审决策表.md) | 双方 ACCEPTED 的联合决策 | **第一优先级** |
-| [05-目标契约-v1.0-草案](docs/contracts/platform-device-access/05-目标契约-v1.0-草案.md) | 目标接口和事件契约 | 参考 |
-| [04-当前兼容契约-v0.2](docs/contracts/platform-device-access/04-当前兼容契约-v0.2.md) | 当前代码事实 | 参考 |
-
-## Device Access v0.2 当前能力
-
-7 个 HTTP 端点：
-
-1. `POST /api/v1/devices` — 创建设备
-2. `GET /api/v1/devices` — 查询列表
-3. `GET /api/v1/devices/{deviceId}` — 查询单个
-4. `PUT /api/v1/devices/{deviceId}` — 更新设备
-5. `DELETE /api/v1/devices/{deviceId}` — 删除设备
-6. `POST /api/v1/devices/{deviceId}/time/sync` — 校时
-7. `GET /api/v1/devices/{deviceId}/status` — 状态查询
-
-**当前没有：** 开闸、车牌识别事件、RabbitMQ、HMAC、commandId 幂等。
-
-## 联合决策状态
-
-| 事项 | 状态 |
-|------|------|
-| B01～B08 | ✅ **ACCEPTED**（双方已同意全部推荐方案，2026-07-11） |
-| V01～V04 真机验证 | ⬜ 待完成（阻塞第一阶段编码） |
-| 整体契约 | DRAFT FOR JOINT REVIEW |
-
-## 文档优先级
-
-1. 共享契约 08 中 ACCEPTED 的联合决策
-2. 共享契约 05（目标契约）
-3. 共享契约 OpenAPI / AsyncAPI / JSON Schema
-4. 共享契约 04（当前代码事实）
-5. 平台需求规格和开发计划
-6. Device Access api-v0.2.md 和 ARCHITECTURE.md
-7. 厂商协议
-8. archive 中历史资料
-
-> 当前实现看 04，目标契约看 05，联合决策看 08。
-
-## 技术约束速查
-
-| 约束项 | 落地要求 |
-|--------|----------|
-| 多租户 `tenant_id` | 所有表必须包含 `tenant_id`；MyBatis-Plus 租户插件自动注入 |
-| 软删除 `deleted_at` | 所有业务表使用 `deleted_at DATETIME(3)`；禁止物理删除 |
-| 主键 | Snowflake 算法（`IdType.ASSIGN_ID`），禁止 `AUTO_INCREMENT` |
-| 金额 `BigDecimal` | 所有金额字段使用 `BigDecimal`；DB 用 `DECIMAL(18,2)`；禁止浮点数 |
-| 车牌大写存储 | 入库前 `toUpperCase()`；查询使用大写匹配 |
-| 操作日志 | AOP + `@BusinessLog`；记录变更前后 JSON；敏感字段脱敏 |
-| 并发控制 | Redisson 分布式锁 + `@Version` 乐观锁 |
-| 预留接口 | 标注【预留】；返回 mock；字段定义完整 |
-| 幂等 | 写接口携带 `X-Idempotency-Key`；服务端 24 小时去重 |
+- **后端**: Java 21 + Spring Boot 3.x + MyBatis-Plus + MySQL 8 + Flyway
+- **前端**: Vue 3 + Ant Design Vue (admin-web/booth-web)
+- **小程序**: 微信小程序原生（基础库 ≥ 2.19.0）
+- **通信**: HTTP REST (平台↔适配器) + MQTT (适配器↔设备) + WebSocket (平台→岗亭端) + WebRTC (流媒体网关→岗亭端)
+- **中间件**: RabbitMQ (平台内部事件总线) + Redis (缓存)
 
 ## 模块结构
 
 ```
-jushan-platform/
-├── parking-common/              # 公共模块（BaseEntity、ErrorCode、工具类）
-├── parking-infrastructure/      # 基础设施层（安全、租户、日志、异常处理）
-├── parking-system/              # 业务模块（实体、Mapper、Service、Controller）
-├── parking-boot/                # 启动模块（Application、Flyway 迁移）
-├── admin-web/                   # PC 运营平台前端（Vue 3 + Ant Design Vue）
-├── booth-web/                   # 岗亭端前端（Vue 3 + PWA）
-└── miniapp/                     # 车主小程序（微信小程序原生框架）
+parking-boot/              # 启动模块 + Flyway 迁移 + 集成测试
+├── parking-system/        # 业务模块（进出场、计费、订单、设备、月卡等核心业务）
+├── parking-infrastructure/ # 基础设施层（安全/JWT/权限/租户/日志）
+├── parking-framework/     # Redis/MQ/WebSocket/分布式锁
+└── parking-common/        # BaseEntity/R/ErrorCode
+admin-web/                 # 运营端 Vue 3
+booth-web/                 # 岗亭端 Vue 3
+miniapp/                   # 微信小程序
 ```
-# 智慧停车 SaaS 平台 (jushan-platform)
 
-> 文档状态：**DRAFT FOR JOINT REVIEW**
-> 最后更新：2026-07-11
+## 构建命令
 
-## 项目定位
+```bash
+# 后端编译
+mvn clean compile -pl parking-system -am
 
-智慧停车 SaaS 平台（jushan-platform）是停车业务的核心业务平台，负责多租户管理、停车场配置、设备台账、停车计费、支付、订单管理、月卡、优惠券等业务功能，并提供管理后台、岗亭端和微信小程序。
+# 后端测试
+mvn test -pl parking-boot -am
 
-Device Access 是独立的外部服务，负责设备通信、协议适配和事件转换。双方通过共享契约协作。
+# 后端打包
+mvn clean package -pl parking-boot -am
 
-## 当前阶段
+# admin-web 构建
+cd admin-web && pnpm build
 
-M0（基线与冻结）→ M1+（工程骨架）。基础框架已搭建（多模块 Maven、Spring Boot 3、MyBatis-Plus、Sa-Token），业务模块正在逐步实现。
+# booth-web 构建
+cd booth-web && pnpm build
 
-**当前不可形成真实停车主链路** —— Device Access v0.2 无开闸、无车牌识别事件、无 RabbitMQ。
+# 小程序构建
+cd miniapp && npm run build:mp-weixin
+```
+
+## 角色与权限
+
+| 角色 | 创建方式 | 可见范围 | 终端 |
+| :--- | :--- | :--- | :--- |
+| 超级管理员 | 系统预设 | 全平台 | 运营端 |
+| 租户管理员 | 仅超级管理员创建 | 被分配的车场 | 运营端 |
+| 岗亭管理员 | 仅超级管理员创建并分配车场 | 被分配的车场 | 岗亭端 |
+| 小程序用户 | 微信授权+手机号绑定 | 本人车辆 | 小程序端 |
+
+- 岗亭管理员不隶属特定租户，可跨租户分配车场（不构成租户数据越权）
+- 租户管理员远程开闸权限默认关闭，需超级管理员手动开启
+- 岗亭管理员费用减免权限需超级管理员创建时勾选
+
+## 核心业务规则速览
+
+### 订单状态机
+```
+预订单 ──出场计算金额──→ 待支付 ──支付成功──→ 已支付 ──出场完成──→ 已完成
+  │                        │                     │
+  │                        ├─超时关闭──→ 已取消    └─退款(模拟)──→ 已退款
+  │                        └─允许欠费──→ 欠费中 ──补缴──→ 已完成
+  └─免费放行──────────────────→ 已完成
+```
+
+### 计费规则
+- 免费时长、跨天计费、封顶计费、时段阶梯均可配置
+- 配置粒度: 车场级为基础，支持区域/通道差异化覆盖
+- 生效方式: 立即生效 / 仅新入场生效 / 定时生效
+
+### 支付出场窗口期
+- 出口缴费（车辆已在出口）→ 支付成功立即开闸
+- 提前缴费 → 进入窗口期（默认15分钟），窗口期内出口识别自动开闸
+- 超期未出场 → 出口识别时重新计费，生成新订单
+
+### 开闸规则
+- 自动开闸: 月卡/固定车位有效期内、白名单、已支付订单（窗口期内）、免费放行
+- 未支付拦截按车场配置（拦截 / 允许欠费出场）
+- 开闸幂等性: 重复下发直接响应，无副作用
 
 ## 文档入口
 
 | 文档 | 用途 |
-|------|------|
-| [AGENTS.md](AGENTS.md) | 仓库级协作规范，AI 与人类共用 |
+| :--- | :--- |
+| [需求规格说明书 v1.1](docs/需求规格说明书_v1.1.md) | **权威需求文档**，定义完整功能边界与业务规则 |
+| [差距分析报告 v1.1](docs/差距分析报告_v1.1.md) | 当前代码与需求规格的差距评估 |
+| [任务拆分计划](docs/任务拆分计划.md) | 开发任务拆解与排期 |
+| [开发任务提示词包 v1.1](docs/开发任务提示词包_v1.1.md) | 面向AI助手的结构化任务描述 |
+| [AGENTS.md](AGENTS.md) | AI开发助手上下文文件（仓库级协作规范） |
 | [CLAUDE.md](CLAUDE.md) | Claude Code 执行手册 |
-| [项目介绍](docs/项目概述/项目介绍.md) | 项目定位与文档地图 |
-| [技术架构](docs/项目概述/技术架构.md) | 实际技术栈 |
-| [PRD 需求文档](docs/需求文档/停车SaaS系统完整需求文档_PRD_V1.0_最终定稿.md) | 完整产品需求文档 |
-| [开发计划](docs/开发计划/section_01_dev_plan.md) | 任务拆分（Sprint 1-23）、核心算法、DDL、API 接口、技术架构 |
-| [部署说明](docs/部署运维/部署说明.md) | Docker Compose 部署 |
-| [配置说明](docs/部署运维/配置说明.md) | 应用配置与环境变量 |
 
-## 共享契约入口
+## 代码规范与安全红线
 
-Platform ↔ Device Access 跨系统契约：[docs/contracts/platform-device-access/](docs/contracts/platform-device-access/)
+- 所有实体类含 `tenant_id`, `created_at`, `updated_at`, `deleted_at`
+- 金额统一用 `BigDecimal`（DB `DECIMAL(10,2)`），时间统一用 `LocalDateTime`
+- 数据库变更必须用 Flyway 迁移: `V{日期序号}__{描述}.sql`
+- 敏感操作必须加 `@BusinessLog` 记录操作日志
+- 禁止生产环境加载 InternalGateController、禁止 `pyun.mock=false`
+- 禁止前端传入 deviceSn 直接操作设备，必须通过 laneId 查询
+- Webhook 请求必须签名验证，防伪造
+- 登录失败锁定: 连续5次失败锁定15分钟；首次登录强制修改初始密码
+- JWT: 访问令牌2小时，刷新令牌7天
 
-| 文档 | 用途 |
-|------|------|
-| [08-联合评审决策表](docs/contracts/platform-device-access/08-联合评审决策表.md) | **第一优先级**：双方 ACCEPTED 的联合决策 |
-| [05-目标契约-v1.0-草案](docs/contracts/platform-device-access/05-目标契约-v1.0-草案.md) | 目标接口和事件契约 |
-| [04-当前兼容契约-v0.2](docs/contracts/platform-device-access/04-当前兼容契约-v0.2.md) | 当前代码事实 |
-
-## Device Access v0.2 当前能力
-
-7 个 HTTP 端点：
-
-1. `POST /api/v1/devices` — 创建设备
-2. `GET /api/v1/devices` — 查询列表
-3. `GET /api/v1/devices/{deviceId}` — 查询单个
-4. `PUT /api/v1/devices/{deviceId}` — 更新设备
-5. `DELETE /api/v1/devices/{deviceId}` — 删除设备
-6. `POST /api/v1/devices/{deviceId}/time/sync` — 校时
-7. `GET /api/v1/devices/{deviceId}/status` — 状态查询
-
-**当前没有：** 开闸、车牌识别事件、RabbitMQ、HMAC、commandId 幂等。
-
-## 联合决策状态
-
-| 事项 | 状态 |
-|------|------|
-| B01～B08 | ✅ **ACCEPTED**（双方已同意全部推荐方案，2026-07-11） |
-| V01～V04 真机验证 | ⬜ 待完成（阻塞第一阶段编码） |
-| 整体契约 | DRAFT FOR JOINT REVIEW |
-
-## 文档优先级
-
-1. 共享契约 08 中 ACCEPTED 的联合决策
-2. 共享契约 05（目标契约）
-3. 共享契约 OpenAPI / AsyncAPI / JSON Schema
-4. 共享契约 04（当前代码事实）
-5. 平台需求规格和开发计划
-6. Device Access api-v0.2.md 和 ARCHITECTURE.md
-7. 厂商协议
-8. archive 中历史资料
-
-> 当前实现看 04，目标契约看 05，联合决策看 08。
+> 完整约束详见 [AGENTS.md](AGENTS.md)。

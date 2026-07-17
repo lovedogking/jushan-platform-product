@@ -35,8 +35,11 @@ import java.util.Collections;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
@@ -483,4 +486,103 @@ class ExitServiceTest extends TestcontainersBaseTest {
     }
 
     private static final LocalDateTime FIXED_EXIT_TIME = LocalDateTime.of(2026, 7, 12, 12, 0, 0);
+
+    /**
+     * TC-1（任务包 2-2）：超时关单后重算——创建新订单并关联原 CANCELLED 订单。
+     */
+    @Test
+    @DisplayName("超时关单后重算：新建订单并关联原 CANCELLED 订单")
+    void shouldCreateNewOrderAndLinkToCancelledWhenRecalcAfterTimeout() {
+        ParkingRecord record = activeRecord(1L, 100L, 100L, "粤B12345");
+        when(recordMapper.selectList(any())).thenReturn(Collections.singletonList(record));
+        when(parkingOrderService.findPaidOrderForRecord(any())).thenReturn(null);
+        when(parkingOrderService.findReusableOrderForRecord(any())).thenReturn(null);
+
+        ParkingOrder cancelledOrder = new ParkingOrder();
+        cancelledOrder.setId(100L);
+        cancelledOrder.setOrderNo("O1001-001");
+        cancelledOrder.setStatus(ParkingOrder.STATUS_CANCELLED);
+        cancelledOrder.setAmountCents(2000);
+        cancelledOrder.setPayableAmount(2000);
+        when(parkingOrderService.findCancelledOrderForRecord(record.getId())).thenReturn(cancelledOrder);
+
+        when(billingEngine.calculateFee(anyLong(), any(), any())).thenReturn(2500);
+        when(distributedLock.tryLock(anyString(), anyLong(), anyLong(), any())).thenReturn(true);
+
+        ParkingOrder newOrder = new ParkingOrder();
+        newOrder.setId(200L);
+        newOrder.setOrderNo("O1001-002");
+        newOrder.setStatus(ParkingOrder.STATUS_PENDING_PAY);
+        newOrder.setAmountCents(2500);
+        newOrder.setPayableAmount(2500);
+        newOrder.setRecalcSourceOrderId(100L);
+        when(parkingOrderService.createOrderInternal(any(), eq(2500), isNull(),
+                eq(ParkingOrder.PAY_SCENE_AT_EXIT), any(), eq(100L), any())).thenReturn(newOrder);
+
+        ExitResult result = exitService.handleExit(
+                exitPayload(100L, 100L, 1L, "粤B12345"), "粤B12345");
+
+        assertThat(result).isNotNull();
+        verify(parkingOrderService).insertRecalcLog(eq(record), eq(100L), eq(200L),
+                eq(2000), eq(2500), eq("TIMEOUT_RECALC"));
+        verify(parkingOrderService).createOrderInternal(any(), eq(2500), isNull(),
+                eq(ParkingOrder.PAY_SCENE_AT_EXIT), any(), eq(100L), any());
+        verify(distributedLock).unlock(anyString());
+    }
+
+    /**
+     * TC-2（任务包 2-2）：PENDING_PAY 订单重识别时更新金额而非新建。
+     */
+    @Test
+    @DisplayName("PENDING_PAY 重复识别：更新金额不新建订单")
+    void shouldUpdateExistingPendingOrderAmountOnRescan() {
+        ParkingRecord record = activeRecord(1L, 100L, 100L, "粤B12345");
+        when(recordMapper.selectList(any())).thenReturn(Collections.singletonList(record));
+        when(parkingOrderService.findPaidOrderForRecord(any())).thenReturn(null);
+
+        ParkingOrder pendingOrder = new ParkingOrder();
+        pendingOrder.setId(150L);
+        pendingOrder.setStatus(ParkingOrder.STATUS_PENDING_PAY);
+        pendingOrder.setAmountCents(2000);
+        pendingOrder.setPayableAmount(2000);
+        when(parkingOrderService.findReusableOrderForRecord(any())).thenReturn(pendingOrder);
+        when(billingEngine.calculateFee(anyLong(), any(), any())).thenReturn(2200);
+        when(distributedLock.tryLock(anyString(), anyLong(), anyLong(), any())).thenReturn(true);
+        when(parkingOrderService.updatePendingOrderAmount(eq(150L), eq(2200), any())).thenReturn(true);
+        when(parkingOrderService.getById(150L)).thenReturn(pendingOrder);
+
+        ExitResult result = exitService.handleExit(
+                exitPayload(100L, 100L, 1L, "粤B12345"), "粤B12345");
+
+        assertThat(result).isNotNull();
+        verify(parkingOrderService).updatePendingOrderAmount(eq(150L), eq(2200), any());
+        verify(parkingOrderService).insertRecalcLog(eq(record), eq(150L), eq(150L),
+                eq(2000), eq(2200), eq("EXIT_RESCAN"));
+        verify(parkingOrderService, never()).createOrder(any(), anyInt(), anyString(), anyString());
+        verify(distributedLock).unlock(anyString());
+    }
+
+    /**
+     * TC-3（任务包 2-2）：分布式锁失败时降级不抛异常。
+     */
+    @Test
+    @DisplayName("分布式锁获取失败：降级不抛异常")
+    void shouldDegradeGracefullyWhenLockAcquisitionFails() {
+        ParkingRecord record = activeRecord(1L, 100L, 100L, "粤B12345");
+        when(recordMapper.selectList(any())).thenReturn(Collections.singletonList(record));
+        when(parkingOrderService.findPaidOrderForRecord(any())).thenReturn(null);
+        when(distributedLock.tryLock(anyString(), anyLong(), anyLong(), any())).thenReturn(false);
+        when(parkingOrderService.findReusableOrderForRecord(any())).thenReturn(null);
+        ParkingOrder newOrder = new ParkingOrder();
+        newOrder.setId(999L);
+        newOrder.setStatus(ParkingOrder.STATUS_PENDING_PAY);
+        when(parkingOrderService.createOrder(any(), anyInt(), isNull(), eq(ParkingOrder.PAY_SCENE_AT_EXIT)))
+                .thenReturn(newOrder);
+
+        assertThatCode(() -> exitService.handleExit(
+                exitPayload(100L, 100L, 1L, "粤B12345"), "粤B12345"))
+                .doesNotThrowAnyException();
+        verify(parkingOrderService).createOrder(any(), anyInt(), isNull(), eq(ParkingOrder.PAY_SCENE_AT_EXIT));
+        verify(distributedLock, never()).unlock(anyString());
+    }
 }
