@@ -126,6 +126,9 @@ public class ParkingOrder implements Serializable {
     /** 逻辑删除时间（NULL 表示未删除） */
     private LocalDateTime deletedAt;
 
+    /** 临时车牌标记：0=正式车牌, 1=临时车牌 */
+    private Integer tempPlateFlag;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -267,4 +270,7 @@ public class ParkingOrder implements Serializable {
 
     public String getArrearsOrderIds() { return arrearsOrderIds; }
     public void setArrearsOrderIds(String arrearsOrderIds) { this.arrearsOrderIds = arrearsOrderIds; }
+
+    public Integer getTempPlateFlag() { return tempPlateFlag; }
+    public void setTempPlateFlag(Integer tempPlateFlag) { this.tempPlateFlag = tempPlateFlag; }
 }

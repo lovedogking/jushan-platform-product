@@ -82,6 +82,9 @@ public class RecognitionEventLog implements Serializable {
     /** 厂商原始事件ID（Device Access 对接时使用） */
     private String vendorEventId;
 
+    /** 临时车牌标记：0=正式车牌, 1=临时车牌 */
+    private Integer tempPlateFlag;
+
     /** 创建时间 */
     private LocalDateTime createdAt;
 
@@ -143,4 +146,7 @@ public class RecognitionEventLog implements Serializable {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public Integer getTempPlateFlag() { return tempPlateFlag; }
+    public void setTempPlateFlag(Integer tempPlateFlag) { this.tempPlateFlag = tempPlateFlag; }
 }
