@@ -207,6 +207,33 @@ public class MonitorAlertService {
     }
 
     /**
+     * 创建黑名单车辆入场告警。
+     *
+     * @param tenantId      租户 ID
+     * @param parkingLotId  停车场 ID
+     * @param plateNumber   车牌号
+     * @param triggerType   触发类型（ARREARS / MANAGEMENT / OTHER）
+     */
+    @Transactional
+    public void createBlacklistEntryAlert(Long tenantId, Long parkingLotId,
+                                           String plateNumber, String triggerType) {
+        if (existsUnacknowledged(parkingLotId, MonitorAlert.TYPE_BLACKLIST_ENTRY, plateNumber)) {
+            return;
+        }
+        String typeDesc = resolveTriggerTypeLabel(triggerType);
+        MonitorAlert alert = new MonitorAlert();
+        alert.setTenantId(tenantId);
+        alert.setParkingLotId(parkingLotId);
+        alert.setAlertType(MonitorAlert.TYPE_BLACKLIST_ENTRY);
+        alert.setSeverity(MonitorAlert.SEVERITY_WARNING);
+        alert.setSourceId(plateNumber);
+        alert.setMessage(String.format("黑名单车辆入场: 车牌%s, 触发类型: %s", plateNumber, typeDesc));
+        alert.setAcknowledged(0);
+        alert.setCreatedAt(LocalDateTime.now());
+        saveAndPush(alert);
+    }
+
+    /**
      * 根据设备状态快照检查是否需要生成离线提醒。
      *
      * @param lot      停车场
@@ -264,6 +291,16 @@ public class MonitorAlertService {
         }
         log.info("异常提醒已生成并推送: alertType={}, parkingLotId={}, message={}",
                 alert.getAlertType(), alert.getParkingLotId(), alert.getMessage());
+    }
+
+    private String resolveTriggerTypeLabel(String triggerType) {
+        if (triggerType == null) return "未知";
+        return switch (triggerType) {
+            case "ARREARS" -> "欠费类";
+            case "MANAGEMENT" -> "管理类";
+            case "OTHER" -> "其他类";
+            default -> triggerType;
+        };
     }
 
     // ==================== VO 转换 ====================

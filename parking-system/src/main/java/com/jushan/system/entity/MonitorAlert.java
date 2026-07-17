@@ -36,6 +36,9 @@ public class MonitorAlert implements Serializable {
     /** 告警类型：储值车余额不足 */
     public static final String TYPE_BALANCE_INSUFFICIENT = "BALANCE_INSUFFICIENT";
 
+    /** 告警类型：黑名单车辆入场 */
+    public static final String TYPE_BLACKLIST_ENTRY = "BLACKLIST_ENTRY";
+
     /** 严重程度：警告 */
     public static final String SEVERITY_WARNING = "WARNING";
 
