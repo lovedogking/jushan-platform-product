@@ -82,7 +82,7 @@ git commit -m "[BOOTH-005] feat: add temp_plate_flag column to parking_record, p
 - Modify: `parking-system/src/main/java/com/jushan/system/entity/ParkingOrder.java`
 - Modify: `parking-system/src/main/java/com/jushan/system/entity/RecognitionEventLog.java`
 
-- [ ] **Step 1: ParkingRecord.java — 在 `deletedAt` 字段声明之前添加 tempPlateFlag**
+- [x] **Step 1: ParkingRecord.java — 在 `deletedAt` 字段声明之前添加 tempPlateFlag**
 
 Read the file first, locate the section near `private LocalDateTime deletedAt;` around line 84.
 
@@ -100,7 +100,7 @@ Then add getter/setter after the existing `setDeletedAt` (after line 137):
     public void setTempPlateFlag(Integer tempPlateFlag) { this.tempPlateFlag = tempPlateFlag; }
 ```
 
-- [ ] **Step 2: ParkingOrder.java — 在 `deletedAt` 字段声明之前添加 tempPlateFlag**
+- [x] **Step 2: ParkingOrder.java — 在 `deletedAt` 字段声明之前添加 tempPlateFlag**
 
 Locate near `private LocalDateTime deletedAt;` around line 127.
 
@@ -118,7 +118,7 @@ Then add getter/setter after the `setArrearsOrderIds` method (after line 269):
     public void setTempPlateFlag(Integer tempPlateFlag) { this.tempPlateFlag = tempPlateFlag; }
 ```
 
-- [ ] **Step 3: RecognitionEventLog.java — 在 `createdAt` 字段声明之前添加 tempPlateFlag**
+- [x] **Step 3: RecognitionEventLog.java — 在 `createdAt` 字段声明之前添加 tempPlateFlag**
 
 Locate near `private LocalDateTime createdAt;` around line 85.
 
@@ -136,12 +136,12 @@ Then add getter/setter after the `setCreatedAt` method (after line 145):
     public void setTempPlateFlag(Integer tempPlateFlag) { this.tempPlateFlag = tempPlateFlag; }
 ```
 
-- [ ] **Step 4: 验证编译通过**
+- [x] **Step 4: 验证编译通过** ✅ Commit: `8b3d87cb`
 
 Run: `mvn clean compile -pl parking-system -am 2>&1 | tail -5`
 Expected: `BUILD SUCCESS`
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add parking-system/src/main/java/com/jushan/system/entity/ParkingRecord.java \
