@@ -17,6 +17,10 @@ import com.jushan.system.ws.BoothWebSocketPublisher;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import com.jushan.framework.lock.DistributedLock;
+import com.jushan.system.mapper.BillingRuleRecalcLogMapper;
+import com.jushan.system.entity.BillingRuleRecalcLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -62,6 +66,8 @@ public class ExitService {
     private final PrepaidDeductionService prepaidDeductionService;
     private final FixedSpaceService fixedSpaceService;
     private final DeviceService deviceService;
+    private final DistributedLock distributedLock;
+    private final BillingRuleRecalcLogMapper recalcLogMapper;
 
     public ExitService(ParkingRecordMapper recordMapper,
                         ExitRecordMapper exitRecordMapper,
@@ -72,7 +78,9 @@ public class ExitService {
                         ParkingSessionService parkingSessionService,
                         PrepaidDeductionService prepaidDeductionService,
                         FixedSpaceService fixedSpaceService,
-                        DeviceService deviceService) {
+                        DeviceService deviceService,
+                        DistributedLock distributedLock,
+                        BillingRuleRecalcLogMapper recalcLogMapper) {
         this.recordMapper = recordMapper;
         this.exitRecordMapper = exitRecordMapper;
         this.parkingOrderService = parkingOrderService;
@@ -83,6 +91,8 @@ public class ExitService {
         this.prepaidDeductionService = prepaidDeductionService;
         this.fixedSpaceService = fixedSpaceService;
         this.deviceService = deviceService;
+        this.distributedLock = distributedLock;
+        this.recalcLogMapper = recalcLogMapper;
     }
 
     /**
@@ -165,25 +175,87 @@ public class ExitService {
                             recalcOrder.getOrderNo(), record.getStandardizedPlate(), feeCents);
                 }
             } else {
-                ParkingOrder existing = parkingOrderService.findReusableOrderForRecord(record.getId());
-                if (existing == null) {
-                    // 兼容期：旧在场记录无预订单，保持原出场建单逻辑
-                    order = parkingOrderService.createOrder(record, feeCents, null,
-                            ParkingOrder.PAY_SCENE_AT_EXIT);
-                } else if (ParkingOrder.STATUS_PRE_ORDER.equals(existing.getStatus())) {
-                    if (feeCents <= 0) {
-                        // 免费放行：预订单直接完成（PRE_ORDER → COMPLETED）
-                        parkingOrderService.preOrderToCompleted(existing.getId(), exitTime);
-                    } else {
-                        // 出场计费：预订单 → 待支付（PRE_ORDER → PENDING_PAY），场景 AT_EXIT
-                        parkingOrderService.preOrderToPending(existing.getId(), feeCents,
-                                LocalDateTime.now().plusMinutes(15),
-                                ParkingOrder.PAY_SCENE_AT_EXIT, payload.getLaneId());
+                // 任务包 2-2：建单逻辑收敛——加分布式锁防重复建单，PENDING_PAY 更新金额、
+                // CANCELLED 新建并关联原订单。
+                String lockKey = "exit:order:lock:" + record.getId();
+                boolean locked = distributedLock.tryLock(lockKey, 3, 10, TimeUnit.SECONDS);
+                if (!locked) {
+                    log.warn("获取出口分布式锁失败，降级处理: recordId={}", record.getId());
+                }
+                try {
+                    ParkingOrder existing = parkingOrderService.findReusableOrderForRecord(record.getId());
+
+                    // 路径 A：存在有效待支付/支付中订单 → 按当前时长重算金额并更新
+                    if (existing != null && (ParkingOrder.STATUS_PENDING_PAY.equals(existing.getStatus())
+                            || ParkingOrder.STATUS_PAYING.equals(existing.getStatus()))) {
+                        int originalAmount = existing.getAmountCents() != null ? existing.getAmountCents() : 0;
+                        // 以实际停车时长重新计费
+                        int recalcFeeCents;
+                        if (record.getRuleSnapshot() != null && !record.getRuleSnapshot().isBlank()) {
+                            try {
+                                recalcFeeCents = billingEngine.calculateFeeFromSnapshot(
+                                        record.getRuleSnapshot(), record.getEntryTime(), exitTime);
+                            } catch (BusinessException e) {
+                                recalcFeeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+                            }
+                        } else {
+                            recalcFeeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+                        }
+                        parkingOrderService.updatePendingOrderAmount(existing.getId(), recalcFeeCents,
+                                LocalDateTime.now().plusMinutes(15));
+                        parkingOrderService.insertRecalcLog(record, existing.getId(), existing.getId(),
+                                originalAmount, recalcFeeCents, "EXIT_RESCAN");
+                        order = parkingOrderService.getById(existing.getId());
+                        log.info("出场重识别：更新已有 PENDING_PAY 订单金额 {}->{} orderId={}",
+                                originalAmount, recalcFeeCents, existing.getId());
                     }
-                    order = parkingOrderService.getById(existing.getId());
-                } else {
-                    // 提前缴费/岗亭等已建订单（待支付/支付中），直接复用，避免重复建单
-                    order = existing;
+
+                    // 路径 B：存在 CANCELLED 历史订单，无有效待支付 → 新建并关联
+                    else if (existing == null) {
+                        ParkingOrder cancelled = parkingOrderService.findCancelledOrderForRecord(record.getId());
+                        if (cancelled != null) {
+                            int cancelledAmount = cancelled.getAmountCents() != null ? cancelled.getAmountCents() : 0;
+                            // 以实际停车时长重新计费
+                            int recalcFeeCents;
+                            if (record.getRuleSnapshot() != null && !record.getRuleSnapshot().isBlank()) {
+                                try {
+                                    recalcFeeCents = billingEngine.calculateFeeFromSnapshot(
+                                            record.getRuleSnapshot(), record.getEntryTime(), exitTime);
+                                } catch (BusinessException e) {
+                                    recalcFeeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+                                }
+                            } else {
+                                recalcFeeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+                            }
+                            order = parkingOrderService.createOrderInternal(record, recalcFeeCents, null,
+                                    ParkingOrder.PAY_SCENE_AT_EXIT, payload.getLaneId(), cancelled.getId(),
+                                    "超时关单后重算，原订单:" + cancelled.getId());
+                            parkingOrderService.insertRecalcLog(record, cancelled.getId(), order.getId(),
+                                    cancelledAmount, recalcFeeCents, "TIMEOUT_RECALC");
+                            log.info("超时关单后重算：原订单 {} cancelledAmount={} 新订单 {} newAmount={}",
+                                    cancelled.getId(), cancelledAmount, order.getId(), recalcFeeCents);
+                        } else {
+                            // 兼容期：旧在场记录无任何订单
+                            order = parkingOrderService.createOrder(record, feeCents, null,
+                                    ParkingOrder.PAY_SCENE_AT_EXIT);
+                        }
+                    }
+
+                    // PRE_ORDER 路径（不变）
+                    else if (ParkingOrder.STATUS_PRE_ORDER.equals(existing.getStatus())) {
+                        if (feeCents <= 0) {
+                            parkingOrderService.preOrderToCompleted(existing.getId(), exitTime);
+                        } else {
+                            parkingOrderService.preOrderToPending(existing.getId(), feeCents,
+                                    LocalDateTime.now().plusMinutes(15),
+                                    ParkingOrder.PAY_SCENE_AT_EXIT, payload.getLaneId());
+                        }
+                        order = parkingOrderService.getById(existing.getId());
+                    }
+                } finally {
+                    if (locked) {
+                        distributedLock.unlock(lockKey);
+                    }
                 }
             }
         }
