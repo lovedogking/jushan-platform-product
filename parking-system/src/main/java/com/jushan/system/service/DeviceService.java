@@ -603,6 +603,9 @@ public class DeviceService {
      * @return 相机列表，每项含 deviceId、deviceName、recognitionDirection
      */
     public List<Map<String, Object>> listAvailableForLane(Long parkingLotId) {
+        // 校验停车场归属（租户隔离 + 停车场级授权）
+        getParkingLotWithAuth(parkingLotId);
+
         List<Device> devices = deviceMapper.selectList(
                 new LambdaQueryWrapper<Device>()
                         .eq(Device::getParkingLotId, parkingLotId)
