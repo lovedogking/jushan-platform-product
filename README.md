@@ -1,210 +1,130 @@
-## 开发指南
+# 飓山停车 SaaS 平台
 
-本项目使用 [AGENTS.md](AGENTS.md) 作为 AI 开发助手的通用上下文文件，使用 [CLAUDE.md](CLAUDE.md) 作为 Claude Code 的专用上下文文件。
+> 版本：v1.0 开发版 · 最后更新：2026-07-17
 
-新开发者或 AI 助手接手项目时，请先阅读上述文件了解项目架构、构建命令和代码规范。
+## 项目概述
 
-- 需求文档：`docs/需求规格说明书_v1.2.md`
-- 部署文档：`docs/deployment/部署检查清单-P0-3.md`
-- 二期规划：`docs/roadmap/二期需求优先级-P0-P3.md`
+飓山停车 SaaS 是一个多租户智慧停车管理平台，涵盖运营端（Web）、岗亭端（Web）、小程序端（微信）三端，通过 Device Access 适配器层对接停车场硬件设备（相机、道闸等）。
 
-# 智慧停车 SaaS 平台 (jushan-platform)
-
-> 文档状态：**Sprint 1 执行中**
-> 最后更新：2026-07-13
-
-## 项目定位
-
-智慧停车 SaaS 平台（jushan-platform）是停车业务的核心业务平台，负责多租户管理、停车场配置、设备台账、停车计费、支付、订单管理、月卡、优惠券等业务功能，并提供管理后台、岗亭端和微信小程序。
-
-Device Access 是独立的外部服务，负责设备通信、协议适配和事件转换。双方通过共享契约协作。
-
-## 当前阶段
-
-**Sprint 1：租户体系与平台底座重构（执行中）**
-
-- 技术栈从 Sa-Token 切换为 Spring Security + JWT
-- 模块结构：`parking-common` + `parking-infrastructure` + `parking-system` + `parking-boot`
-- 数据库：Flyway 迁移，Snowflake 主键，软删除 `deleted_at`
-- 前端：Ant Design Vue 3
-
-**当前不可形成真实停车主链路** —— Device Access v0.2 无开闸、无车牌识别事件、无 RabbitMQ。
-
-## 文档入口
-
-### 协作规范（AI 与人类共用）
-
-| 文档 | 用途 |
-|------|------|
-| [AGENTS.md](AGENTS.md) | 仓库级协作规范，停车平台特有约束 |
-| [CLAUDE.md](CLAUDE.md) | Claude Code 执行手册，开发流程与检查清单 |
-
-### 项目概述
-
-| 文档 | 用途 |
-|------|------|
-| [项目介绍](docs/项目概述/项目介绍.md) | 项目定位与文档地图 |
-| [技术架构](docs/项目概述/技术架构.md) | 实际技术栈与架构约束 |
-
-### 需求与规范
-
-| 文档 | 用途 | 状态 |
-|------|------|------|
-| [PRD 需求文档](docs/需求规格说明书_v1.2.md) | 完整产品需求文档 | **权威基线** |
-| [开发计划](docs/开发计划/section_01_dev_plan.md) | 三期任务拆分（Sprint 1-23） | 持续更新 |
-| [核心算法](docs/开发计划/section_02_algorithms.md) | 费用计算、优惠券匹配等伪代码 | 持续更新 |
-| [数据库 DDL](docs/开发计划/section_03_ddl.md) | 完整表结构定义 | 持续更新 |
-| [API 接口](docs/开发计划/section_04_api.md) | 核心 API 接口定义 | 持续更新 |
-| [预留扩展](docs/开发计划/section_05_extensions.md) | 二期/三期预留接口设计 | 持续更新 |
-| [技术架构](docs/开发计划/section_06_architecture.md) | 缓存、消息队列、部署约束 | 持续更新 |
-
-### 部署运维
-
-| 文档 | 用途 |
-|------|------|
-| [部署说明](docs/部署运维/部署说明.md) | Docker Compose 部署 |
-| [配置说明](docs/部署运维/配置说明.md) | 应用配置与环境变量 |
-
-### 共享契约（Platform ↔ Device Access）
-
-| 文档 | 用途 | 优先级 |
-|------|------|--------|
-| [08-联合评审决策表](docs/contracts/platform-device-access/08-联合评审决策表.md) | 双方 ACCEPTED 的联合决策 | **第一优先级** |
-| [05-目标契约-v1.0-草案](docs/contracts/platform-device-access/05-目标契约-v1.0-草案.md) | 目标接口和事件契约 | 参考 |
-| [04-当前兼容契约-v0.2](docs/contracts/platform-device-access/04-当前兼容契约-v0.2.md) | 当前代码事实 | 参考 |
-
-## Device Access v0.2 当前能力
-
-7 个 HTTP 端点：
-
-1. `POST /api/v1/devices` — 创建设备
-2. `GET /api/v1/devices` — 查询列表
-3. `GET /api/v1/devices/{deviceId}` — 查询单个
-4. `PUT /api/v1/devices/{deviceId}` — 更新设备
-5. `DELETE /api/v1/devices/{deviceId}` — 删除设备
-6. `POST /api/v1/devices/{deviceId}/time/sync` — 校时
-7. `GET /api/v1/devices/{deviceId}/status` — 状态查询
-
-**当前没有：** 开闸、车牌识别事件、RabbitMQ、HMAC、commandId 幂等。
-
-## 联合决策状态
-
-| 事项 | 状态 |
-|------|------|
-| B01～B08 | ✅ **ACCEPTED**（双方已同意全部推荐方案，2026-07-11） |
-| V01～V04 真机验证 | ⬜ 待完成（阻塞第一阶段编码） |
-| 整体契约 | DRAFT FOR JOINT REVIEW |
-
-## 文档优先级
-
-1. 共享契约 08 中 ACCEPTED 的联合决策
-2. 共享契约 05（目标契约）
-3. 共享契约 OpenAPI / AsyncAPI / JSON Schema
-4. 共享契约 04（当前代码事实）
-5. 平台需求规格和开发计划
-6. Device Access api-v0.2.md 和 ARCHITECTURE.md
-7. 厂商协议
-8. archive 中历史资料
-
-> 当前实现看 04，目标契约看 05，联合决策看 08。
-
-## 技术约束速查
-
-| 约束项 | 落地要求 |
-|--------|----------|
-| 多租户 `tenant_id` | 所有表必须包含 `tenant_id`；MyBatis-Plus 租户插件自动注入 |
-| 软删除 `deleted_at` | 所有业务表使用 `deleted_at DATETIME(3)`；禁止物理删除 |
-| 主键 | Snowflake 算法（`IdType.ASSIGN_ID`），禁止 `AUTO_INCREMENT` |
-| 金额 `BigDecimal` | 所有金额字段使用 `BigDecimal`；DB 用 `DECIMAL(18,2)`；禁止浮点数 |
-| 车牌大写存储 | 入库前 `toUpperCase()`；查询使用大写匹配 |
-| 操作日志 | AOP + `@BusinessLog`；记录变更前后 JSON；敏感字段脱敏 |
-| 并发控制 | Redisson 分布式锁 + `@Version` 乐观锁 |
-| 预留接口 | 标注【预留】；返回 mock；字段定义完整 |
-| 幂等 | 写接口携带 `X-Idempotency-Key`；服务端 24 小时去重 |
-
-## 模块结构
+## 仓库结构
 
 ```
 jushan-platform/
-├── parking-common/              # 公共模块（BaseEntity、ErrorCode、工具类）
-├── parking-infrastructure/      # 基础设施层（安全、租户、日志、异常处理）
-├── parking-system/              # 业务模块（实体、Mapper、Service、Controller）
-├── parking-boot/                # 启动模块（Application、Flyway 迁移）
-├── admin-web/                   # PC 运营平台前端（Vue 3 + Ant Design Vue）
-├── booth-web/                   # 岗亭端前端（Vue 3 + PWA）
-└── miniapp/                     # 车主小程序（微信小程序原生框架）
+│
+├── parking-*/              ← 平台侧后端（Java 21, Spring Boot 3.5.16）
+├── admin-web/              ← 运营端前端（Vue 3 + Ant Design Vue）
+├── booth-web/              ← 岗亭端前端（Vue 3）
+├── miniapp/                ← 车主小程序（微信原生）
+│
+├── device-access/          ← 设备接入层（Java 17, Spring Boot 3.3.7）
+│   ├── device-access-starter/
+│   ├── device-access-api/       ← REST 接口（21 个端点）
+│   ├── device-access-adapter/   ← 品牌协议适配（臻识 C5H / 信路通 XLT-01）
+│   ├── device-access-mqtt/      ← MQTT 通信层
+│   ├── device-access-registry/  ← 设备元数据管理
+│   ├── device-access-event/     ← 事件推送（HTTP Webhook）
+│   └── device-access-common/    ← 公共模块
+│
+├── docs/                   ← 统一文档目录
+├── Makefile                ← 构建编排
+└── docker-compose.yml      ← 本地开发环境
 ```
-# 智慧停车 SaaS 平台 (jushan-platform)
 
-> 文档状态：**DRAFT FOR JOINT REVIEW**
-> 最后更新：2026-07-11
+## 快速开始
 
-## 项目定位
+### 平台侧（需要 Java 21）
 
-智慧停车 SaaS 平台（jushan-platform）是停车业务的核心业务平台，负责多租户管理、停车场配置、设备台账、停车计费、支付、订单管理、月卡、优惠券等业务功能，并提供管理后台、岗亭端和微信小程序。
+```bash
+make build-platform      # 编译
+make test-platform       # 测试
+make package-platform    # 打包
+```
 
-Device Access 是独立的外部服务，负责设备通信、协议适配和事件转换。双方通过共享契约协作。
+### 设备侧（需要 Java 17）
 
-## 当前阶段
+```bash
+make build-device-access  # 编译
+make test-device-access   # 测试
+make package-device-access # 打包
+```
 
-M0（基线与冻结）→ M1+（工程骨架）。基础框架已搭建（多模块 Maven、Spring Boot 3、MyBatis-Plus、Sa-Token），业务模块正在逐步实现。
+### 前端
 
-**当前不可形成真实停车主链路** —— Device Access v0.2 无开闸、无车牌识别事件、无 RabbitMQ。
+```bash
+make build-admin      # 运营端
+make build-booth      # 岗亭端
+make build-frontend   # 全部前端
+```
+
+### 全部
+
+```bash
+make build-all
+make test-all
+make clean
+```
 
 ## 文档入口
 
-| 文档 | 用途 |
-|------|------|
-| [AGENTS.md](AGENTS.md) | 仓库级协作规范，AI 与人类共用 |
-| [CLAUDE.md](CLAUDE.md) | Claude Code 执行手册 |
-| [项目介绍](docs/项目概述/项目介绍.md) | 项目定位与文档地图 |
-| [技术架构](docs/项目概述/技术架构.md) | 实际技术栈 |
-| [PRD 需求文档](docs/需求文档/停车SaaS系统完整需求文档_PRD_V1.0_最终定稿.md) | 完整产品需求文档 |
-| [开发计划](docs/开发计划/section_01_dev_plan.md) | 任务拆分（Sprint 1-23）、核心算法、DDL、API 接口、技术架构 |
-| [部署说明](docs/部署运维/部署说明.md) | Docker Compose 部署 |
-| [配置说明](docs/部署运维/配置说明.md) | 应用配置与环境变量 |
-
-## 共享契约入口
-
-Platform ↔ Device Access 跨系统契约：[docs/contracts/platform-device-access/](docs/contracts/platform-device-access/)
+### 核心文档
 
 | 文档 | 用途 |
 |------|------|
-| [08-联合评审决策表](docs/contracts/platform-device-access/08-联合评审决策表.md) | **第一优先级**：双方 ACCEPTED 的联合决策 |
-| [05-目标契约-v1.0-草案](docs/contracts/platform-device-access/05-目标契约-v1.0-草案.md) | 目标接口和事件契约 |
-| [04-当前兼容契约-v0.2](docs/contracts/platform-device-access/04-当前兼容契约-v0.2.md) | 当前代码事实 |
+| [需求规格说明书](docs/需求规格说明书_v1.2.md) | 权威需求基线 |
+| [接口契约](docs/接口契约/) | Platform ↔ Device Access 跨项目约定 |
 
-## Device Access v0.2 当前能力
+### 平台侧
 
-7 个 HTTP 端点：
-
-1. `POST /api/v1/devices` — 创建设备
-2. `GET /api/v1/devices` — 查询列表
-3. `GET /api/v1/devices/{deviceId}` — 查询单个
-4. `PUT /api/v1/devices/{deviceId}` — 更新设备
-5. `DELETE /api/v1/devices/{deviceId}` — 删除设备
-6. `POST /api/v1/devices/{deviceId}/time/sync` — 校时
-7. `GET /api/v1/devices/{deviceId}/status` — 状态查询
-
-**当前没有：** 开闸、车牌识别事件、RabbitMQ、HMAC、commandId 幂等。
-
-## 联合决策状态
-
-| 事项 | 状态 |
+| 文档 | 用途 |
 |------|------|
-| B01～B08 | ✅ **ACCEPTED**（双方已同意全部推荐方案，2026-07-11） |
-| V01～V04 真机验证 | ⬜ 待完成（阻塞第一阶段编码） |
-| 整体契约 | DRAFT FOR JOINT REVIEW |
+| [开发计划](docs/开发计划/) | 任务拆分、DDL、API 设计 |
+| [部署运维](docs/部署运维/) | Docker Compose 部署与配置 |
+| [项目概述](docs/项目概述/) | 技术架构与项目介绍 |
 
-## 文档优先级
+### Device Access
 
-1. 共享契约 08 中 ACCEPTED 的联合决策
-2. 共享契约 05（目标契约）
-3. 共享契约 OpenAPI / AsyncAPI / JSON Schema
-4. 共享契约 04（当前代码事实）
-5. 平台需求规格和开发计划
-6. Device Access api-v0.2.md 和 ARCHITECTURE.md
-7. 厂商协议
-8. archive 中历史资料
+| 文档 | 用途 |
+|------|------|
+| [架构设计](docs/Device-Access/架构设计.md) | 模块职责、数据流、依赖关系 |
+| [演进路线](docs/Device-Access/演进路线.md) | 版本规划（v0.1 → v2.0） |
+| [API 接口文档](docs/接口文档/API接口文档.md) | 完整 REST API 参考 |
+| [业务侧 API 手册](docs/接口文档/业务侧API手册.md) | 面向平台侧的调用指南 |
+| [对接资料](docs/Device-Access/对接资料/) | 臻识/科发/信路通硬件协议 |
 
-> 当前实现看 04，目标契约看 05，联合决策看 08。
+## Device Access 当前能力（v0.4）
+
+- 设备管理：注册 / 查询 / 更新 / 注销 / 产品目录 / 关系管理
+- 设备控制：开闸 / 关闸 / 校时 / 状态查询
+- 显示屏控制：实时显示 / 保存显示 / 配置（音量/亮度/方向）/ 增强显示 / 语音播报
+- 事件推送：`PLATE_RECOGNIZED` 车牌识别事件 → HTTP Webhook → 平台侧
+- 品牌支持：臻识 C5H + 科发 OLM-M1D 显示屏 / 信路通 XLT-01
+- API Key 认证
+
+## 开发协作
+
+### 分支策略
+
+```
+master     ← 生产版本
+develop    ← 唯一开发主线（所有人从这里拉分支）
+feat/xxx   ← 功能分支 → 完成后合入 develop
+```
+
+### 注意事项
+
+- 平台侧和 Device Access 是两套独立的 Maven 项目，各自编译、各自部署
+- 平台侧改 `parking-*/`，设备侧改 `device-access/`，互不干扰
+- 修改接口契约时，先更新 `docs/接口契约/` 再由双方评审
+- 个人 AI 开发配置（CLAUDE.md / AGENTS.md 等）已加入 `.gitignore`，不上传仓库
+
+## 技术栈
+
+| 领域 | 平台侧 | Device Access |
+|------|--------|---------------|
+| 语言 | Java 21 | Java 17 |
+| 框架 | Spring Boot 3.5.16 | Spring Boot 3.3.7 |
+| 构建 | Maven (mvnw) | Maven |
+| ORM | MyBatis-Plus 3.5.9 + Flyway | MyBatis-Plus 3.5.9 |
+| 数据库 | MySQL 8.4 | MySQL 8.4 |
+| 通信 | RabbitMQ + WebSocket | MQTT (EMQX) + HTTP Webhook |
+| 前端 | Vue 3 + Ant Design Vue | 无（仅提供 API） |
