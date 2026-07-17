@@ -419,4 +419,23 @@ public class DeviceController {
         List<DeviceStatusVO> results = deviceService.getLatestSnapshots(deviceIds);
         return R.ok(results);
     }
+
+    // ==================== 车道相机配置辅助 ====================
+
+    /**
+     * 查询指定停车场下可绑定到车道的相机列表（含识别方向）。
+     * <p>
+     * 返回所有已启用且设备类型为 CAMERA 的设备，
+     * 每项包含 deviceId、deviceName、recognitionDirection。
+     * <p>
+     * 权限：device:read
+     *
+     * @param parkingLotId 停车场 ID（必填）
+     */
+    @GetMapping("/available-for-lane")
+    @RequirePermission("device:read")
+    public R<List<Map<String, Object>>> availableForLane(@RequestParam Long parkingLotId) {
+        List<Map<String, Object>> cameras = deviceService.listAvailableForLane(parkingLotId);
+        return R.ok(cameras);
+    }
 }

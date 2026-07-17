@@ -51,7 +51,9 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 平台设备台账服务（T20）。
@@ -590,6 +592,30 @@ public class DeviceService {
         DeviceVendor vendor = vendorMapper.selectById(gate.getVendorId());
         DeviceModel model = modelMapper.selectById(gate.getModelId());
         return toVO(gate, vendor, model);
+    }
+
+    /**
+     * 查询指定停车场下可绑定到车道的相机列表。
+     * <p>
+     * 仅返回已启用 + CAMERA 类型的设备，包含识别方向信息。
+     *
+     * @param parkingLotId 停车场 ID
+     * @return 相机列表，每项含 deviceId、deviceName、recognitionDirection
+     */
+    public List<Map<String, Object>> listAvailableForLane(Long parkingLotId) {
+        List<Device> devices = deviceMapper.selectList(
+                new LambdaQueryWrapper<Device>()
+                        .eq(Device::getParkingLotId, parkingLotId)
+                        .eq(Device::getDeviceType, "CAMERA")
+                        .eq(Device::getStatus, STATUS_ENABLED));
+
+        return devices.stream().map(d -> {
+            Map<String, Object> item = new java.util.LinkedHashMap<>();
+            item.put("deviceId", d.getId());
+            item.put("deviceName", d.getName());
+            item.put("recognitionDirection", d.getRecognitionDirection());
+            return item;
+        }).collect(Collectors.toList());
     }
 
     // ==================== 识别方向/主备角色校验 ====================
