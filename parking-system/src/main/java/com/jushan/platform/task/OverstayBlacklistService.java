@@ -61,7 +61,6 @@ public class OverstayBlacklistService {
 
     /** 固定车类型集合：这些类型不参与自动拉黑 */
     private static final Set<String> FIXED_VEHICLE_TYPES = Set.of(
-            SysVehicle.TYPE_MONTHLY,
             SysVehicle.TYPE_PREPAID,
             SysVehicle.TYPE_FREE,
             SysVehicle.TYPE_VIP,
