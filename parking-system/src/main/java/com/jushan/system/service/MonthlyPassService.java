@@ -6,16 +6,16 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.common.auth.TenantContext;
-import com.jushan.platform.modules.vehicle.dto.VehicleRenewalCmd;
-import com.jushan.platform.modules.vehicle.entity.SysVehicle;
-import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
-import com.jushan.platform.modules.vehicle.service.VehicleRenewalService;
-import com.jushan.platform.modules.vehicle.vo.RenewalOrderVO;
+import com.jushan.system.constant.ParamKeys;
 import com.jushan.system.dto.MonthlyPassCreateRequest;
 import com.jushan.system.dto.MonthlyPassRenewRequest;
+import com.jushan.system.entity.MonthlyPass;
 import com.jushan.system.entity.ParkingLot;
+import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.entity.VehicleRenewalLog;
+import com.jushan.system.mapper.MonthlyPassMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
+import com.jushan.system.mapper.ParkingOrderMapper;
 import com.jushan.system.mapper.VehicleRenewalLogMapper;
 import com.jushan.system.vo.MonthlyPassVO;
 import org.slf4j.Logger;
@@ -31,67 +31,187 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 月卡管理服务（Phase 1 A1）。
+ * 月卡管理服务（任务包 3-1：基于 independent monthly_pass 实体）。
  * <p>
- * 基于 {@code sys_vehicle} 表（{@code vehicleType=MONTHLY}）提供独立的月卡管理能力。
- * 不与普通车辆管理共享视图，避免功能混淆。
- * <p>
- * 职责：
+ * 替代原 facade（sys_vehicle.vehicleType=MONTHLY），提供月卡全生命周期管理：
  * <ul>
- *   <li>月卡列表查询（分页+筛选）</li>
- *   <li>月卡登记（创建 MONTHLY 车辆）</li>
- *   <li>月卡续期（延长有效期+记录续费日志）</li>
- *   <li>月卡注销（转为 FREE 类型，按临停计费）</li>
- *   <li>到期预警查询（N天内到期，N暂写死为7天）</li>
+ *   <li>录入（创建 monthly_pass + 生成已支付月卡订单）</li>
+ *   <li>续期（延长有效期 + 生成续费订单 + 记录日志）</li>
+ *   <li>注销（置 CANCELLED）</li>
+ *   <li>分页列表 + 到期预警</li>
  * </ul>
  *
  * @author Jushan Platform
- * @since 1.0.0
+ * @since 1.1.0
  */
 @Service
 public class MonthlyPassService {
 
     private static final Logger log = LoggerFactory.getLogger(MonthlyPassService.class);
 
-    /** 到期预警默认提前天数（等 A3 系统参数管理完成后替换为配置值） */
-    public static final int DEFAULT_EXPIRING_DAYS = 7;
-
-    private final SysVehicleMapper vehicleMapper;
+    private final MonthlyPassMapper monthlyPassMapper;
     private final ParkingLotMapper parkingLotMapper;
-    private final VehicleRenewalService renewalService;
+    private final ParkingOrderMapper parkingOrderMapper;
     private final VehicleRenewalLogMapper renewalLogMapper;
+    private final ParamResolver paramResolver;
 
-    public MonthlyPassService(SysVehicleMapper vehicleMapper,
+    public MonthlyPassService(MonthlyPassMapper monthlyPassMapper,
                               ParkingLotMapper parkingLotMapper,
-                              VehicleRenewalService renewalService,
-                              VehicleRenewalLogMapper renewalLogMapper) {
-        this.vehicleMapper = vehicleMapper;
+                              ParkingOrderMapper parkingOrderMapper,
+                              VehicleRenewalLogMapper renewalLogMapper,
+                              ParamResolver paramResolver) {
+        this.monthlyPassMapper = monthlyPassMapper;
         this.parkingLotMapper = parkingLotMapper;
-        this.renewalService = renewalService;
+        this.parkingOrderMapper = parkingOrderMapper;
         this.renewalLogMapper = renewalLogMapper;
+        this.paramResolver = paramResolver;
     }
 
-    // ==================== 月卡列表 ====================
+    // ==================== 录入月卡 ====================
 
     /**
-     * 分页查询月卡列表。
-     *
-     * @param plateNumber  车牌号（可选，模糊匹配）
-     * @param parkingLotId 车场ID（可选）
-     * @param status       状态（可选）
-     * @param validEndFrom 有效期开始（可选）
-     * @param validEndTo   有效期结束（可选）
-     * @param page         页码
-     * @param size         每页大小
-     * @return 分页月卡列表
+     * 录入月卡并生成已支付订单（一个事务）。
      */
+    @Transactional(rollbackFor = Exception.class)
+    public MonthlyPassVO create(MonthlyPassCreateRequest request) {
+        Long tenantId = TenantContext.requireTenantId();
+        String plate = request.getPlateNumber().toUpperCase();
+
+        // 1. 唯一性校验
+        checkDuplicateActive(tenantId, request.getParkingLotId(), plate);
+
+        // 2. 插入 monthly_pass
+        MonthlyPass pass = new MonthlyPass();
+        pass.setTenantId(tenantId);
+        pass.setParkingLotId(request.getParkingLotId());
+        pass.setPlateNumber(plate);
+        pass.setPlateColor(request.getPlateColor());
+        pass.setVehicleType(request.getVehicleType());
+        pass.setValidStartDate(request.getValidStartDate());
+        pass.setValidEndDate(request.getValidEndDate());
+        pass.setAmountCents(request.getPaidAmountCents());
+        pass.setPaidAmountCents(request.getPaidAmountCents());
+        pass.setPayMethod(request.getPayMethod());
+        pass.setPassStatus(MonthlyPass.STATUS_ACTIVE);
+        pass.setSource(MonthlyPass.SOURCE_ADMIN);
+        pass.setApplicantId(null);
+        pass.setOwnerName(request.getOwnerName());
+        pass.setOwnerPhone(request.getOwnerPhone());
+        pass.setRemark(request.getRemark());
+        pass.setCreatedAt(LocalDateTime.now());
+        pass.setUpdatedAt(LocalDateTime.now());
+        monthlyPassMapper.insert(pass);
+
+        // 3. 生成已支付月卡订单
+        ParkingOrder order = new ParkingOrder();
+        order.setTenantId(tenantId);
+        order.setParkingLotId(request.getParkingLotId());
+        order.setRefId(pass.getId());
+        order.setPlateNumber(plate);
+        order.setOrderType(ParkingOrder.ORDER_TYPE_MONTHLY_PASS);
+        order.setAmountCents(request.getPaidAmountCents());
+        order.setPaidAmount(request.getPaidAmountCents());
+        order.setPayableAmount(request.getPaidAmountCents());
+        order.setStatus(ParkingOrder.STATUS_PAID);
+        order.setPayChannel(mapPayChannel(request.getPayMethod()));
+        order.setPayTime(LocalDateTime.now());
+        order.setCreatedAt(LocalDateTime.now());
+        order.setUpdatedAt(LocalDateTime.now());
+        parkingOrderMapper.insert(order);
+
+        log.info("月卡录入成功: passId={} plate={} lotId={} orderId={} payMethod={} paid={}",
+                pass.getId(), plate, request.getParkingLotId(), order.getId(),
+                request.getPayMethod(), request.getPaidAmountCents());
+
+        return toVO(pass, getParkingLotName(request.getParkingLotId()), order.getId());
+    }
+
+    // ==================== 续期 ====================
+
+    @Transactional(rollbackFor = Exception.class)
+    public MonthlyPassVO renew(Long id, MonthlyPassRenewRequest request) {
+        Long tenantId = TenantContext.requireTenantId();
+        MonthlyPass pass = getOrThrow(id, tenantId);
+
+        LocalDate oldValidEnd = pass.getValidEndDate();
+
+        // 计算新有效期（从当前有效期末尾顺延）
+        LocalDate newValidEnd = (oldValidEnd != null ? oldValidEnd : LocalDate.now())
+                .plusMonths(request.getRenewalMonths());
+
+        // 更新月卡有效期
+        pass.setValidEndDate(newValidEnd);
+        pass.setUpdatedAt(LocalDateTime.now());
+        monthlyPassMapper.updateById(pass);
+
+        // 创建续费订单（MONTH_RENEW）
+        ParkingOrder order = new ParkingOrder();
+        order.setTenantId(tenantId);
+        order.setParkingLotId(pass.getParkingLotId());
+        order.setRefId(pass.getId());
+        order.setPlateNumber(pass.getPlateNumber());
+        order.setOrderType(ParkingOrder.ORDER_TYPE_MONTH_RENEW);
+        order.setRenewalMonths(request.getRenewalMonths());
+        order.setAmountCents(request.getAmountCents());
+        order.setPaidAmount(request.getAmountCents());
+        order.setPayableAmount(request.getAmountCents());
+        order.setStatus(ParkingOrder.STATUS_PAID);
+        order.setPayChannel(ParkingOrder.PAY_CHANNEL_CASH);
+        order.setPayTime(LocalDateTime.now());
+        order.setOperatorId(TenantContext.requireUserId());
+        order.setCreatedAt(LocalDateTime.now());
+        order.setUpdatedAt(LocalDateTime.now());
+        parkingOrderMapper.insert(order);
+
+        // 写入续费日志
+        VehicleRenewalLog logEntry = new VehicleRenewalLog();
+        logEntry.setTenantId(tenantId);
+        logEntry.setParkingLotId(pass.getParkingLotId());
+        logEntry.setMonthlyPassId(pass.getId());    // 新体系：关联 monthly_pass
+        logEntry.setVehicleId(null);                 // 旧体系不再使用
+        logEntry.setPlateNumber(pass.getPlateNumber());
+        logEntry.setOrderId(order.getId());
+        logEntry.setRenewalMonths(request.getRenewalMonths());
+        logEntry.setAmountCents(request.getAmountCents());
+        logEntry.setOldValidEnd(oldValidEnd);
+        logEntry.setNewValidEnd(newValidEnd);
+        logEntry.setOperatorId(TenantContext.requireUserId());
+        logEntry.setRemark(request.getRemark());
+        logEntry.setCreatedAt(LocalDateTime.now());
+        logEntry.setUpdatedAt(LocalDateTime.now());
+        renewalLogMapper.insert(logEntry);
+
+        log.info("月卡续期成功: passId={} plate={} months={} oldEnd={} newEnd={}",
+                pass.getId(), pass.getPlateNumber(), request.getRenewalMonths(),
+                oldValidEnd, newValidEnd);
+
+        return toVO(pass, getParkingLotName(pass.getParkingLotId()), null);
+    }
+
+    // ==================== 注销 ====================
+
+    @Transactional(rollbackFor = Exception.class)
+    public MonthlyPassVO cancel(Long id) {
+        Long tenantId = TenantContext.requireTenantId();
+        MonthlyPass pass = getOrThrow(id, tenantId);
+
+        pass.setPassStatus(MonthlyPass.STATUS_CANCELLED);
+        pass.setUpdatedAt(LocalDateTime.now());
+        monthlyPassMapper.updateById(pass);
+
+        log.info("月卡注销成功: passId={} plate={}", pass.getId(), pass.getPlateNumber());
+
+        return toVO(pass, getParkingLotName(pass.getParkingLotId()), null);
+    }
+
+    // ==================== 列表查询 ====================
+
     public IPage<MonthlyPassVO> pageList(String plateNumber, Long parkingLotId,
-                                          String status, LocalDate validEndFrom, LocalDate validEndTo,
+                                          String passStatus, LocalDate validEndFrom, LocalDate validEndTo,
                                           int page, int size) {
         Long tenantId = TenantContext.requireTenantId();
 
-        QueryWrapper<SysVehicle> query = new QueryWrapper<SysVehicle>()
-                .eq("vehicle_type", SysVehicle.TYPE_MONTHLY)
+        QueryWrapper<MonthlyPass> query = new QueryWrapper<MonthlyPass>()
                 .eq("tenant_id", tenantId);
 
         if (plateNumber != null && !plateNumber.isEmpty()) {
@@ -100,8 +220,8 @@ public class MonthlyPassService {
         if (parkingLotId != null) {
             query.eq("parking_lot_id", parkingLotId);
         }
-        if (status != null && !status.isEmpty()) {
-            query.eq("status", status);
+        if (passStatus != null && !passStatus.isEmpty()) {
+            query.eq("pass_status", passStatus);
         }
         if (validEndFrom != null) {
             query.ge("valid_end_date", validEndFrom);
@@ -109,283 +229,139 @@ public class MonthlyPassService {
         if (validEndTo != null) {
             query.le("valid_end_date", validEndTo);
         }
-
         query.orderByDesc("created_at");
 
-        IPage<SysVehicle> vehiclePage = vehicleMapper.selectPage(new Page<>(page, size), query);
-        if (vehiclePage.getRecords().isEmpty()) {
+        IPage<MonthlyPass> passPage = monthlyPassMapper.selectPage(new Page<>(page, size), query);
+        if (passPage.getRecords().isEmpty()) {
             return new Page<>(page, size);
         }
 
-        // 批量补全场名称
-        Map<Long, String> lotNames = loadParkingLotNames(vehiclePage.getRecords());
+        Map<Long, String> lotNames = loadParkingLotNames(passPage.getRecords());
 
-        List<MonthlyPassVO> voList = vehiclePage.getRecords().stream()
-                .map(v -> toMonthlyPassVO(v, lotNames.get(v.getParkingLotId())))
+        List<MonthlyPassVO> voList = passPage.getRecords().stream()
+                .map(p -> toVO(p, lotNames.get(p.getParkingLotId()), null))
                 .collect(Collectors.toList());
 
-        IPage<MonthlyPassVO> result = new Page<>(vehiclePage.getCurrent(), vehiclePage.getSize(), vehiclePage.getTotal());
+        IPage<MonthlyPassVO> result = new Page<>(passPage.getCurrent(), passPage.getSize(), passPage.getTotal());
         result.setRecords(voList);
         return result;
     }
 
-    /**
-     * 到期预警列表。
-     * <p>
-     * 查询 {@code status=ACTIVE} 且 {@code validEndDate} 在 N 天内到期的月卡，
-     * 按到期时间升序排列。
-     *
-     * @param days 提前天数（默认 7 天）
-     * @param page 页码
-     * @param size 每页大小
-     * @return 分页到期预警列表
-     */
-    public IPage<MonthlyPassVO> expiringList(Integer days, int page, int size) {
+    // ==================== 到期预警 ====================
+
+    public IPage<MonthlyPassVO> expiringList(int page, int size) {
         Long tenantId = TenantContext.requireTenantId();
-        int expiringDays = (days != null && days > 0) ? days : DEFAULT_EXPIRING_DAYS;
+
+        // 从车场参数读取提醒天数（默认 7）
+        String daysStr = paramResolver.getString(ParamKeys.MONTHLY_PASS_EXPIRY_REMINDER_DAYS, null);
+        int days = 7;
+        try {
+            if (daysStr != null) days = Integer.parseInt(daysStr);
+        } catch (NumberFormatException ignored) { }
 
         LocalDate today = LocalDate.now();
-        LocalDate deadline = today.plusDays(expiringDays);
+        LocalDate deadline = today.plusDays(days);
 
-        QueryWrapper<SysVehicle> query = new QueryWrapper<SysVehicle>()
-                .eq("vehicle_type", SysVehicle.TYPE_MONTHLY)
+        QueryWrapper<MonthlyPass> query = new QueryWrapper<MonthlyPass>()
                 .eq("tenant_id", tenantId)
-                .eq("status", SysVehicle.STATUS_ACTIVE)
+                .eq("pass_status", MonthlyPass.STATUS_ACTIVE)
                 .le("valid_end_date", deadline)
-                .ge("valid_end_date", today) // 不展示已过期的
+                .ge("valid_end_date", today)
                 .orderByAsc("valid_end_date");
 
-        IPage<SysVehicle> vehiclePage = vehicleMapper.selectPage(new Page<>(page, size), query);
-        if (vehiclePage.getRecords().isEmpty()) {
+        IPage<MonthlyPass> passPage = monthlyPassMapper.selectPage(new Page<>(page, size), query);
+        if (passPage.getRecords().isEmpty()) {
             return new Page<>(page, size);
         }
 
-        Map<Long, String> lotNames = loadParkingLotNames(vehiclePage.getRecords());
-        List<MonthlyPassVO> voList = vehiclePage.getRecords().stream()
-                .map(v -> toMonthlyPassVO(v, lotNames.get(v.getParkingLotId())))
+        Map<Long, String> lotNames = loadParkingLotNames(passPage.getRecords());
+        List<MonthlyPassVO> voList = passPage.getRecords().stream()
+                .map(p -> toVO(p, lotNames.get(p.getParkingLotId()), null))
                 .collect(Collectors.toList());
 
-        IPage<MonthlyPassVO> result = new Page<>(vehiclePage.getCurrent(), vehiclePage.getSize(), vehiclePage.getTotal());
+        IPage<MonthlyPassVO> result = new Page<>(passPage.getCurrent(), passPage.getSize(), passPage.getTotal());
         result.setRecords(voList);
         return result;
     }
 
-    // ==================== 月卡登记 ====================
+    // ==================== 详情 ====================
 
-    /**
-     * 登记月卡（创建 MONTHLY 类型车辆）。
-     * <p>
-     * 校验同一车场同一车牌不能重复办理月卡（ACTIVE/EXPIRED 状态拒绝）。
-     *
-     * @param request 登记请求
-     * @return 月卡视图
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public MonthlyPassVO create(MonthlyPassCreateRequest request) {
+    public MonthlyPassVO detail(Long id) {
         Long tenantId = TenantContext.requireTenantId();
-        String plate = request.getPlateNumber().toUpperCase();
-
-        // 校验重复：同一车场同一车牌不能重复办理月卡
-        checkDuplicateMonthlyPass(tenantId, request.getParkingLotId(), plate, null);
-
-        // 创建 MONTHLY 车辆
-        SysVehicle vehicle = new SysVehicle();
-        vehicle.setTenantId(tenantId);
-        vehicle.setParkingLotId(request.getParkingLotId());
-        vehicle.setPlateNumber(plate);
-        vehicle.setPlateColor(request.getPlateColor());
-        vehicle.setVehicleType(SysVehicle.TYPE_MONTHLY);
-        vehicle.setValidStartDate(request.getValidStartDate());
-        vehicle.setValidEndDate(request.getValidEndDate());
-        vehicle.setOwnerName(request.getOwnerName());
-        vehicle.setOwnerPhone(request.getOwnerPhone());
-        vehicle.setRemark(request.getRemark());
-        vehicle.setStatus(SysVehicle.STATUS_ACTIVE);
-        vehicle.setCreatedAt(LocalDateTime.now());
-        vehicle.setUpdatedAt(LocalDateTime.now());
-        vehicleMapper.insert(vehicle);
-
-        log.info("月卡登记成功: vehicleId={} plate={} parkingLotId={} validEnd={}",
-                vehicle.getId(), plate, request.getParkingLotId(), request.getValidEndDate());
-
-        return toMonthlyPassVO(vehicle, getParkingLotName(request.getParkingLotId()));
-    }
-
-    // ==================== 月卡续期 ====================
-
-    /**
-     * 月卡续期。
-     * <p>
-     * 通过 {@link VehicleRenewalService} 创建续费订单并立即生效，
-     * 然后写入 {@code vehicle_renewal_log} 记录。
-     * <p>
-     * 管理员在柜台确认收款后调用此接口，不经过模拟支付流程。
-     *
-     * @param id      车辆ID
-     * @param request 续期请求
-     * @return 月卡视图
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public MonthlyPassVO renew(Long id, MonthlyPassRenewRequest request) {
-        Long tenantId = TenantContext.requireTenantId();
-        SysVehicle vehicle = getMonthlyPassOrThrow(id, tenantId);
-
-        // 记录续费前有效期
-        LocalDate oldValidEnd = vehicle.getValidEndDate();
-
-        // 1. 创建续费订单（PENDING_PAY）
-        VehicleRenewalCmd cmd = new VehicleRenewalCmd();
-        cmd.setRenewalMonths(request.getRenewalMonths());
-        cmd.setPayChannel(com.jushan.system.entity.ParkingOrder.PAY_CHANNEL_CASH);
-        cmd.setAmountCents(request.getAmountCents());
-        RenewalOrderVO renewalOrder = renewalService.createRenewalOrder(id, cmd);
-
-        // 2. 立即标记生效（管理员已确认收款）
-        String paySerial = "ADMIN-RENEW-" + renewalOrder.getOrderId() + "-" + System.currentTimeMillis();
-        renewalService.applyRenewalEffect(renewalOrder.getOrderId(), paySerial);
-
-        // 3. 写入续费记录
-        VehicleRenewalLog logEntry = new VehicleRenewalLog();
-        logEntry.setTenantId(tenantId);
-        logEntry.setParkingLotId(vehicle.getParkingLotId());
-        logEntry.setVehicleId(id);
-        logEntry.setPlateNumber(vehicle.getPlateNumber());
-        logEntry.setOrderId(renewalOrder.getOrderId());
-        logEntry.setRenewalMonths(request.getRenewalMonths());
-        logEntry.setAmountCents(request.getAmountCents());
-        logEntry.setOldValidEnd(oldValidEnd);
-        logEntry.setNewValidEnd(oldValidEnd != null
-                ? oldValidEnd.plusMonths(request.getRenewalMonths())
-                : LocalDate.now().plusMonths(request.getRenewalMonths()));
-        logEntry.setOperatorId(TenantContext.requireUserId());
-        logEntry.setRemark(request.getRemark());
-        logEntry.setCreatedAt(LocalDateTime.now());
-        logEntry.setUpdatedAt(LocalDateTime.now());
-        renewalLogMapper.insert(logEntry);
-
-        log.info("月卡续期成功: vehicleId={} plate={} months={} amount={} oldEnd={} newEnd={}",
-                id, vehicle.getPlateNumber(), request.getRenewalMonths(),
-                request.getAmountCents(), oldValidEnd, logEntry.getNewValidEnd());
-
-        // 重新查询最新数据
-        vehicle = vehicleMapper.selectById(id);
-        return toMonthlyPassVO(vehicle, getParkingLotName(vehicle.getParkingLotId()));
-    }
-
-    // ==================== 月卡注销 ====================
-
-    /**
-     * 月卡注销。
-     * <p>
-     * 将 {@code vehicleType} 改为 {@code FREE}，{@code status} 改为 {@code DISABLED}。
-     * 注销后该车辆按临停计费，入场时不再自动放行。
-     *
-     * @param id 车辆ID
-     * @return 月卡视图
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public MonthlyPassVO cancel(Long id) {
-        Long tenantId = TenantContext.requireTenantId();
-        SysVehicle vehicle = getMonthlyPassOrThrow(id, tenantId);
-
-        String oldVehicleType = vehicle.getVehicleType();
-        String oldStatus = vehicle.getStatus();
-
-        vehicle.setVehicleType(SysVehicle.TYPE_FREE);
-        vehicle.setStatus(SysVehicle.STATUS_DISABLED);
-        vehicle.setUpdatedAt(LocalDateTime.now());
-        vehicleMapper.updateById(vehicle);
-
-        log.info("月卡注销成功: vehicleId={} plate={} oldType={} oldStatus={}",
-                id, vehicle.getPlateNumber(), oldVehicleType, oldStatus);
-
-        return toMonthlyPassVO(vehicle, getParkingLotName(vehicle.getParkingLotId()));
+        MonthlyPass pass = getOrThrow(id, tenantId);
+        return toVO(pass, getParkingLotName(pass.getParkingLotId()), null);
     }
 
     // ==================== 内部方法 ====================
 
-    /**
-     * 查找月卡车辆，非 MONTHLY 类型或跨租户时抛出异常。
-     */
-    private SysVehicle getMonthlyPassOrThrow(Long id, Long tenantId) {
-        SysVehicle vehicle = vehicleMapper.selectById(id);
-        if (vehicle == null || !tenantId.equals(vehicle.getTenantId())) {
-            throw new BusinessException(CommonErrorCode.NOT_FOUND, "月卡车辆不存在");
+    private MonthlyPass getOrThrow(Long id, Long tenantId) {
+        MonthlyPass pass = monthlyPassMapper.selectById(id);
+        if (pass == null || !tenantId.equals(pass.getTenantId())) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "月卡不存在");
         }
-        if (!SysVehicle.TYPE_MONTHLY.equals(vehicle.getVehicleType())) {
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "该车辆不是月卡，无法操作");
-        }
-        return vehicle;
+        return pass;
     }
 
-    /**
-     * 校验同一车场同一车牌是否已存在有效月卡。
-     *
-     * @param tenantId      租户ID
-     * @param parkingLotId  车场ID
-     * @param plate         车牌号（已大写）
-     * @param excludeVehicleId 排除的车辆ID（更新时使用）
-     */
-    private void checkDuplicateMonthlyPass(Long tenantId, Long parkingLotId, String plate, Long excludeVehicleId) {
-        QueryWrapper<SysVehicle> query = new QueryWrapper<SysVehicle>()
-                .eq("vehicle_type", SysVehicle.TYPE_MONTHLY)
+    private void checkDuplicateActive(Long tenantId, Long parkingLotId, String plate) {
+        QueryWrapper<MonthlyPass> query = new QueryWrapper<MonthlyPass>()
                 .eq("tenant_id", tenantId)
                 .eq("parking_lot_id", parkingLotId)
-                .eq("plate_number", plate);
-        if (excludeVehicleId != null) {
-            query.ne("id", excludeVehicleId);
-        }
-        // 排除已注销的（DISABLED 状态允许重新办理）
-        query.in("status", SysVehicle.STATUS_ACTIVE, SysVehicle.STATUS_EXPIRED);
-
-        Long count = vehicleMapper.selectCount(query);
+                .eq("plate_number", plate)
+                .eq("pass_status", MonthlyPass.STATUS_ACTIVE);
+        Long count = monthlyPassMapper.selectCount(query);
         if (count != null && count > 0) {
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "该车牌已在当前车场办理月卡，不能重复登记");
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "该车牌已在当前车场办理月卡，不能重复登记");
         }
     }
 
     /**
-     * 批量加载车场名称。
+     * 缴费方式映射到订单 payChannel。
      */
-    private Map<Long, String> loadParkingLotNames(List<SysVehicle> vehicles) {
-        List<Long> lotIds = vehicles.stream()
-                .map(SysVehicle::getParkingLotId)
-                .distinct()
-                .collect(Collectors.toList());
-        if (lotIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        List<ParkingLot> lots = parkingLotMapper.selectBatchIds(lotIds);
-        return lots.stream().collect(Collectors.toMap(ParkingLot::getId, ParkingLot::getName));
+    private String mapPayChannel(String payMethod) {
+        return switch (payMethod) {
+            case MonthlyPass.PAY_METHOD_CASH -> ParkingOrder.PAY_CHANNEL_CASH;
+            default -> ParkingOrder.PAY_CHANNEL_BALANCE;
+        };
     }
 
-    /**
-     * 查询单个车场名称。
-     */
     private String getParkingLotName(Long parkingLotId) {
         if (parkingLotId == null) return null;
         ParkingLot lot = parkingLotMapper.selectById(parkingLotId);
         return lot != null ? lot.getName() : null;
     }
 
-    /**
-     * SysVehicle → MonthlyPassVO 转换。
-     */
-    private MonthlyPassVO toMonthlyPassVO(SysVehicle vehicle, String parkingLotName) {
+    private Map<Long, String> loadParkingLotNames(List<MonthlyPass> passes) {
+        List<Long> lotIds = passes.stream()
+                .map(MonthlyPass::getParkingLotId)
+                .distinct()
+                .collect(Collectors.toList());
+        if (lotIds.isEmpty()) return Collections.emptyMap();
+        List<ParkingLot> lots = parkingLotMapper.selectBatchIds(lotIds);
+        return lots.stream().collect(Collectors.toMap(ParkingLot::getId, ParkingLot::getName));
+    }
+
+    private MonthlyPassVO toVO(MonthlyPass pass, String parkingLotName, Long orderId) {
         MonthlyPassVO vo = new MonthlyPassVO();
-        vo.setId(vehicle.getId());
-        vo.setPlateNumber(vehicle.getPlateNumber());
-        vo.setPlateColor(vehicle.getPlateColor());
-        vo.setParkingLotId(vehicle.getParkingLotId());
+        vo.setId(pass.getId());
+        vo.setPlateNumber(pass.getPlateNumber());
+        vo.setPlateColor(pass.getPlateColor());
+        vo.setVehicleType(pass.getVehicleType());
+        vo.setParkingLotId(pass.getParkingLotId());
         vo.setParkingLotName(parkingLotName);
-        vo.setVehicleType(vehicle.getVehicleType());
-        vo.setValidStartDate(vehicle.getValidStartDate());
-        vo.setValidEndDate(vehicle.getValidEndDate());
-        vo.setStatus(vehicle.getStatus());
-        vo.setOwnerName(vehicle.getOwnerName());
-        vo.setOwnerPhone(vehicle.getOwnerPhone());
-        vo.setRemark(vehicle.getRemark());
-        vo.setCreatedAt(vehicle.getCreatedAt());
+        vo.setValidStartDate(pass.getValidStartDate());
+        vo.setValidEndDate(pass.getValidEndDate());
+        vo.setAmountCents(pass.getAmountCents());
+        vo.setPaidAmountCents(pass.getPaidAmountCents());
+        vo.setPayMethod(pass.getPayMethod());
+        vo.setPassStatus(pass.getPassStatus());
+        vo.setSource(pass.getSource());
+        vo.setApplicantId(pass.getApplicantId());
+        vo.setOrderId(orderId);
+        vo.setOwnerName(pass.getOwnerName());
+        vo.setOwnerPhone(pass.getOwnerPhone());
+        vo.setRemark(pass.getRemark());
+        vo.setCreatedAt(pass.getCreatedAt());
         return vo;
     }
 }
