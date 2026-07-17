@@ -8,11 +8,14 @@ import com.jushan.system.entity.ExitRecord;
 import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.entity.ParkingRecord;
+import com.jushan.system.entity.OrderStatusLog;
 import com.jushan.system.event.RecognitionEventPayload;
 import com.jushan.system.mapper.ExitRecordMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.ParkingRecordMapper;
+import com.jushan.system.mapper.ParkingOrderMapper;
 import com.jushan.system.ws.BoothWebSocketPublisher;
+import com.jushan.system.dto.RemoteGateAlertDTO;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -21,6 +24,8 @@ import java.util.concurrent.TimeUnit;
 import com.jushan.framework.lock.DistributedLock;
 import com.jushan.system.mapper.BillingRuleRecalcLogMapper;
 import com.jushan.system.entity.BillingRuleRecalcLog;
+import com.jushan.system.service.ParamResolver;
+import com.jushan.system.constant.ParamKeys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -68,6 +73,8 @@ public class ExitService {
     private final DeviceService deviceService;
     private final DistributedLock distributedLock;
     private final BillingRuleRecalcLogMapper recalcLogMapper;
+    private final ParkingOrderMapper orderMapper;
+    private final ParamResolver paramResolver;
 
     public ExitService(ParkingRecordMapper recordMapper,
                         ExitRecordMapper exitRecordMapper,
@@ -80,7 +87,9 @@ public class ExitService {
                         FixedSpaceService fixedSpaceService,
                         DeviceService deviceService,
                         DistributedLock distributedLock,
-                        BillingRuleRecalcLogMapper recalcLogMapper) {
+                        BillingRuleRecalcLogMapper recalcLogMapper,
+                        ParkingOrderMapper orderMapper,
+                        ParamResolver paramResolver) {
         this.recordMapper = recordMapper;
         this.exitRecordMapper = exitRecordMapper;
         this.parkingOrderService = parkingOrderService;
@@ -93,6 +102,8 @@ public class ExitService {
         this.deviceService = deviceService;
         this.distributedLock = distributedLock;
         this.recalcLogMapper = recalcLogMapper;
+        this.orderMapper = orderMapper;
+        this.paramResolver = paramResolver;
     }
 
     /**
@@ -143,6 +154,19 @@ public class ExitService {
             }
         } else {
             feeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+        }
+
+        // 2c. 欠费检测（任务包 2-3）：检测该车牌是否有未补缴的欠费订单
+        if (!isFixedSpace) {
+            List<ParkingOrder> arrearsOrders = parkingOrderService.getArrearsOrdersByPlate(
+                    standardizedPlate, parkingLotId);
+            if (!arrearsOrders.isEmpty()) {
+                ExitResult arrearsResult = handleArrearsReentry(record, arrearsOrders, feeCents,
+                        exitTime, payload);
+                if (arrearsResult != null) {
+                    return arrearsResult;
+                }
+            }
         }
 
         // 3. 获取订单（任务包 1-2）：优先复用该记录现有订单（入场预订单/提前缴费订单）；
@@ -342,8 +366,13 @@ public class ExitService {
 
     /**
      * 决定放行策略。
+     * <p>
+     * 任务包 2-3：根据车场参数 exit.unpaid_strategy 决定未支付车辆的处理方式。
      */
     private ReleaseDecision resolveReleaseDecision(int feeCents, ParkingOrder order) {
+        if (order == null) {
+            return ReleaseDecision.pendingPayment();
+        }
         if (feeCents == 0) {
             return ReleaseDecision.zeroFee();
         }
@@ -353,6 +382,18 @@ public class ExitService {
             return ReleaseDecision.paid();
         }
         // P020 扩展：月卡/白名单等授权放行
+        // 未支付订单：读取车场未支付出场策略
+        String unpaidStrategy = paramResolver.getString(
+                ParamKeys.EXIT_UNPAID_STRATEGY, order.getParkingLotId());
+        if (ParamKeys.EXIT_UNPAID_ALLOW_ARREARS.equals(unpaidStrategy)) {
+            // ALLOW_ARREARS：开闸放行，订单转 ARREARS
+            parkingOrderService.allowArrears(order.getId(), OrderStatusLog.TRIGGER_SYSTEM, null,
+                    "未支付欠费放行（车场策略）");
+            log.info("欠费放行: orderId={} plate={} strategy={}",
+                    order.getId(), order.getPlateNumber(), unpaidStrategy);
+            return ReleaseDecision.arrearsAllowed();
+        }
+        // BLOCK 或其他未知值：拦截不放行
         return ReleaseDecision.pendingPayment();
     }
 
@@ -499,6 +540,147 @@ public class ExitService {
         exitRecord.setCreatedAt(LocalDateTime.now());
         exitRecord.setUpdatedAt(LocalDateTime.now());
 
+        exitRecordMapper.insert(exitRecord);
+        return exitRecord;
+    }
+
+    /**
+     * 处理欠费车辆再次出场（任务包 2-3）。
+     * <p>
+     * 根据车场参数 arrears.reexit_strategy 决定处理方式：
+     * MUST_PAY → 创建合并订单拦截补缴
+     * REMIND_ONLY → 放行并推送提醒
+     *
+     * @param record        当前停车记录
+     * @param arrearsOrders 该车未补缴的欠费订单列表
+     * @param feeCents      本次出场计费金额（分）
+     * @param exitTime      出场时间
+     * @param payload       识别事件载荷
+     * @return EXIT 结果（若短路直接返回），null 表示走正常后续流程
+     */
+    private ExitResult handleArrearsReentry(ParkingRecord record,
+                                             List<ParkingOrder> arrearsOrders,
+                                             int feeCents,
+                                             LocalDateTime exitTime,
+                                             RecognitionEventPayload payload) {
+        String reexitStrategy = paramResolver.getString(
+                ParamKeys.ARREARS_REEXIT_STRATEGY, record.getParkingLotId());
+
+        // 计算欠费总额
+        int arrearsTotalCents = arrearsOrders.stream()
+                .mapToInt(o -> o.getPayableAmount() != null ? o.getPayableAmount() : 0)
+                .sum();
+
+        if (ParamKeys.ARREARS_MUST_PAY.equals(reexitStrategy)) {
+            // MUST_PAY：创建合并计费订单
+            int totalCents = arrearsTotalCents + feeCents;
+
+            // 构建 arrearsOrderIds JSON 数组
+            StringBuilder idsJson = new StringBuilder("[");
+            for (int i = 0; i < arrearsOrders.size(); i++) {
+                if (i > 0) idsJson.append(",");
+                idsJson.append(arrearsOrders.get(i).getId());
+            }
+            idsJson.append("]");
+
+            // 创建合并订单（PENDING_PAY，金额 = 欠费 + 本次）
+            ParkingOrder mergedOrder = parkingOrderService.createOrderInternal(
+                    record, totalCents, null,
+                    ParkingOrder.PAY_SCENE_AT_EXIT, payload.getLaneId(), null,
+                    "欠费合并计费：欠费" + arrearsTotalCents + "分 + 本次" + feeCents + "分");
+            mergedOrder.setArrearsOrderIds(idsJson.toString());
+
+            // 回写 arrearsOrderIds 到数据库（createOrderInternal 未设该字段）
+            UpdateWrapper<ParkingOrder> updateWrapper = new UpdateWrapper<>();
+            updateWrapper.set("arrears_order_ids", idsJson.toString())
+                    .eq("id", mergedOrder.getId());
+            orderMapper.update(null, updateWrapper);
+
+            log.info("欠费合并计费: mergedOrderId={} plate={} arrearsTotal={} currentFee={} mergedTotal={} arrearsIds={}",
+                    mergedOrder.getId(), record.getStandardizedPlate(),
+                    arrearsTotalCents, feeCents, totalCents, idsJson);
+
+            // 创建出场记录（拦截）
+            ExitRecord exitRecord = new ExitRecord();
+            exitRecord.setTenantId(record.getTenantId());
+            exitRecord.setParkingLotId(record.getParkingLotId());
+            exitRecord.setParkingRecordId(record.getId());
+            exitRecord.setExitEventId(payload.getLogId());
+            exitRecord.setLaneId(payload.getLaneId());
+            exitRecord.setDeviceId(payload.getDeviceId());
+            exitRecord.setStandardizedPlate(record.getStandardizedPlate());
+            exitRecord.setExitTime(exitTime);
+            exitRecord.setFeeCents(totalCents);
+            exitRecord.setPaidCents(0);
+            exitRecord.setReleaseDecision(ExitRecord.DECISION_ARREARS_MUST_PAY);
+            exitRecord.setOrderId(mergedOrder.getId());
+            exitRecord.setReason("欠费合并计费：欠费" + (arrearsTotalCents / 100.0) + "元 + 本次" + (feeCents / 100.0) + "元 = " + (totalCents / 100.0) + "元");
+            exitRecord.setCreatedAt(LocalDateTime.now());
+            exitRecord.setUpdatedAt(LocalDateTime.now());
+            exitRecordMapper.insert(exitRecord);
+
+            // 推送 WebSocket 通知岗亭端
+            RemoteGateAlertDTO alertDto = new RemoteGateAlertDTO();
+            alertDto.setReason("欠费车辆出场，需补缴欠费" + (arrearsTotalCents / 100.0) + "元");
+            alertDto.setOperatorName("系统（欠费检测）");
+            alertDto.setOperationTime(LocalDateTime.now().toString());
+            boothWebSocketPublisher.sendRemoteGateAlert(record.getParkingLotId(), alertDto);
+
+            return ExitResult.of(ReleaseDecision.arrearsMustPay(),
+                    exitRecord.getId(), mergedOrder.getId(), totalCents);
+        }
+
+        // REMIND_ONLY（默认回退）：放行，推送提醒
+        log.info("欠费提醒放行: plate={} arrearsCount={} arrearsTotal={}",
+                record.getStandardizedPlate(), arrearsOrders.size(), arrearsTotalCents);
+
+        // 直接放行（不入 createOrder 流程，也不转 ARREARS 状态）
+        boolean recordCompleted = completeParkingRecord(record, payload, exitTime);
+        if (recordCompleted) {
+            decrementVehicleCount(record.getParkingLotId());
+        }
+        syncParkingSessionExit(record, payload, exitTime, feeCents, null);
+
+        ExitRecord exitRecord = createExitRecordForArrears(record, payload, feeCents,
+                ExitRecord.DECISION_ARREARS_REMIND,
+                "欠费提醒放行，待补缴欠费" + (arrearsTotalCents / 100.0) + "元", exitTime);
+
+        // 推送 WebSocket 通知
+        RemoteGateAlertDTO remindDto = new RemoteGateAlertDTO();
+        remindDto.setReason("欠费提醒放行（待补缴" + (arrearsTotalCents / 100.0) + "元）");
+        remindDto.setOperatorName("系统（欠费检测）");
+        remindDto.setOperationTime(LocalDateTime.now().toString());
+        boothWebSocketPublisher.sendRemoteGateAlert(record.getParkingLotId(), remindDto);
+
+        return ExitResult.of(ReleaseDecision.arrearsRemind(),
+                exitRecord.getId(), null, feeCents);
+    }
+
+    /**
+     * 为欠费场景创建出场记录（简化版，不依赖 ParkingOrder）。
+     */
+    private ExitRecord createExitRecordForArrears(ParkingRecord record,
+                                                   RecognitionEventPayload payload,
+                                                   int feeCents,
+                                                   String decisionCode,
+                                                   String reason,
+                                                   LocalDateTime exitTime) {
+        ExitRecord exitRecord = new ExitRecord();
+        exitRecord.setTenantId(record.getTenantId());
+        exitRecord.setParkingLotId(record.getParkingLotId());
+        exitRecord.setParkingRecordId(record.getId());
+        exitRecord.setExitEventId(payload.getLogId());
+        exitRecord.setLaneId(payload.getLaneId());
+        exitRecord.setDeviceId(payload.getDeviceId());
+        exitRecord.setStandardizedPlate(record.getStandardizedPlate());
+        exitRecord.setExitTime(exitTime);
+        exitRecord.setFeeCents(feeCents);
+        exitRecord.setPaidCents(0);
+        exitRecord.setReleaseDecision(decisionCode);
+        exitRecord.setOrderId(0L);
+        exitRecord.setReason(reason);
+        exitRecord.setCreatedAt(LocalDateTime.now());
+        exitRecord.setUpdatedAt(LocalDateTime.now());
         exitRecordMapper.insert(exitRecord);
         return exitRecord;
     }
