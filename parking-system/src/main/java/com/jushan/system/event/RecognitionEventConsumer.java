@@ -7,21 +7,30 @@ import com.jushan.framework.mq.MqConstants;
 import com.jushan.system.entity.Device;
 import com.jushan.system.entity.ParkingLane;
 import com.jushan.system.entity.ParkingLot;
+import com.jushan.system.entity.ParkingRecord;
 import com.jushan.system.entity.RecognitionEventLog;
 import com.jushan.system.mapper.DeviceMapper;
 import com.jushan.system.mapper.ParkingLaneMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
+import com.jushan.system.mapper.ParkingRecordMapper;
 import com.jushan.system.mapper.RecognitionEventLogMapper;
 import com.jushan.system.mybatis.TenantIgnore;
 import com.jushan.system.service.CameraFailoverService;
+import com.jushan.system.service.DeviceService;
 import com.jushan.system.service.EntryService;
 import com.jushan.system.service.ExitService;
+import com.jushan.system.service.MonitorAlertService;
+import com.jushan.system.service.ParamResolver;
+import com.jushan.system.service.TempPlateNumberGenerator;
+import com.jushan.system.constant.ParamKeys;
+import com.jushan.system.ws.BoothWebSocketPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 
 /**
  * 识别事件消费者（T29 校验 + T30 入场）。
@@ -72,6 +81,12 @@ public class RecognitionEventConsumer {
     private final EntryService entryService;
     private final ExitService exitService;
     private final CameraFailoverService cameraFailoverService;
+    private final TempPlateNumberGenerator tempPlateNumberGenerator;
+    private final BoothWebSocketPublisher boothWebSocketPublisher;
+    private final MonitorAlertService monitorAlertService;
+    private final ParamResolver paramResolver;
+    private final ParkingRecordMapper recordMapper;
+    private final DeviceService deviceService;
 
     public RecognitionEventConsumer(MessageIdempotency messageIdempotency,
                                      DeviceMapper deviceMapper,
@@ -80,7 +95,13 @@ public class RecognitionEventConsumer {
                                      RecognitionEventLogMapper eventLogMapper,
                                      EntryService entryService,
                                      ExitService exitService,
-                                     CameraFailoverService cameraFailoverService) {
+                                     CameraFailoverService cameraFailoverService,
+                                     TempPlateNumberGenerator tempPlateNumberGenerator,
+                                     BoothWebSocketPublisher boothWebSocketPublisher,
+                                     MonitorAlertService monitorAlertService,
+                                     ParamResolver paramResolver,
+                                     ParkingRecordMapper recordMapper,
+                                     DeviceService deviceService) {
         this.messageIdempotency = messageIdempotency;
         this.deviceMapper = deviceMapper;
         this.parkingLotMapper = parkingLotMapper;
@@ -89,6 +110,12 @@ public class RecognitionEventConsumer {
         this.entryService = entryService;
         this.exitService = exitService;
         this.cameraFailoverService = cameraFailoverService;
+        this.tempPlateNumberGenerator = tempPlateNumberGenerator;
+        this.boothWebSocketPublisher = boothWebSocketPublisher;
+        this.monitorAlertService = monitorAlertService;
+        this.paramResolver = paramResolver;
+        this.recordMapper = recordMapper;
+        this.deviceService = deviceService;
     }
 
     /**
@@ -127,6 +154,14 @@ public class RecognitionEventConsumer {
         try {
             // ---- 3. 业务校验 + 车牌标准化 ----
             ProcessingResult result = validateAndStandardize(payload);
+
+            // ---- 3.5 识别失败接管（无牌车处理） ----
+            if (result.recognitionFailed) {
+                handleRecognitionFailure(payload, result);
+                updateEventLog(payload, result);
+                messageIdempotency.markProcessed(messageId, IDEMPOTENCY_TTL);
+                return;
+            }
 
             // ---- 4. T30 入场处理 / P004 出场处理 ----
             if (result.success) {
@@ -189,20 +224,19 @@ public class RecognitionEventConsumer {
     private ProcessingResult validateAndStandardize(RecognitionEventPayload payload) {
         ProcessingResult result = new ProcessingResult();
 
-        // 3.1 车牌标准化
+        // 3.1 车牌标准化（空牌不立即失败，先完成设备/车场/车道校验后再判断）
         String rawPlate = payload.getPlateNumber();
-        if (rawPlate == null || rawPlate.isBlank()) {
-            result.fail("车牌号为空");
-            return result;
-        }
+        boolean plateIsEmpty = (rawPlate == null || rawPlate.isBlank());
 
-        String standardized = PlateStandardizer.normalize(rawPlate);
-        if (standardized == null || standardized.isEmpty()) {
-            result.fail("车牌号标准化后为空，原始值: "
-                    + (rawPlate.length() > 50 ? rawPlate.substring(0, 50) + "..." : rawPlate));
-            return result;
+        if (!plateIsEmpty) {
+            String standardized = PlateStandardizer.normalize(rawPlate);
+            if (standardized == null || standardized.isEmpty()) {
+                result.fail("车牌号标准化后为空，原始值: "
+                        + (rawPlate.length() > 50 ? rawPlate.substring(0, 50) + "..." : rawPlate));
+                return result;
+            }
+            result.standardizedPlate = standardized;
         }
-        result.standardizedPlate = standardized;
 
         // 3.2 设备校验
         if (payload.getDeviceId() == null) {
@@ -287,6 +321,18 @@ public class RecognitionEventConsumer {
             }
         }
 
+        // 3.5c 识别失败接管：车牌为空时，保存上下文并返回
+        if (plateIsEmpty) {
+            result.recognitionFailed = true;
+            result.parkingLotId = parkingLot.getId();
+            result.tenantId = parkingLot.getTenantId();
+            result.laneId = device.getLaneId();
+            result.deviceId = device.getId();
+            result.eventTime = payload.getEventTime() != null
+                    ? payload.getEventTime() : LocalDateTime.now();
+            return result;
+        }
+
         // 3.6 标记相机来源（仅当设备绑定了车道且有识别方向）
         if (device.getLaneId() != null && device.getRecognitionDirection() != null) {
             String source = cameraFailoverService.getActiveSource(
@@ -295,8 +341,9 @@ public class RecognitionEventConsumer {
         }
 
         // 3.7 基本格式校验（非阻塞性，仅记录）
-        if (!PlateStandardizer.isValidFormat(standardized)) {
-            log.info("车牌格式可能异常（非阻塞）: plate={} eventId={}", standardized, payload.getEventId());
+        if (!PlateStandardizer.isValidFormat(result.standardizedPlate)) {
+            log.info("车牌格式可能异常（非阻塞）: plate={} eventId={}",
+                    result.standardizedPlate, payload.getEventId());
         }
 
         result.success = true;
@@ -313,8 +360,12 @@ public class RecognitionEventConsumer {
     private void updateEventLog(RecognitionEventPayload payload, ProcessingResult result) {
         RecognitionEventLog update = new RecognitionEventLog();
         update.setStandardizedPlate(result.standardizedPlate);
-        if (result.success) {
+        if (result.recognitionFailed) {
+            update.setStatus("RECOGNITION_FAILED");
+            update.setTempPlateFlag(1);
+        } else if (result.success) {
             update.setStatus("PROCESSED");
+            update.setTempPlateFlag(0);
         } else {
             update.setStatus("FAILED");
             update.setFailureReason(result.failureReason);
@@ -361,6 +412,111 @@ public class RecognitionEventConsumer {
         }
     }
 
+    // ==================== 识别失败处理（任务包 3-4） ====================
+
+    /**
+     * 识别失败接管入口。
+     */
+    private void handleRecognitionFailure(RecognitionEventPayload payload, ProcessingResult result) {
+        if (!"ENTRY".equals(payload.getDirection())) {
+            result.fail("出场方向识别失败（无牌车出场由岗亭手动匹配）");
+            return;
+        }
+
+        String strategy = paramResolver.getString(
+                ParamKeys.RECOGNITION_FAIL_STRATEGY, result.parkingLotId);
+
+        if (ParamKeys.RECOGNITION_AUTO_RELEASE.equals(strategy)) {
+            handleAutoRelease(payload, result);
+        } else {
+            handleManualAlert(payload, result);
+        }
+    }
+
+    /**
+     * MANUAL 策略：推送 WebSocket 告警 + 创建 MonitorAlert 记录。
+     */
+    private void handleManualAlert(RecognitionEventPayload payload, ProcessingResult result) {
+        log.info("无牌车识别失败-MANUAL策略: eventId={} lotId={} laneId={}",
+                payload.getEventId(), result.parkingLotId, result.laneId);
+
+        // 1. 推送 WebSocket 告警到岗亭端
+        boothWebSocketPublisher.sendRecognitionFailedAlert(
+                result.parkingLotId,
+                payload.getEventId(),
+                payload.getLogId(),
+                result.parkingLotId,
+                result.laneId,
+                payload.getDirection(),
+                payload.getImagePath(),
+                result.eventTime);
+
+        // 2. 创建 MonitorAlert 记录
+        ParkingLot lot = parkingLotMapper.selectByIdIgnoreTenant(result.parkingLotId);
+        RecognitionEventLog eventLog = eventLogMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<RecognitionEventLog>()
+                        .eq(RecognitionEventLog::getEventId, payload.getEventId()));
+        if (lot != null && eventLog != null && monitorAlertService != null) {
+            eventLog.setPlateNumber("无牌车");
+            eventLog.setFailureReason("识别失败，等待岗亭处理");
+            try {
+                monitorAlertService.createRecognitionFailAlert(lot, eventLog);
+            } catch (Exception e) {
+                log.warn("创建识别失败告警 MonitorAlert 失败: eventId={} error={}",
+                        payload.getEventId(), e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * AUTO_RELEASE 策略：自动生成临时车牌 + 创建在场记录 + 开闸放行。
+     */
+    private void handleAutoRelease(RecognitionEventPayload payload, ProcessingResult result) {
+        log.info("无牌车识别失败-AUTO_RELEASE策略: eventId={} lotId={} laneId={}",
+                payload.getEventId(), result.parkingLotId, result.laneId);
+
+        String tempPlate;
+        try {
+            tempPlate = tempPlateNumberGenerator.generate(result.parkingLotId);
+        } catch (BusinessException e) {
+            log.warn("临时车牌号生成失败-AUTO_RELEASE降级为MANUAL: eventId={} reason={}",
+                    payload.getEventId(), e.getMessage());
+            handleManualAlert(payload, result);
+            return;
+        }
+
+        ParkingRecord record = new ParkingRecord();
+        record.setTenantId(result.tenantId);
+        record.setParkingLotId(result.parkingLotId);
+        record.setLaneId(result.laneId);
+        record.setDeviceId(result.deviceId);
+        record.setStandardizedPlate(tempPlate);
+        record.setTempPlateFlag(1);
+        record.setStatus(ParkingRecord.STATUS_PARKING);
+        record.setEntryTime(result.eventTime != null ? result.eventTime : LocalDateTime.now());
+        record.setEntryImagePath(payload.getImagePath());
+        recordMapper.insert(record);
+
+        result.standardizedPlate = tempPlate;
+
+        parkingLotMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ParkingLot>()
+                        .setSql("current_vehicles = current_vehicles + 1")
+                        .setSql("remaining_spaces = remaining_spaces - 1")
+                        .eq(ParkingLot::getId, result.parkingLotId));
+
+        try {
+            deviceService.openGateByLane(result.laneId,
+                    "无牌车自动放行(" + tempPlate + ")");
+        } catch (Exception e) {
+            log.warn("无牌车自动开闸失败（不影响记录创建）: plate={} laneId={} error={}",
+                    tempPlate, result.laneId, e.getMessage());
+        }
+
+        log.info("无牌车自动放行完成: tempPlate={} recordId={} lotId={}",
+                tempPlate, record.getId(), result.parkingLotId);
+    }
+
     // ==================== 内部类 ====================
 
     /**
@@ -368,8 +524,14 @@ public class RecognitionEventConsumer {
      */
     private static class ProcessingResult {
         boolean success = false;
+        boolean recognitionFailed = false;
         String standardizedPlate;
         String failureReason;
+        Long parkingLotId;
+        Long tenantId;
+        Long laneId;
+        Long deviceId;
+        LocalDateTime eventTime;
 
         void fail(String reason) {
             this.success = false;
