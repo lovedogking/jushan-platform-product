@@ -4,41 +4,31 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * 月卡视图 VO（Phase 1 A1）。
- * <p>
- * 仅展示月卡相关字段，不与普通车辆管理视图混淆。
- * 基于 {@code sys_vehicle} 表 + vehicleType=MONTHLY 过滤。
+ * 月卡视图 VO（任务包 3-1：基于 independent monthly_pass 实体）。
  *
  * @author Jushan Platform
- * @since 1.0.0
+ * @since 1.1.0
  */
 public class MonthlyPassVO {
 
-    /** 车辆 ID */
     private Long id;
-    /** 车牌号 */
     private String plateNumber;
-    /** 车牌颜色 */
     private String plateColor;
-    /** 车场 ID */
-    private Long parkingLotId;
-    /** 车场名称 */
-    private String parkingLotName;
-    /** 车辆类型 */
     private String vehicleType;
-    /** 有效期起 */
+    private Long parkingLotId;
+    private String parkingLotName;
     private LocalDate validStartDate;
-    /** 有效期止 */
     private LocalDate validEndDate;
-    /** 状态（ACTIVE/EXPIRED/DISABLED） */
-    private String status;
-    /** 车主姓名 */
+    private Integer amountCents;
+    private Integer paidAmountCents;
+    private String payMethod;
+    private String passStatus;
+    private String source;
+    private Long applicantId;
+    private Long orderId;
     private String ownerName;
-    /** 车主电话 */
     private String ownerPhone;
-    /** 备注 */
     private String remark;
-    /** 创建时间 */
     private LocalDateTime createdAt;
 
     public Long getId() { return id; }
@@ -47,18 +37,30 @@ public class MonthlyPassVO {
     public void setPlateNumber(String plateNumber) { this.plateNumber = plateNumber; }
     public String getPlateColor() { return plateColor; }
     public void setPlateColor(String plateColor) { this.plateColor = plateColor; }
+    public String getVehicleType() { return vehicleType; }
+    public void setVehicleType(String vehicleType) { this.vehicleType = vehicleType; }
     public Long getParkingLotId() { return parkingLotId; }
     public void setParkingLotId(Long parkingLotId) { this.parkingLotId = parkingLotId; }
     public String getParkingLotName() { return parkingLotName; }
     public void setParkingLotName(String parkingLotName) { this.parkingLotName = parkingLotName; }
-    public String getVehicleType() { return vehicleType; }
-    public void setVehicleType(String vehicleType) { this.vehicleType = vehicleType; }
     public LocalDate getValidStartDate() { return validStartDate; }
     public void setValidStartDate(LocalDate validStartDate) { this.validStartDate = validStartDate; }
     public LocalDate getValidEndDate() { return validEndDate; }
     public void setValidEndDate(LocalDate validEndDate) { this.validEndDate = validEndDate; }
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    public Integer getAmountCents() { return amountCents; }
+    public void setAmountCents(Integer amountCents) { this.amountCents = amountCents; }
+    public Integer getPaidAmountCents() { return paidAmountCents; }
+    public void setPaidAmountCents(Integer paidAmountCents) { this.paidAmountCents = paidAmountCents; }
+    public String getPayMethod() { return payMethod; }
+    public void setPayMethod(String payMethod) { this.payMethod = payMethod; }
+    public String getPassStatus() { return passStatus; }
+    public void setPassStatus(String passStatus) { this.passStatus = passStatus; }
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
+    public Long getApplicantId() { return applicantId; }
+    public void setApplicantId(Long applicantId) { this.applicantId = applicantId; }
+    public Long getOrderId() { return orderId; }
+    public void setOrderId(Long orderId) { this.orderId = orderId; }
     public String getOwnerName() { return ownerName; }
     public void setOwnerName(String ownerName) { this.ownerName = ownerName; }
     public String getOwnerPhone() { return ownerPhone; }

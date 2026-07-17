@@ -31,6 +31,17 @@ public class MonthlyPassCreateRequest {
     /** 登记费用（分） */
     private Integer amountCents;
 
+    /** 实收金额（分，必填） */
+    @NotNull(message = "实收金额不能为空")
+    private Integer paidAmountCents;
+
+    /** 缴费方式：CASH / OFFLINE_TRANSFER / OTHER（必填） */
+    @NotBlank(message = "缴费方式不能为空")
+    private String payMethod;
+
+    /** 车辆类型（小型车/大型车等，选填） */
+    private String vehicleType;
+
     private String ownerName;
     private String ownerPhone;
     private String remark;
@@ -47,6 +58,12 @@ public class MonthlyPassCreateRequest {
     public void setValidEndDate(LocalDate validEndDate) { this.validEndDate = validEndDate; }
     public Integer getAmountCents() { return amountCents; }
     public void setAmountCents(Integer amountCents) { this.amountCents = amountCents; }
+    public Integer getPaidAmountCents() { return paidAmountCents; }
+    public void setPaidAmountCents(Integer paidAmountCents) { this.paidAmountCents = paidAmountCents; }
+    public String getPayMethod() { return payMethod; }
+    public void setPayMethod(String payMethod) { this.payMethod = payMethod; }
+    public String getVehicleType() { return vehicleType; }
+    public void setVehicleType(String vehicleType) { this.vehicleType = vehicleType; }
     public String getOwnerName() { return ownerName; }
     public void setOwnerName(String ownerName) { this.ownerName = ownerName; }
     public String getOwnerPhone() { return ownerPhone; }
