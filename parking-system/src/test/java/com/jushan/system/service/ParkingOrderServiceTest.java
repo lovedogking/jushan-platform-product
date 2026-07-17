@@ -5,6 +5,7 @@ import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.entity.ParkingRecord;
 import com.jushan.system.mapper.ParkingOrderMapper;
 import com.jushan.system.mapper.ParkingRecordMapper;
+import com.jushan.system.mapper.BillingRuleRecalcLogMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,12 +44,14 @@ class ParkingOrderServiceTest {
     private ParkingRecordMapper recordMapper;
     @Mock
     private OrderStatusLogService orderStatusLogService;
+    @Mock
+    private BillingRuleRecalcLogMapper recalcLogMapper;
 
     private ParkingOrderService service;
 
     @BeforeEach
     void setUp() {
-        service = new ParkingOrderService(orderMapper, recordMapper, orderStatusLogService);
+        service = new ParkingOrderService(orderMapper, recordMapper, orderStatusLogService, recalcLogMapper);
     }
 
     // ==================== 预订单 ====================

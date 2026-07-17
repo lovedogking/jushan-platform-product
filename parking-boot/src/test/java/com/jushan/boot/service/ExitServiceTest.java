@@ -87,13 +87,20 @@ class ExitServiceTest extends TestcontainersBaseTest {
     @Mock
     private DeviceService deviceService;
 
+    @Mock
+    private com.jushan.framework.lock.DistributedLock distributedLock;
+
+    @Mock
+    private com.jushan.system.mapper.BillingRuleRecalcLogMapper recalcLogMapper;
+
     private ExitService exitService;
 
     @BeforeEach
     void setUp() {
         exitService = new ExitService(recordMapper, exitRecordMapper, parkingOrderService,
                 parkingLotMapper, billingEngine, boothWebSocketPublisher, parkingSessionService,
-                prepaidDeductionService, fixedSpaceService, deviceService);
+                prepaidDeductionService, fixedSpaceService, deviceService,
+                distributedLock, recalcLogMapper);
     }
 
     @Test
