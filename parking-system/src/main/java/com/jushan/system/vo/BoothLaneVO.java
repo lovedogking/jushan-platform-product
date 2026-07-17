@@ -1,5 +1,7 @@
 package com.jushan.system.vo;
 
+import java.util.List;
+
 /**
  * 岗亭监控车道视图对象（P005）。
  *
@@ -16,6 +18,8 @@ public class BoothLaneVO {
     private String status;
     private Long deviceId;
     private String deviceName;
+    /** 车道绑定的相机列表（任务包 3-5：支持多相机/主备场景） */
+    private List<BoothLaneCameraVO> cameras;
 
     // ==================== getter / setter ====================
 
@@ -42,4 +46,7 @@ public class BoothLaneVO {
 
     public String getDeviceName() { return deviceName; }
     public void setDeviceName(String deviceName) { this.deviceName = deviceName; }
+
+    public List<BoothLaneCameraVO> getCameras() { return cameras; }
+    public void setCameras(List<BoothLaneCameraVO> cameras) { this.cameras = cameras; }
 }

@@ -14,6 +14,7 @@ import com.jushan.system.mapper.ParkingLaneMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.RecognitionEventLogMapper;
 import com.jushan.system.vo.BoothLaneVO;
+import com.jushan.system.vo.BoothLaneCameraVO;
 import com.jushan.system.vo.BoothMonitorSnapshotVO;
 import com.jushan.system.vo.BoothRecognitionEventVO;
 import com.jushan.system.vo.DeviceStatusVO;
@@ -23,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +53,7 @@ public class BoothMonitorService {
     private final DeviceService deviceService;
     private final MonitorAlertService alertService;
     private final ParkingLotScopeResolver scopeResolver;
+    private final CameraFailoverService cameraFailoverService;
 
     public BoothMonitorService(ParkingLotMapper parkingLotMapper,
                                 ParkingLaneMapper laneMapper,
@@ -58,7 +61,8 @@ public class BoothMonitorService {
                                 RecognitionEventLogMapper eventLogMapper,
                                 DeviceService deviceService,
                                 MonitorAlertService alertService,
-                                ParkingLotScopeResolver scopeResolver) {
+                                ParkingLotScopeResolver scopeResolver,
+                                CameraFailoverService cameraFailoverService) {
         this.parkingLotMapper = parkingLotMapper;
         this.laneMapper = laneMapper;
         this.deviceMapper = deviceMapper;
@@ -66,6 +70,7 @@ public class BoothMonitorService {
         this.deviceService = deviceService;
         this.alertService = alertService;
         this.scopeResolver = scopeResolver;
+        this.cameraFailoverService = cameraFailoverService;
     }
 
     /**
@@ -177,15 +182,32 @@ public class BoothMonitorService {
             return Collections.emptyList();
         }
 
-        Map<Long, Device> deviceMap = deviceMapper.selectList(
-                        new LambdaQueryWrapper<Device>()
-                                .eq(Device::getParkingLotId, parkingLotId)
-                                .eq(Device::getStatus, DeviceService.STATUS_ENABLED))
-                .stream()
-                .collect(Collectors.toMap(Device::getId, d -> d));
+        // 加载该停车场所有已启用相机
+        List<Device> allCameras = deviceMapper.selectList(
+                new LambdaQueryWrapper<Device>()
+                        .eq(Device::getParkingLotId, parkingLotId)
+                        .eq(Device::getDeviceType, "CAMERA")
+                        .eq(Device::getStatus, DeviceService.STATUS_ENABLED));
+
+        // laneId -> cameras
+        Map<Long, List<Device>> camerasByLane = allCameras.stream()
+                .filter(d -> d.getLaneId() != null)
+                .collect(Collectors.groupingBy(Device::getLaneId));
+
+        // 加载设备状态快照
+        List<Long> allDeviceIds = allCameras.stream().map(Device::getId).collect(Collectors.toList());
+        Map<Long, DeviceStatusVO> statusMap;
+        if (allDeviceIds.isEmpty()) {
+            statusMap = Collections.emptyMap();
+        } else {
+            statusMap = deviceService.getLatestSnapshots(allDeviceIds).stream()
+                    .collect(Collectors.toMap(DeviceStatusVO::getDeviceId, s -> s, (a, b) -> a));
+        }
 
         return lanes.stream()
                 .map(lane -> {
+                    List<Device> laneCameras = camerasByLane.getOrDefault(lane.getId(), Collections.emptyList());
+
                     BoothLaneVO vo = new BoothLaneVO();
                     vo.setId(lane.getId());
                     vo.setParkingLotId(lane.getLotId());
@@ -194,15 +216,50 @@ public class BoothMonitorService {
                     vo.setDirection(ParkingLaneService.intToDirectionStr(lane.getType()));
                     vo.setStatus(ParkingLaneService.intToStatusStr(lane.getStatus()));
 
-                    // 找到绑定到该车道的相机设备
-                    Device camera = deviceMap.values().stream()
-                            .filter(d -> "CAMERA".equals(d.getDeviceType()) && lane.getId().equals(d.getLaneId()))
-                            .findFirst()
-                            .orElse(null);
-                    if (camera != null) {
-                        vo.setDeviceId(camera.getId());
-                        vo.setDeviceName(camera.getName());
+                    // 构建 cameras 数组
+                    List<BoothLaneCameraVO> cameraVOs = new ArrayList<>();
+                    for (Device camera : laneCameras) {
+                        BoothLaneCameraVO cvo = new BoothLaneCameraVO();
+                        cvo.setDeviceId(camera.getId());
+                        cvo.setName(camera.getName());
+                        cvo.setRole(camera.getCameraRole() != null
+                                ? (camera.getCameraRole() == DeviceService.CAMERA_ROLE_PRIMARY ? "PRIMARY" : "BACKUP")
+                                : null);
+                        cvo.setDirection(camera.getRecognitionDirection() != null
+                                ? (camera.getRecognitionDirection() == 1 ? "ENTRY" : "EXIT")
+                                : null);
+
+                        DeviceStatusVO status = statusMap.get(camera.getId());
+                        cvo.setOnline(status != null && Boolean.TRUE.equals(status.getOnline()) && !Boolean.TRUE.equals(status.getStale()));
+
+                        // 计算 isActive：对比 CameraFailoverService 的活跃来源
+                        boolean isActive = false;
+                        if (camera.getRecognitionDirection() != null && camera.getCameraRole() != null) {
+                            String activeSource = cameraFailoverService.getActiveSource(
+                                    lane.getId(), camera.getRecognitionDirection());
+                            String roleStr = camera.getCameraRole() == DeviceService.CAMERA_ROLE_PRIMARY ? "PRIMARY" : "BACKUP";
+                            isActive = roleStr.equals(activeSource);
+                        } else if (laneCameras.size() == 1) {
+                            // 单相机车道：该相机即为活跃
+                            isActive = true;
+                        }
+                        cvo.setIsActive(isActive);
+
+                        cameraVOs.add(cvo);
                     }
+
+                    // 向后兼容：单相机场景仍填充 deviceId/deviceName
+                    if (!cameraVOs.isEmpty()) {
+                        // 优先选主相机，否则取第一个
+                        BoothLaneCameraVO primary = cameraVOs.stream()
+                                .filter(c -> "PRIMARY".equals(c.getRole()))
+                                .findFirst()
+                                .orElse(cameraVOs.get(0));
+                        vo.setDeviceId(primary.getDeviceId());
+                        vo.setDeviceName(primary.getName());
+                    }
+
+                    vo.setCameras(cameraVOs);
                     return vo;
                 })
                 .collect(Collectors.toList());
