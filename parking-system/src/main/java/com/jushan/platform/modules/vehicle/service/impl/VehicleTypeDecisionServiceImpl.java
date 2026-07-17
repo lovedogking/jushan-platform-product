@@ -2,6 +2,8 @@ package com.jushan.platform.modules.vehicle.service.impl;
 
 import com.jushan.common.auth.TenantContext;
 import com.jushan.platform.modules.vehicle.entity.SysVehicle;
+import com.jushan.system.entity.MonthlyPass;
+import com.jushan.system.mapper.MonthlyPassMapper;
 import com.jushan.platform.modules.vehicle.entity.SysVehicleMultiPlate;
 import com.jushan.platform.modules.vehicle.entity.SysVehicleWallet;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
@@ -44,15 +46,18 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
     private final SysVehicleMultiPlateMapper multiPlateMapper;
     private final SysVehicleWalletMapper walletMapper;
     private final FixedSpaceService fixedSpaceService;
+    private final MonthlyPassMapper monthlyPassMapper;
 
     public VehicleTypeDecisionServiceImpl(SysVehicleMapper vehicleMapper,
                                           SysVehicleMultiPlateMapper multiPlateMapper,
                                           SysVehicleWalletMapper walletMapper,
-                                          FixedSpaceService fixedSpaceService) {
+                                          FixedSpaceService fixedSpaceService,
+                                          MonthlyPassMapper monthlyPassMapper) {
         this.vehicleMapper = vehicleMapper;
         this.multiPlateMapper = multiPlateMapper;
         this.walletMapper = walletMapper;
         this.fixedSpaceService = fixedSpaceService;
+        this.monthlyPassMapper = monthlyPassMapper;
     }
 
     @Override
@@ -63,6 +68,24 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
     @Override
     public VehicleTypeDecisionVO decide(String plateNumber, Long tenantId) {
         String standardizedPlate = plateNumber.toUpperCase();
+
+        // 0. 优先查询月卡（新体系：任务包 3-1）
+        MonthlyPass monthlyPass = monthlyPassMapper.selectActiveByPlate(
+                tenantId, standardizedPlate, LocalDate.now());
+        if (monthlyPass != null) {
+            VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
+            result.setPlateNumber(standardizedPlate);
+            result.setVehicleType("MONTHLY");
+            result.setTypeDescription("月租车");
+            result.setAllowEntry(true);
+            result.setAllowExit(true);
+            result.setNeedCharge(false);
+            result.setValidStartDate(monthlyPass.getValidStartDate());
+            result.setValidEndDate(monthlyPass.getValidEndDate());
+            result.setExpired(false);
+            result.setDecisionReason("月卡在有效期内，免费通行");
+            return result;
+        }
 
         VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
         result.setPlateNumber(standardizedPlate);
@@ -142,7 +165,6 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
         if (!SysVehicle.TYPE_BLACKLIST.equals(type)
                 && !SysVehicle.TYPE_SUPER.equals(type)
                 && !SysVehicle.TYPE_VIP.equals(type)
-                && !SysVehicle.TYPE_MONTHLY.equals(type)
                 && !SysVehicle.TYPE_PREPAID.equals(type)) {
             if (fixedSpaceService != null && fixedSpaceService.hasActiveBindingByVehicleId(
                     vehicle.getId(), vehicle.getParkingLotId(), tenantId)) {
@@ -178,24 +200,6 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
                 result.setNeedCharge(false);
                 result.setDecisionReason("贵宾车，免费通行");
             }
-            case SysVehicle.TYPE_MONTHLY -> {
-                // 检查月卡有效期
-                boolean expired = isMonthlyExpired(vehicle);
-                result.setExpired(expired);
-                if (expired) {
-                    result.setTypeDescription("月租车（已过期）");
-                    result.setAllowEntry(true);
-                    result.setAllowExit(true);
-                    result.setNeedCharge(true);
-                    result.setDecisionReason("月卡已过期，按临时车收费处理");
-                } else {
-                    result.setTypeDescription("月租车");
-                    result.setAllowEntry(true);
-                    result.setAllowExit(true);
-                    result.setNeedCharge(false);
-                    result.setDecisionReason("月卡在有效期内，免费通行");
-                }
-            }
             case SysVehicle.TYPE_PREPAID -> {
                 // 查询储值车余额
                 SysVehicleWallet wallet = walletMapper.selectByVehicleId(vehicle.getId(), tenantId);
@@ -226,21 +230,5 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
         }
 
         return result;
-    }
-
-    /**
-     * 检查月卡是否过期。
-     */
-    private boolean isMonthlyExpired(SysVehicle vehicle) {
-        LocalDate now = LocalDate.now();
-        LocalDate validEnd = vehicle.getValidEndDate();
-
-        // 没有有效期限制 = 永不过期
-        if (validEnd == null) {
-            return false;
-        }
-
-        // 当前日期 > 有效期结束日期 = 已过期
-        return now.isAfter(validEnd);
     }
 }
