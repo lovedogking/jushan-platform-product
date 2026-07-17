@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -829,6 +830,20 @@ public class ParkingOrderService {
      */
     public ParkingOrder getById(Long orderId) {
         return orderMapper.selectById(orderId);
+    }
+
+    /**
+     * 按车牌和车场查询所有欠费中订单。
+     * <p>
+     * 用于再次出场时检测是否存在未补缴的欠费，根据 arrears.reexit_strategy 决定处理方式。
+     * 任务包 2-3。
+     *
+     * @param plateNumber  标准化车牌号
+     * @param parkingLotId 停车场 ID
+     * @return 欠费中订单列表（按创建时间倒序），无数据则空列表
+     */
+    public List<ParkingOrder> getArrearsOrdersByPlate(String plateNumber, Long parkingLotId) {
+        return orderMapper.selectArrearsByPlate(parkingLotId, plateNumber);
     }
 
     /**
