@@ -95,3 +95,15 @@ export function deleteParkingLane(id: number) {
 export function updateParkingLaneStatus(id: number, status: number) {
   return request.post<void>(`/admin/lanes/${id}/status`, { action: status === 1 ? "ENABLED" : "DISABLED" })
 }
+
+/** 可绑定的相机设备 */
+export interface AvailableCamera {
+  deviceId: number
+  deviceName: string
+  recognitionDirection: number | null
+}
+
+/** 查询指定停车场可绑定到车道的相机列表 */
+export function getAvailableCameras(parkingLotId: number) {
+  return request.get<AvailableCamera[]>('/admin/devices/available-for-lane', { parkingLotId })
+}

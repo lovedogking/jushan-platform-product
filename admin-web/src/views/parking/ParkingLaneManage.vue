@@ -63,6 +63,18 @@
         <template v-if="column.key === 'cameraMode'">
           {{ cameraModeText(record.cameraMode) }}
         </template>
+        <template v-if="column.key === 'cameraBinding'">
+          <template v-if="record.type === 3">
+            <span>
+              <span v-if="record.entryCameraId" style="color: #10b981">入场: ✅</span>
+              <span v-else style="color: #f59e0b">入场: ❌</span>
+              <span style="margin: 0 4px">|</span>
+              <span v-if="record.exitCameraId" style="color: #10b981">出场: ✅</span>
+              <span v-else style="color: #f59e0b">出场: ❌</span>
+            </span>
+          </template>
+          <template v-else>-</template>
+        </template>
         <template v-if="column.key === 'tideMode'">
           {{ tideModeText(record.tideMode) }}
         </template>
@@ -112,10 +124,26 @@
           </a-select>
         </a-form-item>
         <a-form-item v-if="showEntryCamera" label="入口相机ID">
-          <a-input-number v-model:value="formData.entryCameraId" placeholder="入口相机ID" style="width: 100%" />
+          <a-select
+            v-if="formData.type === 3 && entryCameraOptions.length > 0"
+            v-model:value="formData.entryCameraId"
+            placeholder="请选择入口相机"
+            allow-clear
+          >
+            <a-select-option v-for="cam in entryCameraOptions" :key="cam.deviceId" :value="cam.deviceId">{{ cam.deviceName }}</a-select-option>
+          </a-select>
+          <a-input-number v-else v-model:value="formData.entryCameraId" placeholder="入口相机ID" style="width: 100%" />
         </a-form-item>
         <a-form-item v-if="showExitCamera" label="出口相机ID">
-          <a-input-number v-model:value="formData.exitCameraId" placeholder="出口相机ID" style="width: 100%" />
+          <a-select
+            v-if="formData.type === 3 && exitCameraOptions.length > 0"
+            v-model:value="formData.exitCameraId"
+            placeholder="请选择出口相机"
+            allow-clear
+          >
+            <a-select-option v-for="cam in exitCameraOptions" :key="cam.deviceId" :value="cam.deviceId">{{ cam.deviceName }}</a-select-option>
+          </a-select>
+          <a-input-number v-else v-model:value="formData.exitCameraId" placeholder="出口相机ID" style="width: 100%" />
         </a-form-item>
         <a-form-item v-if="formData.type === 3" label="潮汐模式">
           <a-select v-model:value="formData.tideMode" placeholder="请选择潮汐模式">
@@ -133,6 +161,12 @@
           </a-select>
         </a-form-item>
       </a-form>
+      <div v-if="formData.type === 3" class="camera-guide" style="margin-top: 12px; padding: 0 24px;">
+        <a-alert v-if="hasEntryCamera && hasExitCamera" type="success" message="相机配置完整：双方向均已绑定" show-icon />
+        <a-alert v-else-if="!hasEntryCamera && !hasExitCamera" type="warning" message="建议配置入场方向和出场方向相机" show-icon />
+        <a-alert v-else-if="!hasEntryCamera" type="warning" message="建议添加入场方向相机" show-icon />
+        <a-alert v-else-if="!hasExitCamera" type="warning" message="建议添加出场方向相机" show-icon />
+      </div>
     </a-modal>
   </div>
 </template>
@@ -147,11 +181,13 @@ import {
   updateParkingLane,
   deleteParkingLane,
   updateParkingLaneStatus,
+  getAvailableCameras,
   LANE_TYPE_OPTIONS,
   LANE_STATUS_OPTIONS,
   TIDE_MODE_OPTIONS,
   CAMERA_MODE_OPTIONS,
   type ParkingLaneVO,
+  type AvailableCamera,
 } from '@/api/parking-lane'
 import { getParkingLots, type ParkingLotVO } from '@/api/parking-lot'
 import { getParkingZonesByLotId, type ParkingZoneVO } from '@/api/parking-zone'
@@ -162,6 +198,7 @@ const columns = [
   { title: '通道名称', dataIndex: 'name', key: 'name', width: 140 },
   { title: '类型', key: 'type', width: 90 },
   { title: '相机模式', key: 'cameraMode', width: 110 },
+  { title: '相机绑定', key: 'cameraBinding', width: 160 },
   { title: '潮汐模式', key: 'tideMode', width: 120 },
   { title: '状态', key: 'status', width: 90 },
   { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 170 },
@@ -204,6 +241,19 @@ const formData = reactive({
   status: 1,
 })
 const formZoneOptions = ref<ParkingZoneVO[]>([])
+
+const availableCameras = ref<AvailableCamera[]>([])
+
+const hasEntryCamera = computed(() => formData.entryCameraId != null && formData.entryCameraId > 0)
+const hasExitCamera = computed(() => formData.exitCameraId != null && formData.exitCameraId > 0)
+
+const entryCameraOptions = computed(() =>
+  availableCameras.value.filter(c => c.recognitionDirection === 1 || c.recognitionDirection == null)
+)
+
+const exitCameraOptions = computed(() =>
+  availableCameras.value.filter(c => c.recognitionDirection === 2 || c.recognitionDirection == null)
+)
 
 const showEntryCamera = computed(() => formData.type === 1 || formData.type === 3)
 const showExitCamera = computed(() => formData.type === 2 || formData.type === 3)
@@ -258,8 +308,19 @@ async function handleFormLotChange() {
   formData.zoneId = undefined
   if (formData.lotId) {
     formZoneOptions.value = await loadZonesByLotId(formData.lotId)
+    loadAvailableCameras(formData.lotId)
   } else {
     formZoneOptions.value = []
+    availableCameras.value = []
+  }
+}
+
+async function loadAvailableCameras(lotId: number) {
+  try {
+    const cameras = await getAvailableCameras(lotId)
+    availableCameras.value = cameras
+  } catch {
+    availableCameras.value = []
   }
 }
 
