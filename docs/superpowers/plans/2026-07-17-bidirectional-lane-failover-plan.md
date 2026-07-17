@@ -157,7 +157,7 @@ git commit -m "[任务包3-5] feat: RecognitionEventPayload 新增 cameraSource 
 **Files:**
 - Modify: `parking-system/src/main/java/com/jushan/system/event/RecognitionEventConsumer.java`
 
-- [ ] **Step 1: Add imports**
+- [x] **Step 1: Add imports**
 
 In the imports section, after `import com.jushan.system.service.EntryService;` (line 17), add:
 
@@ -165,7 +165,7 @@ In the imports section, after `import com.jushan.system.service.EntryService;` (
 import com.jushan.system.service.CameraFailoverService;
 ```
 
-- [ ] **Step 2: Add CameraFailoverService as a final field and constructor parameter**
+- [x] **Step 2: Add CameraFailoverService as a final field and constructor parameter**
 
 Replace the existing field declarations block (lines 66-72):
 ```java
@@ -230,7 +230,7 @@ With:
     }
 ```
 
-- [ ] **Step 3: Add bidirectional lane direction derivation + cameraSource stamping in validateAndStandardize**
+- [x] **Step 3: Add bidirectional lane direction derivation + cameraSource stamping in validateAndStandardize**
 
 **IMPORTANT: Variable scope awareness.** The `lane` variable is defined inside `if (device.getLaneId() != null)` (line 253 of the original), so the direction derivation must go INSIDE that block before it closes at line 272. The `device` variable is defined at line 209 and is accessible throughout. The cameraSource stamping (which only needs `device`) can go after the block closes.
 
@@ -315,7 +315,7 @@ Replace with:
         return result;
 ```
 
-- [ ] **Step 5: Update updateEventLog to persist cameraSource**
+- [x] **Step 5: Update updateEventLog to persist cameraSource**
 
 In `updateEventLog()`, after line 295 (`update.setStatus("PROCESSED");` / `update.setStatus("FAILED");` logic), before the LambdaUpdateWrapper, add cameraSource setting.
 
@@ -346,7 +346,7 @@ Replace the entire `updateEventLog` method body (lines 291-307):
     }
 ```
 
-- [ ] **Step 6: Update updateEventLogFailed to persist cameraSource**
+- [x] **Step 6: Update updateEventLogFailed to persist cameraSource**
 
 Replace the entire `updateEventLogFailed` method body (lines 312-331):
 

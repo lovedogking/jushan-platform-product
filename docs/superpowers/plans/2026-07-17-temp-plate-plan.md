@@ -684,7 +684,7 @@ public class TempPlateService {
 Run: `mvn clean compile -pl parking-system -am 2>&1 | tail -5`
 Expected: `BUILD SUCCESS`
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交 (Task 5)**
 
 ```bash
 git add parking-system/src/main/java/com/jushan/system/service/TempPlateService.java

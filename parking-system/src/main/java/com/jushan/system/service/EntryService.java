@@ -320,6 +320,11 @@ public class EntryService {
         // payload.eventId 是 UUID 字符串，两者不同，此处不设置
         record.setEntryImagePath(payload.getImagePath());
 
+        // 记录相机来源（主备切换场景标记）
+        if (payload.getCameraSource() != null) {
+            record.setCameraSource(payload.getCameraSource());
+        }
+
         try {
             recordMapper.insert(record);
         } catch (DuplicateKeyException e) {

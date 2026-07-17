@@ -535,6 +535,10 @@ public class ExitService {
         exitRecord.setFeeCents(Math.max(0, feeCents));
         exitRecord.setPaidCents(actualPaidCents);
         exitRecord.setReleaseDecision(decisionCode);
+        // 记录相机来源
+        if (payload.getCameraSource() != null) {
+            exitRecord.setCameraSource(payload.getCameraSource());
+        }
         exitRecord.setOrderId(order != null ? order.getId() : 0L);
         exitRecord.setReason(reason);
         exitRecord.setCreatedAt(LocalDateTime.now());
@@ -559,6 +563,10 @@ public class ExitService {
         exitRecord.setFeeCents(0);
         exitRecord.setPaidCents(0);
         exitRecord.setReleaseDecision(ExitRecord.DECISION_NO_RECORD);
+        // 记录相机来源
+        if (payload.getCameraSource() != null) {
+            exitRecord.setCameraSource(payload.getCameraSource());
+        }
         exitRecord.setLaneId(payload.getLaneId());
         exitRecord.setDeviceId(payload.getDeviceId());
         exitRecord.setReason("未匹配到同停车场在场记录");
@@ -638,6 +646,10 @@ public class ExitService {
             exitRecord.setFeeCents(totalCents);
             exitRecord.setPaidCents(0);
             exitRecord.setReleaseDecision(ExitRecord.DECISION_ARREARS_MUST_PAY);
+            // 记录相机来源
+            if (payload.getCameraSource() != null) {
+                exitRecord.setCameraSource(payload.getCameraSource());
+            }
             exitRecord.setOrderId(mergedOrder.getId());
             exitRecord.setReason("欠费合并计费：欠费" + (arrearsTotalCents / 100.0) + "元 + 本次" + (feeCents / 100.0) + "元 = " + (totalCents / 100.0) + "元");
             exitRecord.setCreatedAt(LocalDateTime.now());
@@ -702,6 +714,10 @@ public class ExitService {
         exitRecord.setFeeCents(feeCents);
         exitRecord.setPaidCents(0);
         exitRecord.setReleaseDecision(decisionCode);
+        // 记录相机来源
+        if (payload.getCameraSource() != null) {
+            exitRecord.setCameraSource(payload.getCameraSource());
+        }
         exitRecord.setOrderId(0L);
         exitRecord.setReason(reason);
         exitRecord.setCreatedAt(LocalDateTime.now());
