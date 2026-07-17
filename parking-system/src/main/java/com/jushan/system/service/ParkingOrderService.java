@@ -57,16 +57,19 @@ public class ParkingOrderService {
     private final ParkingOrderMapper orderMapper;
     private final ParkingRecordMapper recordMapper;
     private final OrderStatusLogService orderStatusLogService;
+    private final com.jushan.system.mapper.BillingRuleRecalcLogMapper recalcLogMapper;
 
     private final AtomicInteger sequence = new AtomicInteger(0);
     private volatile String lastSequenceDate = "";
 
     public ParkingOrderService(ParkingOrderMapper orderMapper,
                                ParkingRecordMapper recordMapper,
-                               OrderStatusLogService orderStatusLogService) {
+                               OrderStatusLogService orderStatusLogService,
+                               com.jushan.system.mapper.BillingRuleRecalcLogMapper recalcLogMapper) {
         this.orderMapper = orderMapper;
         this.recordMapper = recordMapper;
         this.orderStatusLogService = orderStatusLogService;
+        this.recalcLogMapper = recalcLogMapper;
     }
 
     // ==================== 创建 ====================
@@ -123,7 +126,7 @@ public class ParkingOrderService {
     /**
      * 内部建单，支持支付场景、出口车道、重算来源。
      */
-    private ParkingOrder createOrderInternal(ParkingRecord record, int feeCents,
+    public ParkingOrder createOrderInternal(ParkingRecord record, int feeCents,
                                                String idempotencyKey, String payScene,
                                                Long exitLaneId, Long recalcSourceOrderId,
                                                String remark) {
@@ -672,6 +675,72 @@ public class ParkingOrderService {
                         .isNull("deleted_at")
                         .orderByDesc("created_at")
                         .last("LIMIT 1"));
+    }
+
+    /**
+     * 查询停车记录下最近一条 CANCELLED 订单，供超时重算路径使用，任务包 2-2。
+     */
+    public ParkingOrder findCancelledOrderForRecord(Long parkingRecordId) {
+        if (parkingRecordId == null) {
+            return null;
+        }
+        return orderMapper.selectLatestCancelledByRecordId(parkingRecordId);
+    }
+
+    /**
+     * 更新待支付订单金额（出场重识别金额重算），任务包 2-2。
+     * <p>
+     * 条件更新：仅 PENDING_PAY/PAYING 状态下生效，返回受影响行数。
+     *
+     * @param orderId        订单 ID
+     * @param newAmountCents 重算后的金额（分）
+     * @param newExpiredAt   新的支付过期时间
+     * @return true 更新成功
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean updatePendingOrderAmount(Long orderId, int newAmountCents, LocalDateTime newExpiredAt) {
+        int updated = orderMapper.updatePendingOrderAmount(orderId, newAmountCents, newExpiredAt);
+        if (updated > 0) {
+            ParkingOrder order = orderMapper.selectById(orderId);
+            if (order != null) {
+                orderStatusLogService.record(order, order.getStatus(), order.getStatus(),
+                        currentTriggerSource(), currentOperatorId(), null,
+                        "出场重识别金额重算，应付" + newAmountCents + "分");
+            }
+            log.info("订单金额已重算: orderId={} newAmount={}", orderId, newAmountCents);
+        }
+        return updated > 0;
+    }
+
+    /**
+     * 写入计费重算审计日志，任务包 2-2。
+     *
+     * @param record              停车记录
+     * @param originalOrderId     原订单 ID（EXIT_RESCAN 时与 newOrderId 相同）
+     * @param newOrderId          新/更新后的订单 ID
+     * @param originalAmountCents 原金额（分）
+     * @param newAmountCents      新金额（分）
+     * @param triggerReason       触发原因（EXIT_RESCAN / TIMEOUT_RECALC）
+     */
+    public void insertRecalcLog(ParkingRecord record, Long originalOrderId, Long newOrderId,
+                                 Integer originalAmountCents, Integer newAmountCents,
+                                 String triggerReason) {
+        com.jushan.system.entity.BillingRuleRecalcLog recalcLog =
+                new com.jushan.system.entity.BillingRuleRecalcLog();
+        recalcLog.setTenantId(record.getTenantId());
+        recalcLog.setParkingLotId(record.getParkingLotId());
+        recalcLog.setParkingRecordId(record.getId());
+        recalcLog.setPlateNumber(record.getStandardizedPlate());
+        recalcLog.setOriginalOrderId(originalOrderId);
+        recalcLog.setFeeCents(newAmountCents);
+        recalcLog.setOriginalAmountCents(originalAmountCents);
+        recalcLog.setNewAmountCents(newAmountCents);
+        recalcLog.setTriggerReason(triggerReason);
+        recalcLog.setRecalcTime(java.time.LocalDateTime.now());
+        recalcLog.setCreatedAt(java.time.LocalDateTime.now());
+        recalcLogMapper.insert(recalcLog);
+        log.info("重算审计日志已写入: recordId={} originalOrderId={} newOrderId={} amount {}->{} reason={}",
+                record.getId(), originalOrderId, newOrderId, originalAmountCents, newAmountCents, triggerReason);
     }
 
     /**
