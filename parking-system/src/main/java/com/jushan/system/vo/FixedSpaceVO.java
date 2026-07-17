@@ -35,6 +35,16 @@ public class FixedSpaceVO {
     private Integer status;
     /** 备注 */
     private String remark;
+    /** 缴费方式：CASH / OFFLINE_TRANSFER / SIMULATED_PAY / OTHER */
+    private String payMethod;
+    /** 实收金额（分） */
+    private Integer paidAmountCents;
+    /** 审核状态：PENDING-待审核 / APPROVED-已通过 / REJECTED-已驳回 */
+    private String reviewStatus;
+    /** 来源：ADMIN-运营端 / MINIAPP-小程序端 */
+    private String source;
+    /** 申请人ID（小程序用户ID；运营端录入为NULL） */
+    private Long applicantId;
     /** 创建时间 */
     private LocalDateTime createdAt;
 
@@ -62,6 +72,16 @@ public class FixedSpaceVO {
     public void setStatus(Integer status) { this.status = status; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
+    public String getPayMethod() { return payMethod; }
+    public void setPayMethod(String payMethod) { this.payMethod = payMethod; }
+    public Integer getPaidAmountCents() { return paidAmountCents; }
+    public void setPaidAmountCents(Integer paidAmountCents) { this.paidAmountCents = paidAmountCents; }
+    public String getReviewStatus() { return reviewStatus; }
+    public void setReviewStatus(String reviewStatus) { this.reviewStatus = reviewStatus; }
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
+    public Long getApplicantId() { return applicantId; }
+    public void setApplicantId(Long applicantId) { this.applicantId = applicantId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

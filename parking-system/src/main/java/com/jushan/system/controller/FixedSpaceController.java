@@ -141,4 +141,38 @@ public class FixedSpaceController {
         log.info("固定车位注销完成: id={} spaceNo={}", id, vo.getSpaceNo());
         return R.ok(vo);
     }
+
+    // ==================== 审核 ====================
+
+    /**
+     * 审核通过固定车位绑定。
+     *
+     * @param id 绑定记录ID
+     * @return 更新后的绑定记录视图
+     */
+    @PutMapping("/{id}/approve")
+    @RequirePermission("fixed:manage")
+    @BusinessLog(value = "固定车位审核通过", module = "fixed-space", operationType = "UPDATE",
+            operationObject = "固定车位", objectIdExpression = "#id")
+    public R<FixedSpaceVO> approve(@PathVariable Long id) {
+        FixedSpaceVO vo = fixedSpaceService.approve(id);
+        log.info("固定车位审核通过完成: id={} spaceNo={}", id, vo.getSpaceNo());
+        return R.ok(vo);
+    }
+
+    /**
+     * 驳回固定车位绑定。
+     *
+     * @param id 绑定记录ID
+     * @return 更新后的绑定记录视图
+     */
+    @PutMapping("/{id}/reject")
+    @RequirePermission("fixed:manage")
+    @BusinessLog(value = "固定车位审核驳回", module = "fixed-space", operationType = "UPDATE",
+            operationObject = "固定车位", objectIdExpression = "#id")
+    public R<FixedSpaceVO> reject(@PathVariable Long id) {
+        FixedSpaceVO vo = fixedSpaceService.reject(id);
+        log.info("固定车位审核驳回完成: id={} spaceNo={}", id, vo.getSpaceNo());
+        return R.ok(vo);
+    }
 }

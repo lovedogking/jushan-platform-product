@@ -6,16 +6,21 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.common.auth.TenantContext;
+import com.jushan.platform.modules.parking.entity.ParkingSpacePolicy;
 import com.jushan.platform.modules.parking.entity.ParkingZone;
+import com.jushan.platform.modules.parking.mapper.ParkingSpacePolicyMapper;
 import com.jushan.platform.modules.parking.mapper.ParkingZoneMapper;
 import com.jushan.platform.modules.vehicle.entity.SysVehicle;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
+import com.jushan.system.constant.ParamKeys;
 import com.jushan.system.dto.FixedSpaceCreateRequest;
 import com.jushan.system.dto.FixedSpaceRenewRequest;
 import com.jushan.system.entity.FixedSpaceBinding;
 import com.jushan.system.entity.ParkingLot;
+import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.mapper.FixedSpaceBindingMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
+import com.jushan.system.mapper.ParkingOrderMapper;
 import com.jushan.system.vo.FixedSpaceVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,15 +57,24 @@ public class FixedSpaceService {
     private final SysVehicleMapper vehicleMapper;
     private final ParkingLotMapper parkingLotMapper;
     private final ParkingZoneMapper zoneMapper;
+    private final ParamResolver paramResolver;
+    private final ParkingSpacePolicyMapper spacePolicyMapper;
+    private final ParkingOrderMapper parkingOrderMapper;
 
     public FixedSpaceService(FixedSpaceBindingMapper bindingMapper,
                               SysVehicleMapper vehicleMapper,
                               ParkingLotMapper parkingLotMapper,
-                              ParkingZoneMapper zoneMapper) {
+                              ParkingZoneMapper zoneMapper,
+                              ParamResolver paramResolver,
+                              ParkingSpacePolicyMapper spacePolicyMapper,
+                              ParkingOrderMapper parkingOrderMapper) {
         this.bindingMapper = bindingMapper;
         this.vehicleMapper = vehicleMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.zoneMapper = zoneMapper;
+        this.paramResolver = paramResolver;
+        this.spacePolicyMapper = spacePolicyMapper;
+        this.parkingOrderMapper = parkingOrderMapper;
     }
 
     // ==================== 列表查询 ====================
@@ -205,7 +219,24 @@ public class FixedSpaceService {
         // 3. 校验：同一车辆在同一车场不能重复绑定固定车位
         checkDuplicateVehicle(tenantId, request.getParkingLotId(), vehicleId, null);
 
-        // 4. 创建绑定记录
+        // 4. 配额检查：按区域限制固定车位数
+        if (request.getZoneId() != null) {
+            checkZoneQuota(tenantId, request.getParkingLotId(), request.getZoneId());
+        }
+
+        // 5. 解析审核模式
+        String reviewMode = paramResolver.getString(ParamKeys.FIXED_SPACE_REVIEW_MODE,
+                request.getParkingLotId());
+        String reviewStatus = "AUTO".equalsIgnoreCase(reviewMode)
+                ? FixedSpaceBinding.REVIEW_APPROVED : FixedSpaceBinding.REVIEW_PENDING;
+        log.info("固定车位绑定 — 审核模式: reviewMode={} reviewStatus={} lotId={}",
+                reviewMode, reviewStatus, request.getParkingLotId());
+
+        // 6. 确定来源与申请人
+        String source = request.getSource() != null ? request.getSource() : FixedSpaceBinding.SOURCE_ADMIN;
+        Long applicantId = FixedSpaceBinding.SOURCE_MINIAPP.equals(source) ? TenantContext.requireUserId() : null;
+
+        // 7. 创建绑定记录
         FixedSpaceBinding binding = new FixedSpaceBinding();
         binding.setTenantId(tenantId);
         binding.setParkingLotId(request.getParkingLotId());
@@ -215,13 +246,42 @@ public class FixedSpaceService {
         binding.setValidStart(request.getValidStart());
         binding.setValidEnd(request.getValidEnd());
         binding.setStatus(FixedSpaceBinding.STATUS_ACTIVE);
+        binding.setPayMethod(request.getPayMethod());
+        binding.setPaidAmountCents(request.getPaidAmountCents() != null ? request.getPaidAmountCents() : 0);
+        binding.setReviewStatus(reviewStatus);
+        binding.setSource(source);
+        binding.setApplicantId(applicantId);
         binding.setRemark(request.getRemark());
         binding.setCreatedAt(LocalDateTime.now());
         binding.setUpdatedAt(LocalDateTime.now());
         bindingMapper.insert(binding);
 
-        log.info("固定车位绑定成功: bindingId={} spaceNo={} plate={} parkingLotId={} validEnd={}",
-                binding.getId(), request.getSpaceNo(), plate, request.getParkingLotId(), request.getValidEnd());
+        log.info("固定车位绑定成功: bindingId={} spaceNo={} plate={} parkingLotId={} validEnd={} reviewStatus={}",
+                binding.getId(), request.getSpaceNo(), plate, request.getParkingLotId(),
+                request.getValidEnd(), reviewStatus);
+
+        // 8. 审核通过时直接生成已支付订单
+        Long orderId = null;
+        if (FixedSpaceBinding.REVIEW_APPROVED.equals(reviewStatus)) {
+            ParkingOrder order = new ParkingOrder();
+            order.setTenantId(tenantId);
+            order.setParkingLotId(request.getParkingLotId());
+            order.setRefId(binding.getId());
+            order.setPlateNumber(plate);
+            order.setOrderType(ParkingOrder.ORDER_TYPE_FIXED_SPACE);
+            order.setAmountCents(binding.getPaidAmountCents());
+            order.setPaidAmount(binding.getPaidAmountCents());
+            order.setPayableAmount(binding.getPaidAmountCents());
+            order.setStatus(ParkingOrder.STATUS_PAID);
+            order.setPayChannel(mapPayChannel(request.getPayMethod()));
+            order.setPayTime(LocalDateTime.now());
+            order.setCreatedAt(LocalDateTime.now());
+            order.setUpdatedAt(LocalDateTime.now());
+            parkingOrderMapper.insert(order);
+            orderId = order.getId();
+            log.info("固定车位绑定 — 生成已支付订单: orderId={} bindingId={} paidAmount={}",
+                    order.getId(), binding.getId(), binding.getPaidAmountCents());
+        }
 
         // 如果绑定信息中带 remark，更新到车辆（不覆盖已有）
         if (request.getRemark() != null && vehicle.getRemark() == null) {
@@ -254,12 +314,15 @@ public class FixedSpaceService {
         LocalDate oldEnd = binding.getValidEnd();
 
         binding.setValidEnd(request.getNewValidEnd());
+        binding.setPayMethod(request.getPayMethod());
+        binding.setPaidAmountCents(request.getPaidAmountCents() != null ? request.getPaidAmountCents() : 0);
         binding.setRemark(request.getRemark());
         binding.setUpdatedAt(LocalDateTime.now());
         bindingMapper.updateById(binding);
 
-        log.info("固定车位续期成功: bindingId={} spaceNo={} oldEnd={} newEnd={}",
-                id, binding.getSpaceNo(), oldEnd, request.getNewValidEnd());
+        log.info("固定车位续期成功: bindingId={} spaceNo={} oldEnd={} newEnd={} payMethod={} paid={}",
+                id, binding.getSpaceNo(), oldEnd, request.getNewValidEnd(),
+                request.getPayMethod(), request.getPaidAmountCents());
 
         return toVO(binding);
     }
@@ -395,8 +458,10 @@ public class FixedSpaceService {
 
         Long count = bindingMapper.selectCount(query);
         if (count != null && count > 0) {
+            String lotName = getParkingLotName(parkingLotId);
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "该车位已被绑定: parkingLotId=" + parkingLotId + " spaceNo=" + spaceNo);
+                    "该车位号已被绑定（车场=" + (lotName != null ? lotName : parkingLotId)
+                            + "，车位号=" + spaceNo + "）");
         }
     }
 
@@ -497,7 +562,160 @@ public class FixedSpaceService {
         vo.setValidEnd(binding.getValidEnd());
         vo.setStatus(binding.getStatus());
         vo.setRemark(binding.getRemark());
+        vo.setPayMethod(binding.getPayMethod());
+        vo.setPaidAmountCents(binding.getPaidAmountCents());
+        vo.setReviewStatus(binding.getReviewStatus());
+        vo.setSource(binding.getSource());
+        vo.setApplicantId(binding.getApplicantId());
         vo.setCreatedAt(binding.getCreatedAt());
         return vo;
+    }
+
+    // ==================== 审核 ====================
+
+    /**
+     * 审核通过固定车位绑定。
+     * <p>
+     * 设置 reviewStatus=APPROVED，生成已支付订单。
+     *
+     * @param id 绑定记录ID
+     * @return 更新后的绑定记录视图
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public FixedSpaceVO approve(Long id) {
+        Long tenantId = TenantContext.requireTenantId();
+        FixedSpaceBinding binding = getBindingOrThrow(id, tenantId);
+
+        if (!FixedSpaceBinding.REVIEW_PENDING.equals(binding.getReviewStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "仅待审核状态的固定车位可审核通过");
+        }
+
+        updateReviewStatus(binding, FixedSpaceBinding.REVIEW_APPROVED);
+
+        // 生成已支付订单
+        ParkingOrder order = new ParkingOrder();
+        order.setTenantId(tenantId);
+        order.setParkingLotId(binding.getParkingLotId());
+        order.setRefId(binding.getId());
+        order.setPlateNumber(getPlateNumber(binding.getVehicleId()));
+        order.setOrderType(ParkingOrder.ORDER_TYPE_FIXED_SPACE);
+        order.setAmountCents(binding.getPaidAmountCents() != null ? binding.getPaidAmountCents() : 0);
+        order.setPaidAmount(binding.getPaidAmountCents() != null ? binding.getPaidAmountCents() : 0);
+        order.setPayableAmount(binding.getPaidAmountCents() != null ? binding.getPaidAmountCents() : 0);
+        order.setStatus(ParkingOrder.STATUS_PAID);
+        order.setPayChannel(mapPayChannel(binding.getPayMethod()));
+        order.setPayTime(LocalDateTime.now());
+        order.setCreatedAt(LocalDateTime.now());
+        order.setUpdatedAt(LocalDateTime.now());
+        parkingOrderMapper.insert(order);
+
+        log.info("固定车位审核通过: bindingId={} spaceNo={} orderId={}", id, binding.getSpaceNo(), order.getId());
+
+        return toVO(binding);
+    }
+
+    /**
+     * 驳回固定车位绑定。
+     * <p>
+     * 设置 reviewStatus=REJECTED。
+     *
+     * @param id 绑定记录ID
+     * @return 更新后的绑定记录视图
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public FixedSpaceVO reject(Long id) {
+        Long tenantId = TenantContext.requireTenantId();
+        FixedSpaceBinding binding = getBindingOrThrow(id, tenantId);
+
+        if (!FixedSpaceBinding.REVIEW_PENDING.equals(binding.getReviewStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "仅待审核状态的固定车位可执行驳回");
+        }
+
+        updateReviewStatus(binding, FixedSpaceBinding.REVIEW_REJECTED);
+
+        log.info("固定车位审核驳回: bindingId={} spaceNo={}", id, binding.getSpaceNo());
+
+        return toVO(binding);
+    }
+
+    // ==================== 查询辅助 ====================
+
+    /**
+     * 统计指定区域内生效中的固定车位绑定数（用于配额检查）。
+     *
+     * @param tenantId     租户ID
+     * @param parkingLotId 车场ID
+     * @param zoneId       区域ID
+     * @return 生效中的绑定数
+     */
+    public long countActiveByZone(Long tenantId, Long parkingLotId, Long zoneId) {
+        if (tenantId == null || parkingLotId == null || zoneId == null) {
+            return 0;
+        }
+        Long count = bindingMapper.selectCount(new QueryWrapper<FixedSpaceBinding>()
+                .eq("tenant_id", tenantId)
+                .eq("parking_lot_id", parkingLotId)
+                .eq("zone_id", zoneId)
+                .eq("status", FixedSpaceBinding.STATUS_ACTIVE));
+        return count != null ? count : 0;
+    }
+
+    // ==================== 内部方法（新增） ====================
+
+    /**
+     * 更新审核状态（公共内部方法）。
+     */
+    private void updateReviewStatus(FixedSpaceBinding binding, String targetStatus) {
+        binding.setReviewStatus(targetStatus);
+        binding.setUpdatedAt(LocalDateTime.now());
+        bindingMapper.updateById(binding);
+    }
+
+    /**
+     * 区域固定车位配额检查。
+     */
+    private void checkZoneQuota(Long tenantId, Long parkingLotId, Long zoneId) {
+        ParkingSpacePolicy policy = spacePolicyMapper.selectByZoneId(zoneId, tenantId);
+        if (policy == null || policy.getFixedSpaces() == null || policy.getFixedSpaces() <= 0) {
+            // 无策略或无配额限制，跳过
+            return;
+        }
+
+        long activeCount = countActiveByZone(tenantId, parkingLotId, zoneId);
+        log.info("固定车位配额检查: zoneId={} policyFixedSpaces={} activeCount={}",
+                zoneId, policy.getFixedSpaces(), activeCount);
+
+        if (activeCount >= policy.getFixedSpaces()) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "该区域固定车位数已达上限（配额=" + policy.getFixedSpaces() + "，已占用=" + activeCount + "）");
+        }
+    }
+
+    /**
+     * 获取车场名称（用于错误消息）。
+     */
+    private String getParkingLotName(Long parkingLotId) {
+        if (parkingLotId == null) return null;
+        ParkingLot lot = parkingLotMapper.selectById(parkingLotId);
+        return lot != null ? lot.getName() : null;
+    }
+
+    /**
+     * 缴费方式映射到订单 payChannel。
+     */
+    private String mapPayChannel(String payMethod) {
+        return switch (payMethod) {
+            case FixedSpaceBinding.PAY_METHOD_CASH -> ParkingOrder.PAY_CHANNEL_CASH;
+            default -> ParkingOrder.PAY_CHANNEL_BALANCE;
+        };
+    }
+
+    /**
+     * 根据车辆ID查询车牌号。
+     */
+    private String getPlateNumber(Long vehicleId) {
+        if (vehicleId == null) return null;
+        SysVehicle vehicle = vehicleMapper.selectById(vehicleId);
+        return vehicle != null ? vehicle.getPlateNumber() : null;
     }
 }

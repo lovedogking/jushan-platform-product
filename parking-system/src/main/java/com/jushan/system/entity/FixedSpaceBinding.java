@@ -26,6 +26,27 @@ public class FixedSpaceBinding implements Serializable {
     /** 状态：已注销 */
     public static final int STATUS_DISABLED = 3;
 
+    /** 审核状态：待审核 */
+    public static final String REVIEW_PENDING = "PENDING";
+    /** 审核状态：已通过 */
+    public static final String REVIEW_APPROVED = "APPROVED";
+    /** 审核状态：已驳回 */
+    public static final String REVIEW_REJECTED = "REJECTED";
+
+    /** 缴费方式：现金 */
+    public static final String PAY_METHOD_CASH = "CASH";
+    /** 缴费方式：线下转账 */
+    public static final String PAY_METHOD_OFFLINE_TRANSFER = "OFFLINE_TRANSFER";
+    /** 缴费方式：模拟支付 */
+    public static final String PAY_METHOD_SIMULATED_PAY = "SIMULATED_PAY";
+    /** 缴费方式：其他 */
+    public static final String PAY_METHOD_OTHER = "OTHER";
+
+    /** 来源：运营端 */
+    public static final String SOURCE_ADMIN = "ADMIN";
+    /** 来源：小程序端 */
+    public static final String SOURCE_MINIAPP = "MINIAPP";
+
     private Long id;
     private Long tenantId;
     private Long parkingLotId;
@@ -35,6 +56,11 @@ public class FixedSpaceBinding implements Serializable {
     private LocalDate validStart;
     private LocalDate validEnd;
     private Integer status;
+    private String payMethod;
+    private Integer paidAmountCents;
+    private String reviewStatus;
+    private String source;
+    private Long applicantId;
     private String remark;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -58,6 +84,16 @@ public class FixedSpaceBinding implements Serializable {
     public void setValidEnd(LocalDate validEnd) { this.validEnd = validEnd; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
+    public String getPayMethod() { return payMethod; }
+    public void setPayMethod(String payMethod) { this.payMethod = payMethod; }
+    public Integer getPaidAmountCents() { return paidAmountCents; }
+    public void setPaidAmountCents(Integer paidAmountCents) { this.paidAmountCents = paidAmountCents; }
+    public String getReviewStatus() { return reviewStatus; }
+    public void setReviewStatus(String reviewStatus) { this.reviewStatus = reviewStatus; }
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
+    public Long getApplicantId() { return applicantId; }
+    public void setApplicantId(Long applicantId) { this.applicantId = applicantId; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
     public LocalDateTime getCreatedAt() { return createdAt; }

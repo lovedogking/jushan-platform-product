@@ -30,6 +30,17 @@ public class FixedSpaceCreateRequest {
     @NotNull(message = "有效期止不能为空")
     private LocalDate validEnd;
 
+    /** 实收金额（分） */
+    @NotNull(message = "实收金额不能为空")
+    private Integer paidAmountCents;
+
+    /** 缴费方式：CASH / OFFLINE_TRANSFER / SIMULATED_PAY / OTHER */
+    @NotBlank(message = "缴费方式不能为空")
+    private String payMethod;
+
+    /** 来源：ADMIN-运营端 / MINIAPP-小程序端（默认 ADMIN） */
+    private String source;
+
     private String remark;
 
     public Long getParkingLotId() { return parkingLotId; }
@@ -44,6 +55,12 @@ public class FixedSpaceCreateRequest {
     public void setValidStart(LocalDate validStart) { this.validStart = validStart; }
     public LocalDate getValidEnd() { return validEnd; }
     public void setValidEnd(LocalDate validEnd) { this.validEnd = validEnd; }
+    public Integer getPaidAmountCents() { return paidAmountCents; }
+    public void setPaidAmountCents(Integer paidAmountCents) { this.paidAmountCents = paidAmountCents; }
+    public String getPayMethod() { return payMethod; }
+    public void setPayMethod(String payMethod) { this.payMethod = payMethod; }
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
 }

@@ -68,6 +68,9 @@ public final class ParamKeys {
     /** 支付后出场窗口期（分钟），默认 15。 */
     public static final String PAY_EXIT_WINDOW_MINUTES = "pay.exit_window_minutes";
 
+    /** 固定车位审核模式：AUTO=自动通过, MANUAL=需审核。 */
+    public static final String FIXED_SPACE_REVIEW_MODE = "fixed_space.review_mode";
+
     // ==================== 枚举选项常量 ====================
 
     public static final String EXIT_UNPAID_BLOCK = "BLOCK";
@@ -123,7 +126,10 @@ public final class ParamKeys {
             new Definition(MONTHLY_PASS_EXPIRY_REMINDER_DAYS, "计费设置", TYPE_INT, null,
                     "7", "月卡到期提醒天数"),
             new Definition(MONTHLY_PASS_COUNT_IN_AVAILABLE_SPACE, "计费设置", TYPE_BOOLEAN, null,
-                    "false", "月卡/固定车位是否计入余位"));
+                    "false", "月卡/固定车位是否计入余位"),
+            new Definition(FIXED_SPACE_REVIEW_MODE, "固定车位设置", TYPE_ENUM,
+                    "[\"AUTO\",\"MANUAL\"]", "AUTO",
+                    "固定车位审核模式：AUTO=自动通过, MANUAL=需审核"));
 
     /** 键 → 定义 的快速查找表。 */
     public static final Map<String, Definition> LOT_PARAM_INDEX = LOT_PARAMS.stream()
