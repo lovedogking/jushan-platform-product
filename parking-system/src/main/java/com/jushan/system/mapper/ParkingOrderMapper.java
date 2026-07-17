@@ -82,4 +82,24 @@ public interface ParkingOrderMapper extends BaseMapper<ParkingOrder> {
     @Update("UPDATE parking_order SET status = 'CANCELLED', updated_at = NOW() " +
             "WHERE id = #{orderId} AND status IN ('PENDING_PAY', 'PAYING') AND deleted_at IS NULL AND expired_at IS NOT NULL AND expired_at < NOW()")
     int cancelExpiredOrder(@Param("orderId") Long orderId);
+
+    /**
+     * 查询停车记录下最近一条 CANCELLED 订单（用于超时重算关联原订单）。
+     * 任务包 2-2。
+     */
+    @Select("SELECT * FROM parking_order WHERE parking_record_id = #{parkingRecordId} " +
+            "AND status = 'CANCELLED' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1")
+    ParkingOrder selectLatestCancelledByRecordId(@Param("parkingRecordId") Long parkingRecordId);
+
+    /**
+     * 更新待支付订单的金额和过期时间（出场重识别金额重算）。
+     * 条件更新：仅当订单当前状态为 PENDING_PAY 或 PAYING 时更新。
+     * 任务包 2-2。
+     */
+    @Update("UPDATE parking_order SET amount_cents = #{amountCents}, payable_amount = #{amountCents}, " +
+            "expired_at = #{expiredAt}, updated_at = NOW() " +
+            "WHERE id = #{orderId} AND status IN ('PENDING_PAY', 'PAYING') AND deleted_at IS NULL")
+    int updatePendingOrderAmount(@Param("orderId") Long orderId,
+                                  @Param("amountCents") Integer amountCents,
+                                  @Param("expiredAt") LocalDateTime expiredAt);
 }
