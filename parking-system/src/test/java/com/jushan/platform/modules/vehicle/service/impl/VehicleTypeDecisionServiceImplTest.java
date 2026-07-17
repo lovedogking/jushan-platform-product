@@ -6,6 +6,8 @@ import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleMultiPlateMapper;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleWalletMapper;
 import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
+import com.jushan.system.entity.MonthlyPass;
+import com.jushan.system.mapper.MonthlyPassMapper;
 import com.jushan.system.service.FixedSpaceService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +43,8 @@ class VehicleTypeDecisionServiceImplTest {
     private SysVehicleWalletMapper walletMapper;
     @Mock
     private FixedSpaceService fixedSpaceService;
+    @Mock
+    private MonthlyPassMapper monthlyPassMapper;
 
     private VehicleTypeDecisionServiceImpl decisionService;
 
@@ -49,7 +53,7 @@ class VehicleTypeDecisionServiceImplTest {
     @BeforeEach
     void setUp() {
         decisionService = new VehicleTypeDecisionServiceImpl(
-                vehicleMapper, multiPlateMapper, walletMapper, fixedSpaceService);
+                vehicleMapper, multiPlateMapper, walletMapper, fixedSpaceService, monthlyPassMapper);
 
         TenantContext.set(new TenantContext.Snapshot(1L, 100L, "TENANT", "", ""));
 
@@ -115,19 +119,84 @@ class VehicleTypeDecisionServiceImplTest {
     }
 
     @Test
-    @DisplayName("月卡车辆不触发固定车位检查")
+    @DisplayName("月卡生效中车辆不触发固定车位检查（monthly_pass 短路）")
     void shouldNotCheckFixedSpaceForMonthly() {
-        vehicle.setVehicleType(SysVehicle.TYPE_MONTHLY);
-        vehicle.setValidEndDate(java.time.LocalDate.now().plusMonths(3));
+        MonthlyPass pass = new MonthlyPass();
+        pass.setId(1L);
+        pass.setPlateNumber("京A12345");
+        pass.setPassStatus(MonthlyPass.STATUS_ACTIVE);
+        pass.setValidStartDate(java.time.LocalDate.now().minusDays(5));
+        pass.setValidEndDate(java.time.LocalDate.now().plusMonths(3));
 
-        when(vehicleMapper.selectByPlateNumber("京A12345", 1L)).thenReturn(vehicle);
-        when(multiPlateMapper.selectByVehicleId(10L)).thenReturn(List.of());
+        when(monthlyPassMapper.selectActiveByPlate(eq(1L), eq("京A12345"), any()))
+                .thenReturn(pass);
 
         VehicleTypeDecisionVO result = decisionService.decide("京A12345");
 
         assertThat(result.getVehicleType()).isEqualTo("MONTHLY");
         assertThat(result.getNeedCharge()).isFalse();
-        verify(fixedSpaceService, never()).hasActiveBindingByVehicleId(any(), any(), any());
+        verifyNoInteractions(fixedSpaceService);
+        verifyNoInteractions(vehicleMapper);
+    }
+
+    // ==================== MONTHLY_PASS 判定（任务包 3-1） ====================
+
+    @Test
+    @DisplayName("生效中月卡命中 → 返回 MONTHLY 判定（免费放行）")
+    void shouldDecideMonthlyWhenActiveMonthlyPassFound() {
+        MonthlyPass pass = new MonthlyPass();
+        pass.setId(1L);
+        pass.setPlateNumber("京A12345");
+        pass.setPassStatus(MonthlyPass.STATUS_ACTIVE);
+        pass.setValidStartDate(java.time.LocalDate.now().minusDays(5));
+        pass.setValidEndDate(java.time.LocalDate.now().plusMonths(3));
+
+        when(monthlyPassMapper.selectActiveByPlate(eq(1L), eq("京A12345"), any()))
+                .thenReturn(pass);
+
+        VehicleTypeDecisionVO result = decisionService.decide("京A12345");
+
+        assertThat(result.getVehicleType()).isEqualTo("MONTHLY");
+        assertThat(result.getNeedCharge()).isFalse();
+        assertThat(result.getAllowEntry()).isTrue();
+        assertThat(result.getAllowExit()).isTrue();
+        assertThat(result.getExpired()).isFalse();
+        assertThat(result.getDecisionReason()).contains("月卡在有效期内");
+    }
+
+    @Test
+    @DisplayName("无生效月卡 → 回退 sys_vehicle 类型链判断")
+    void shouldFallbackToSysVehicleWhenNoMonthlyPass() {
+        when(monthlyPassMapper.selectActiveByPlate(eq(1L), eq("京A12345"), any()))
+                .thenReturn(null);
+        when(vehicleMapper.selectByPlateNumber("京A12345", 1L)).thenReturn(vehicle);
+        when(multiPlateMapper.selectByVehicleId(10L)).thenReturn(List.of());
+        when(fixedSpaceService.hasActiveBindingByVehicleId(10L, 1L, 1L)).thenReturn(false);
+
+        VehicleTypeDecisionVO result = decisionService.decide("京A12345");
+
+        assertThat(result.getVehicleType()).isEqualTo("FREE");
+        assertThat(result.getNeedCharge()).isFalse();
+    }
+
+    @Test
+    @DisplayName("月卡命中但车牌不在 sys_vehicle → 仍返回 MONTHLY（月卡短路）")
+    void shouldReturnMonthlyEvenWithoutSysVehicleRecord() {
+        MonthlyPass pass = new MonthlyPass();
+        pass.setId(2L);
+        pass.setPlateNumber("京B88888");
+        pass.setPassStatus(MonthlyPass.STATUS_ACTIVE);
+        pass.setValidStartDate(java.time.LocalDate.now().minusDays(5));
+        pass.setValidEndDate(java.time.LocalDate.now().plusMonths(3));
+
+        when(monthlyPassMapper.selectActiveByPlate(eq(1L), eq("京B88888"), any()))
+                .thenReturn(pass);
+
+        VehicleTypeDecisionVO result = decisionService.decide("京B88888");
+
+        assertThat(result.getVehicleType()).isEqualTo("MONTHLY");
+        assertThat(result.getNeedCharge()).isFalse();
+        verifyNoInteractions(vehicleMapper);
     }
 
     @Test
