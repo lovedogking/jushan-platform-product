@@ -44,7 +44,7 @@
 **Files:**
 - Create: `parking-boot/src/main/resources/db/migration/V20260717005__add_temp_plate_flag.sql`
 
-- [ ] **Step 1: 创建 Flyway 迁移脚本**
+- [x] **Step 1: 创建 Flyway 迁移脚本**
 
 ```sql
 -- =============================================================================
@@ -61,12 +61,12 @@ ALTER TABLE recognition_event_log
     ADD COLUMN temp_plate_flag TINYINT NOT NULL DEFAULT 0 COMMENT '临时车牌标记：0=正式车牌, 1=临时车牌';
 ```
 
-- [ ] **Step 2: 验证编译通过**
+- [x] **Step 2: 验证编译通过** ✅ Commit: `549dfa3a`
 
 Run: `mvn clean compile -pl parking-system -am 2>&1 | tail -5`
 Expected: `BUILD SUCCESS`
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add parking-boot/src/main/resources/db/migration/V20260717005__add_temp_plate_flag.sql
