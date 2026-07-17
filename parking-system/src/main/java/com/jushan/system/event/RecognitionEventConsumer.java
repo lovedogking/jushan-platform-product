@@ -13,6 +13,7 @@ import com.jushan.system.mapper.ParkingLaneMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.RecognitionEventLogMapper;
 import com.jushan.system.mybatis.TenantIgnore;
+import com.jushan.system.service.CameraFailoverService;
 import com.jushan.system.service.EntryService;
 import com.jushan.system.service.ExitService;
 import org.slf4j.Logger;
@@ -70,6 +71,7 @@ public class RecognitionEventConsumer {
     private final RecognitionEventLogMapper eventLogMapper;
     private final EntryService entryService;
     private final ExitService exitService;
+    private final CameraFailoverService cameraFailoverService;
 
     public RecognitionEventConsumer(MessageIdempotency messageIdempotency,
                                      DeviceMapper deviceMapper,
@@ -77,7 +79,8 @@ public class RecognitionEventConsumer {
                                      ParkingLaneMapper laneMapper,
                                      RecognitionEventLogMapper eventLogMapper,
                                      EntryService entryService,
-                                     ExitService exitService) {
+                                     ExitService exitService,
+                                     CameraFailoverService cameraFailoverService) {
         this.messageIdempotency = messageIdempotency;
         this.deviceMapper = deviceMapper;
         this.parkingLotMapper = parkingLotMapper;
@@ -85,6 +88,7 @@ public class RecognitionEventConsumer {
         this.eventLogMapper = eventLogMapper;
         this.entryService = entryService;
         this.exitService = exitService;
+        this.cameraFailoverService = cameraFailoverService;
     }
 
     /**
@@ -269,9 +273,28 @@ public class RecognitionEventConsumer {
                     return result;
                 }
             }
+
+            // 3.5b 双向车道：相机有识别方向时，覆盖事件方向
+            //      确保入场/出场路由基于相机实际安装位置，而非事件发布端填写值
+            if (lane.getType() != null && lane.getType() == 3
+                    && device.getRecognitionDirection() != null) {
+                String cameraDirection = device.getRecognitionDirection() == 1 ? "ENTRY" : "EXIT";
+                if (!cameraDirection.equals(payload.getDirection())) {
+                    log.info("双向车道方向由相机推导覆盖: lane={} device={} cameraDirection={} originalDirection={}",
+                            lane.getName(), device.getId(), cameraDirection, payload.getDirection());
+                    payload.setDirection(cameraDirection);
+                }
+            }
         }
 
-        // 3.6 基本格式校验（非阻塞性，仅记录）
+        // 3.6 标记相机来源（仅当设备绑定了车道且有识别方向）
+        if (device.getLaneId() != null && device.getRecognitionDirection() != null) {
+            String source = cameraFailoverService.getActiveSource(
+                    device.getLaneId(), device.getRecognitionDirection());
+            payload.setCameraSource(source);
+        }
+
+        // 3.7 基本格式校验（非阻塞性，仅记录）
         if (!PlateStandardizer.isValidFormat(standardized)) {
             log.info("车牌格式可能异常（非阻塞）: plate={} eventId={}", standardized, payload.getEventId());
         }
@@ -296,6 +319,10 @@ public class RecognitionEventConsumer {
             update.setStatus("FAILED");
             update.setFailureReason(result.failureReason);
         }
+        // 记录相机来源
+        if (payload.getCameraSource() != null) {
+            update.setCameraSource(payload.getCameraSource());
+        }
 
         int rows = eventLogMapper.update(update,
                 new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<RecognitionEventLog>()
@@ -319,6 +346,10 @@ public class RecognitionEventConsumer {
             if (standardized != null) {
                 update.setStandardizedPlate(standardized);
             }
+        }
+        // 记录相机来源
+        if (payload.getCameraSource() != null) {
+            update.setCameraSource(payload.getCameraSource());
         }
 
         int rows = eventLogMapper.update(update,
