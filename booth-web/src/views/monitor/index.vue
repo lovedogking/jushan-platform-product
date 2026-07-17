@@ -82,17 +82,35 @@
               :class="{
                 'lane-offline': lane.isOffline,
                 'lane-charging': lane.charging,
+                'lane-primary-offline': lane.primaryOffline,
               }"
             >
               <div class="lane-header">
-                <span class="lane-name">{{ lane.laneName }}</span>
+                <span class="lane-name">
+                  {{ lane.laneName }}
+                  <span v-if="lane.primaryOffline" style="color: #f59e0b; margin-left: 6px;">
+                    <ExclamationCircleOutlined />
+                    <span style="font-size: 12px; margin-left: 2px;">主相机离线</span>
+                  </span>
+                </span>
                 <div class="lane-tags">
                   <a-tag v-if="lane.charging" color="processing">
                     <SyncOutlined :spin="true" style="margin-right: 2px" />收费中
                   </a-tag>
-                  <a-tag :color="lane.deviceOnline ? 'success' : 'error'">
-                    {{ lane.deviceOnline ? '在线' : '离线' }}
-                  </a-tag>
+                  <template v-if="!lane.cameras || lane.cameras.length === 0">
+                    <a-tag :color="lane.deviceOnline ? 'success' : 'error'">
+                      {{ lane.deviceOnline ? '在线' : '离线' }}
+                    </a-tag>
+                  </template>
+                  <template v-else>
+                    <a-tag
+                      v-for="cam in lane.cameras"
+                      :key="cam.deviceId"
+                      :color="cam.online ? (cam.isActive ? 'blue' : 'green') : 'error'"
+                    >
+                      {{ cam.role === 'PRIMARY' ? '主' : '备' }}:{{ cam.direction === 'ENTRY' ? '入' : '出' }}
+                    </a-tag>
+                  </template>
                 </div>
               </div>
               <div class="lane-direction">
@@ -299,10 +317,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { SyncOutlined, BellOutlined } from '@ant-design/icons-vue'
+import { SyncOutlined, BellOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue'
 import { useMonitorStore } from '@/stores/monitor'
 import { MonitorWebSocketClient, type ConnectionStatus } from '@/utils/websocket'
-import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPayload, RecognitionEvent, RemoteGateAlertPayload } from '@/api/monitor-types'
+import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPayload, RecognitionEvent, RemoteGateAlertPayload, LaneCamera } from '@/api/monitor-types'
 import ChargePanel from '@/components/ChargePanel.vue'
 import ManualReleaseModal, { type BatchLaneOption } from '@/components/ManualReleaseModal.vue'
 import FeeRuleEditModal from '@/components/FeeRuleEditModal.vue'
@@ -500,29 +518,66 @@ interface LaneCard {
   /** 是否正在收费中 */
   charging: boolean
   latestEvent?: RecognitionEventPayload
+  /** 多相机模式下的相机详情 */
+  cameras?: LaneCamera[]
+  /** 主相机是否离线（用于高亮告警） */
+  primaryOffline: boolean
+  /** 当前活跃相机描述文本 */
+  activeSourceLabel?: string
 }
 
 const laneCards = computed((): LaneCard[] => {
   return store.lanes.map((lane) => {
-    const device = lane.deviceId
-      ? store.deviceStatuses.find((d) => d.deviceId === lane.deviceId)
-      : undefined
-    const latestEvent = store.recentEvents.find((e) => e.laneId === lane.id)
+    const cameras = lane.cameras || []
+    const hasMultiCameras = cameras.length > 0
 
-    // 判断当前车道是否处于收费中状态（收费面板打开且对应此车道）
-    const charging =
-      store.chargePanelVisible &&
-      store.currentChargeInfo?.laneId === lane.id
+    // 单相机模式（兼容现有逻辑）
+    if (!hasMultiCameras) {
+      const device = lane.deviceId
+        ? store.deviceStatuses.find((d) => d.deviceId === lane.deviceId)
+        : undefined
+      const latestEvent = store.recentEvents.find((e) => e.laneId === lane.id)
+
+      // 判断当前车道是否处于收费中状态（收费面板打开且对应此车道）
+      const charging =
+        store.chargePanelVisible &&
+        store.currentChargeInfo?.laneId === lane.id
+
+      return {
+        laneId: lane.id,
+        laneName: lane.name || `车道 ${lane.id}`,
+        direction: lane.direction,
+        deviceId: lane.deviceId,
+        deviceOnline: !!device?.online && !device?.stale,
+        isOffline: !device || !device.online || device.stale,
+        charging,
+        latestEvent: latestEvent as RecognitionEventPayload | undefined,
+        cameras: [],
+        primaryOffline: false,
+        activeSourceLabel: undefined,
+      }
+    }
+
+    // 多相机模式：cameras 已由后端 BoothMonitorService.loadLanes 填充
+    // 在线状态从后端 cameras[].online 直接使用（loadLanes 已查询 DeviceStatusVO 快照）
+    const primaryCameras = cameras.filter(c => c.role === 'PRIMARY')
+    const primaryOffline = primaryCameras.some(c => !c.online)
+    const activeCamera = cameras.find(c => c.isActive)
+    const activeSourceLabel = activeCamera
+      ? `当前: ${activeCamera.role === 'PRIMARY' ? '主相机' : '备相机'}`
+      : undefined
 
     return {
       laneId: lane.id,
       laneName: lane.name || `车道 ${lane.id}`,
       direction: lane.direction,
-      deviceId: lane.deviceId,
-      deviceOnline: !!device?.online && !device?.stale,
-      isOffline: !device || !device.online || device.stale,
-      charging,
-      latestEvent: latestEvent as RecognitionEventPayload | undefined,
+      deviceOnline: cameras.some(c => c.isActive && c.online),
+      isOffline: cameras.every(c => !c.online),
+      charging: store.chargePanelVisible && store.currentChargeInfo?.laneId === lane.id,
+      latestEvent: store.recentEvents.find((e) => e.laneId === lane.id) as RecognitionEventPayload | undefined,
+      cameras,
+      primaryOffline,
+      activeSourceLabel,
     }
   })
 })
@@ -766,6 +821,11 @@ onUnmounted(() => {
   &.lane-charging {
     border: 2px solid $primary-color;
     box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.15);
+  }
+
+  &.lane-primary-offline {
+    border: 2px solid #f59e0b;
+    background-color: rgba(245, 158, 11, 0.04);
   }
 
   .lane-tags {

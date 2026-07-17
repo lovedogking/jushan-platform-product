@@ -17,6 +17,8 @@ export interface Lane {
   status: string
   deviceId?: number
   deviceName?: string
+  /** 车道绑定的相机列表（支持多相机/主备） */
+  cameras?: LaneCamera[]
 }
 
 /** 停车场摘要 */
@@ -226,6 +228,16 @@ export interface GateOpenResult {
   resultMessage?: string
   exception?: boolean
   exceptionType?: string
+}
+
+/** 车道绑定的单个相机信息（任务包 3-5） */
+export interface LaneCamera {
+  deviceId: number
+  name: string
+  role: 'PRIMARY' | 'BACKUP' | null
+  direction: 'ENTRY' | 'EXIT' | null
+  online: boolean
+  isActive: boolean
 }
 
 /** 人工放行原因 */
