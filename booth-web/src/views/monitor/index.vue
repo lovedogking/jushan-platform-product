@@ -28,6 +28,7 @@
         </a-button>
         <a-button @click="refreshDevices">刷新设备</a-button>
         <a-button @click="openBatchRelease">批量开闸</a-button>
+        <a-button @click="tempPlateDrawerOpen = true">无牌车处理</a-button>
         <a-badge :count="store.remoteGateAlerts.length" :overflow-count="99">
           <a-button @click="historyDrawerOpen = true">
             <template #icon><BellOutlined /></template>
@@ -311,6 +312,40 @@
         <a-empty description="暂无远程开闸记录" />
       </template>
     </a-drawer>
+    <!-- 无牌车处理抽屉 -->
+    <a-drawer
+      v-model:open="tempPlateDrawerOpen"
+      title="无牌车处理"
+      placement="right"
+      :width="400"
+    >
+      <div class="temp-plate-section">
+        <a-form layout="vertical">
+          <a-form-item label="临时车牌号">
+            <a-input v-model:value="tempPlateSearch" placeholder="输入临时车牌号" :maxlength="20" />
+          </a-form-item>
+          <a-form-item label="出口车道">
+            <a-select v-model:value="tempPlateExitLane" placeholder="选择出口车道" style="width: 100%">
+              <a-select-option v-for="lane in exitLanes" :key="lane.laneId" :value="lane.laneId">
+                {{ lane.laneName }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item>
+            <a-button type="primary" :loading="tempPlateExiting" block @click="handleTempPlateExit">
+              匹配出场并计费
+            </a-button>
+          </a-form-item>
+        </a-form>
+      </div>
+    </a-drawer>
+
+    <!-- 识别失败告警弹窗 -->
+    <TempPlateAlertModal
+      :alert="recognitionFailedAlert"
+      @close="recognitionFailedAlert = null"
+      @confirmed="onTempPlateConfirmed"
+    />
   </div>
 </template>
 
@@ -324,6 +359,7 @@ import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPa
 import ChargePanel from '@/components/ChargePanel.vue'
 import ManualReleaseModal, { type BatchLaneOption } from '@/components/ManualReleaseModal.vue'
 import FeeRuleEditModal from '@/components/FeeRuleEditModal.vue'
+import TempPlateAlertModal, { type RecognitionFailedAlert } from '@/components/TempPlateAlertModal.vue'
 import { getBoothParkingLots, type BoothParkingLot } from '@/api/parking-lot'
 
 const TOKEN_KEY = 'jushan_access_token'
@@ -354,6 +390,13 @@ const historyDrawerOpen = ref(false)
 const batchReleaseOpen = ref(false)
 const batchLaneOptions = ref<BatchLaneOption[]>([])
 
+// 无牌车处理
+const tempPlateDrawerOpen = ref(false)
+const tempPlateSearch = ref('')
+const tempPlateExitLane = ref<number | null>(null)
+const tempPlateExiting = ref(false)
+const recognitionFailedAlert = ref<RecognitionFailedAlert | null>(null)
+
 // Phase 2 D6：车场下拉选项
 const lotOptions = ref<{ value: number; label: string }[]>([])
 const loadingLots = ref(false)
@@ -378,6 +421,44 @@ function handleBatchReleaseResult(result: { success: boolean; message: string; g
   } else {
     message.warning(result.message || '批量开闸部分失败')
   }
+}
+
+/** 出口车道列表 */
+const exitLanes = computed(() => {
+  return store.lanes
+    .filter((l: any) => l.direction === 'EXIT' || l.direction === 'MIXED')
+    .map((l) => ({
+      laneId: l.id,
+      laneName: l.name || `车道 ${l.id}`,
+    }))
+})
+
+/** 无牌车匹配出场并计费 */
+async function handleTempPlateExit() {
+  if (!tempPlateSearch.value.trim()) { message.warning('请输入临时车牌号'); return }
+  if (!tempPlateExitLane.value) { message.warning('请选择出口车道'); return }
+  if (!selectedLotId.value) { message.warning('请先选择停车场'); return }
+  tempPlateExiting.value = true
+  try {
+    const res = await import('@/api/monitor').then(m => m.manualTempPlateExit({
+      tempPlate: tempPlateSearch.value.trim(),
+      parkingLotId: selectedLotId.value!,
+      laneId: tempPlateExitLane.value!,
+    }))
+    message.success(`无牌车出场成功，费用：${(res.feeCents / 100).toFixed(2)} 元`)
+    tempPlateSearch.value = ''
+    tempPlateExitLane.value = null
+    tempPlateDrawerOpen.value = false
+  } catch (e: any) {
+    message.error(e?.response?.data?.message || '出场失败')
+  } finally {
+    tempPlateExiting.value = false
+  }
+}
+
+/** 无牌车入场确认回调 */
+function onTempPlateConfirmed(recordId: number, tempPlate: string) {
+  console.log('Temp plate confirmed:', recordId, tempPlate)
 }
 
 /** 加载车场列表 */
@@ -634,8 +715,22 @@ function buildWsClient(lotId: number) {
       onDeviceStatus: (payload: DeviceStatus) => {
         store.handleDeviceStatus(payload)
       },
-      onAlert: (payload: AlertPayload) => {
-        store.handleAlert(payload)
+      onAlert: (payload: any) => {
+        if (payload.type === 'RECOGNITION_FAILED') {
+          recognitionFailedAlert.value = {
+            eventId: payload.eventId,
+            logId: payload.logId,
+            parkingLotId: payload.parkingLotId,
+            laneId: payload.laneId,
+            laneName: payload.laneName,
+            direction: payload.direction,
+            imagePath: payload.imagePath,
+            eventTime: payload.eventTime,
+            message: payload.message,
+          }
+        } else {
+          store.handleAlert(payload)
+        }
       },
       onRemoteGateAlert: (payload: RemoteGateAlertPayload) => {
         store.handleRemoteGateAlert(payload)
