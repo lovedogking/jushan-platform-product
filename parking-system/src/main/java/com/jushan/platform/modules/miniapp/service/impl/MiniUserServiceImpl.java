@@ -228,9 +228,14 @@ public class MiniUserServiceImpl implements MiniUserService {
             vo.setFeeAmount(new BigDecimal(feeCents).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP));
             vo.setFeeCents(feeCents);
 
+            // 设置订单原始状态，前端用于区分欠费标识
+            vo.setOrderStatus(order.getStatus());
+
             if (ParkingOrder.STATUS_PAID.equals(order.getStatus())
                     || ParkingOrder.STATUS_COMPLETED.equals(order.getStatus())) {
                 vo.setPayStatus("PAID");
+            } else if (ParkingOrder.STATUS_ARREARS.equals(order.getStatus())) {
+                vo.setPayStatus("ARREARS");
             } else if (ParkingOrder.STATUS_CANCELLED.equals(order.getStatus())) {
                 vo.setPayStatus("UNPAID");
             } else {

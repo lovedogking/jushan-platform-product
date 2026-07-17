@@ -41,9 +41,12 @@ public class MiniParkingRecordVO {
     /** 费用（分），精度安全的整数分表示 */
     private Integer feeCents;
 
-    /** 支付状态：UNPAID-未支付, PAID-已支付, FREE-免费 */
+    /** 支付状态：UNPAID-未支付, PAID-已支付, FREE-免费, ARREARS-欠费中 */
     private String payStatus;
 
     /** 状态：IN-在场, OUT-已出场 */
     private String status;
+
+    /** 订单原始状态（透传 ParkingOrder.status），如 PENDING_PAY, ARREARS, COMPLETED 等。前端用于区分欠费标识 */
+    private String orderStatus;
 }
