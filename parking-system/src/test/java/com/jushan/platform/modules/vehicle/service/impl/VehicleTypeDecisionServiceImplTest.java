@@ -9,6 +9,7 @@ import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
 import com.jushan.system.entity.MonthlyPass;
 import com.jushan.system.mapper.MonthlyPassMapper;
 import com.jushan.system.service.FixedSpaceService;
+import com.jushan.system.service.VehicleListService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +46,8 @@ class VehicleTypeDecisionServiceImplTest {
     private FixedSpaceService fixedSpaceService;
     @Mock
     private MonthlyPassMapper monthlyPassMapper;
+    @Mock
+    private VehicleListService vehicleListService;
 
     private VehicleTypeDecisionServiceImpl decisionService;
 
@@ -53,7 +56,7 @@ class VehicleTypeDecisionServiceImplTest {
     @BeforeEach
     void setUp() {
         decisionService = new VehicleTypeDecisionServiceImpl(
-                vehicleMapper, multiPlateMapper, walletMapper, fixedSpaceService, monthlyPassMapper);
+                vehicleMapper, multiPlateMapper, walletMapper, fixedSpaceService, monthlyPassMapper, vehicleListService);
 
         TenantContext.set(new TenantContext.Snapshot(1L, 100L, "TENANT", "", ""));
 

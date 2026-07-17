@@ -11,7 +11,9 @@ import com.jushan.platform.modules.vehicle.mapper.SysVehicleMultiPlateMapper;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleWalletMapper;
 import com.jushan.platform.modules.vehicle.service.VehicleTypeDecisionService;
 import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
+import com.jushan.system.entity.VehicleList;
 import com.jushan.system.service.FixedSpaceService;
+import com.jushan.system.service.VehicleListService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -47,27 +49,103 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
     private final SysVehicleWalletMapper walletMapper;
     private final FixedSpaceService fixedSpaceService;
     private final MonthlyPassMapper monthlyPassMapper;
+    private final VehicleListService vehicleListService;
 
     public VehicleTypeDecisionServiceImpl(SysVehicleMapper vehicleMapper,
                                           SysVehicleMultiPlateMapper multiPlateMapper,
                                           SysVehicleWalletMapper walletMapper,
                                           FixedSpaceService fixedSpaceService,
-                                          MonthlyPassMapper monthlyPassMapper) {
+                                          MonthlyPassMapper monthlyPassMapper,
+                                          VehicleListService vehicleListService) {
         this.vehicleMapper = vehicleMapper;
         this.multiPlateMapper = multiPlateMapper;
         this.walletMapper = walletMapper;
         this.fixedSpaceService = fixedSpaceService;
         this.monthlyPassMapper = monthlyPassMapper;
+        this.vehicleListService = vehicleListService;
     }
 
     @Override
+    @Deprecated
     public VehicleTypeDecisionVO decide(String plateNumber) {
-        return decide(plateNumber, TenantContext.getTenantId());
+        return decide(plateNumber, null, TenantContext.getTenantId());
     }
 
     @Override
     public VehicleTypeDecisionVO decide(String plateNumber, Long tenantId) {
+        return decide(plateNumber, null, tenantId);
+    }
+
+    @Override
+    public VehicleTypeDecisionVO decide(String plateNumber, Long parkingLotId, Long tenantId) {
         String standardizedPlate = plateNumber.toUpperCase();
+
+        // ====== 步骤 -1: 白名单检查（任务包 3-3，最高优先级） ======
+        if (parkingLotId != null && vehicleListService != null
+                && vehicleListService.isWhitelisted(parkingLotId, standardizedPlate)) {
+            VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
+            result.setPlateNumber(standardizedPlate);
+            result.setVehicleType("WHITE");
+            result.setTypeDescription("白名单车辆");
+            result.setAllowEntry(true);
+            result.setAllowExit(true);
+            result.setNeedCharge(false);
+            result.setDecisionReason("白名单车辆，自动放行不计费");
+            return result;
+        }
+
+        // ====== 步骤 0': 黑名单检查（任务包 3-3） ======
+        if (parkingLotId != null && vehicleListService != null) {
+            VehicleList black = vehicleListService.resolveBlacklist(parkingLotId, standardizedPlate);
+            if (black != null) {
+                VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
+                result.setPlateNumber(standardizedPlate);
+                result.setVehicleType("BLACK");
+                result.setTypeDescription("黑名单车辆");
+                result.setTriggerType(black.getTriggerType());
+                result.setTriggerTypeLabel(resolveTriggerTypeLabel(black.getTriggerType()));
+
+                String triggerMode = resolveTriggerMode(parkingLotId);
+                switch (triggerMode) {
+                    case "DENY_ENTRY":
+                        result.setAllowEntry(false);
+                        result.setAllowExit(false);
+                        result.setNeedCharge(false);
+                        result.setDecisionReason("黑名单车辆，禁止入场");
+                        break;
+                    case "ALLOW_WITH_ALERT":
+                        result.setAllowEntry(true);
+                        result.setAllowExit(true);
+                        result.setNeedCharge(true);
+                        result.setDecisionReason("黑名单车辆，允许入场但已触发告警");
+                        break;
+                    case "BY_TYPE":
+                        if (VehicleList.TRIGGER_ARREARS.equals(black.getTriggerType())) {
+                            result.setAllowEntry(false);
+                            result.setAllowExit(false);
+                            result.setNeedCharge(false);
+                            result.setDecisionReason("欠费类黑名单车辆，禁止入场");
+                        } else if (VehicleList.TRIGGER_MANAGEMENT.equals(black.getTriggerType())) {
+                            result.setAllowEntry(true);
+                            result.setAllowExit(true);
+                            result.setNeedCharge(true);
+                            result.setDecisionReason("管理类黑名单车辆，允许入场但已触发告警");
+                        } else {
+                            result.setAllowEntry(false);
+                            result.setAllowExit(false);
+                            result.setNeedCharge(false);
+                            result.setDecisionReason("其他类黑名单车辆，禁止入场");
+                        }
+                        break;
+                    default:
+                        result.setAllowEntry(false);
+                        result.setAllowExit(false);
+                        result.setNeedCharge(false);
+                        result.setDecisionReason("黑名单车辆，禁止入场（默认策略）");
+                }
+                return result;
+            }
+        }
 
         // 0. 优先查询月卡（新体系：任务包 3-1）
         MonthlyPass monthlyPass = monthlyPassMapper.selectActiveByPlate(
@@ -180,11 +258,12 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
 
         switch (type) {
             case SysVehicle.TYPE_BLACKLIST -> {
-                result.setTypeDescription("黑名单");
+                log.warn("deprecated: sys_vehicle BLACKLIST判定，应走vehicle_list新体系: plate={}", vehicle.getPlateNumber());
+                result.setTypeDescription("黑名单（旧口径）");
                 result.setAllowEntry(false);
                 result.setAllowExit(false);
                 result.setNeedCharge(false);
-                result.setDecisionReason("黑名单车辆，禁止入出场");
+                result.setDecisionReason("黑名单车辆（旧口径），禁止入出场");
             }
             case SysVehicle.TYPE_SUPER -> {
                 result.setTypeDescription("超级车牌");
@@ -194,11 +273,12 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
                 result.setDecisionReason("超级车牌，享有最高权限");
             }
             case SysVehicle.TYPE_VIP -> {
-                result.setTypeDescription("贵宾车");
+                log.warn("deprecated: sys_vehicle VIP判定，应走vehicle_list白名单: plate={}", vehicle.getPlateNumber());
+                result.setTypeDescription("贵宾车（旧口径）");
                 result.setAllowEntry(true);
                 result.setAllowExit(true);
                 result.setNeedCharge(false);
-                result.setDecisionReason("贵宾车，免费通行");
+                result.setDecisionReason("贵宾车（旧口径），免费通行");
             }
             case SysVehicle.TYPE_PREPAID -> {
                 // 查询储值车余额
@@ -230,5 +310,19 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
         }
 
         return result;
+    }
+
+    private String resolveTriggerMode(Long parkingLotId) {
+        return "DENY_ENTRY";
+    }
+
+    private String resolveTriggerTypeLabel(String triggerType) {
+        if (triggerType == null) return "";
+        return switch (triggerType) {
+            case "ARREARS" -> "欠费类";
+            case "MANAGEMENT" -> "管理类";
+            case "OTHER" -> "其他类";
+            default -> triggerType;
+        };
     }
 }

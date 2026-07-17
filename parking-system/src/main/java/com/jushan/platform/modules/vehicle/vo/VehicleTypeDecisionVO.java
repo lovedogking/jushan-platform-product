@@ -50,6 +50,12 @@ public class VehicleTypeDecisionVO {
     /** 一位多车绑定车牌列表 */
     private java.util.List<String> multiPlates;
 
+    /** 黑名单触发类型（仅黑名单命中时非null） */
+    private String triggerType;
+
+    /** 黑名单触发类型中文 */
+    private String triggerTypeLabel;
+
     /** 判定说明 */
     private String decisionReason;
 }

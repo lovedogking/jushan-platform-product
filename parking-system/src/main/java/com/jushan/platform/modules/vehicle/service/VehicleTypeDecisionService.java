@@ -45,6 +45,18 @@ public interface VehicleTypeDecisionService {
     VehicleTypeDecisionVO decide(String plateNumber, Long tenantId);
 
     /**
+     * 根据车牌号 + 车场ID + 租户 ID 判定车辆类型（任务包 3-3）。
+     * <p>
+     * 新增车场维度，用于 vehicle_list 黑白名单判定。
+     *
+     * @param plateNumber  车牌号
+     * @param parkingLotId 停车场ID（null=跳过名单查询，走旧逻辑降级）
+     * @param tenantId     租户 ID
+     * @return 判定结果
+     */
+    VehicleTypeDecisionVO decide(String plateNumber, Long parkingLotId, Long tenantId);
+
+    /**
      * 检查车辆是否允许入场。
      *
      * @param plateNumber 车牌号
