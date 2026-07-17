@@ -3,6 +3,7 @@ package com.jushan.system.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.jushan.common.BusinessException;
+import com.jushan.common.CommonErrorCode;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import com.jushan.system.entity.ExitRecord;
 import com.jushan.system.entity.ParkingLot;
@@ -16,6 +17,8 @@ import com.jushan.system.mapper.ParkingRecordMapper;
 import com.jushan.system.mapper.ParkingOrderMapper;
 import com.jushan.system.ws.BoothWebSocketPublisher;
 import com.jushan.system.dto.RemoteGateAlertDTO;
+import com.jushan.platform.modules.vehicle.service.VehicleTypeDecisionService;
+import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -75,6 +78,7 @@ public class ExitService {
     private final BillingRuleRecalcLogMapper recalcLogMapper;
     private final ParkingOrderMapper orderMapper;
     private final ParamResolver paramResolver;
+    private final VehicleTypeDecisionService vehicleTypeDecisionService;
 
     public ExitService(ParkingRecordMapper recordMapper,
                         ExitRecordMapper exitRecordMapper,
@@ -89,7 +93,8 @@ public class ExitService {
                         DistributedLock distributedLock,
                         BillingRuleRecalcLogMapper recalcLogMapper,
                         ParkingOrderMapper orderMapper,
-                        ParamResolver paramResolver) {
+                        ParamResolver paramResolver,
+                        VehicleTypeDecisionService vehicleTypeDecisionService) {
         this.recordMapper = recordMapper;
         this.exitRecordMapper = exitRecordMapper;
         this.parkingOrderService = parkingOrderService;
@@ -104,6 +109,7 @@ public class ExitService {
         this.recalcLogMapper = recalcLogMapper;
         this.orderMapper = orderMapper;
         this.paramResolver = paramResolver;
+        this.vehicleTypeDecisionService = vehicleTypeDecisionService;
     }
 
     /**
@@ -154,6 +160,25 @@ public class ExitService {
             }
         } else {
             feeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+        }
+
+        // 黑白名单出场判定（任务包 3-3 新增）
+        if (vehicleTypeDecisionService != null) {
+            VehicleTypeDecisionVO exitDecision = vehicleTypeDecisionService.decide(
+                    standardizedPlate, parkingLotId, record.getTenantId());
+
+            if ("WHITE".equals(exitDecision.getVehicleType())) {
+                // 白名单免费放行
+                log.info("白名单车辆出场零费放行: plate={} lotId={}", standardizedPlate, parkingLotId);
+                feeCents = 0;
+            }
+
+            if ("BLACK".equals(exitDecision.getVehicleType())
+                    && Boolean.FALSE.equals(exitDecision.getAllowExit())) {
+                log.warn("黑名单车辆禁止出场: plate={} lotId={}", standardizedPlate, parkingLotId);
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR,
+                        exitDecision.getDecisionReason());
+            }
         }
 
         // 2c. 欠费检测（任务包 2-3）：检测该车牌是否有未补缴的欠费订单
