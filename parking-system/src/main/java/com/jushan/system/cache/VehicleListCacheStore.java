@@ -24,7 +24,7 @@ public class VehicleListCacheStore {
 
     static final String KEY_PREFIX = "vehicle_list:";
     static final long TTL_MINUTES = 30;
-    static final String NULL_MARKER = "__NULL__";
+    public static final String NULL_MARKER = "__NULL__";
 
     private final StringRedisTemplate stringRedisTemplate;
     private final ConcurrentHashMap<String, String> localCache = new ConcurrentHashMap<>();
