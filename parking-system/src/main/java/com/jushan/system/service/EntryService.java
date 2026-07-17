@@ -12,6 +12,9 @@ import com.jushan.system.event.RecognitionEventPayload;
 import com.jushan.system.mapper.BillingRuleMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.ParkingRecordMapper;
+import com.jushan.system.service.MonitorAlertService;
+import com.jushan.system.service.VehicleListService;
+import com.jushan.system.vo.VehicleListDecisionVO;
 import com.jushan.system.ws.BoothWebSocketPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +69,8 @@ public class EntryService {
     private final ParkingOrderService parkingOrderService;
     private final VehicleTypeDecisionService vehicleTypeDecisionService;
     private final BillingEngine billingEngine;
+    private final VehicleListService vehicleListService;
+    private final MonitorAlertService monitorAlertService;
 
     public EntryService(ParkingRecordMapper recordMapper,
                         ParkingLotMapper parkingLotMapper,
@@ -76,7 +81,9 @@ public class EntryService {
                         FixedSpaceService fixedSpaceService,
                         ParkingOrderService parkingOrderService,
                         VehicleTypeDecisionService vehicleTypeDecisionService,
-                        BillingEngine billingEngine) {
+                        BillingEngine billingEngine,
+                        VehicleListService vehicleListService,
+                        MonitorAlertService monitorAlertService) {
         this.recordMapper = recordMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.ruleMapper = ruleMapper;
@@ -87,6 +94,8 @@ public class EntryService {
         this.parkingOrderService = parkingOrderService;
         this.vehicleTypeDecisionService = vehicleTypeDecisionService;
         this.billingEngine = billingEngine;
+        this.vehicleListService = vehicleListService;
+        this.monitorAlertService = monitorAlertService;
     }
 
     /**
@@ -148,6 +157,30 @@ public class EntryService {
             }
         }
 
+        // 2e. 黑白名单入场判定（任务包 3-3 新增）
+        if (vehicleListService != null) {
+            VehicleListDecisionVO listDecision = vehicleListService.checkEntry(
+                    parkingLotId, standardizedPlate);
+
+            if (listDecision.isDenyEntry()) {
+                log.warn("黑名单车辆禁止入场: plate={} lotId={} listType={} triggerType={}",
+                        standardizedPlate, parkingLotId, listDecision.getListType(),
+                        listDecision.getTriggerType());
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR,
+                        listDecision.getReason());
+            }
+
+            if (listDecision.isAlert()) {
+                log.warn("黑名单车辆允许入场但触发告警: plate={} lotId={} triggerType={}",
+                        standardizedPlate, parkingLotId, listDecision.getTriggerType());
+                if (monitorAlertService != null) {
+                    monitorAlertService.createBlacklistEntryAlert(
+                            payload.getTenantId(), parkingLotId, standardizedPlate,
+                            listDecision.getTriggerType());
+                }
+            }
+        }
+
         // 3. 同步创建 ParkingSession（在场记录），避免双写分裂
         if (isNewRecordCreated(record, existingRecord)) {
             createParkingSession(record, payload, vehicleType);
@@ -197,7 +230,10 @@ public class EntryService {
     private void createPreOrderIfChargeable(ParkingRecord record) {
         VehicleTypeDecisionVO decision;
         try {
-            decision = vehicleTypeDecisionService.decide(record.getStandardizedPlate(), record.getTenantId());
+            decision = vehicleTypeDecisionService.decide(
+                    record.getStandardizedPlate(),
+                    record.getParkingLotId(),
+                    record.getTenantId());
         } catch (Exception e) {
             // 判定失败不阻塞入场，也不错建预订单（出场走兼容建单）
             log.warn("入场车辆类型判定失败，跳过预订单创建: plate={} lotId={} error={}",
