@@ -61,6 +61,74 @@ public class MiniMessageServiceImpl implements MiniMessageService {
         return message;
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MiniMessage createArrearsReleasedMessage(Long wxUserId, Long tenantId, Long orderId,
+                                                     String plateNumber, Integer amountCents) {
+        MiniMessage message = new MiniMessage();
+        message.setTenantId(tenantId);
+        message.setWxUserId(wxUserId);
+        message.setType(MiniMessage.TYPE_ARREARS_RELEASED);
+        message.setIsRead(false);
+        message.setRelatedOrderId(orderId);
+        message.setRelatedPlate(plateNumber);
+        message.setRelatedAmount(amountCents);
+
+        String amountYuan = String.format("%.2f", (amountCents != null ? amountCents : 0) / 100.0);
+        message.setTitle("欠费记录通知");
+        message.setContent("您的停车费用 ¥" + amountYuan + " 已转为欠费记录，请在方便时补缴。");
+
+        message.setCreatedAt(LocalDateTime.now());
+        message.setUpdatedAt(LocalDateTime.now());
+        miniMessageMapper.insert(message);
+        return message;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MiniMessage createArrearsRemindMessage(Long wxUserId, Long tenantId, String plateNumber,
+                                                   Integer amountCents) {
+        MiniMessage message = new MiniMessage();
+        message.setTenantId(tenantId);
+        message.setWxUserId(wxUserId);
+        message.setType(MiniMessage.TYPE_ARREARS_REMIND);
+        message.setIsRead(false);
+        message.setRelatedPlate(plateNumber);
+        message.setRelatedAmount(amountCents);
+
+        String amountYuan = String.format("%.2f", (amountCents != null ? amountCents : 0) / 100.0);
+        message.setTitle("欠费提醒");
+        message.setContent("您有欠费订单未支付（¥" + amountYuan + "），请及时补缴以免影响后续通行。");
+
+        message.setCreatedAt(LocalDateTime.now());
+        message.setUpdatedAt(LocalDateTime.now());
+        miniMessageMapper.insert(message);
+        return message;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MiniMessage createArrearsPaidMessage(Long wxUserId, Long tenantId, Long orderId,
+                                                 String plateNumber, Integer amountCents) {
+        MiniMessage message = new MiniMessage();
+        message.setTenantId(tenantId);
+        message.setWxUserId(wxUserId);
+        message.setType(MiniMessage.TYPE_ARREARS_PAID);
+        message.setIsRead(false);
+        message.setRelatedOrderId(orderId);
+        message.setRelatedPlate(plateNumber);
+        message.setRelatedAmount(amountCents);
+
+        String amountYuan = String.format("%.2f", (amountCents != null ? amountCents : 0) / 100.0);
+        message.setTitle("欠费补缴成功");
+        message.setContent("您的欠费 ¥" + amountYuan + " 已补缴成功，感谢您的配合。");
+
+        message.setCreatedAt(LocalDateTime.now());
+        message.setUpdatedAt(LocalDateTime.now());
+        miniMessageMapper.insert(message);
+        return message;
+    }
+
     /**
      * 推送微信订阅消息（Mock 实现）。
      * <p>

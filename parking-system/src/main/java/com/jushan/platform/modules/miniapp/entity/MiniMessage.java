@@ -23,6 +23,12 @@ public class MiniMessage implements Serializable {
     public static final String TYPE_PAY_SUCCESS = "PAY_SUCCESS";
     /** 系统通知 */
     public static final String TYPE_SYSTEM = "SYSTEM";
+    /** 欠费放行通知 */
+    public static final String TYPE_ARREARS_RELEASED = "ARREARS_RELEASED";
+    /** 欠费提醒通知 */
+    public static final String TYPE_ARREARS_REMIND = "ARREARS_REMIND";
+    /** 欠费补缴成功通知 */
+    public static final String TYPE_ARREARS_PAID = "ARREARS_PAID";
 
     // ==================== 字段 ====================
 

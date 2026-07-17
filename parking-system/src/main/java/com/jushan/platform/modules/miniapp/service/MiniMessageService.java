@@ -26,4 +26,25 @@ public interface MiniMessageService {
     @Transactional(rollbackFor = Exception.class)
     MiniMessage createPaySuccessMessage(Long wxUserId, Long tenantId, Long orderId,
                                         String plateNumber, Integer amountCents);
+
+    /**
+     * 创建欠费放行通知消息。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    MiniMessage createArrearsReleasedMessage(Long wxUserId, Long tenantId, Long orderId,
+                                              String plateNumber, Integer amountCents);
+
+    /**
+     * 创建欠费提醒通知消息。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    MiniMessage createArrearsRemindMessage(Long wxUserId, Long tenantId, String plateNumber,
+                                            Integer amountCents);
+
+    /**
+     * 创建欠费补缴成功通知消息。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    MiniMessage createArrearsPaidMessage(Long wxUserId, Long tenantId, Long orderId,
+                                          String plateNumber, Integer amountCents);
 }
