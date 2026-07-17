@@ -222,6 +222,44 @@ public class BoothWebSocketPublisher {
     }
 
     /**
+     * 推送识别失败告警（无牌车处理）到岗亭端（任务包 3-4）。
+     *
+     * @param parkingLotId 停车场 ID（可信）
+     * @param eventId      识别事件 UUID
+     * @param logId        事件日志自增 ID
+     * @param lotId        停车场 ID（冗余便于前端使用）
+     * @param laneId       车道 ID
+     * @param direction    方向（ENTRY/EXIT）
+     * @param imagePath    全景图路径
+     * @param eventTime    事件时间
+     */
+    public void sendRecognitionFailedAlert(Long parkingLotId, String eventId,
+            Long logId, Long lotId, Long laneId, String direction,
+            String imagePath, java.time.LocalDateTime eventTime) {
+        if (parkingLotId == null) {
+            return;
+        }
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("type", "RECOGNITION_FAILED");
+            payload.put("eventId", eventId);
+            payload.put("logId", logId);
+            payload.put("parkingLotId", lotId);
+            payload.put("laneId", laneId);
+            payload.put("direction", direction);
+            payload.put("imagePath", imagePath);
+            payload.put("eventTime", format(eventTime));
+            payload.put("message", "入口识别失败，请手动处理无牌车辆");
+
+            send(String.format(TOPIC_ALERTS, parkingLotId), payload);
+            log.debug("识别失败告警已推送到岗亭: lotId={}, eventId={}", parkingLotId, eventId);
+        } catch (Exception e) {
+            log.warn("识别失败告警 WebSocket 推送失败（不影响主业务）: lotId={}, error={}",
+                    parkingLotId, e.getMessage());
+        }
+    }
+
+    /**
      * 底层发送方法。
      */
     private void send(String destination, Object payload) {
