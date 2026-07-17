@@ -35,13 +35,25 @@ public class FeeRuleCreateCmd {
 
     private Integer unitMinutes;
 
+    /** 首时段时长（分钟），0 表示无首时段 */
+    private Integer firstPeriodMinutes;
+
     private BigDecimal firstPeriodPrice;
 
     private BigDecimal subsequentPrice;
 
     private BigDecimal dailyCap;
 
+    /** 最大封顶金额（整单封顶，NULL 表示不封顶） */
+    private BigDecimal maxAmount;
+
     private BigDecimal nightCap;
+
+    /** 跨天计费规则：1按自然日分段 2连续计费，默认 1 */
+    private Integer crossDayMode;
+
+    /** 生效方式：1立即生效 2仅新入场生效 3定时生效，默认 1 */
+    private Integer effectMode;
 
     private Integer priority;
 

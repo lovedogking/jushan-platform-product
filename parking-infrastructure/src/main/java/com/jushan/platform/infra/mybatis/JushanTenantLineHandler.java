@@ -48,7 +48,12 @@ public class JushanTenantLineHandler implements com.baomidou.mybatisplus.extensi
             "sys_config",
             "sys_login_log",
             "device_vendor",
-            "device_model"
+            "device_model",
+            // Service 层已自行处理租户隔离的业务表
+            "company",
+            "sys_admin_account",
+            "plate_binding",
+            "vehicle"
     ).collect(Collectors.toSet());
 
     @Override
@@ -70,6 +75,10 @@ public class JushanTenantLineHandler implements com.baomidou.mybatisplus.extensi
 
     @Override
     public boolean ignoreTable(String tableName) {
+        // 平台用户（super_admin）跳过所有租户拦截，由 Service 层自行处理数据范围
+        if (TenantContext.isPlatformUser()) {
+            return true;
+        }
         if (tableName == null) {
             return false;
         }

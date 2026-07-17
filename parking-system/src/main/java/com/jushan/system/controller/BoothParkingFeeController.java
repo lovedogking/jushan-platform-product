@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  * @since 1.0.0
  */
 @RestController
-@RequestMapping("/booth/parking/fee")
+@RequestMapping("/api/booth/parking/fee")
 @Validated
 public class BoothParkingFeeController {
 

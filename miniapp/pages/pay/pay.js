@@ -151,7 +151,7 @@ Page({
     try {
       // 1. 预下单
       const prepayRes = await post('/api/v1/mini/pay/prepare', {
-        recordId: Number(this.data.recordId),
+        recordId: this.data.recordId,
       })
 
       // 零元订单直接成功

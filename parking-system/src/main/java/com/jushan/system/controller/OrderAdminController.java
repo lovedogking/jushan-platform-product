@@ -351,7 +351,7 @@ public class OrderAdminController {
         vo.setId(order.getId());
         vo.setOrderNo(order.getOrderNo());
         vo.setOrderType(order.getOrderType());
-        vo.setOrderTypeLabel(ORDER_TYPE_LABEL.getOrDefault(order.getOrderType(), order.getOrderType()));
+        vo.setOrderTypeLabel(order.getOrderType() != null ? ORDER_TYPE_LABEL.getOrDefault(order.getOrderType(), order.getOrderType()) : null);
         vo.setPlateNumber(order.getPlateNumber());
         vo.setParkingLotId(order.getParkingLotId());
         vo.setAmountCents(order.getAmountCents());
@@ -362,7 +362,7 @@ public class OrderAdminController {
         vo.setStatus(order.getStatus());
         vo.setStatusLabel(STATUS_LABEL.getOrDefault(order.getStatus(), order.getStatus()));
         vo.setPayChannel(order.getPayChannel());
-        vo.setPayChannelLabel(PAY_CHANNEL_LABEL.getOrDefault(order.getPayChannel(), order.getPayChannel()));
+        vo.setPayChannelLabel(order.getPayChannel() != null ? PAY_CHANNEL_LABEL.getOrDefault(order.getPayChannel(), order.getPayChannel()) : null);
         vo.setPayTime(order.getPayTime());
         vo.setCreatedAt(order.getCreatedAt());
         vo.setUpdatedAt(order.getUpdatedAt());

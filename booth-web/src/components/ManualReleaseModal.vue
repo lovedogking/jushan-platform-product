@@ -15,19 +15,10 @@
           <a-input :value="plateNumber" disabled />
         </a-form-item>
 
-        <a-form-item label="放行原因" required>
-          <a-select
-            v-model:value="formState.reason"
-            placeholder="请选择放行原因"
-            :options="RELEASE_REASON_OPTIONS.map((r) => ({ value: r.value, label: r.label }))"
-            :disabled="releasing"
-          />
-        </a-form-item>
-
-        <a-form-item v-if="formState.reason === 'OTHER'" label="备注说明">
+        <a-form-item label="备注">
           <a-textarea
             v-model:value="formState.remark"
-            placeholder="请输入放行备注"
+            placeholder="选填：放行备注说明"
             :rows="2"
             :maxlength="200"
             :disabled="releasing"
@@ -63,19 +54,10 @@
           </a-checkbox-group>
         </a-form-item>
 
-        <a-form-item label="放行原因" required>
-          <a-select
-            v-model:value="formState.reason"
-            placeholder="请选择放行原因"
-            :options="RELEASE_REASON_OPTIONS.map((r) => ({ value: r.value, label: r.label }))"
-            :disabled="releasing"
-          />
-        </a-form-item>
-
-        <a-form-item v-if="formState.reason === 'OTHER'" label="备注说明">
+        <a-form-item label="备注">
           <a-textarea
             v-model:value="formState.remark"
-            placeholder="请输入放行备注"
+            placeholder="选填：放行备注说明"
             :rows="2"
             :maxlength="200"
             :disabled="releasing"
@@ -154,8 +136,6 @@
 import { reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { manualOpenGate, manualOpenGateBatch } from '@/api/charge'
-import { RELEASE_REASON_OPTIONS } from '@/api/monitor-types'
-import type { ReleaseReason } from '@/api/monitor-types'
 
 /** 批量模式下的车道选项 */
 export interface BatchLaneOption {
@@ -180,7 +160,6 @@ const emit = defineEmits<{
 }>()
 
 const formState = reactive({
-  reason: '' as ReleaseReason | '',
   remark: '',
 })
 
@@ -207,7 +186,6 @@ watch(
   () => props.open,
   (newVal) => {
     if (newVal) {
-      formState.reason = ''
       formState.remark = ''
       releaseResult.value = null
       selectedLaneIds.value = []
@@ -221,10 +199,6 @@ watch(
 
 /** 确认放行 */
 async function handleConfirm() {
-  if (!formState.reason) {
-    message.warning('请选择放行原因')
-    return
-  }
 
   if (props.batch && selectedLaneIds.value.length === 0) {
     message.warning('请选择至少一个通道')
@@ -236,7 +210,7 @@ async function handleConfirm() {
 
   if (props.batch) {
     // 批量模式
-    const reasonText = getReasonText(formState.reason as ReleaseReason, formState.remark)
+    const reasonText = getReasonText(formState.remark)
 
     // 将选中的 laneId 解析为 deviceIds
     const deviceIds: number[] = []
@@ -279,7 +253,7 @@ async function handleConfirm() {
   } else {
     // 单通道模式
     try {
-      const reasonText = getReasonText(formState.reason as ReleaseReason, formState.remark)
+      const reasonText = getReasonText(formState.remark)
       const result = await manualOpenGate(props.laneId, reasonText)
 
       const success = result.gateDeviceAck === true
@@ -311,12 +285,8 @@ function handleCancel() {
 }
 
 /** 构建放行原因文本 */
-function getReasonText(reason: ReleaseReason, remark: string): string {
-  const label = RELEASE_REASON_OPTIONS.find((r) => r.value === reason)?.label || reason
-  if (remark) {
-    return `${label}: ${remark}`
-  }
-  return label
+function getReasonText(remark: string): string {
+  return remark.trim() || '岗亭人工放行'
 }
 </script>
 

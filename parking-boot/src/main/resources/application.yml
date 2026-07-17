@@ -92,7 +92,7 @@ management:
 # 生产环境通过环境变量覆盖：JUSHAN_DEVICE_ACCESS_BASE_URL / CONNECT_TIMEOUT / READ_TIMEOUT
 jushan:
   device-access:
-    base-url: http://localhost:8081
+    base-url: http://localhost:8082
     connect-timeout: 3000
     read-timeout: 12000
     api-key: test-api-key-001

@@ -13,12 +13,12 @@ export function login(data: { username: string; password: string }) {
       roles: string[]
       permissions: string[]
     }
-  }>('/auth/login', data)
+  }>('/v1/auth/login', data)
 }
 
 /** 退出登录 */
 export function logout(): Promise<void> {
-  return request.post('/auth/logout')
+  return request.post('/v1/auth/logout')
 }
 
 /** 获取当前会话用户信息 */
@@ -29,5 +29,5 @@ export function getSession(): Promise<{
   roles: string[]
   permissions: string[]
 }> {
-  return request.get('/auth/session')
+  return request.get('/v1/auth/session')
 }

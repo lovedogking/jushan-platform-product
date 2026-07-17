@@ -50,6 +50,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 平台设备台账服务（T20）。
@@ -307,20 +308,26 @@ public class DeviceService {
      * @return 分页结果
      */
     public IPage<DeviceVO> list(int page, int size, Long parkingLotId, String status, String deviceType) {
-        if (parkingLotId == null) {
-            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "停车场 ID 不能为空");
-        }
-
-        // 校验停车场归属（租户隔离）
-        getParkingLotWithAuth(parkingLotId);
-
         String typeUpper = (deviceType != null && !deviceType.isBlank())
                 ? deviceType.toUpperCase() : null;
         LambdaQueryWrapper<Device> wrapper = new LambdaQueryWrapper<Device>()
-                .eq(Device::getParkingLotId, parkingLotId)
+                .eq(parkingLotId != null, Device::getParkingLotId, parkingLotId)
                 .eq(status != null && !status.isBlank(), Device::getStatus, status)
                 .eq(typeUpper != null, Device::getDeviceType, typeUpper)
                 .orderByDesc(Device::getCreatedAt);
+
+        // 租户数据隔离：非平台用户按 scopeResolver 限制可访问的车场
+        if (parkingLotId == null) {
+            Set<Long> authorizedIds = scopeResolver.resolveAuthorizedIds();
+            if (authorizedIds != null) {
+                if (authorizedIds.isEmpty()) {
+                    return new Page<DeviceVO>(page, size);
+                }
+                wrapper.in(Device::getParkingLotId, authorizedIds);
+            }
+        } else {
+            getParkingLotWithAuth(parkingLotId);
+        }
 
         IPage<Device> devicePage = deviceMapper.selectPage(new Page<>(page, size), wrapper);
         return devicePage.convert(d -> {

@@ -183,6 +183,13 @@ Page({
     this.setData({ filteredLots: filtered })
   },
 
+  /** 格式化距离文本 */
+  formatDistance(distance) {
+    if (!distance) return ''
+    if (distance > 1000) return (distance / 1000).toFixed(1) + 'km'
+    return distance + 'm'
+  },
+
   /** 获取剩余车位状态文本 */
   getRemainText(remain) {
     if (remain === undefined || remain === null) return '--'

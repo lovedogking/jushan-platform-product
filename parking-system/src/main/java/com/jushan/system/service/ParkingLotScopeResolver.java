@@ -46,7 +46,7 @@ public class ParkingLotScopeResolver {
     private static final Logger log = LoggerFactory.getLogger(ParkingLotScopeResolver.class);
 
     /** 拥有本租户全部停车场访问权的角色 */
-    private static final Set<String> FULL_TENANT_ACCESS_ROLES = Set.of("customer_admin");
+    private static final Set<String> FULL_TENANT_ACCESS_ROLES = Set.of("super_admin", "customer_admin");
 
     private final EmployeeParkingLotMapper employeeParkingLotMapper;
     private final ParkingLotMapper parkingLotMapper;

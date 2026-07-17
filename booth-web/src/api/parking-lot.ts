@@ -12,5 +12,5 @@ export interface BoothParkingLot {
  * GET /api/v1/booth/parking-lots
  */
 export function getBoothParkingLots() {
-  return request.get<BoothParkingLot[]>('/api/v1/booth/parking-lots')
+  return request.get<BoothParkingLot[]>('/v1/booth/parking-lots')
 }

@@ -52,7 +52,7 @@ export const CAMERA_MODE_OPTIONS = [
 export function getParkingLanes(params: {
   page?: number
   size?: number
-  lotId?: number
+  parkingLotId?: number
   zoneId?: number
   type?: number
   status?: number

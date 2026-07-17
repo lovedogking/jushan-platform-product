@@ -437,7 +437,7 @@ async function handleBindLane(record: any) {
   selectedLaneId.value = undefined
   // 加载同停车场已启用车道
   try {
-    const res = await getParkingLanes({ current: 1, size: 50, lotId: record.parkingLotId, status: 1 })
+    const res = await getParkingLanes({ page: 1, size: 50, parkingLotId: record.parkingLotId, status: 1 })
     laneOptions.value = res.records
   } catch { laneOptions.value = [] }
   laneModalOpen.value = true

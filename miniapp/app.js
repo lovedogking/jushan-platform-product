@@ -9,7 +9,7 @@ const OWNER_INFO_KEY = 'ownerInfo'
 App({
   globalData: {
     // 后端 API 基础地址（开发环境）
-    apiBaseUrl: 'http://localhost:8080',
+    apiBaseUrl: 'http://192.168.20.106:8080',
     // 用户登录凭证
     token: null,
     ownerInfo: null,

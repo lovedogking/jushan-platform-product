@@ -43,6 +43,7 @@ function createApiError(message, code, status, traceId) {
  */
 function request(options) {
   return new Promise((resolve, reject) => {
+    const baseUrl = 'http://localhost:8080'
     const token = app.globalData.token
     const header = {
       'Content-Type': 'application/json',
@@ -53,7 +54,7 @@ function request(options) {
     }
 
     wx.request({
-      url: `${app.globalData.apiBaseUrl}${options.url}`,
+      url: `${baseUrl}${options.url}`,
       method: options.method || 'GET',
       data: options.data || {},
       header,

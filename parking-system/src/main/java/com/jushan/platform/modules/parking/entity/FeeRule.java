@@ -35,7 +35,8 @@ public class FeeRule extends BaseEntity {
     private String name;
 
     /**
-     * 计费模式：1按时 2按次 3阶梯 4分时段
+     * 计费模式：1按时(按分钟累计) 2按次 3阶梯 4分时段(按时段阶梯)。
+     * 封顶计费通过 dailyCap/maxAmount 与任意模式叠加。
      */
     private Integer billingMode;
 
@@ -44,6 +45,9 @@ public class FeeRule extends BaseEntity {
 
     /** 计费单位（分钟） */
     private Integer unitMinutes;
+
+    /** 首时段时长（分钟），0 表示无首时段优惠 */
+    private Integer firstPeriodMinutes;
 
     /** 首时段价格 */
     private BigDecimal firstPeriodPrice;
@@ -54,8 +58,17 @@ public class FeeRule extends BaseEntity {
     /** 24小时封顶金额（NULL 表示不封顶） */
     private BigDecimal dailyCap;
 
+    /** 最大封顶金额（NULL 表示不封顶），整单封顶 */
+    private BigDecimal maxAmount;
+
     /** 夜间封顶金额（NULL 表示不封顶） */
     private BigDecimal nightCap;
+
+    /** 跨天计费规则：1按自然日分段（每天0点重置） 2连续计费（按总时长，每24小时一个封顶窗口） */
+    private Integer crossDayMode;
+
+    /** 生效方式：1立即生效 2仅新入场生效 3定时生效（配合 effectiveStart） */
+    private Integer effectMode;
 
     /** 优先级，数字越大优先级越高 */
     private Integer priority;
@@ -90,4 +103,16 @@ public class FeeRule extends BaseEntity {
     public static final int STATUS_ENABLED = 1;
     /** 状态：禁用 */
     public static final int STATUS_DISABLED = 2;
+
+    /** 跨天计费：按自然日分段（每天0点重置封顶） */
+    public static final int CROSS_DAY_NATURAL = 1;
+    /** 跨天计费：连续计费（按总时长，每24小时一个封顶窗口） */
+    public static final int CROSS_DAY_CONTINUOUS = 2;
+
+    /** 生效方式：立即生效（在场车辆也按新规则） */
+    public static final int EFFECT_IMMEDIATE = 1;
+    /** 生效方式：仅新入场生效（已在场车辆按入场时规则） */
+    public static final int EFFECT_NEW_ENTRY_ONLY = 2;
+    /** 生效方式：定时生效（effectiveStart 到达后生效） */
+    public static final int EFFECT_SCHEDULED = 3;
 }

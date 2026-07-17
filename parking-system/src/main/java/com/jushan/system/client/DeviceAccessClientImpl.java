@@ -11,8 +11,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
@@ -452,9 +454,12 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
         String methodName = method.name().toLowerCase() + "_" + pathTemplate.replace("/", "_");
 
         try {
-            HttpEntity<Object> httpEntity = requestBody != null
-                    ? new HttpEntity<>(requestBody)
-                    : null;
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            if (props.getApiKey() != null && !props.getApiKey().isBlank()) {
+                headers.set("X-API-Key", props.getApiKey());
+            }
+            HttpEntity<Object> httpEntity = new HttpEntity<>(requestBody, headers);
 
             ResponseEntity<DeviceAccessResponse<T>> entity =
                     restTemplate.exchange(url, method, httpEntity, typeRef, deviceSn);

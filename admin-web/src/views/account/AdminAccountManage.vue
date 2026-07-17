@@ -61,13 +61,13 @@
           <a-space>
             <a v-permission="'account:update'" @click="handleEdit(record)">编辑</a>
             <a v-permission="'account:update'" @click="handleResetPassword(record)">重置密码</a>
-            <a v-permission="'account:update'" v-if="record.status === 1" @click="handleToggleStatus(record, 0)">启用</a>
+            <a v-permission="'account:update'" v-if="record.status === 1" @click="handleToggleStatus(record, 0)">禁用</a>
             <a
               v-permission="'account:update'"
               v-else-if="record.status !== 2"
               style="color: #dc2626"
               @click="handleToggleStatus(record, 1)"
-            >禁用</a>
+            >启用</a>
             <a v-permission="'account:delete'" style="color: #dc2626" @click="handleDelete(record)">删除</a>
           </a-space>
         </template>
@@ -167,8 +167,8 @@ const LEVEL_LABELS_PLATFORM: Record<number, string> = {
 }
 
 const STATUS_MAP: Record<number, { label: string; color: string }> = {
-  0: { label: '正常', color: 'green' },
-  1: { label: '禁用', color: 'red' },
+  1: { label: '正常', color: 'green' },
+  0: { label: '禁用', color: 'red' },
   2: { label: '锁定', color: 'orange' },
 }
 

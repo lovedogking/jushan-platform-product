@@ -1,0 +1,27 @@
+# 集成测试配置 — 使用已有 MySQL 容器（docker ps 中的 device-access-mysql）
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/device_access?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: deviceaccess
+  sql:
+    init:
+      mode: never
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 测试用设备配置（与真实设备 b30113ab-a034d147 隔离）
+device-access:
+  mqtt:
+    broker-url: tcp://localhost:1883
+    client-id: test-device-access
+    connection-timeout-seconds: 5

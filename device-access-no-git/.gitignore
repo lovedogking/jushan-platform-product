@@ -1,0 +1,28 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Compiled classes
+*.class
+
+# Logs
+*.log
+
+# Claude Code
+.claude/worktrees/
+
+# Env
+.env
+.env.local

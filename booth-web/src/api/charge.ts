@@ -6,7 +6,7 @@ import type { ChargeInfo, GateOpenResult, ParkingSessionVO, FeeRule } from './mo
  * GET /api/v1/parking-sessions/in/plate/{plateNumber}
  */
 export function getChargeInfo(plateNumber: string): Promise<ParkingSessionVO> {
-  return request.get<ParkingSessionVO>(`/api/v1/parking-sessions/in/plate/${encodeURIComponent(plateNumber)}`)
+  return request.get<ParkingSessionVO>(`/v1/parking-sessions/in/plate/${encodeURIComponent(plateNumber)}`)
 }
 
 /**
@@ -25,7 +25,7 @@ export function submitCharge(data: {
   authCode?: string
   remark?: string
 }) {
-  return request.post<ParkingSessionVO>('/api/v1/parking-sessions/exit', {
+  return request.post<ParkingSessionVO>('/v1/parking-sessions/exit', {
     sessionId: data.sessionId,
     exitLaneId: data.exitLaneId,
     feeAmount: data.feeAmount,
@@ -42,7 +42,7 @@ export function submitCharge(data: {
  */
 export function manualOpenGate(laneId: number, reason: string): Promise<GateOpenResult> {
   return request.post<GateOpenResult>(
-    '/api/v1/booth/recognition/manual-open-gate',
+    '/v1/booth/recognition/manual-open-gate',
     undefined,
     { params: { laneId, reason } },
   )
@@ -64,7 +64,7 @@ export function manualOpenGateBatch(data: {
   successCount: number
   failedCount: number
 }> {
-  return request.post('/api/v1/booth/recognition/manual-open-gate-batch', data)
+  return request.post('/v1/booth/recognition/manual-open-gate-batch', data)
 }
 
 /**
@@ -73,7 +73,7 @@ export function manualOpenGateBatch(data: {
  */
 export function manualCloseGate(laneId: number, reason: string): Promise<GateOpenResult> {
   return request.post<GateOpenResult>(
-    '/api/v1/booth/recognition/manual-close-gate',
+    '/v1/booth/recognition/manual-close-gate',
     undefined,
     { params: { laneId, reason } },
   )
@@ -84,7 +84,7 @@ export function manualCloseGate(laneId: number, reason: string): Promise<GateOpe
  * GET /api/v1/fee-rules/current
  */
 export function getCurrentFeeRule(lotId: number, zoneId?: number): Promise<FeeRule> {
-  return request.get<FeeRule>('/api/v1/fee-rules/current', { lotId, zoneId })
+  return request.get<FeeRule>('/v1/fee-rules/current', { lotId, zoneId })
 }
 
 /**
@@ -92,5 +92,5 @@ export function getCurrentFeeRule(lotId: number, zoneId?: number): Promise<FeeRu
  * PUT /api/v1/fee-rules/{id}
  */
 export function updateFeeRule(id: number, data: Partial<FeeRule>): Promise<FeeRule> {
-  return request.put<FeeRule>(`/api/v1/fee-rules/${id}`, data)
+  return request.put<FeeRule>(`/v1/fee-rules/${id}`, data)
 }

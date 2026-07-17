@@ -109,10 +109,10 @@ const lotLoading = ref(false)
 async function loadParkingLots() {
   lotLoading.value = true
   try {
-    const res = await getParkingLots({ page: 1, size: 100, status: 1 })
+    const res = await getParkingLots({ page: 1, size: 100 })
     parkingLotOptions.value = (res.records || []).map((lot: ParkingLotVO) => ({
       label: lot.name,
-      value: lot.id,
+      value: Number(lot.id),
     }))
   } catch {
     // 统一拦截器已处理
@@ -130,15 +130,13 @@ async function loadLanes(lotId: number) {
   laneOptions.value = []
   try {
     const res = await getParkingLanes({
-      lotId,
-      type: 2, // 仅出口通道
-      status: 1, // 仅启用
+      parkingLotId: lotId,
       page: 1,
       size: 100,
     })
     laneOptions.value = (res.records || []).map((lane: ParkingLaneVO) => ({
       label: `${lane.name}${lane.laneNo ? `（${lane.laneNo}）` : ''}`,
-      value: lane.id,
+      value: Number(lane.id),
     }))
   } catch {
     // 统一拦截器已处理
@@ -176,8 +174,8 @@ async function handleOpenGate() {
 
   try {
     const result: CommandResult = await openRemoteGate({
-      parkingLotId: form.value.parkingLotId!,
-      laneId: form.value.laneId!,
+      parkingLotId: Number(form.value.parkingLotId),
+      laneId: Number(form.value.laneId),
       reason: form.value.reason.trim(),
     })
     resultSuccess.value = result.success

@@ -21,7 +21,7 @@ import java.util.List;
  * @since 1.0.0
  */
 @RestController
-@RequestMapping("/booth/monitor")
+@RequestMapping("/api/booth/monitor")
 public class BoothMonitorController {
 
     private final BoothMonitorService boothMonitorService;

@@ -1,0 +1,68 @@
+server:
+  port: 8082
+
+logging:
+  level:
+    com.smartparking.deviceaccess: DEBUG
+    com.smartparking.deviceaccess.mqtt: DEBUG
+    com.smartparking.deviceaccess.adapter: DEBUG
+
+spring:
+  application:
+    name: device-access
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+  # MySQL — 当前版本仅用于设备基础信息持久化
+  datasource:
+    url: jdbc:mysql://localhost:3307/device_access?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+# MyBatis Plus
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# MQTT / EMQX 配置 —— 第二步连接时使用
+device-access:
+  mqtt:
+    broker-url: tcp://121.41.131.215:1883
+    client-id: device-access-v0.1
+    username: ${MQTT_USERNAME:}
+    password: ${MQTT_PASSWORD:}
+    # 自动重连间隔（秒）
+    reconnect-interval-seconds: 10
+    # 连接超时（秒）
+    connection-timeout-seconds: 30
+    # Keep Alive 间隔（秒）
+    keep-alive-interval-seconds: 60
+    # QoS 默认值
+    default-qos: 1
+
+  # Webhook 推送配置 — event 模块（v0.4）
+  # URL 为空时 Webhook 推送自动禁用，业务侧定义后通过环境变量注入
+  webhook:
+    url: ${WEBHOOK_URL:http://localhost:8080/api/v1/device-webhook/events}
+    timeout-seconds: 5
+    retry-count: 3
+    retry-interval-seconds: 5
+    # HMAC-SHA256 签名密钥，为空时不发送 X-Signature
+    secret-key: ${WEBHOOK_SECRET_KEY:}
+
+  # API Key 认证 —— 支持多密钥（多租户独立服务场景）
+  # 未配置时放行所有请求（开发/测试便利）
+  auth:
+    keys:
+      - ${API_KEY_1:test-api-key-001}
+      - ${API_KEY_2:}

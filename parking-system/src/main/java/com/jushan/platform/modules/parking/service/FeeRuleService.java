@@ -60,33 +60,28 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
     /**
      * 创建收费规则。
      *
-     * @param lotId       车场 ID
-     * @param zoneId      区域 ID（NULL 表示车场通用）
-     * @param name        规则名称
-     * @param billingMode 计费模式
-     * @param freeMinutes 免费时长
-     * @param unitMinutes 计费单位
-     * @param firstPeriodPrice 首时段价格
-     * @param subsequentPrice  后续单价
-     * @param dailyCap    24小时封顶
-     * @param nightCap    夜间封顶
-     * @param priority    优先级
-     * @param status      状态
-     * @param effectiveStart 生效开始时间
-     * @param effectiveEnd   生效结束时间
-     * @param holidayRules   节假日规则 JSON
-     * @param segments    时段配置（分时段模式必填）
+     * @param cmd 创建请求（含时段配置，分时段模式必填）
      * @return 规则 VO
      */
     @Transactional(rollbackFor = Exception.class)
     @BusinessLog(module = "收费规则", value = "创建收费规则")
-    public FeeRuleVO create(Long lotId, Long zoneId, String name, Integer billingMode,
-                            Integer freeMinutes, Integer unitMinutes,
-                            java.math.BigDecimal firstPeriodPrice, java.math.BigDecimal subsequentPrice,
-                            java.math.BigDecimal dailyCap, java.math.BigDecimal nightCap,
-                            Integer priority, Integer status,
-                            LocalDateTime effectiveStart, LocalDateTime effectiveEnd,
-                            String holidayRules, List<FeeRuleSegment> segments) {
+    public FeeRuleVO create(com.jushan.platform.modules.parking.dto.FeeRuleCreateCmd cmd) {
+        Long lotId = cmd.getLotId();
+        Long zoneId = cmd.getZoneId();
+        String name = cmd.getName();
+        Integer billingMode = cmd.getBillingMode();
+        Integer freeMinutes = cmd.getFreeMinutes();
+        Integer unitMinutes = cmd.getUnitMinutes();
+        java.math.BigDecimal firstPeriodPrice = cmd.getFirstPeriodPrice();
+        java.math.BigDecimal subsequentPrice = cmd.getSubsequentPrice();
+        java.math.BigDecimal dailyCap = cmd.getDailyCap();
+        java.math.BigDecimal nightCap = cmd.getNightCap();
+        Integer priority = cmd.getPriority();
+        Integer status = cmd.getStatus();
+        LocalDateTime effectiveStart = cmd.getEffectiveStart();
+        LocalDateTime effectiveEnd = cmd.getEffectiveEnd();
+        String holidayRules = cmd.getHolidayRules();
+        List<FeeRuleSegment> segments = cmd.getTimeSegments();
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
@@ -102,6 +97,9 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
         if (billingMode != null && billingMode == FeeRule.BILLING_MODE_TIME_SEGMENT) {
             validateSegments(segments);
         }
+        validateEffectMode(cmd.getEffectMode(), effectiveStart);
+        validateCrossDayMode(cmd.getCrossDayMode());
+        validateNonNegativeAmounts(firstPeriodPrice, subsequentPrice, dailyCap, cmd.getMaxAmount(), nightCap);
 
         FeeRule rule = new FeeRule();
         rule.setTenantId(tenantId);
@@ -111,10 +109,14 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
         rule.setBillingMode(billingMode);
         rule.setFreeMinutes(freeMinutes != null ? freeMinutes : 0);
         rule.setUnitMinutes(unitMinutes != null ? unitMinutes : 60);
+        rule.setFirstPeriodMinutes(cmd.getFirstPeriodMinutes() != null ? cmd.getFirstPeriodMinutes() : 0);
         rule.setFirstPeriodPrice(firstPeriodPrice);
         rule.setSubsequentPrice(subsequentPrice);
         rule.setDailyCap(dailyCap);
+        rule.setMaxAmount(cmd.getMaxAmount());
         rule.setNightCap(nightCap);
+        rule.setCrossDayMode(cmd.getCrossDayMode() != null ? cmd.getCrossDayMode() : FeeRule.CROSS_DAY_NATURAL);
+        rule.setEffectMode(cmd.getEffectMode() != null ? cmd.getEffectMode() : FeeRule.EFFECT_IMMEDIATE);
         rule.setPriority(priority != null ? priority : 0);
         rule.setStatus(status != null ? status : FeeRule.STATUS_ENABLED);
         rule.setEffectiveStart(effectiveStart);
@@ -142,17 +144,25 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
     // ==================== 更新规则 ====================
 
     /**
-     * 更新收费规则（创建新版本）。
+     * 更新收费规则（乐观锁，版本号递增）。
      */
     @Transactional(rollbackFor = Exception.class)
     @BusinessLog(module = "收费规则", value = "更新收费规则")
-    public FeeRuleVO update(Long ruleId, String name, Integer billingMode,
-                            Integer freeMinutes, Integer unitMinutes,
-                            java.math.BigDecimal firstPeriodPrice, java.math.BigDecimal subsequentPrice,
-                            java.math.BigDecimal dailyCap, java.math.BigDecimal nightCap,
-                            Integer priority, Integer status,
-                            LocalDateTime effectiveStart, LocalDateTime effectiveEnd,
-                            String holidayRules, List<FeeRuleSegment> segments) {
+    public FeeRuleVO update(Long ruleId, com.jushan.platform.modules.parking.dto.FeeRuleUpdateCmd cmd) {
+        String name = cmd.getName();
+        Integer billingMode = cmd.getBillingMode();
+        Integer freeMinutes = cmd.getFreeMinutes();
+        Integer unitMinutes = cmd.getUnitMinutes();
+        java.math.BigDecimal firstPeriodPrice = cmd.getFirstPeriodPrice();
+        java.math.BigDecimal subsequentPrice = cmd.getSubsequentPrice();
+        java.math.BigDecimal dailyCap = cmd.getDailyCap();
+        java.math.BigDecimal nightCap = cmd.getNightCap();
+        Integer priority = cmd.getPriority();
+        Integer status = cmd.getStatus();
+        LocalDateTime effectiveStart = cmd.getEffectiveStart();
+        LocalDateTime effectiveEnd = cmd.getEffectiveEnd();
+        String holidayRules = cmd.getHolidayRules();
+        List<FeeRuleSegment> segments = cmd.getTimeSegments();
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
@@ -169,6 +179,9 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
         if (billingMode != null && billingMode == FeeRule.BILLING_MODE_TIME_SEGMENT) {
             validateSegments(segments);
         }
+        validateEffectMode(cmd.getEffectMode(), effectiveStart);
+        validateCrossDayMode(cmd.getCrossDayMode());
+        validateNonNegativeAmounts(firstPeriodPrice, subsequentPrice, dailyCap, cmd.getMaxAmount(), nightCap);
 
         // 乐观锁更新
         LambdaUpdateWrapper<FeeRule> wrapper = new LambdaUpdateWrapper<FeeRule>()
@@ -176,10 +189,14 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
                 .set(FeeRule::getBillingMode, billingMode)
                 .set(FeeRule::getFreeMinutes, freeMinutes)
                 .set(FeeRule::getUnitMinutes, unitMinutes)
+                .set(FeeRule::getFirstPeriodMinutes, cmd.getFirstPeriodMinutes())
                 .set(FeeRule::getFirstPeriodPrice, firstPeriodPrice)
                 .set(FeeRule::getSubsequentPrice, subsequentPrice)
                 .set(FeeRule::getDailyCap, dailyCap)
+                .set(FeeRule::getMaxAmount, cmd.getMaxAmount())
                 .set(FeeRule::getNightCap, nightCap)
+                .set(FeeRule::getCrossDayMode, cmd.getCrossDayMode())
+                .set(FeeRule::getEffectMode, cmd.getEffectMode())
                 .set(FeeRule::getPriority, priority)
                 .set(FeeRule::getStatus, status)
                 .set(FeeRule::getEffectiveStart, effectiveStart)
@@ -259,10 +276,14 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
         copy.setBillingMode(source.getBillingMode());
         copy.setFreeMinutes(source.getFreeMinutes());
         copy.setUnitMinutes(source.getUnitMinutes());
+        copy.setFirstPeriodMinutes(source.getFirstPeriodMinutes());
         copy.setFirstPeriodPrice(source.getFirstPeriodPrice());
         copy.setSubsequentPrice(source.getSubsequentPrice());
         copy.setDailyCap(source.getDailyCap());
+        copy.setMaxAmount(source.getMaxAmount());
         copy.setNightCap(source.getNightCap());
+        copy.setCrossDayMode(source.getCrossDayMode());
+        copy.setEffectMode(source.getEffectMode());
         copy.setPriority(source.getPriority());
         copy.setStatus(FeeRule.STATUS_ENABLED);
         copy.setEffectiveStart(source.getEffectiveStart());
@@ -475,6 +496,49 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
         // 注：24:00 用 LocalTime.MAX 或 23:59:59 表示
     }
 
+    /**
+     * 校验生效方式（ADMIN-010）：定时生效必须提供生效开始时间。
+     */
+    private void validateEffectMode(Integer effectMode, LocalDateTime effectiveStart) {
+        if (effectMode == null) {
+            return;
+        }
+        if (effectMode != FeeRule.EFFECT_IMMEDIATE
+                && effectMode != FeeRule.EFFECT_NEW_ENTRY_ONLY
+                && effectMode != FeeRule.EFFECT_SCHEDULED) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "无效的生效方式: " + effectMode);
+        }
+        if (effectMode == FeeRule.EFFECT_SCHEDULED && effectiveStart == null) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "定时生效必须提供定时生效时间");
+        }
+    }
+
+    /**
+     * 校验跨天计费规则（ADMIN-010）。
+     */
+    private void validateCrossDayMode(Integer crossDayMode) {
+        if (crossDayMode == null) {
+            return;
+        }
+        if (crossDayMode != FeeRule.CROSS_DAY_NATURAL && crossDayMode != FeeRule.CROSS_DAY_CONTINUOUS) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "无效的跨天计费规则: " + crossDayMode);
+        }
+    }
+
+    /**
+     * 校验费率合法性（ADMIN-010：非负数）。
+     */
+    private void validateNonNegativeAmounts(java.math.BigDecimal... amounts) {
+        if (amounts == null) {
+            return;
+        }
+        for (java.math.BigDecimal amount : amounts) {
+            if (amount != null && amount.signum() < 0) {
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "费率不能为负数");
+            }
+        }
+    }
+
     private FeeRuleVO toVO(FeeRule rule) {
         FeeRuleVO vo = new FeeRuleVO();
         vo.setId(rule.getId());
@@ -485,10 +549,14 @@ public class FeeRuleService extends ServiceImpl<FeeRuleMapper, FeeRule> {
         vo.setBillingMode(rule.getBillingMode());
         vo.setFreeMinutes(rule.getFreeMinutes());
         vo.setUnitMinutes(rule.getUnitMinutes());
+        vo.setFirstPeriodMinutes(rule.getFirstPeriodMinutes());
         vo.setFirstPeriodPrice(rule.getFirstPeriodPrice());
         vo.setSubsequentPrice(rule.getSubsequentPrice());
         vo.setDailyCap(rule.getDailyCap());
+        vo.setMaxAmount(rule.getMaxAmount());
         vo.setNightCap(rule.getNightCap());
+        vo.setCrossDayMode(rule.getCrossDayMode());
+        vo.setEffectMode(rule.getEffectMode());
         vo.setPriority(rule.getPriority());
         vo.setStatus(rule.getStatus());
         vo.setEffectiveStart(rule.getEffectiveStart());

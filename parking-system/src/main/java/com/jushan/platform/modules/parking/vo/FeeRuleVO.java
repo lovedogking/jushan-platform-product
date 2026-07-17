@@ -25,10 +25,18 @@ public class FeeRuleVO {
     private Integer billingMode;
     private Integer freeMinutes;
     private Integer unitMinutes;
+    /** 首时段时长（分钟） */
+    private Integer firstPeriodMinutes;
     private BigDecimal firstPeriodPrice;
     private BigDecimal subsequentPrice;
     private BigDecimal dailyCap;
+    /** 最大封顶金额（整单封顶） */
+    private BigDecimal maxAmount;
     private BigDecimal nightCap;
+    /** 跨天计费规则：1按自然日分段 2连续计费 */
+    private Integer crossDayMode;
+    /** 生效方式：1立即生效 2仅新入场生效 3定时生效 */
+    private Integer effectMode;
     private Integer priority;
     /** 状态：1启用 2禁用 */
     private Integer status;

@@ -13,10 +13,13 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 费用计算服务。
@@ -140,8 +143,387 @@ public class FeeCalculationService {
         return result;
     }
 
-    // ==================== 计费模式实现 ====================
+    // ==================== 存量一致计费（整数分，移植自旧 BillingEngine） ====================
 
+    private static final int DEFAULT_UNIT_PERIOD_MINUTES = 60;
+
+    /**
+     * 计算停车费用（整数分）。
+     * <p>
+     * 阶段 0（任务包 0-2）计费收敛入口：替代旧包 {@code BillingEngine}，
+     * 数据模型统一为 fee_rule / fee_rule_segment，算法与旧引擎逐场景对齐：
+     * <ol>
+     *   <li>按次（billingMode=2）：固定金额；价格为 0 即免费</li>
+     *   <li>按时/阶梯/分时段（billingMode=1/3/4）：免费时长 → 首时段 → 后续单位时段
+     *       （不足一个单位按一个单位计），分时段模式下按时段单价并截断到时段边界</li>
+     *   <li>跨天：crossDayMode=1 按自然日分段封顶（0点重置），crossDayMode=2 按每24小时窗口连续封顶</li>
+     *   <li>maxAmount 整单封顶</li>
+     * </ol>
+     * 生效方式（effectMode）：1 立即生效（按当前时间判定）、2 仅新入场（按入场时间判定）、
+     * 3 定时生效（effectiveStart 到达后按立即生效判定）。
+     *
+     * @param lotId     车场 ID
+     * @param entryTime 入场时间
+     * @param exitTime  出场时间
+     * @return 费用（分），非负
+     * @throws BusinessException 无生效规则、负金额、时间异常或分时段冲突
+     */
+    public int calculateFeeCents(Long lotId, LocalDateTime entryTime, LocalDateTime exitTime) {
+        return calculateFeeCents(lotId, null, entryTime, exitTime);
+    }
+
+    /**
+     * 计算停车费用（整数分，可指定区域）。
+     *
+     * @param lotId     车场 ID
+     * @param zoneId    区域 ID（可选）
+     * @param entryTime 入场时间
+     * @param exitTime  出场时间
+     * @return 费用（分），非负
+     */
+    public int calculateFeeCents(Long lotId, Long zoneId, LocalDateTime entryTime, LocalDateTime exitTime) {
+        if (entryTime == null || exitTime == null) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "入场时间或出场时间为空");
+        }
+        if (exitTime.isBefore(entryTime)) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "出场时间早于入场时间");
+        }
+
+        FeeRule rule = findActiveRuleForBilling(lotId, zoneId, entryTime, LocalDateTime.now());
+        if (rule == null) {
+            log.warn("停车场无生效收费规则，计费失败: lotId={}, zoneId={}", lotId, zoneId);
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "停车场未配置生效的收费规则");
+        }
+
+        int fee;
+        if (rule.getBillingMode() != null && rule.getBillingMode() == FeeRule.BILLING_MODE_PER_ENTRY) {
+            // 按次：固定金额（0 即免费，等价旧 NO_FEE）
+            fee = toCents(rule.getFirstPeriodPrice());
+        } else {
+            fee = calculateHourlyCents(rule, entryTime, exitTime);
+        }
+
+        // 整单最大封顶
+        int maxAmount = toCents(rule.getMaxAmount());
+        if (maxAmount > 0) {
+            fee = Math.min(fee, maxAmount);
+        }
+
+        if (fee < 0) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "计算费用为负值: " + fee);
+        }
+
+        log.info("计费完成(分): lotId={} ruleId={} feeCents={}", lotId, rule.getId(), fee);
+        return fee;
+    }
+
+    /**
+     * 按时累计计费（整数分）：首时段 + 后续单位时段，支持分时段与跨天封顶。
+     */
+    private int calculateHourlyCents(FeeRule rule, LocalDateTime entryTime, LocalDateTime exitTime) {
+        long totalMinutes = Duration.between(entryTime, exitTime).toMinutes();
+        int freeMinutes = positiveOrZero(rule.getFreeMinutes());
+        if (totalMinutes <= freeMinutes) {
+            return 0;
+        }
+
+        LocalDateTime chargeStart = entryTime.plusMinutes(freeMinutes);
+        List<ChargeInterval> intervals = new ArrayList<>();
+
+        int firstPeriod = positiveOrZero(rule.getFirstPeriodMinutes());
+        int firstAmount = toCents(rule.getFirstPeriodPrice());
+        LocalDateTime cursor = chargeStart;
+
+        if (firstPeriod > 0) {
+            LocalDateTime firstEnd = minTime(cursor.plusMinutes(firstPeriod), exitTime);
+            intervals.add(new ChargeInterval(cursor, firstEnd, firstAmount));
+            cursor = firstEnd;
+        }
+
+        int baseUnitPeriod = rule.getUnitMinutes() != null && rule.getUnitMinutes() > 0
+                ? rule.getUnitMinutes() : DEFAULT_UNIT_PERIOD_MINUTES;
+        int baseUnitAmount = toCents(rule.getSubsequentPrice());
+
+        List<FeeRuleSegment> segments = null;
+        if (rule.getBillingMode() != null && rule.getBillingMode() == FeeRule.BILLING_MODE_TIME_SEGMENT) {
+            segments = feeRuleSegmentMapper.selectListByFeeRuleId(rule.getId());
+            if (segments == null || segments.isEmpty()) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "分时段计费规则未配置时段");
+            }
+        }
+
+        while (cursor.isBefore(exitTime)) {
+            long remainingMinutes = Duration.between(cursor, exitTime).toMinutes();
+            if (remainingMinutes <= 0) {
+                break;
+            }
+
+            LocalTime cursorTime = cursor.toLocalTime();
+            int applicableUnitPeriod = baseUnitPeriod;
+            int applicableUnitAmount = baseUnitAmount;
+
+            FeeRuleSegment segment = findApplicableSegment(segments, cursorTime);
+            if (segment != null) {
+                if (segment.getUnitMinutes() != null && segment.getUnitMinutes() > 0) {
+                    applicableUnitPeriod = segment.getUnitMinutes();
+                }
+                if (segment.getUnitPrice() != null) {
+                    applicableUnitAmount = toCents(segment.getUnitPrice());
+                }
+            }
+
+            LocalDateTime blockEnd = cursor.plusMinutes(applicableUnitPeriod);
+            // 分时段模式下，把当前块截断到时段边界
+            if (segments != null && !segments.isEmpty()) {
+                LocalDateTime segmentBoundary = nextSegmentBoundary(segments, cursor, exitTime);
+                blockEnd = minTime(blockEnd, segmentBoundary);
+            }
+            blockEnd = minTime(blockEnd, exitTime);
+
+            intervals.add(new ChargeInterval(cursor, blockEnd, applicableUnitAmount));
+            cursor = blockEnd;
+        }
+
+        int dailyCap = toCents(rule.getDailyCap());
+        if (rule.getCrossDayMode() != null && rule.getCrossDayMode() == FeeRule.CROSS_DAY_CONTINUOUS) {
+            return applyRollingWindowCap(intervals, dailyCap, chargeStart);
+        }
+        return applyDailyCapCents(intervals, dailyCap);
+    }
+
+    /**
+     * 生效方式感知的规则选择。
+     * <ul>
+     *   <li>立即生效：按当前时间判定生效窗口</li>
+     *   <li>仅新入场生效：入场时间须不早于规则激活时间（effectiveStart 或最近更新时间）</li>
+     *   <li>定时生效：当前时间须已到达 effectiveStart</li>
+     * </ul>
+     */
+    private FeeRule findActiveRuleForBilling(Long lotId, Long zoneId, LocalDateTime entryTime, LocalDateTime now) {
+        if (zoneId != null) {
+            List<FeeRule> zoneRules = feeRuleMapper.selectByLotIdAndZoneId(lotId, zoneId);
+            FeeRule active = zoneRules.stream()
+                    .filter(r -> isRuleActiveForBilling(r, entryTime, now))
+                    .max((a, b) -> Integer.compare(
+                            a.getPriority() != null ? a.getPriority() : 0,
+                            b.getPriority() != null ? b.getPriority() : 0))
+                    .orElse(null);
+            if (active != null) {
+                return active;
+            }
+        }
+        List<FeeRule> lotRules = feeRuleMapper.selectByLotIdAndZoneId(lotId, null);
+        return lotRules.stream()
+                .filter(r -> isRuleActiveForBilling(r, entryTime, now))
+                .max((a, b) -> Integer.compare(
+                        a.getPriority() != null ? a.getPriority() : 0,
+                        b.getPriority() != null ? b.getPriority() : 0))
+                .orElse(null);
+    }
+
+    /**
+     * 判定规则对一次计费是否生效（结合 effectMode）。
+     */
+    private boolean isRuleActiveForBilling(FeeRule rule, LocalDateTime entryTime, LocalDateTime now) {
+        if (rule == null || rule.getStatus() == null || rule.getStatus() != FeeRule.STATUS_ENABLED) {
+            return false;
+        }
+        int effectMode = rule.getEffectMode() != null ? rule.getEffectMode() : FeeRule.EFFECT_IMMEDIATE;
+        switch (effectMode) {
+            case FeeRule.EFFECT_SCHEDULED:
+                // 定时生效：未到生效时间不启用；到达后按立即生效判定窗口
+                if (rule.getEffectiveStart() == null || now.isBefore(rule.getEffectiveStart())) {
+                    return false;
+                }
+                return withinWindow(rule, now);
+            case FeeRule.EFFECT_NEW_ENTRY_ONLY:
+                // 仅新入场：入场时间须不早于规则激活时间
+                LocalDateTime activation = rule.getEffectiveStart() != null
+                        ? rule.getEffectiveStart() : rule.getUpdatedAt();
+                if (activation != null && entryTime != null && entryTime.isBefore(activation)) {
+                    return false;
+                }
+                return withinWindow(rule, now);
+            case FeeRule.EFFECT_IMMEDIATE:
+            default:
+                return withinWindow(rule, now);
+        }
+    }
+
+    private boolean withinWindow(FeeRule rule, LocalDateTime time) {
+        if (rule.getEffectiveStart() != null && time.isBefore(rule.getEffectiveStart())) {
+            return false;
+        }
+        return rule.getEffectiveEnd() == null || !time.isAfter(rule.getEffectiveEnd());
+    }
+
+    private FeeRuleSegment findApplicableSegment(List<FeeRuleSegment> segments, LocalTime time) {
+        if (segments == null || segments.isEmpty()) {
+            return null;
+        }
+        FeeRuleSegment matched = null;
+        for (FeeRuleSegment segment : segments) {
+            if (isTimeInSegment(time, segment)) {
+                if (matched != null) {
+                    log.warn("分时段计费规则冲突: time={}, segments=[{}, {}]", time,
+                            matched.getStartTime() + "-" + matched.getEndTime(),
+                            segment.getStartTime() + "-" + segment.getEndTime());
+                    throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "分时段计费规则存在冲突");
+                }
+                matched = segment;
+            }
+        }
+        return matched;
+    }
+
+    private LocalDateTime nextSegmentBoundary(List<FeeRuleSegment> segments, LocalDateTime cursor, LocalDateTime exitTime) {
+        LocalTime cursorTime = cursor.toLocalTime();
+        LocalDate cursorDate = cursor.toLocalDate();
+        FeeRuleSegment current = findApplicableSegment(segments, cursorTime);
+        if (current != null) {
+            LocalDateTime boundary = cursorDate.atTime(current.getEndTime());
+            if (!boundary.isAfter(cursor)) {
+                boundary = boundary.plusDays(1);
+            }
+            return boundary;
+        }
+        LocalDateTime nextStart = null;
+        for (FeeRuleSegment segment : segments) {
+            LocalDateTime candidate = cursorDate.atTime(segment.getStartTime());
+            if (!candidate.isAfter(cursor)) {
+                candidate = candidate.plusDays(1);
+            }
+            if (nextStart == null || candidate.isBefore(nextStart)) {
+                nextStart = candidate;
+            }
+        }
+        return nextStart != null ? minTime(nextStart, exitTime) : exitTime;
+    }
+
+    /**
+     * 按自然日分段封顶（0点重置）：费用按午夜拆分，每日费用 capped at dailyCap。
+     */
+    private int applyDailyCapCents(List<ChargeInterval> intervals, int dailyCap) {
+        if (dailyCap <= 0) {
+            return sumIntervalCosts(intervals);
+        }
+        Map<LocalDate, Long> dayCosts = new HashMap<>();
+        for (ChargeInterval interval : intervals) {
+            splitAtBoundary(interval, interval.start.toLocalDate().plusDays(1).atStartOfDay(),
+                    (date, cost) -> dayCosts.merge(date, (long) cost, Long::sum));
+        }
+        long total = 0;
+        for (long dayCost : dayCosts.values()) {
+            total += Math.min(dayCost, dailyCap);
+        }
+        return (int) total;
+    }
+
+    /**
+     * 连续计费封顶：从计费起点每 24 小时一个窗口，每窗费用 capped at dailyCap。
+     */
+    private int applyRollingWindowCap(List<ChargeInterval> intervals, int dailyCap, LocalDateTime chargeStart) {
+        if (dailyCap <= 0) {
+            return sumIntervalCosts(intervals);
+        }
+        Map<Integer, Long> windowCosts = new HashMap<>();
+        for (ChargeInterval interval : intervals) {
+            long totalMinutes = Duration.between(interval.start, interval.end).toMinutes();
+            if (totalMinutes <= 0) {
+                windowCosts.merge(windowIndexOf(interval.start, chargeStart), (long) interval.cost, Long::sum);
+                continue;
+            }
+            LocalDateTime cursor = interval.start;
+            int allocated = 0;
+            while (cursor.isBefore(interval.end)) {
+                LocalDateTime windowEnd = windowEndOf(cursor, chargeStart);
+                LocalDateTime segEnd = interval.end.isBefore(windowEnd) ? interval.end : windowEnd;
+                long segMinutes = Duration.between(cursor, segEnd).toMinutes();
+                int segCost;
+                if (!segEnd.isBefore(interval.end)) {
+                    // 最后一段兜底，确保各段之和等于原费用
+                    segCost = interval.cost - allocated;
+                } else {
+                    segCost = (int) ((long) interval.cost * segMinutes / totalMinutes);
+                }
+                allocated += segCost;
+                windowCosts.merge(windowIndexOf(cursor, chargeStart), (long) segCost, Long::sum);
+                cursor = segEnd;
+            }
+        }
+        long total = 0;
+        for (long windowCost : windowCosts.values()) {
+            total += Math.min(windowCost, dailyCap);
+        }
+        return (int) total;
+    }
+
+    private int windowIndexOf(LocalDateTime time, LocalDateTime chargeStart) {
+        return (int) (Duration.between(chargeStart, time).toMinutes() / (24 * 60));
+    }
+
+    private LocalDateTime windowEndOf(LocalDateTime time, LocalDateTime chargeStart) {
+        long minutes = Duration.between(chargeStart, time).toMinutes();
+        long windows = minutes / (24 * 60) + 1;
+        return chargeStart.plusMinutes(windows * 24 * 60);
+    }
+
+    /**
+     * 在指定边界处拆分区间费用（按比例分配，确保两部分之和等于原费用）。
+     */
+    private void splitAtBoundary(ChargeInterval interval, LocalDateTime boundary, IntervalCostConsumer consumer) {
+        LocalDate startKey = interval.start.toLocalDate();
+        if (!interval.end.isAfter(boundary)) {
+            consumer.accept(startKey, interval.cost);
+            return;
+        }
+        long totalMinutes = Duration.between(interval.start, interval.end).toMinutes();
+        if (totalMinutes <= 0) {
+            consumer.accept(startKey, interval.cost);
+            return;
+        }
+        long beforeMinutes = Duration.between(interval.start, boundary).toMinutes();
+        long costBefore = (long) interval.cost * beforeMinutes / totalMinutes;
+        long costAfter = interval.cost - costBefore;
+        consumer.accept(startKey, (int) costBefore);
+        consumer.accept(boundary.toLocalDate(), (int) costAfter);
+    }
+
+    private int sumIntervalCosts(List<ChargeInterval> intervals) {
+        long total = 0;
+        for (ChargeInterval interval : intervals) {
+            total += interval.cost;
+        }
+        return (int) total;
+    }
+
+    private LocalDateTime minTime(LocalDateTime a, LocalDateTime b) {
+        return a.isBefore(b) ? a : b;
+    }
+
+    private int positiveOrZero(Integer value) {
+        return value != null && value > 0 ? value : 0;
+    }
+
+    /**
+     * 元（DECIMAL）转整数分；NULL 按 0 处理。
+     */
+    private int toCents(BigDecimal yuan) {
+        if (yuan == null) {
+            return 0;
+        }
+        return yuan.movePointRight(2).setScale(0, RoundingMode.UNNECESSARY).intValueExact();
+    }
+
+    @FunctionalInterface
+    private interface IntervalCostConsumer {
+        void accept(LocalDate date, int cost);
+    }
+
+    private record ChargeInterval(LocalDateTime start, LocalDateTime end, int cost) {
+    }
+
+    // ==================== 计费模式实现 ====================
     /**
      * 按时计费：首时段 + 后续单位时段。
      */

@@ -16,7 +16,7 @@ CREATE TABLE fixed_space_binding (
     created_at DATETIME(3) NOT NULL COMMENT '创建时间',
     updated_at DATETIME(3) NOT NULL COMMENT '更新时间',
     deleted_at DATETIME(3) DEFAULT NULL COMMENT '删除时间',
-    UNIQUE KEY uk_space (parking_lot_id, zone_id(20), space_no(20), deleted_at),
+    UNIQUE KEY uk_space (parking_lot_id, zone_id, space_no, deleted_at),
     UNIQUE KEY uk_vehicle (parking_lot_id, vehicle_id, deleted_at),
     INDEX idx_tenant (tenant_id),
     INDEX idx_plate_via_vehicle (vehicle_id),

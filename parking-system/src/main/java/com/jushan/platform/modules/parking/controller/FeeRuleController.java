@@ -36,14 +36,7 @@ public class FeeRuleController {
     @PostMapping
     @RequirePermission("fee:write")
     public R<FeeRuleVO> create(@Valid @RequestBody FeeRuleCreateCmd cmd) {
-        FeeRuleVO vo = feeRuleService.create(
-                cmd.getLotId(), cmd.getZoneId(), cmd.getName(), cmd.getBillingMode(),
-                cmd.getFreeMinutes(), cmd.getUnitMinutes(),
-                cmd.getFirstPeriodPrice(), cmd.getSubsequentPrice(),
-                cmd.getDailyCap(), cmd.getNightCap(),
-                cmd.getPriority(), cmd.getStatus(),
-                cmd.getEffectiveStart(), cmd.getEffectiveEnd(),
-                cmd.getHolidayRules(), cmd.getTimeSegments());
+        FeeRuleVO vo = feeRuleService.create(cmd);
         log.info("创建收费规则成功: ruleId={}, name={}", vo.getId(), vo.getName());
         return R.ok(vo);
     }
@@ -54,14 +47,7 @@ public class FeeRuleController {
     @PutMapping("/{id}")
     @RequirePermission("fee:write")
     public R<FeeRuleVO> update(@PathVariable Long id, @Valid @RequestBody FeeRuleUpdateCmd cmd) {
-        FeeRuleVO vo = feeRuleService.update(
-                id, cmd.getName(), cmd.getBillingMode(),
-                cmd.getFreeMinutes(), cmd.getUnitMinutes(),
-                cmd.getFirstPeriodPrice(), cmd.getSubsequentPrice(),
-                cmd.getDailyCap(), cmd.getNightCap(),
-                cmd.getPriority(), cmd.getStatus(),
-                cmd.getEffectiveStart(), cmd.getEffectiveEnd(),
-                cmd.getHolidayRules(), cmd.getTimeSegments());
+        FeeRuleVO vo = feeRuleService.update(id, cmd);
         log.info("更新收费规则成功: ruleId={}", id);
         return R.ok(vo);
     }

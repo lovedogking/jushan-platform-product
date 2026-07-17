@@ -24,23 +24,15 @@ CREATE INDEX idx_exception_type ON exception_record(exception_type);
 CREATE INDEX idx_exception_created_at ON exception_record(created_at);
 
 -- 2. 插入权限记录
-INSERT INTO sys_permission (code, name, description, type)
-SELECT 'exception:view', '异常记录查看', '查看和处理异常记录', 'OPERATION'
+INSERT INTO sys_permission (code, name, description)
+SELECT 'exception:view', '异常记录查看', '查看和处理异常记录'
 WHERE NOT EXISTS (SELECT 1 FROM sys_permission WHERE code = 'exception:view');
 
--- 3. 授权给固定角色
-INSERT INTO sys_role_permission (role_code, permission_code)
-SELECT role_code, 'exception:view'
-FROM (SELECT 'super_admin' AS role_code UNION ALL
-      SELECT 'customer_admin' UNION ALL
-      SELECT 'parking_manager' UNION ALL
-      SELECT 'device_maintenance') rp
-WHERE NOT EXISTS (SELECT 1 FROM sys_role_permission srp
-                  WHERE srp.role_code = rp.role_code AND srp.permission_code = 'exception:view');
-
--- 4. 授权给自定义角色中的 SUPER_ADMIN
-INSERT INTO sys_role_permission (role_id, permission_code, permission_type, data_scope)
-SELECT cr.id, 'exception:view', 'OPERATION', 'ALL'
+-- 3. 为 SUPER_ADMIN 自定义角色授权
+INSERT INTO sys_role_permission (id, role_id, permission_code, permission_type, data_scope)
+SELECT
+    CONV(SUBSTRING(MD5(CONCAT(cr.id, ':exception:view')), 1, 16), 16, 10) % 9223372036854775807 AS id,
+    cr.id, 'exception:view', 'OPERATION', 'ALL'
 FROM sys_custom_role cr
 WHERE cr.role_code = 'SUPER_ADMIN' AND cr.deleted_at IS NULL
   AND NOT EXISTS (SELECT 1 FROM sys_role_permission srp

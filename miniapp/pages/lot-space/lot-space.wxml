@@ -90,7 +90,7 @@
       <view class="lot-footer">
         <text class="lot-stat">总车位 {{item.totalSpaces || 0}}</text>
         <text class="lot-stat">在场 {{item.currentVehicles || 0}}</text>
-        <text class="lot-distance" wx:if="{{item.distance}}">距您 {{item.distance > 1000 ? (item.distance / 1000).toFixed(1) + 'km' : item.distance + 'm'}}</text>
+        <text class="lot-distance" wx:if="{{item.distance}}">距您 {{formatDistance(item.distance)}}</text>
       </view>
     </view>
   </block>

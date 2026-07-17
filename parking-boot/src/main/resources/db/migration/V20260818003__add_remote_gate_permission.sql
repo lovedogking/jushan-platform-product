@@ -19,24 +19,7 @@ VALUES ('device:remote:open', '远程开闸', '运营端远程开启道闸')
 ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description);
 
 -- ---------------------------------------------------------------------------
--- 2. 固定角色授权（传统 sys_role_permission 模式）
---    给 super_admin、device_maintenance、booth_operator 发放
--- ---------------------------------------------------------------------------
-INSERT INTO sys_role_permission (role_code, permission_code)
-SELECT rc.role_code, perm.permission_code
-FROM (SELECT 'super_admin' AS role_code
-      UNION ALL SELECT 'device_maintenance'
-      UNION ALL SELECT 'booth_operator') rc
-CROSS JOIN (SELECT 'device:remote:open' AS permission_code) perm
-WHERE NOT EXISTS (
-    SELECT 1 FROM sys_role_permission srp
-    WHERE srp.role_code = rc.role_code AND srp.permission_code = perm.permission_code
-);
-
--- ---------------------------------------------------------------------------
--- 3. 自定义角色授权（sys_custom_role 模式）
---    customer_admin 默认不获得，可通过后续管理页面勾选
---    但为 SUPER_ADMIN 自定义角色补充此权限（超管总应该能远程开闸）
+-- 2. 为 SUPER_ADMIN 自定义角色授权
 -- ---------------------------------------------------------------------------
 INSERT INTO sys_role_permission (id, role_id, permission_code, permission_type, data_scope)
 SELECT

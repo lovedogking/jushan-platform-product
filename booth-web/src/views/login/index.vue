@@ -68,7 +68,7 @@ async function handleSubmit() {
       username: formState.username,
       password: formState.password,
     })
-    validateAndSetToken(result.accessToken)
+    validateAndSetToken(result.token || result.accessToken)
     const redirect = (route.query.redirect as string) || '/monitor'
     router.push(redirect)
   } catch (e: any) {
