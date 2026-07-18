@@ -53,6 +53,12 @@ public class MonthlyPass extends BaseEntity {
     /** 月卡状态：ACTIVE-生效中 / EXPIRED-已过期 / CANCELLED-已注销 */
     private String passStatus;
 
+    /** 审核状态：PENDING-待审核 / APPROVED-已通过 / REJECTED-已驳回 */
+    private String reviewStatus;
+
+    /** 审核备注 */
+    private String reviewRemark;
+
     /** 申请人ID（小程序用户ID；运营端录入为NULL） */
     private Long applicantId;
 
@@ -81,4 +87,8 @@ public class MonthlyPass extends BaseEntity {
 
     public static final String SOURCE_ADMIN = "ADMIN";
     public static final String SOURCE_MINIAPP = "MINIAPP";
+
+    public static final String REVIEW_PENDING = "PENDING";
+    public static final String REVIEW_APPROVED = "APPROVED";
+    public static final String REVIEW_REJECTED = "REJECTED";
 }

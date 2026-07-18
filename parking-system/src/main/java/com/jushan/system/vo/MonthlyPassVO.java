@@ -23,6 +23,8 @@ public class MonthlyPassVO {
     private Integer paidAmountCents;
     private String payMethod;
     private String passStatus;
+    private String reviewStatus;
+    private String reviewRemark;
     private String source;
     private Long applicantId;
     private Long orderId;
@@ -55,6 +57,10 @@ public class MonthlyPassVO {
     public void setPayMethod(String payMethod) { this.payMethod = payMethod; }
     public String getPassStatus() { return passStatus; }
     public void setPassStatus(String passStatus) { this.passStatus = passStatus; }
+    public String getReviewStatus() { return reviewStatus; }
+    public void setReviewStatus(String reviewStatus) { this.reviewStatus = reviewStatus; }
+    public String getReviewRemark() { return reviewRemark; }
+    public void setReviewRemark(String reviewRemark) { this.reviewRemark = reviewRemark; }
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }
     public Long getApplicantId() { return applicantId; }

@@ -355,6 +355,8 @@ public class MonthlyPassService {
         vo.setPaidAmountCents(pass.getPaidAmountCents());
         vo.setPayMethod(pass.getPayMethod());
         vo.setPassStatus(pass.getPassStatus());
+        vo.setReviewStatus(pass.getReviewStatus());
+        vo.setReviewRemark(pass.getReviewRemark());
         vo.setSource(pass.getSource());
         vo.setApplicantId(pass.getApplicantId());
         vo.setOrderId(orderId);
