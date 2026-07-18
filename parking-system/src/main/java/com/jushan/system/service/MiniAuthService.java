@@ -1,13 +1,18 @@
 package com.jushan.system.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.jushan.common.BusinessException;
+import com.jushan.common.CommonErrorCode;
+import com.jushan.common.auth.TenantContext;
 import com.jushan.platform.infra.security.JwtUtils;
 import com.jushan.system.client.WeChatApiClient;
 import com.jushan.system.dto.MiniLoginRequest;
+import com.jushan.system.dto.MiniPhoneRequest;
 import com.jushan.system.entity.PlateBinding;
 import com.jushan.system.entity.WxUser;
 import com.jushan.system.mapper.PlateBindingMapper;
 import com.jushan.system.mapper.WxUserMapper;
+import com.jushan.system.vo.BindPhoneResult;
 import com.jushan.system.vo.WxLoginResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,6 +115,51 @@ public class MiniAuthService {
     }
 
     /**
+     * 微信小程序手机号绑定。
+     * <p>
+     * 通过微信 getPhoneNumber 接口获取手机号并绑定到当前用户。
+     *
+     * @param request 手机号绑定请求
+     * @return 绑定结果
+     */
+    @Transactional
+    public BindPhoneResult bindPhone(MiniPhoneRequest request) {
+        // 1. 获取当前用户 ID
+        Long userId = TenantContext.requireUserId();
+
+        // 2. 调用微信接口获取手机号
+        WeChatApiClient.WeChatPhoneInfo phoneInfo = weChatApiClient.getPhoneNumber(request.getCode());
+        String phone = phoneInfo.getPurePhoneNumber();
+
+        // 3. 检查手机号唯一性
+        WxUser existing = wxUserMapper.selectOne(
+                new LambdaQueryWrapper<WxUser>()
+                        .eq(WxUser::getPhone, phone)
+                        .ne(WxUser::getId, userId));
+        if (existing != null) {
+            throw new BusinessException(CommonErrorCode.CONFLICT, "该手机号已被其他账号绑定");
+        }
+
+        // 4. 更新用户手机号
+        WxUser wxUser = wxUserMapper.selectById(userId);
+        if (wxUser == null) {
+            throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "用户不存在");
+        }
+        wxUser.setPhone(phone);
+        wxUser.setPhoneVerified(true);
+        wxUser.setUpdatedAt(LocalDateTime.now());
+        wxUserMapper.updateById(wxUser);
+
+        log.info("微信小程序用户 {} 绑定手机号 {}", userId, maskPhone(phone));
+
+        // 5. 返回结果
+        BindPhoneResult result = new BindPhoneResult();
+        result.setPhone(maskPhone(phone));
+        result.setSuccess(true);
+        return result;
+    }
+
+    /**
      * 创建微信用户。
      */
     private WxUser createWxUser(String openid, String sessionKey, MiniLoginRequest request) {
@@ -141,5 +191,15 @@ public class MiniAuthService {
         wxUser.setLastLoginAt(LocalDateTime.now());
         wxUser.setUpdatedAt(LocalDateTime.now());
         wxUserMapper.updateById(wxUser);
+    }
+
+    /**
+     * 脱敏手机号（显示前三位和后四位，中间用 * 替代）。
+     */
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() < 7) {
+            return phone;
+        }
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
 }
