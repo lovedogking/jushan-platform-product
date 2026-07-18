@@ -53,6 +53,10 @@ export interface RecognitionEvent {
   paymentStatus?: 'PAID' | 'UNPAID'
   /** 应收费用（元） */
   feeAmount?: number
+  /** 校正后车牌号（NULL 表示未校正） */
+  correctedPlate?: string
+  /** 校正类型：MANUAL_CORRECTION */
+  correctionType?: string
 }
 
 /** 设备状态 */
@@ -108,6 +112,10 @@ export interface RecognitionEventPayload {
   deviceId: number
   imagePath: string
   plateImagePath: string
+  /** 校正后车牌号（NULL 表示未校正） */
+  correctedPlate?: string
+  /** 校正类型：MANUAL_CORRECTION */
+  correctionType?: string
 }
 
 /** WebSocket 异常提醒推送 */
