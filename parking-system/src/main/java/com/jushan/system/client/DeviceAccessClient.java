@@ -102,6 +102,50 @@ public interface DeviceAccessClient {
     CommandResultDTO closeGate(String deviceSn, String commandId);
 
     /**
+     * 锁定道闸（常开：继电器强制吸合保持开启）。
+     * <p>
+     * 对应 {@code POST /api/v1/devices/{deviceSn}/gate/lock}。
+     * 写操作，<strong>不携带 commandId</strong>。如需幂等重试请使用 {@link #lockGate(String, String)}。
+     *
+     * @param deviceSn 设备厂商序列号（来自平台可信设备记录，非前端传入）
+     * @return 命令执行结果
+     * @throws com.jushan.common.BusinessException DA 返回错误或网络异常
+     */
+    CommandResultDTO lockGate(String deviceSn);
+
+    /**
+     * 解除道闸锁定（取消常开：解锁并关闸，恢复常规模式）。
+     * <p>
+     * 对应 {@code POST /api/v1/devices/{deviceSn}/gate/unlock}。
+     * 写操作，<strong>不携带 commandId</strong>。如需幂等重试请使用 {@link #unlockGate(String, String)}。
+     *
+     * @param deviceSn 设备厂商序列号（来自平台可信设备记录，非前端传入）
+     * @return 命令执行结果
+     * @throws com.jushan.common.BusinessException DA 返回错误或网络异常
+     */
+    CommandResultDTO unlockGate(String deviceSn);
+
+    /**
+     * 锁定道闸（常开，携带 commandId 幂等标记）。
+     *
+     * @param deviceSn  设备厂商序列号
+     * @param commandId 幂等命令 ID（UUID），跨重试保持一致
+     * @return 命令执行结果
+     * @throws com.jushan.common.BusinessException DA 返回错误或重试耗尽
+     */
+    CommandResultDTO lockGate(String deviceSn, String commandId);
+
+    /**
+     * 解除道闸锁定（取消常开，携带 commandId 幂等标记）。
+     *
+     * @param deviceSn  设备厂商序列号
+     * @param commandId 幂等命令 ID（UUID），跨重试保持一致
+     * @return 命令执行结果
+     * @throws com.jushan.common.BusinessException DA 返回错误或重试耗尽
+     */
+    CommandResultDTO unlockGate(String deviceSn, String commandId);
+
+    /**
      * 显示屏实时文字。
      * <p>
      * 对应 {@code POST /api/v1/devices/{deviceSn}/display/text}。

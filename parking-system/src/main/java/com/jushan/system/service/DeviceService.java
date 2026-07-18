@@ -991,6 +991,72 @@ public class DeviceService {
     }
 
     /**
+     * 按车道常开（锁定道闸，继电器强制吸合保持开启）。
+     *
+     * @param laneId 车道 ID
+     * @param reason 操作原因
+     * @return 命令执行结果
+     */
+    @Transactional
+    public CommandResultDTO lockGateByLane(Long laneId, String reason) {
+        ParkingLane lane = laneMapper.selectByIdIgnoreTenant(laneId);
+        if (lane == null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道不存在: laneId=" + laneId);
+        }
+        if (lane.getDeletedAt() != null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道已被删除: laneId=" + laneId);
+        }
+
+        DataScope.validateTenantMatch(lane.getTenantId(), "车道");
+        scopeResolver.validateAccess(lane.getLotId());
+
+        Device gateDevice = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "GATE");
+        if (gateDevice == null) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "该车道未绑定道闸设备: laneId=" + laneId + " laneName=" + lane.getName());
+        }
+
+        log.info("按车道常开（锁定道闸）: laneId={}, laneName={}, gateDeviceId={}, deviceSn={}, reason={}",
+                laneId, lane.getName(), gateDevice.getId(), gateDevice.getDeviceSn(), reason);
+
+        String commandId = UUID.randomUUID().toString();
+        return deviceAccessClient.lockGate(gateDevice.getDeviceSn(), commandId);
+    }
+
+    /**
+     * 按车道取消常开（解除道闸锁定并关闸，恢复常规模式）。
+     *
+     * @param laneId 车道 ID
+     * @param reason 操作原因
+     * @return 命令执行结果
+     */
+    @Transactional
+    public CommandResultDTO unlockGateByLane(Long laneId, String reason) {
+        ParkingLane lane = laneMapper.selectByIdIgnoreTenant(laneId);
+        if (lane == null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道不存在: laneId=" + laneId);
+        }
+        if (lane.getDeletedAt() != null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道已被删除: laneId=" + laneId);
+        }
+
+        DataScope.validateTenantMatch(lane.getTenantId(), "车道");
+        scopeResolver.validateAccess(lane.getLotId());
+
+        Device gateDevice = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "GATE");
+        if (gateDevice == null) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "该车道未绑定道闸设备: laneId=" + laneId + " laneName=" + lane.getName());
+        }
+
+        log.info("按车道取消常开（解除道闸锁定）: laneId={}, laneName={}, gateDeviceId={}, deviceSn={}, reason={}",
+                laneId, lane.getName(), gateDevice.getId(), gateDevice.getDeviceSn(), reason);
+
+        String commandId = UUID.randomUUID().toString();
+        return deviceAccessClient.unlockGate(gateDevice.getDeviceSn(), commandId);
+    }
+
+    /**
      * 开闸（调用 DA v0.4）。
      * <p>
      * 支持 GATE 类型设备和具备开闸能力的 CAMERA 设备。

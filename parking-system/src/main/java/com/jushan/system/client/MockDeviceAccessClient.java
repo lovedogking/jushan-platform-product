@@ -88,6 +88,46 @@ public class MockDeviceAccessClient implements DeviceAccessClient {
     }
 
     @Override
+    public CommandResultDTO lockGate(String deviceSn) {
+        log.info("[MOCK] 常开（锁定道闸）: deviceSn={}", deviceSn);
+        CommandResultDTO dto = new CommandResultDTO();
+        dto.setSuccess(true);
+        dto.setDeviceCode(200);
+        dto.setMessage(MOCK_PREFIX + "常开成功（道闸已锁定）");
+        return dto;
+    }
+
+    @Override
+    public CommandResultDTO unlockGate(String deviceSn) {
+        log.info("[MOCK] 取消常开（解除道闸锁定）: deviceSn={}", deviceSn);
+        CommandResultDTO dto = new CommandResultDTO();
+        dto.setSuccess(true);
+        dto.setDeviceCode(200);
+        dto.setMessage(MOCK_PREFIX + "取消常开成功（道闸已解锁并关闸）");
+        return dto;
+    }
+
+    @Override
+    public CommandResultDTO lockGate(String deviceSn, String commandId) {
+        log.info("[MOCK] 常开（锁定道闸，幂等）: deviceSn={}, commandId={}", deviceSn, commandId);
+        CommandResultDTO dto = new CommandResultDTO();
+        dto.setSuccess(true);
+        dto.setDeviceCode(200);
+        dto.setMessage(MOCK_PREFIX + "常开成功 (commandId=" + commandId + ")");
+        return dto;
+    }
+
+    @Override
+    public CommandResultDTO unlockGate(String deviceSn, String commandId) {
+        log.info("[MOCK] 取消常开（解除道闸锁定，幂等）: deviceSn={}, commandId={}", deviceSn, commandId);
+        CommandResultDTO dto = new CommandResultDTO();
+        dto.setSuccess(true);
+        dto.setDeviceCode(200);
+        dto.setMessage(MOCK_PREFIX + "取消常开成功 (commandId=" + commandId + ")");
+        return dto;
+    }
+
+    @Override
     public DisplayResultDTO displayText(String deviceSn, DisplayTextRequest request) {
         log.info("[MOCK] 显示屏文字: deviceSn={}", deviceSn);
         DisplayResultDTO dto = new DisplayResultDTO();

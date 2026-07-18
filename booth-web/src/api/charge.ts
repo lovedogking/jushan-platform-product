@@ -97,6 +97,30 @@ export function getCurrentFeeRule(lotId: number, zoneId?: number): Promise<FeeRu
 }
 
 /**
+ * 常开（锁定道闸，继电器强制吸合保持开启）。
+ * POST /api/v1/booth/recognition/manual-lock-gate
+ */
+export function manualLockGate(laneId: number, reason: string): Promise<GateOpenResult> {
+  return request.post<GateOpenResult>(
+    '/v1/booth/recognition/manual-lock-gate',
+    undefined,
+    { params: { laneId, reason } },
+  )
+}
+
+/**
+ * 取消常开（解除道闸锁定并关闸，恢复常规模式）。
+ * POST /api/v1/booth/recognition/manual-unlock-gate
+ */
+export function manualUnlockGate(laneId: number, reason: string): Promise<GateOpenResult> {
+  return request.post<GateOpenResult>(
+    '/v1/booth/recognition/manual-unlock-gate',
+    undefined,
+    { params: { laneId, reason } },
+  )
+}
+
+/**
  * 岗亭端临时调整收费规则。
  * PUT /api/v1/fee-rules/{id}
  */

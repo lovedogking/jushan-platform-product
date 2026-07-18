@@ -275,6 +275,88 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         return result;
     }
 
+    @Override
+    public RecognitionResultVO manualLockGate(Long laneId, Long operatorId, String reason) {
+        log.info("常开（锁定道闸）请求: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+
+        RecognitionResultVO result = new RecognitionResultVO();
+        result.setAllowPass(true);
+
+        try {
+            result.setGateCommandSent(true);
+            CommandResultDTO gateResult = deviceService.lockGateByLane(laneId, "常开（锁定道闸）: " + reason);
+            boolean success = gateResult.isSuccessful();
+            result.setGateDeviceAck(success);
+            result.setGateOpened(true); // 常开状态下道闸保持开启
+            if (success) {
+                result.setGateResult("常开成功（道闸已锁定）");
+                result.setResultMessage("常开: " + reason);
+                result.setException(false);
+                log.info("常开成功: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+            } else {
+                result.setGateResult("常开失败: " + (gateResult.getMessage() != null ? gateResult.getMessage() : "设备返回异常"));
+                result.setResultMessage("常开失败: " + reason);
+                result.setException(true);
+                result.setExceptionType("GATE_LOCK_FAILED");
+                log.warn("常开设备返回失败: laneId={}, operatorId={}, message={}",
+                        laneId, operatorId, gateResult.getMessage());
+            }
+        } catch (BusinessException e) {
+            result.setGateCommandSent(true);
+            result.setGateDeviceAck(false);
+            result.setGateOpened(null);
+            result.setGateResult("常开异常（UNCERTAIN）: " + e.getMessage());
+            result.setResultMessage("常开异常: " + reason);
+            result.setException(true);
+            result.setExceptionType("GATE_LOCK_UNCERTAIN");
+            log.error("常开异常（UNCERTAIN）: laneId={}, operatorId={}, error={}",
+                    laneId, operatorId, e.getMessage());
+        }
+
+        return result;
+    }
+
+    @Override
+    public RecognitionResultVO manualUnlockGate(Long laneId, Long operatorId, String reason) {
+        log.info("取消常开（解除道闸锁定）请求: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+
+        RecognitionResultVO result = new RecognitionResultVO();
+        result.setAllowPass(true);
+
+        try {
+            result.setGateCommandSent(true);
+            CommandResultDTO gateResult = deviceService.unlockGateByLane(laneId, "取消常开（解除锁定）: " + reason);
+            boolean success = gateResult.isSuccessful();
+            result.setGateDeviceAck(success);
+            result.setGateOpened(false); // 解除常开后道闸关闭，恢复常规模式
+            if (success) {
+                result.setGateResult("取消常开成功（道闸已解锁并关闸）");
+                result.setResultMessage("取消常开: " + reason);
+                result.setException(false);
+                log.info("取消常开成功: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+            } else {
+                result.setGateResult("取消常开失败: " + (gateResult.getMessage() != null ? gateResult.getMessage() : "设备返回异常"));
+                result.setResultMessage("取消常开失败: " + reason);
+                result.setException(true);
+                result.setExceptionType("GATE_UNLOCK_FAILED");
+                log.warn("取消常开设备返回失败: laneId={}, operatorId={}, message={}",
+                        laneId, operatorId, gateResult.getMessage());
+            }
+        } catch (BusinessException e) {
+            result.setGateCommandSent(true);
+            result.setGateDeviceAck(false);
+            result.setGateOpened(null);
+            result.setGateResult("取消常开异常（UNCERTAIN）: " + e.getMessage());
+            result.setResultMessage("取消常开异常: " + reason);
+            result.setException(true);
+            result.setExceptionType("GATE_UNLOCK_UNCERTAIN");
+            log.error("取消常开异常（UNCERTAIN）: laneId={}, operatorId={}, error={}",
+                    laneId, operatorId, e.getMessage());
+        }
+
+        return result;
+    }
+
     private RecognitionResultVO handleEntry(RecognitionEventCmd cmd, VehicleTypeDecisionVO decision,
                                            RecognitionResultVO result, Long tenantId) {
         // 检查是否允许入场

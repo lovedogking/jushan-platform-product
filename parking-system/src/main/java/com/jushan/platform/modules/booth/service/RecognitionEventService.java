@@ -56,4 +56,24 @@ public interface RecognitionEventService {
      * @return 关闸结果
      */
     RecognitionResultVO manualCloseGate(Long laneId, Long operatorId, String reason);
+
+    /**
+     * 常开（锁定道闸，继电器强制吸合保持开启）。
+     *
+     * @param laneId     通道ID
+     * @param operatorId 操作人ID
+     * @param reason     常开原因
+     * @return 操作结果
+     */
+    RecognitionResultVO manualLockGate(Long laneId, Long operatorId, String reason);
+
+    /**
+     * 取消常开（解除道闸锁定并关闸，恢复常规模式）。
+     *
+     * @param laneId     通道ID
+     * @param operatorId 操作人ID
+     * @param reason     取消原因
+     * @return 操作结果
+     */
+    RecognitionResultVO manualUnlockGate(Long laneId, Long operatorId, String reason);
 }

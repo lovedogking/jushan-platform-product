@@ -155,4 +155,32 @@ public class RecognitionEventController {
         log.info("人工关闸: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
         return R.ok(result);
     }
+
+    /**
+     * 常开（锁定道闸，继电器强制吸合保持开启）。
+     */
+    @PostMapping("/manual-lock-gate")
+    @RequirePermission("booth:operate")
+    public R<RecognitionResultVO> manualLockGate(
+            @RequestParam Long laneId,
+            @RequestParam String reason) {
+        Long operatorId = com.jushan.common.auth.TenantContext.getUserId();
+        RecognitionResultVO result = recognitionEventService.manualLockGate(laneId, operatorId, reason);
+        log.info("常开（锁定道闸）: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+        return R.ok(result);
+    }
+
+    /**
+     * 取消常开（解除道闸锁定并关闸，恢复常规模式）。
+     */
+    @PostMapping("/manual-unlock-gate")
+    @RequirePermission("booth:operate")
+    public R<RecognitionResultVO> manualUnlockGate(
+            @RequestParam Long laneId,
+            @RequestParam String reason) {
+        Long operatorId = com.jushan.common.auth.TenantContext.getUserId();
+        RecognitionResultVO result = recognitionEventService.manualUnlockGate(laneId, operatorId, reason);
+        log.info("取消常开（解除道闸锁定）: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+        return R.ok(result);
+    }
 }

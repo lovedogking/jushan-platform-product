@@ -149,6 +149,20 @@
                             关闸
                           </a-button>
                           <a-button
+                            type="primary"
+                            size="small"
+                            :disabled="lane.isOffline"
+                            @click="handleManualLockGate(lane.laneId)"
+                          >
+                            常开
+                          </a-button>
+                          <a-button
+                            size="small"
+                            @click="handleManualUnlockGate(lane.laneId)"
+                          >
+                            常关
+                          </a-button>
+                          <a-button
                             size="small"
                             @click="handleEditFeeRule(lane.laneId)"
                           >
@@ -537,6 +551,36 @@ async function handleManualCloseGate(laneId: number) {
     }
   } catch (e: any) {
     message.error(e?.message || '关闸失败')
+  }
+}
+
+/** 常开（锁定道闸，保持开启） */
+async function handleManualLockGate(laneId: number) {
+  try {
+    const { manualLockGate } = await import('@/api/charge')
+    const result = await manualLockGate(laneId, '岗亭设置常开')
+    if (result.gateDeviceAck) {
+      message.success('常开成功（道闸已锁定）')
+    } else {
+      message.warning(result.gateResult || '常开失败')
+    }
+  } catch (e: any) {
+    message.error(e?.message || '常开失败')
+  }
+}
+
+/** 取消常开（解除锁定，关闸恢复常规模式） */
+async function handleManualUnlockGate(laneId: number) {
+  try {
+    const { manualUnlockGate } = await import('@/api/charge')
+    const result = await manualUnlockGate(laneId, '岗亭取消常开')
+    if (result.gateDeviceAck) {
+      message.success('取消常开成功（已关闸）')
+    } else {
+      message.warning(result.gateResult || '取消常开失败')
+    }
+  } catch (e: any) {
+    message.error(e?.message || '取消常开失败')
   }
 }
 
