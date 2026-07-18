@@ -132,6 +132,14 @@
         </div>
       </a-layout-content>
     </a-layout>
+
+    <!-- 强制改密弹窗 -->
+    <ChangePasswordModal
+      v-if="authStore.userInfo?.mustChangePassword === 1"
+      :open="true"
+      :username="authStore.userInfo?.username || ''"
+      @success="onPasswordChanged"
+    />
   </a-layout>
 </template>
 
@@ -175,6 +183,7 @@ import {
   BranchesOutlined,
 } from '@ant-design/icons-vue'
 import { useAuthStore, useAppStore, NAV_ITEMS, useTabsStore } from '@/stores'
+import ChangePasswordModal from '@/views/account/ChangePasswordModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -280,6 +289,11 @@ onMounted(() => {
 
 function handleLogout() {
   authStore.logout()
+}
+
+function onPasswordChanged() {
+  // Re-fetch user info to update mustChangePassword flag
+  authStore.fetchUserInfo()
 }
 
 watch(
