@@ -4,9 +4,11 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.jushan.boot.test.TestcontainersBaseTest;
 import com.jushan.common.BusinessException;
 import com.jushan.system.client.DeviceAccessClient;
+import com.jushan.system.client.DeviceAccessClientImpl;
 import com.jushan.system.client.dto.DeviceStatusDTO;
 import com.jushan.system.client.dto.TimeSyncResultDTO;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +47,8 @@ import static org.assertj.core.api.Assertions.*;
 @TestPropertySource(properties = {
         // 测试使用短超时以快速验证超时场景
         "jushan.device-access.read-timeout=2000",
+        // 确保加载真实 DeviceAccessClientImpl（v7-1 幂等重试测试需要真实 HTTP 调用）
+        "jushan.device-access.mock.enabled=false",
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration"
 })
 @DisplayName("Device Access HTTP Client 集成测试")
@@ -78,6 +82,14 @@ class DeviceAccessClientTest extends TestcontainersBaseTest {
     @AfterAll
     static void tearDown() {
         wireMockServer.stop();
+    }
+
+    @BeforeEach
+    void setUp() {
+        wireMockServer.resetAll();
+        if (client instanceof DeviceAccessClientImpl impl) {
+            impl.resetCircuitBreaker();
+        }
     }
 
     // ==================== 200 成功场景 ====================
@@ -297,5 +309,140 @@ class DeviceAccessClientTest extends TestcontainersBaseTest {
         assertThatThrownBy(() -> client.getStatus(TEST_SN))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Device Access 返回");
+    }
+
+    // ==================== v7-1 幂等重试场景 ====================
+
+    @Test
+    @DisplayName("开闸（带 commandId）200 → 返回 CommandResultDTO，X-Command-Id 头匹配")
+    void shouldReturnCommandResultWithCommandIdWhenOpenGate200() {
+        String commandId = "550e8400-e29b-41d4-a716-446655440000";
+        wireMockServer.stubFor(post(urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open"))
+                .withHeader("X-Command-Id", equalTo(commandId))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {
+                                    "code": 200,
+                                    "message": "success",
+                                    "data": {
+                                        "success": true,
+                                        "deviceCode": 200,
+                                        "message": "gate opened"
+                                    },
+                                    "timestamp": "2026-07-11 10:00:00"
+                                }""")));
+
+        com.jushan.system.client.dto.CommandResultDTO result = client.openGate(TEST_SN, commandId);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getSuccess()).isTrue();
+        assertThat(result.getDeviceCode()).isEqualTo(200);
+        wireMockServer.verify(postRequestedFor(
+                urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open"))
+                .withHeader("X-Command-Id", equalTo(commandId)));
+    }
+
+    @Test
+    @DisplayName("开闸重试：2 次 ResourceAccessException + 第 3 次成功 → WireMock 记录 3 次请求，commandId 相同")
+    void shouldRetryOnResourceAccessExceptionAndSucceedOnThirdAttempt() {
+        String commandId = "retry-cmd-001";
+
+        // 前 2 次返回固定延迟触发超时（read-timeout=2s < delay=5s），第 3 次正常返回
+        // 使用 WireMock scenario 确保每次调用匹配不同 stub（状态机会推进）
+        wireMockServer.stubFor(post(urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open"))
+                .inScenario("retry-scenario")
+                .whenScenarioStateIs("Started")
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withFixedDelay(5000)  // 超过 read-timeout (2s)
+                        .withBody("{\"code\":200,\"message\":\"success\",\"data\":{\"success\":true}}"))
+                .willSetStateTo("FirstRetry"));
+
+        wireMockServer.stubFor(post(urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open"))
+                .inScenario("retry-scenario")
+                .whenScenarioStateIs("FirstRetry")
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withFixedDelay(5000)
+                        .withBody("{\"code\":200,\"message\":\"success\",\"data\":{\"success\":true}}"))
+                .willSetStateTo("SecondRetry"));
+
+        wireMockServer.stubFor(post(urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open"))
+                .inScenario("retry-scenario")
+                .whenScenarioStateIs("SecondRetry")
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {
+                                    "code": 200,
+                                    "message": "success",
+                                    "data": {
+                                        "success": true,
+                                        "deviceCode": 200,
+                                        "message": "gate opened"
+                                    },
+                                    "timestamp": "2026-07-11 10:00:00"
+                                }""")));
+
+        com.jushan.system.client.dto.CommandResultDTO result = client.openGate(TEST_SN, commandId);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getSuccess()).isTrue();
+
+        // 验证共 3 次请求，每次 X-Command-Id 相同
+        wireMockServer.verify(3, postRequestedFor(
+                urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open"))
+                .withHeader("X-Command-Id", equalTo(commandId)));
+    }
+
+    @Test
+    @DisplayName("开闸重试耗尽 → 抛出 BusinessException")
+    void shouldThrowAfterRetriesExhausted() {
+        String commandId = "retry-cmd-002";
+
+        // 所有请求都触发超时
+        wireMockServer.stubFor(post(urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withFixedDelay(5000)
+                        .withBody("{\"code\":200,\"message\":\"success\",\"data\":{\"success\":true}}")));
+
+        assertThatThrownBy(() -> client.openGate(TEST_SN, commandId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("重试耗尽");
+
+        // 验证 3 次请求
+        wireMockServer.verify(3, postRequestedFor(
+                urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open")));
+    }
+
+    @Test
+    @DisplayName("开闸 HTTP 500 不触发重试 → 直接抛 BusinessException")
+    void shouldNotRetryOnHttp500() {
+        String commandId = "retry-cmd-003";
+
+        wireMockServer.stubFor(post(urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open"))
+                .willReturn(aResponse()
+                        .withStatus(500)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {
+                                    "code": 500,
+                                    "message": "device internal error"
+                                }""")));
+
+        assertThatThrownBy(() -> client.openGate(TEST_SN, commandId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("device internal error");
+
+        // 验证仅 1 次请求（不重试）
+        wireMockServer.verify(1, postRequestedFor(
+                urlPathEqualTo("/api/v1/devices/" + TEST_SN + "/gate/open")));
     }
 }
