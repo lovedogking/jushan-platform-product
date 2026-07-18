@@ -69,11 +69,13 @@
             class="payment-methods"
           >
             <a-radio-button value="CASH">现金</a-radio-button>
+            <!-- Phase 3: 扫码支付暂不启用
             <a-radio-button value="WECHAT">微信</a-radio-button>
             <a-radio-button value="ALIPAY">支付宝</a-radio-button>
+            -->
           </a-radio-group>
 
-          <!-- 扫码支付输入框 -->
+          <!-- Phase 3: 扫码支付暂不启用
           <div v-if="paymentMethod === 'WECHAT' || paymentMethod === 'ALIPAY'" class="scan-input-area">
             <a-input
               ref="scanInputRef"
@@ -92,6 +94,7 @@
               支持扫码枪自动输入，或手动输入付款码后按回车
             </div>
           </div>
+          -->
         </a-card>
 
         <!-- 操作按钮 -->
@@ -107,16 +110,26 @@
             >
               <template #icon><CheckOutlined /></template>
               确认收费（{{ paymentMethodLabel }}）
-            </a-button>
-            <a-button
-              size="large"
-              block
-              :disabled="submitting"
-              @click="handleFreeRelease"
-            >
-              <template #icon><ThunderboltOutlined /></template>
-              免费放行
-            </a-button>
+              </a-button>
+              <a-button
+                v-if="hasFeeReducePermission"
+                size="large"
+                block
+                :disabled="submitting || feeReductionReducing"
+                @click="openFeeReduction"
+              >
+                <template #icon><DollarOutlined /></template>
+                费用减免
+              </a-button>
+              <a-button
+                size="large"
+                block
+                :disabled="submitting"
+                @click="handleFreeRelease"
+              >
+                <template #icon><ThunderboltOutlined /></template>
+                免费放行
+              </a-button>
             <a-button
               type="dashed"
               size="large"
@@ -136,6 +149,38 @@
       <a-empty v-else description="无收费信息" />
     </a-spin>
 
+    <!-- 费用减免弹窗 -->
+    <a-modal
+      v-model:open="showFeeReductionModal"
+      title="费用减免"
+      :confirm-loading="feeReductionReducing"
+      @ok="handleFeeReductionConfirm"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="原应收金额">
+          <a-input :value="currentFeeDisplay" disabled />
+        </a-form-item>
+        <a-form-item label="减免金额（元）" required>
+          <a-input-number
+            v-model:value="feeReductionAmountYuan"
+            :min="0"
+            :max="currentFeeYuan"
+            :precision="2"
+            style="width: 100%"
+            placeholder="请输入减免金额"
+          />
+        </a-form-item>
+        <a-form-item label="减免原因" required>
+          <a-textarea
+            v-model:value="feeReductionReason"
+            :maxlength="200"
+            :rows="3"
+            placeholder="请输入减免原因（最多200字）"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
     <!-- 人工放行弹窗 -->
     <ManualReleaseModal
       v-model:open="manualReleaseVisible"
@@ -148,16 +193,17 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import {
   CheckOutlined,
   ThunderboltOutlined,
   ToolOutlined,
   ScanOutlined,
+  DollarOutlined,
 } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { useMonitorStore } from '@/stores/monitor'
-import { submitCharge, manualOpenGate } from '@/api/charge'
+import { submitCharge, manualOpenGate, submitFeeReduction } from '@/api/charge'
 import ManualReleaseModal from './ManualReleaseModal.vue'
 import type { PaymentMethod } from '@/api/monitor-types'
 
@@ -249,11 +295,28 @@ const paymentMethodLabel = computed(() => {
 const canConfirmCharge = computed(() => {
   if (!store.currentChargeInfo) return false
   if (submitting.value) return false
-  // 扫码支付需要输入付款码
-  if (paymentMethod.value === 'WECHAT' || paymentMethod.value === 'ALIPAY') {
-    return authCode.value.trim().length > 0
-  }
+  if (feeReductionReducing.value) return false
   return true
+})
+
+// ========== 费用减免状态与计算属性 ==========
+
+const showFeeReductionModal = ref(false)
+const feeReductionReducing = ref(false)
+const feeReductionAmountYuan = ref(0)
+const feeReductionReason = ref('')
+
+const currentFeeYuan = computed(() => (store.currentChargeInfo?.feeCents ?? 0) / 100)
+const currentFeeDisplay = computed(() => `¥ ${currentFeeYuan.value.toFixed(2)}`)
+const hasFeeReducePermission = computed(() => {
+  try {
+    const permsJson = sessionStorage.getItem('jushan_permissions')
+    if (permsJson) {
+      const perms: string[] = JSON.parse(permsJson)
+      return perms.includes('fee:reduce')
+    }
+  } catch { /* ignore */ }
+  return false
 })
 
 // 当切换到扫码支付时自动聚焦输入框
@@ -387,17 +450,101 @@ function handleReset() {
   store.setChargeResult(null as any)
   paymentMethod.value = 'CASH'
   authCode.value = ''
+  showFeeReductionModal.value = false
+  feeReductionAmountYuan.value = 0
+  feeReductionReason.value = ''
+}
+
+// ========== 费用减免方法 ==========
+
+/** 打开费用减免弹窗 */
+function openFeeReduction() {
+  feeReductionAmountYuan.value = 0
+  feeReductionReason.value = ''
+  showFeeReductionModal.value = true
+}
+
+/** 确认费用减免（验证并触发） */
+async function handleFeeReductionConfirm() {
+  if (!feeReductionReason.value.trim()) {
+    message.warning('请输入减免原因')
+    return
+  }
+  if (feeReductionAmountYuan.value <= 0) {
+    message.warning('请输入减免金额')
+    return
+  }
+  if (feeReductionAmountYuan.value > currentFeeYuan.value) {
+    message.warning('减免金额不能超过应收金额')
+    return
+  }
+
+  const info = store.currentChargeInfo
+  if (!info) return
+
+  const originalFeeCents = info.feeCents
+  const reductionCents = Math.round(feeReductionAmountYuan.value * 100)
+  const reducedFeeCents = originalFeeCents - reductionCents
+
+  // 大额减免二次确认（原金额 > 50000 分 = 500 元）
+  if (originalFeeCents > 50000) {
+    Modal.confirm({
+      title: '大额减免确认',
+      content: `原应收金额为 ¥${(originalFeeCents / 100).toFixed(2)}，减免 ¥${feeReductionAmountYuan.value.toFixed(2)} 后实际收取 ¥${(reducedFeeCents / 100).toFixed(2)}，确认执行？`,
+      okText: '确认减免',
+      cancelText: '取消',
+      okType: 'danger',
+      onOk: () => doExecuteFeeReduction(info, originalFeeCents, reductionCents, reducedFeeCents),
+    })
+    return
+  }
+
+  await doExecuteFeeReduction(info, originalFeeCents, reductionCents, reducedFeeCents)
+}
+
+/** 执行费用减免 API 调用 */
+async function doExecuteFeeReduction(
+  info: { sessionId: number; feeCents: number; feeAmount: number },
+  originalFeeCents: number,
+  reductionCents: number,
+  reducedFeeCents: number,
+) {
+  feeReductionReducing.value = true
+  try {
+    const result = await submitFeeReduction({
+      sessionId: info.sessionId,
+      originalFeeCents,
+      reducedFeeCents,
+      reductionCents,
+      reason: feeReductionReason.value.trim(),
+    })
+    // 更新 store 中的费用信息，使"确认收费"使用减免后金额
+    const chargeInfo = store.currentChargeInfo
+    if (chargeInfo) {
+      chargeInfo.feeCents = result.reducedFeeCents
+      chargeInfo.feeAmount = result.reducedFeeCents / 100
+    }
+    showFeeReductionModal.value = false
+    message.success('费用减免成功')
+  } catch (e: any) {
+    message.error(e?.message || '费用减免失败')
+  } finally {
+    feeReductionReducing.value = false
+  }
 }
 
 /** 关闭面板 */
 function handleClose() {
-  if (submitting.value) {
+  if (submitting.value || feeReductionReducing.value) {
     message.warning('正在处理中，请稍候')
     return
   }
   store.hideChargePanel()
   paymentMethod.value = 'CASH'
   authCode.value = ''
+  showFeeReductionModal.value = false
+  feeReductionAmountYuan.value = 0
+  feeReductionReason.value = ''
 }
 </script>
 

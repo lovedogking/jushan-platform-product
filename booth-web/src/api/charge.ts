@@ -103,3 +103,26 @@ export function getCurrentFeeRule(lotId: number, zoneId?: number): Promise<FeeRu
 export function updateFeeRule(id: number, data: Partial<FeeRule>): Promise<FeeRule> {
   return request.put<FeeRule>(`/v1/fee-rules/${id}`, data)
 }
+
+// ========== 费用减免 ==========
+
+export interface FeeReductionRequest {
+  sessionId: number
+  originalFeeCents: number
+  reducedFeeCents: number
+  reductionCents: number
+  reason: string
+}
+
+export interface FeeReductionResult {
+  sessionId: number
+  originalFeeCents: number
+  reducedFeeCents: number
+  reductionCents: number
+  appliedAt: string
+}
+
+/** 提交费用减免。POST /api/v1/booth/charge/fee-reduction */
+export function submitFeeReduction(data: FeeReductionRequest): Promise<FeeReductionResult> {
+  return request.post<FeeReductionResult>('/v1/booth/charge/fee-reduction', data)
+}
