@@ -23,6 +23,34 @@ const MOCK_PLATES = [
   { id: 2, plate: '京B67890', vehicleType: 'NEW_ENERGY', isDefault: false, verifyStatus: 'APPROVED', createdAt: '2026-07-12T14:30:00' },
 ]
 
+function checkPhoneBinding() {
+  var app = getApp()
+  if (!app.globalData.token) {
+    wx.showModal({
+      title: '请先登录',
+      content: '需要登录后才能使用此功能',
+      confirmText: '去登录',
+      success: function(res) {
+        if (res.confirm) { app.doLogin() }
+        else { wx.switchTab({ url: '/pages/index/index' }) }
+      },
+    })
+    return false
+  }
+  if (!app.globalData.phoneBound) {
+    wx.showModal({
+      title: '请先绑定手机号',
+      content: '绑定手机号后即可管理您的车辆',
+      confirmText: '去绑定',
+      success: function(res) {
+        if (res.confirm) { wx.navigateTo({ url: '/pages/bind-phone/bind-phone' }) }
+      },
+    })
+    return false
+  }
+  return true
+}
+
 Page({
   data: {
     newPlate: '',
@@ -34,6 +62,7 @@ Page({
   },
 
   onLoad() {
+    if (!checkPhoneBinding()) { return }
     this.loadPlates()
   },
 
