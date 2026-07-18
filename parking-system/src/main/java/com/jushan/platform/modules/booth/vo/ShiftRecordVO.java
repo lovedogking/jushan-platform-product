@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 交接班记录视图对象。
@@ -62,9 +63,32 @@ public class ShiftRecordVO {
     /** 交接备注 */
     private String handoverRemark;
 
+    /** 手工校正实收金额原因 */
+    private String adjustReason;
+
+    /** 本班产生的欠费订单数 */
+    private Integer arrearsCount;
+
+    /** 交接给下一班的未支付/欠费订单数量 */
+    private Integer handoverOrderCount;
+
+    /** 欠费订单列表（仅交班预览时填充） */
+    private List<ArrearsOrderItem> arrearsOrders;
+
     /** 创建时间 */
     private LocalDateTime createdAt;
 
     /** 更新时间 */
     private LocalDateTime updatedAt;
+
+    /**
+     * 欠费订单项（用于交班预览）。
+     */
+    @Data
+    public static class ArrearsOrderItem {
+        private Long orderId;
+        private String plateNumber;
+        private Integer feeCents;
+        private String createdAt;
+    }
 }

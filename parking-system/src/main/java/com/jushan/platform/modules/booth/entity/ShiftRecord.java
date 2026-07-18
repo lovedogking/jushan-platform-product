@@ -68,6 +68,15 @@ public class ShiftRecord extends BaseEntity {
     /** 交接备注 */
     private String handoverRemark;
 
+    /** 手工校正实收金额原因 */
+    private String adjustReason;
+
+    /** 本班产生的欠费订单数 */
+    private Integer arrearsCount;
+
+    /** 交接给下一班的未支付/欠费订单数量 */
+    private Integer handoverOrderCount;
+
     // ==================== 常量定义 ====================
 
     public static final String SHIFT_MORNING = "MORNING";
