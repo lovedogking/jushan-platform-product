@@ -9,7 +9,10 @@
     "pages/proxy-pay/proxy-pay",
     "pages/lot-space/lot-space",
     "pages/messages/messages",
-    "pages/bind-phone/bind-phone"
+    "pages/bind-phone/bind-phone",
+    "pages/monthly-pass/monthly-pass",
+    "pages/monthly-pass/apply",
+    "pages/monthly-pass/renew"
   ],
   "permission": {
     "scope.userLocation": {
