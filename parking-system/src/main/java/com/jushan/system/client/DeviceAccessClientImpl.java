@@ -16,6 +16,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
@@ -23,6 +24,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -58,6 +60,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @since 1.0.0
  */
 @Service
+@ConditionalOnProperty(name = "jushan.device-access.mock.enabled", havingValue = "false", matchIfMissing = true)
 public class DeviceAccessClientImpl implements DeviceAccessClient {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceAccessClientImpl.class);
@@ -223,6 +226,40 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
         return response.getData();
     }
 
+    // ==================== v7-1 幂等重试开闸/关闸 ====================
+
+    @Override
+    public CommandResultDTO openGate(String deviceSn, String commandId) {
+        log.debug("开闸（幂等）: deviceSn={}, commandId={}", deviceSn, commandId);
+        checkCircuitBreaker("openGate");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        try {
+            return executeWithRetry(OPEN_GATE_PATH, deviceSn, commandId, "openGate",
+                    new ParameterizedTypeReference<DeviceAccessResponse<CommandResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "openGate")
+                    .register(meterRegistry));
+        }
+    }
+
+    @Override
+    public CommandResultDTO closeGate(String deviceSn, String commandId) {
+        log.debug("关闸（幂等）: deviceSn={}, commandId={}", deviceSn, commandId);
+        checkCircuitBreaker("closeGate");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        try {
+            return executeWithRetry(CLOSE_GATE_PATH, deviceSn, commandId, "closeGate",
+                    new ParameterizedTypeReference<DeviceAccessResponse<CommandResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "closeGate")
+                    .register(meterRegistry));
+        }
+    }
+
     @Override
     public DisplayResultDTO displayText(String deviceSn, DisplayTextRequest request) {
         log.debug("显示屏文字: deviceSn={}, content={}", deviceSn,
@@ -327,6 +364,146 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
         log.info("语音播报成功: deviceSn={}, success={}", deviceSn,
                 response.getData() != null ? response.getData().getSuccess() : null);
         return response.getData();
+    }
+
+    // ==================== 写命令幂等重试（任务包 7-1） ====================
+
+    /**
+     * 执行写命令并支持幂等重试。
+     * <p>
+     * 仅对 {@link ResourceAccessException}（网络超时/连接拒绝/IO 异常）触发重试。
+     * HTTP 4xx/5xx 和序列化异常不重试，直接抛出。
+     * <p>
+     * 所有重试使用相同的 {@code commandId}，通过 {@code X-Command-Id} 请求头传递。
+     *
+     * @param pathTemplate URL 路径模板
+     * @param deviceSn     设备 SN
+     * @param commandId    幂等命令 ID
+     * @param methodName   方法名（用于指标标签）
+     * @param typeRef      响应类型引用
+     * @param <T>          业务 data 类型
+     * @return 解析后的 data
+     * @throws BusinessException 重试耗尽或非重试异常
+     */
+    private <T> T executeWithRetry(
+            String pathTemplate,
+            String deviceSn,
+            String commandId,
+            String methodName,
+            ParameterizedTypeReference<DeviceAccessResponse<T>> typeRef) {
+
+        DeviceAccessProperties.Retry retryConfig = props.getRetry();
+        int maxAttempts = retryConfig.getMaxAttempts();
+        List<Integer> intervals = retryConfig.getIntervals();
+
+        ResourceAccessException lastResourceException = null;
+
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+                if (attempt > 0) {
+                    int intervalMs = (attempt - 1) < intervals.size()
+                            ? intervals.get(attempt - 1) : intervals.get(intervals.size() - 1);
+                    log.info("重试 {}/{}: deviceSn={}, commandId={}, sleep={}ms",
+                            attempt + 1, maxAttempts, deviceSn, commandId, intervalMs);
+
+                    Counter.builder(METRIC_PREFIX + ".retry.count")
+                            .tag("method", methodName)
+                            .register(meterRegistry)
+                            .increment();
+
+                    Thread.sleep(intervalMs);
+                }
+
+                DeviceAccessResponse<T> response = executeWithCommandId(
+                        pathTemplate, deviceSn, commandId, typeRef);
+                recordSuccess(methodName);
+                return response.getData();
+
+            } catch (ResourceAccessException e) {
+                lastResourceException = e;
+                log.warn("重试 {}/{} ResourceAccessException: deviceSn={}, commandId={}, error={}",
+                        attempt + 1, maxAttempts, deviceSn, commandId, e.getMessage());
+                recordFailure(methodName, "resource_access");
+                // continue to next retry
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("重试被中断: deviceSn={}, commandId={}", deviceSn, commandId, e);
+                recordFailure(methodName, "interrupted");
+                throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
+                        String.format("Device Access 重试被中断: deviceSn=%s, commandId=%s",
+                                deviceSn, commandId));
+            } catch (BusinessException | RestClientException e) {
+                // 非网络异常，不重试，直接抛出
+                recordFailure(methodName, "non_retryable");
+                throw e;
+            }
+        }
+
+        // 全部重试耗尽
+        log.error("写命令重试耗尽: deviceSn={}, commandId={}, maxAttempts={}",
+                deviceSn, commandId, maxAttempts);
+        throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
+                String.format("Device Access 写命令重试耗尽（UNCERTAIN）: deviceSn=%s, attempts=%d, lastError=%s",
+                        deviceSn, maxAttempts,
+                        lastResourceException != null ? lastResourceException.getMessage() : "unknown"));
+    }
+
+    /**
+     * 执行一次 Device Access HTTP 调用，携带 X-Command-Id 头。
+     * <p>
+     * 委托至 {@link #execute(String, HttpMethod, String, Object, ParameterizedTypeReference)}，
+     * 并在请求头中设置 {@code X-Command-Id}。
+     */
+    private <T> DeviceAccessResponse<T> executeWithCommandId(
+            String pathTemplate,
+            String deviceSn,
+            String commandId,
+            ParameterizedTypeReference<DeviceAccessResponse<T>> typeRef) {
+
+        String url = props.getBaseUrl() + pathTemplate;
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            if (props.getApiKey() != null && !props.getApiKey().isBlank()) {
+                headers.set("X-API-Key", props.getApiKey());
+            }
+            if (commandId != null && !commandId.isBlank()) {
+                headers.set("X-Command-Id", commandId);
+            }
+            HttpEntity<Object> httpEntity = new HttpEntity<>(null, headers);
+
+            ResponseEntity<DeviceAccessResponse<T>> entity =
+                    restTemplate.exchange(url, HttpMethod.POST, httpEntity, typeRef, deviceSn);
+
+            HttpStatusCode statusCode = entity.getStatusCode();
+            DeviceAccessResponse<T> body = entity.getBody();
+
+            if (body == null) {
+                String errMsg = String.format("Device Access 返回空响应: HTTP %s, deviceSn=%s, commandId=%s",
+                        statusCode.value(), deviceSn, commandId);
+                log.warn(errMsg);
+                throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, errMsg);
+            }
+
+            if (!body.isSuccess()) {
+                String errMsg = String.format("Device Access 返回错误: HTTP %s, DA code=%d, message=%s, deviceSn=%s, commandId=%s",
+                        statusCode.value(), body.getCode(), body.getMessage(), deviceSn, commandId);
+                log.warn(errMsg);
+                throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, errMsg);
+            }
+
+            return body;
+
+        } catch (ResourceAccessException e) {
+            throw e; // 重新抛出以便 executeWithRetry 捕获
+        } catch (RestClientException e) {
+            String errMsg = String.format(
+                    "Device Access 客户端异常: deviceSn=%s, commandId=%s, error=%s",
+                    deviceSn, commandId, e.getMessage());
+            log.error(errMsg, e);
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, errMsg);
+        }
     }
 
     // ==================== 降级策略 ====================
