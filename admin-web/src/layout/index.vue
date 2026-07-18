@@ -167,6 +167,12 @@ import {
   WalletOutlined,
   CarOutlined,
   AppstoreOutlined,
+  // 包6-1：报表菜单图标
+  BarChartOutlined,
+  DollarCircleOutlined,
+  CalculatorOutlined,
+  SafetyOutlined,
+  BranchesOutlined,
 } from '@ant-design/icons-vue'
 import { useAuthStore, useAppStore, NAV_ITEMS, useTabsStore } from '@/stores'
 
@@ -200,6 +206,8 @@ const iconMap: Record<string, any> = {
   UserOutlined, TeamOutlined, DollarOutlined, IdcardOutlined,
   AlertOutlined, ApartmentOutlined, AuditOutlined, BellOutlined,
   SettingOutlined, WalletOutlined,
+  // 包6-1：报表菜单图标
+  BarChartOutlined, DollarCircleOutlined, CalculatorOutlined, SafetyOutlined, BranchesOutlined,
 }
 
 function getIcon(icon?: string) {

@@ -47,7 +47,15 @@ export const MENU_MAP: Record<string, MenuItem[]> = {
     { key: 'manual-gate-records', label: '开闸记录', icon: 'HistoryOutlined', path: '/manual-gate-records', permission: 'device:audit' },
     { key: 'exception-records', label: '异常记录', icon: 'ExclamationCircleOutlined', path: '/exception-records', permission: 'exception:view' },
   ],
-  billing: [],
+  // 包6-1：收费与支付菜单
+  billing: [
+    { key: 'billing-rules', label: '收费规则', icon: 'DollarOutlined', path: '/billing-rules' },
+    { key: 'fee-calculator', label: '费用试算', icon: 'CalculatorOutlined', path: '/fee-calculator' },
+    { key: 'orders', label: '订单管理', icon: 'FileTextOutlined', path: '/orders', permission: 'order:manage' },
+    { key: 'access-policies', label: '黑白名单', icon: 'SafetyOutlined', path: '/access-policies', permission: 'parking:view' },
+    { key: 'report-revenue', label: '收入报表', icon: 'DollarCircleOutlined', path: '/report-revenue', permission: 'dashboard:view' },
+    { key: 'report-traffic', label: '车流量报表', icon: 'BarChartOutlined', path: '/report-traffic', permission: 'dashboard:view' },
+  ],
   // FIX-11：平台管理菜单
   platform: [
     { key: 'tenants', label: '租户管理', icon: 'TeamOutlined', path: '/tenants', permission: 'tenant:read' },
