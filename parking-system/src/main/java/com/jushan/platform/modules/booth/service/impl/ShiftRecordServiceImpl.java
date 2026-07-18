@@ -72,8 +72,8 @@ public class ShiftRecordServiceImpl extends ServiceImpl<ShiftRecordMapper, Shift
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ShiftRecordVO closeShift(ShiftCloseCmd cmd) {
-        Long tenantId = TenantContext.getTenantId();
-        Long operatorId = TenantContext.getUserId();
+        Long tenantId = TenantContext.requireTenantId();
+        Long operatorId = TenantContext.requireUserId();
 
         ShiftRecord entity = baseMapper.selectById(cmd.getShiftId());
         if (entity == null || !tenantId.equals(entity.getTenantId())) {
@@ -89,16 +89,63 @@ public class ShiftRecordServiceImpl extends ServiceImpl<ShiftRecordMapper, Shift
             throw new BusinessException(CommonErrorCode.FORBIDDEN, "只能交自己的班");
         }
 
-        entity.setEndTime(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startTime = entity.getStartTime();
+        Long parkingLotId = entity.getParkingLotId();
+
+        // 1. 计算本班实收金额（分→元）
+        Integer feeCents = baseMapper.sumCashOrderFeeCents(parkingLotId, tenantId, startTime, now);
+        if (feeCents == null) {
+            feeCents = 0;
+        }
+        java.math.BigDecimal feeAmount = new java.math.BigDecimal(feeCents).movePointLeft(2);
+
+        // 2. 统计入场/出场记录数
+        int entryCount = baseMapper.countEntries(parkingLotId, tenantId, startTime, now);
+        int exitCount = baseMapper.countExits(parkingLotId, tenantId, startTime, now);
+
+        // 3. 统计本班欠费订单数
+        int arrearsCount = baseMapper.countArrearsOrders(parkingLotId, tenantId, startTime, now);
+
+        // 4. 统计交接给下一班的未支付/欠费订单数
+        int handoverOrderCount = baseMapper.countHandoverOrders(parkingLotId, tenantId);
+
+        // 5. 写入汇总数据到实体
+        entity.setFeeAmount(feeAmount);
+        entity.setEntryCount(entryCount);
+        entity.setExitCount(exitCount);
+        entity.setArrearsCount(arrearsCount);
+        entity.setHandoverOrderCount(handoverOrderCount);
+
+        // 6. 处理现金/线上金额拆分
+        if (cmd.getConfirmedCashAmount() != null) {
+            entity.setCashAmount(cmd.getConfirmedCashAmount());
+            entity.setOnlineAmount(feeAmount.subtract(cmd.getConfirmedCashAmount()));
+            entity.setAdjustReason(cmd.getAdjustReason());
+        } else {
+            entity.setCashAmount(feeAmount);
+            entity.setOnlineAmount(java.math.BigDecimal.ZERO);
+        }
+
+        // 7. 交班信息
+        entity.setEndTime(now);
         entity.setHandoverStatus(ShiftRecord.STATUS_CLOSED);
         entity.setHandoverTo(cmd.getHandoverTo());
         entity.setHandoverRemark(cmd.getHandoverRemark());
-        entity.setUpdatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(now);
 
         baseMapper.updateById(entity);
-        log.info("交接班交班: shiftId={}, operatorId={}", entity.getId(), operatorId);
+        log.info("交接班交班: shiftId={}, operatorId={}, feeAmount={}, cashAmount={}, onlineAmount={}, entryCount={}, exitCount={}, arrearsCount={}, handoverOrderCount={}",
+                entity.getId(), operatorId, feeAmount, entity.getCashAmount(), entity.getOnlineAmount(),
+                entryCount, exitCount, arrearsCount, handoverOrderCount);
 
-        return toVO(entity);
+        // 8. 构建VO并填充欠费订单列表
+        ShiftRecordVO vo = toVO(entity);
+        List<ShiftRecordVO.ArrearsOrderItem> arrearsOrders =
+                baseMapper.listArrearsOrders(parkingLotId, tenantId, startTime, now);
+        vo.setArrearsOrders(arrearsOrders);
+
+        return vo;
     }
 
     @Override
@@ -107,7 +154,31 @@ public class ShiftRecordServiceImpl extends ServiceImpl<ShiftRecordMapper, Shift
         Long operatorId = TenantContext.getUserId();
 
         ShiftRecord entity = baseMapper.selectOpenByOperator(operatorId, tenantId);
-        return entity != null ? toVO(entity) : null;
+        if (entity == null) {
+            return null;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startTime = entity.getStartTime();
+        Long parkingLotId = entity.getParkingLotId();
+
+        // 实时计算统计数据（不写入数据库）
+        Integer feeCents = baseMapper.sumCashOrderFeeCents(parkingLotId, tenantId, startTime, now);
+        int entryCount = baseMapper.countEntries(parkingLotId, tenantId, startTime, now);
+        int exitCount = baseMapper.countExits(parkingLotId, tenantId, startTime, now);
+        int arrearsCount = baseMapper.countArrearsOrders(parkingLotId, tenantId, startTime, now);
+        int handoverOrderCount = baseMapper.countHandoverOrders(parkingLotId, tenantId);
+
+        ShiftRecordVO vo = toVO(entity);
+        if (feeCents != null) {
+            vo.setFeeAmount(new java.math.BigDecimal(feeCents).movePointLeft(2));
+        }
+        vo.setEntryCount(entryCount);
+        vo.setExitCount(exitCount);
+        vo.setArrearsCount(arrearsCount);
+        vo.setHandoverOrderCount(handoverOrderCount);
+
+        return vo;
     }
 
     @Override
