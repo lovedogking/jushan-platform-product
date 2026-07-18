@@ -49,14 +49,14 @@ const formState = reactive({ username: '', password: '' })
 
 /**
  * 写入 Token 前校验 accessToken 是非空字符串。
- * 不满足时抛错，不写 localStorage，不进入已登录状态。
+ * 不满足时抛错，不写 sessionStorage，不进入已登录状态。
  */
 function validateAndSetToken(accessToken: unknown, permissions?: string[]): string {
   if (typeof accessToken !== 'string' || accessToken.trim().length === 0) {
     throw new Error('服务端返回的 accessToken 无效')
   }
   const trimmed = accessToken.trim()
-  localStorage.setItem(TOKEN_KEY, trimmed)
+  sessionStorage.setItem(TOKEN_KEY, trimmed)
   if (permissions && permissions.length > 0) {
     sessionStorage.setItem('jushan_permissions', JSON.stringify(permissions))
   }

@@ -42,7 +42,7 @@ router.beforeEach((to, _from, next) => {
   document.title = `${to.meta?.title || '岗亭端'} - 飓山智慧停车`
 
   if (WHITE_LIST.includes(to.path)) {
-    const token = localStorage.getItem(TOKEN_KEY)
+    const token = sessionStorage.getItem(TOKEN_KEY)
     if (token && to.path === '/login') {
       next('/monitor')
     } else {
@@ -51,7 +51,7 @@ router.beforeEach((to, _from, next) => {
     return
   }
 
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = sessionStorage.getItem(TOKEN_KEY)
   if (!token) {
     next(`/login?redirect=${to.path}`)
     return

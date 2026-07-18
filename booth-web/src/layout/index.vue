@@ -105,7 +105,7 @@ async function handleLogout() {
   } catch {
     // 即使远程 logout 失败，也清理本地状态
   } finally {
-    localStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(TOKEN_KEY)
     router.push('/login')
   }
 }

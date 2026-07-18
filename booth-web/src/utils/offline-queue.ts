@@ -333,7 +333,7 @@ export const offlineQueue = new OfflineQueue()
  */
 export async function executeOfflineOp(op: OfflineOp): Promise<Response> {
   const TOKEN_KEY = 'jushan_access_token'
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = sessionStorage.getItem(TOKEN_KEY)
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

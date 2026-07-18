@@ -48,7 +48,7 @@ service.interceptors.request.use(
     NProgress.start()
     // 登录请求不携带 Token
     if (!isLoginRequest(config)) {
-      const token = localStorage.getItem(TOKEN_KEY)
+      const token = sessionStorage.getItem(TOKEN_KEY)
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
       }
@@ -74,7 +74,7 @@ service.interceptors.response.use(
     if (data.code === 401) {
       if (!isRedirectingLogin) {
         isRedirectingLogin = true
-        localStorage.removeItem(TOKEN_KEY)
+        sessionStorage.removeItem(TOKEN_KEY)
         window.location.href = '/login'
       }
       const err = new ApiError(data.message || '未授权', data.code, response.status, data.traceId)
@@ -106,7 +106,7 @@ service.interceptors.response.use(
           if (!isRedirectingLogin) {
             isRedirectingLogin = true
             message.error('登录已过期，请重新登录')
-            localStorage.removeItem(TOKEN_KEY)
+            sessionStorage.removeItem(TOKEN_KEY)
             window.location.href = '/login'
           }
           break
