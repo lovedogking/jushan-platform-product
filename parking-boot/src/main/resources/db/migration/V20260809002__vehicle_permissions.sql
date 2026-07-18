@@ -10,7 +10,7 @@
 
 INSERT INTO sys_role_permission (id, role_id, permission_code, permission_type, data_scope)
 SELECT
-    CONV(SUBSTRING(MD5(CONCAT(scr.id, ':', perm.permission_code)), 1, 16), 16, 10) % 9223372036854775807 AS id,
+    CONV(SUBSTRING(SHA2(CONCAT(scr.id, ':', perm.permission_code), 256), 1, 16), 16, 10) % 9223372036854775807 AS id,
     scr.id,
     perm.permission_code,
     perm.permission_type,
@@ -29,7 +29,7 @@ ON DUPLICATE KEY UPDATE permission_type = VALUES(permission_type), data_scope = 
 
 INSERT INTO sys_role_permission (id, role_id, permission_code, permission_type, data_scope)
 SELECT
-    CONV(SUBSTRING(MD5(CONCAT(scr.id, ':', perm.permission_code)), 1, 16), 16, 10) % 9223372036854775807 AS id,
+    CONV(SUBSTRING(SHA2(CONCAT(scr.id, ':', perm.permission_code), 256), 1, 16), 16, 10) % 9223372036854775807 AS id,
     scr.id,
     perm.permission_code,
     perm.permission_type,

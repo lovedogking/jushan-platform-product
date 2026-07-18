@@ -31,7 +31,7 @@ WHERE NOT EXISTS (SELECT 1 FROM sys_permission WHERE code = 'exception:view');
 -- 3. 为 SUPER_ADMIN 自定义角色授权
 INSERT INTO sys_role_permission (id, role_id, permission_code, permission_type, data_scope)
 SELECT
-    CONV(SUBSTRING(MD5(CONCAT(cr.id, ':exception:view')), 1, 16), 16, 10) % 9223372036854775807 AS id,
+    CONV(SUBSTRING(SHA2(CONCAT(cr.id, ':exception:view'), 256), 1, 16), 16, 10) % 9223372036854775807 AS id,
     cr.id, 'exception:view', 'OPERATION', 'ALL'
 FROM sys_custom_role cr
 WHERE cr.role_code = 'SUPER_ADMIN' AND cr.deleted_at IS NULL
