@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS exception_record (
     created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at          DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted_at          DATETIME     DEFAULT NULL            COMMENT '逻辑删除时间'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='异常记录表（运营端异常管理）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='异常记录表（运营端异常管理）';
 
 CREATE INDEX idx_exception_lot_status ON exception_record(parking_lot_id, status);
 CREATE INDEX idx_exception_type ON exception_record(exception_type);

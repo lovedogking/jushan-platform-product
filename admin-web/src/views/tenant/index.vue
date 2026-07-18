@@ -17,6 +17,10 @@
           <template #icon><ReloadOutlined /></template>重置
         </a-button>
       </a-space>
+
+      <a-button type="primary" @click="handleCreate">
+        <template #icon><PlusOutlined /></template>新增租户
+      </a-button>
     </div>
 
     <!-- 表格区 -->
@@ -28,7 +32,10 @@
       row-key="id"
       @change="handleTableChange"
     >
-      <template #bodyCell="{ column, record }">
+      <template #bodyCell="{ column, record, index }">
+        <template v-if="column.key === 'index'">
+          {{ (pagination.current - 1) * pagination.pageSize + index + 1 }}
+        </template>
         <template v-if="column.key === 'status'">
           <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
         </template>
@@ -41,6 +48,7 @@
             <a v-if="record.status === 'PENDING_REVIEW'" style="color: #dc2626" @click="handleAudit(record, 'REJECTED')">拒绝</a>
             <a v-if="record.status === 'DISABLED'" @click="handleAudit(record, 'ENABLED')">启用</a>
             <a v-if="record.status === 'ENABLED'" style="color: #dc2626" @click="handleAudit(record, 'DISABLED')">禁用</a>
+            <a style="color: #dc2626" @click="handleDelete(record)">删除</a>
           </a-space>
         </template>
       </template>
@@ -62,17 +70,46 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 新增租户弹窗 -->
+    <a-modal
+      v-model:open="createModalOpen"
+      title="新增租户"
+      :confirm-loading="createLoading"
+      @ok="handleCreateConfirm"
+    >
+      <a-form ref="createFormRef" :model="createForm" :rules="createFormRules" :label-col="{ span: 6 }" :wrapper-col="{ span: 16 }">
+        <a-form-item label="企业名称" name="name">
+          <a-input v-model:value="createForm.name" placeholder="请输入企业名称" />
+        </a-form-item>
+        <a-form-item label="联系人" name="contactPerson">
+          <a-input v-model:value="createForm.contactPerson" placeholder="请输入联系人" />
+        </a-form-item>
+        <a-form-item label="联系电话" name="contactPhone">
+          <a-input v-model:value="createForm.contactPhone" placeholder="请输入联系电话" />
+        </a-form-item>
+        <a-form-item label="车场上限" name="maxParkingLots">
+          <a-input-number v-model:value="createForm.maxParkingLots" :min="1" :max="999" style="width: 100%" />
+        </a-form-item>
+        <a-form-item label="设备上限" name="maxDevices">
+          <a-input-number v-model:value="createForm.maxDevices" :min="1" :max="9999" style="width: 100%" />
+        </a-form-item>
+        <a-form-item label="账号上限" name="maxEmployees">
+          <a-input-number v-model:value="createForm.maxEmployees" :min="1" :max="9999" style="width: 100%" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { message } from 'ant-design-vue'
-import { SearchOutlined, ReloadOutlined } from '@ant-design/icons-vue'
-import { getTenants, auditTenant, type TenantVO } from '@/api/tenant'
+import { message, Modal, type FormInstance } from 'ant-design-vue'
+import { SearchOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons-vue'
+import { getTenants, auditTenant, createTenant, deleteTenant, type TenantVO } from '@/api/tenant'
 
 const columns = [
-  { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
+  { title: '#', key: 'index', width: 50 },
   { title: '企业名称', dataIndex: 'name', key: 'name', width: 180 },
   { title: '联系人', dataIndex: 'contactPerson', key: 'contactPerson', width: 100 },
   { title: '手机号', dataIndex: 'contactPhone', key: 'contactPhone', width: 130 },
@@ -81,7 +118,7 @@ const columns = [
   { title: '车场上限', dataIndex: 'maxParkingLots', key: 'maxParkingLots', width: 80 },
   { title: '设备上限', dataIndex: 'maxDevices', key: 'maxDevices', width: 80 },
   { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 170 },
-  { title: '操作', key: 'action', width: 160, fixed: 'right' as const },
+  { title: '操作', key: 'action', width: 200, fixed: 'right' as const },
 ]
 
 const loading = ref(false)
@@ -104,6 +141,64 @@ const auditTarget = ref<TenantVO | null>(null)
 const auditForm = reactive({ reason: '' })
 
 const auditModalTitle = ref('')
+
+// 新增租户弹窗
+const createModalOpen = ref(false)
+const createLoading = ref(false)
+const createFormRef = ref<FormInstance>()
+const createForm = reactive({
+  name: '',
+  contactPerson: '',
+  contactPhone: '',
+  maxParkingLots: 3,
+  maxDevices: 10,
+  maxEmployees: 20,
+})
+const createFormRules: Record<string, any> = {
+  name: [{ required: true, message: '请输入企业名称', trigger: 'blur' }],
+  contactPerson: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
+  contactPhone: [
+    { required: true, message: '请输入联系电话', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' },
+  ],
+}
+
+function handleCreate() {
+  createForm.name = ''
+  createForm.contactPerson = ''
+  createForm.contactPhone = ''
+  createForm.maxParkingLots = 3
+  createForm.maxDevices = 10
+  createForm.maxEmployees = 20
+  createFormRef.value?.resetFields()
+  createModalOpen.value = true
+}
+
+async function handleCreateConfirm() {
+  try {
+    await createFormRef.value?.validateFields()
+  } catch {
+    return
+  }
+  createLoading.value = true
+  try {
+    await createTenant({
+      name: createForm.name.trim(),
+      contactPerson: createForm.contactPerson.trim(),
+      contactPhone: createForm.contactPhone.trim(),
+      maxParkingLots: createForm.maxParkingLots,
+      maxDevices: createForm.maxDevices,
+      maxEmployees: createForm.maxEmployees,
+    })
+    message.success('租户创建成功')
+    createModalOpen.value = false
+    fetchData()
+  } catch {
+    // 错误已在拦截器处理
+  } finally {
+    createLoading.value = false
+  }
+}
 
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
   PENDING_REVIEW: { color: 'orange', label: '待审核' },
@@ -189,6 +284,24 @@ async function handleAuditConfirm() {
   }
 }
 
+function handleDelete(record: any) {
+  Modal.confirm({
+    title: '确认删除',
+    content: `确定删除租户「${record.name}」吗？删除后不可恢复。`,
+    okText: '删除',
+    okType: 'danger',
+    async onOk() {
+      try {
+        await deleteTenant(record.id)
+        message.success('删除成功')
+        fetchData()
+      } catch {
+        // 错误由统一拦截器处理
+      }
+    },
+  })
+}
+
 onMounted(() => {
   fetchData()
 })
@@ -202,6 +315,11 @@ onMounted(() => {
 }
 
 .query-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: $spacing-lg;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 </style>

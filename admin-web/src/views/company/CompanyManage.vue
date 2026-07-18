@@ -35,7 +35,10 @@
       row-key="id"
       @change="handleTableChange"
     >
-      <template #bodyCell="{ column, record }">
+      <template #bodyCell="{ column, record, index }">
+        <template v-if="column.key === 'index'">
+          {{ (pagination.current - 1) * pagination.pageSize + index + 1 }}
+        </template>
         <!-- 级别列 -->
         <template v-if="column.key === 'level'">
           <a-tag>{{ levelLabel(record.level) }}</a-tag>
@@ -83,7 +86,7 @@ import CompanyFormModal from './CompanyFormModal.vue'
 type CompanyTableRow = CompanyVO & { status?: string }
 
 const columns = [
-  { title: '排序', dataIndex: 'sortOrder', key: 'sortOrder', width: 80 },
+  { title: '#', key: 'index', width: 50 },
   { title: '公司名称', dataIndex: 'name', key: 'name', width: 180 },
   { title: '级别', key: 'level', width: 90 },
   { title: '联系人', dataIndex: 'contactName', key: 'contactName', width: 110 },
@@ -132,7 +135,7 @@ async function fetchData() {
   loading.value = true
   try {
     const res = await getCompanyPage({
-      current: pagination.current,
+      page: pagination.current,
       size: pagination.pageSize,
       name: queryName.value?.trim() || undefined,
     })

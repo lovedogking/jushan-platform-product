@@ -18,7 +18,7 @@ import java.util.stream.Stream;
  * 为 {@link TenantLineInnerInterceptor} 提供租户 ID 来源与表忽略策略。
  * <ul>
  *   <li>租户 ID 从 {@link TenantContext#getTenantId()} 获取，禁止从前端参数读取。</li>
- *   <li>平台用户（tenantId == null）默认不能访问业务表，fail-close。</li>
+ *   <li>平台用户和岗亭管理员（tenantId == null）跳过租户拦截，由 Service 层控制数据范围。</li>
  *   <li>全局表（无 tenant_id 列）通过白名单跳过。</li>
  *   <li>超级管理员跨租户查询使用 {@link InterceptorIgnore} 注解跳过拦截。</li>
  * </ul>
@@ -75,8 +75,9 @@ public class JushanTenantLineHandler implements com.baomidou.mybatisplus.extensi
 
     @Override
     public boolean ignoreTable(String tableName) {
-        // 平台用户（super_admin）跳过所有租户拦截，由 Service 层自行处理数据范围
-        if (TenantContext.isPlatformUser()) {
+        // 平台用户（super_admin）和岗亭管理员均为跨租户设计，跳过所有租户拦截
+        // 数据范围由 Service 层（ParkingLotScopeResolver / DataScope）控制
+        if (TenantContext.isPlatformUser() || TenantContext.isBoothUser()) {
             return true;
         }
         if (tableName == null) {

@@ -4,6 +4,22 @@
  */
 const { get, put } = require('../../utils/request')
 
+function formatTimeText(iso) {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return iso
+    const pad = n => n < 10 ? '0' + n : '' + n
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  } catch (e) {
+    return iso
+  }
+}
+
+function enrichMessage(m) {
+  return { ...m, timeText: formatTimeText(m.createdAt) }
+}
+
 Page({
   data: {
     loading: true,
@@ -50,7 +66,7 @@ Page({
         current: this.data.current,
         size: this.data.pageSize,
       })
-      const records = (res && res.records) || []
+      const records = ((res && res.records) || []).map(enrichMessage)
       this.setData({
         messages: records,
         total: (res && res.total) || 0,
@@ -72,7 +88,7 @@ Page({
         current: nextPage,
         size: this.data.pageSize,
       })
-      const records = (res && res.records) || []
+      const records = ((res && res.records) || []).map(enrichMessage)
       this.setData({
         messages: this.data.messages.concat(records),
         current: nextPage,

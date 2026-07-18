@@ -140,6 +140,19 @@ public class ParkingLotController {
         return R.ok();
     }
 
+    /**
+     * 删除停车场（物理删除）。
+     * <p>
+     * 权限：parking:write（仅客户管理员）
+     */
+    @DeleteMapping("/{id}")
+    @RequirePermission("parking:write")
+    public R<Void> delete(@PathVariable Long id) {
+        parkingLotService.delete(id);
+        log.info("删除停车场成功: parkingLotId={}", id);
+        return R.ok();
+    }
+
     // ==================== 就绪检查（T22） ====================
 
     /**

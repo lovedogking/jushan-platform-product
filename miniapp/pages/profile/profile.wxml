@@ -12,7 +12,7 @@
     <!-- 用户信息卡片 -->
     <view class="card">
       <view class="profile-header">
-        <view class="avatar">{{displayName.charAt(0).toUpperCase() || 'U'}}</view>
+        <view class="avatar">{{avatarText}}</view>
         <view class="profile-info">
           <text class="nickname">{{displayName}}</text>
           <text class="phone">{{phone || '未绑定手机号'}}</text>
@@ -50,7 +50,7 @@
 
     <!-- 退出登录 -->
     <view class="card" style="margin-top: 32rpx;">
-      <button class="btn-primary btn-full" bindtap="handleLogout" style="background: #f53f3f; box-shadow: none;">
+      <button class="btn-danger btn-full" bindtap="handleLogout">
         退出登录
       </button>
     </view>

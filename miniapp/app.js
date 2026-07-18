@@ -24,10 +24,22 @@ App({
   },
 
   onLaunch() {
-    const sysInfo = wx.getSystemInfoSync()
-    this.globalData.statusBarHeight = sysInfo.statusBarHeight
-    const menuButton = wx.getMenuButtonBoundingClientRect()
-    this.globalData.navBarHeight = (menuButton.top - sysInfo.statusBarHeight) * 2 + menuButton.height
+    let statusBarHeight = 0
+    try {
+      const winInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
+      statusBarHeight = winInfo.statusBarHeight || 0
+    } catch (e) {
+      statusBarHeight = 20
+    }
+    this.globalData.statusBarHeight = statusBarHeight
+    try {
+      const menuButton = wx.getMenuButtonBoundingClientRect()
+      if (menuButton && menuButton.height) {
+        this.globalData.navBarHeight = (menuButton.top - statusBarHeight) * 2 + menuButton.height
+      }
+    } catch (e) {
+      // 保持默认 44
+    }
     this.restoreSession()
   },
 

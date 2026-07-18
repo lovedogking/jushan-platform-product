@@ -1,7 +1,6 @@
 export * from './auth'
 export * from './tenant'
 export * from './parking-lot'
-export * from './employee'
 export * from './device'
 export * from './parking-lane'
 export * from './audit-log'

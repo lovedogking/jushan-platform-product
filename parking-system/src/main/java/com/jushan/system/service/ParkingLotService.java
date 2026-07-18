@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -138,10 +139,19 @@ public class ParkingLotService {
     public ParkingLotVO create(CreateParkingLotRequest request) {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户需指定租户上下文后创建停车场");
+            // 平台用户：从所属公司推导租户ID
+            if (request.getCompanyId() == null) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "平台用户需指定所属公司后创建停车场");
+            }
+            Company preCompany = companyMapper.selectById(request.getCompanyId());
+            if (preCompany == null || preCompany.getDeletedAt() != null) {
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "所属公司不存在");
+            }
+            tenantId = preCompany.getTenantId();
+        } else {
+            DataScope.requireCustomerAdmin();
         }
-        DataScope.requireCustomerAdmin();
 
         // 校验租户状态
         Tenant tenant = tenantMapper.selectById(tenantId);
@@ -157,10 +167,10 @@ public class ParkingLotService {
         lot.setName(request.getName().trim());
         lot.setAddress(defaultString(request.getAddress(), ""));
         lot.setContactPhone(defaultString(request.getContactPhone(), ""));
-        lot.setLongitude(request.getLongitude());
-        lot.setLatitude(request.getLatitude());
+        lot.setLongitude(parseBigDecimal(request.getLongitude()));
+        lot.setLatitude(parseBigDecimal(request.getLatitude()));
 
-        int totalSpaces = request.getTotalSpaces();
+        int totalSpaces = request.getTotalSpaces() != null ? request.getTotalSpaces() : 0;
         lot.setTotalSpaces(totalSpaces);
         lot.setCurrentVehicles(0);
         lot.setRemainingSpaces(totalSpaces); // 默认 = 总车位 - 0
@@ -227,11 +237,11 @@ public class ParkingLotService {
             hasUpdate = true;
         }
         if (request.getLongitude() != null) {
-            wrapper.set(ParkingLot::getLongitude, request.getLongitude());
+            wrapper.set(ParkingLot::getLongitude, parseBigDecimal(request.getLongitude()));
             hasUpdate = true;
         }
         if (request.getLatitude() != null) {
-            wrapper.set(ParkingLot::getLatitude, request.getLatitude());
+            wrapper.set(ParkingLot::getLatitude, parseBigDecimal(request.getLatitude()));
             hasUpdate = true;
         }
         if (request.getPaymentMode() != null) {
@@ -564,6 +574,28 @@ public class ParkingLotService {
     }
 
     /**
+     * 删除停车场（物理删除）。
+     * <p>
+     * 删除前校验租户归属。关联的区域、通道、设备会因外键级联或业务约束需要提前处理。
+     *
+     * @param id 停车场 ID
+     */
+    @Transactional
+    public void delete(Long id) {
+        Long tenantId = resolveTenantId();
+        ParkingLot lot = parkingLotMapper.selectById(id);
+        if (lot == null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "停车场不存在");
+        }
+        // 平台用户允许跨租户删除；租户用户只能删除本租户的停车场
+        if (tenantId != null && !Objects.equals(lot.getTenantId(), tenantId)) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN, "无权删除该停车场");
+        }
+        parkingLotMapper.deleteById(id);
+        log.info("删除停车场成功: parkingLotId={}, name={}", id, lot.getName());
+    }
+
+    /**
      * ParkingLot → ParkingLotVO 转换。
      */
     private ParkingLotVO toVO(ParkingLot lot) {
@@ -624,5 +656,15 @@ public class ParkingLotService {
 
     private static int defaultInt(Integer value, int defaultValue) {
         return value != null ? value : defaultValue;
+    }
+
+    private static BigDecimal parseBigDecimal(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return new BigDecimal(value.trim());
+        } catch (NumberFormatException e) {
+            log.warn("经纬度格式无效: {}", value);
+            return null;
+        }
     }
 }

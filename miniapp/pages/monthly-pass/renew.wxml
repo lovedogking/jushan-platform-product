@@ -28,7 +28,7 @@
 
       <view class="price-row">
         <text class="price-label">续费金额</text>
-        <text class="price-value">¥{{(amountCents / 100).toFixed(2)}}</text>
+        <text class="price-value">¥{{amountText}}</text>
       </view>
 
       <view class="info-row" wx:if="{{newValidEndDate}}">

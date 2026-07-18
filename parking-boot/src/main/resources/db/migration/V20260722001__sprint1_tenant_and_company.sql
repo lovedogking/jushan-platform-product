@@ -27,7 +27,7 @@ CREATE TABLE sys_tenant (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_code (code)
-) COMMENT='租户主表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) COMMENT='租户主表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
 -- 3. sys_company - 公司/集团档案表（业务表，tenant_id 隔离）
@@ -50,7 +50,7 @@ CREATE TABLE sys_company (
     INDEX idx_parent_id (parent_id),
     UNIQUE KEY uk_tenant_name (tenant_id, name),
     INDEX idx_level (level)
-) COMMENT='公司/集团档案' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) COMMENT='公司/集团档案' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
 -- 4. sys_admin_account - 管理员账号表
@@ -78,7 +78,7 @@ CREATE TABLE sys_admin_account (
     INDEX idx_company_id (company_id),
     INDEX idx_lot_id (lot_id),
     INDEX idx_level (level)
-) COMMENT='管理员账号' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) COMMENT='管理员账号' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
 -- 5. sys_custom_role - 自定义角色表
@@ -94,7 +94,7 @@ CREATE TABLE sys_custom_role (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_tenant_id (tenant_id),
     UNIQUE KEY uk_tenant_code (tenant_id, role_code)
-) COMMENT='自定义角色' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) COMMENT='自定义角色' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
 -- 6. sys_role_permission - 角色权限矩阵表
@@ -109,7 +109,7 @@ CREATE TABLE sys_role_permission (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_role_id (role_id),
     UNIQUE KEY uk_role_permission (role_id, permission_code)
-) COMMENT='角色权限矩阵' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) COMMENT='角色权限矩阵' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
 -- 7. sys_admin_account_role - 账号角色关联表
@@ -122,7 +122,7 @@ CREATE TABLE sys_admin_account_role (
     UNIQUE KEY uk_account_role (admin_account_id, role_id),
     INDEX idx_account_id (admin_account_id),
     INDEX idx_role_id (role_id)
-) COMMENT='账号角色关联' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) COMMENT='账号角色关联' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
 -- 8. sys_auth_code - 授权码表（系统级，但激活后绑定 tenant_id）
@@ -145,7 +145,7 @@ CREATE TABLE sys_auth_code (
     INDEX idx_code (code),
     INDEX idx_status (status),
     INDEX idx_tenant_id (tenant_id)
-) COMMENT='车场开通授权码' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) COMMENT='车场开通授权码' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
 -- 9. sys_business_log - 业务操作日志表
@@ -168,7 +168,7 @@ CREATE TABLE sys_business_log (
     INDEX idx_operator_id (operator_id),
     INDEX idx_operation_type (operation_type),
     INDEX idx_created_at (created_at)
-) COMMENT='业务操作日志' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) COMMENT='业务操作日志' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
 -- 10. 初始化数据

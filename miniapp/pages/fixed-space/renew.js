@@ -22,6 +22,7 @@ Page({
     monthOptions: MONTH_OPTIONS,
     monthIndex: 0,
     amountCents: 0,
+    amountText: '0.00',
     newValidEndDate: '',
     loading: false,
     submitting: false,
@@ -66,7 +67,7 @@ Page({
   calcAmount() {
     var pricePerMonth = 30000
     var amount = pricePerMonth * this.data.months
-    this.setData({ amountCents: amount })
+    this.setData({ amountCents: amount, amountText: (amount / 100).toFixed(2) })
 
     var currentEnd = this.data.validEndDate
     if (currentEnd) {

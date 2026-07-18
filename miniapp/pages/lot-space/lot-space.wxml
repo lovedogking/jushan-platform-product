@@ -82,15 +82,15 @@
           <text class="lot-name">{{item.name}}</text>
           <text class="lot-address" wx:if="{{item.address}}">{{item.address}}</text>
         </view>
-        <view class="remain-display {{getRemainClass(item.remainingSpaces)}}">
-          <text class="remain-number">{{getRemainText(item.remainingSpaces)}}</text>
+        <view class="remain-display {{item.remainClass}}">
+          <text class="remain-number">{{item.remainText}}</text>
           <text class="remain-label">余位</text>
         </view>
       </view>
       <view class="lot-footer">
         <text class="lot-stat">总车位 {{item.totalSpaces || 0}}</text>
         <text class="lot-stat">在场 {{item.currentVehicles || 0}}</text>
-        <text class="lot-distance" wx:if="{{item.distance}}">距您 {{formatDistance(item.distance)}}</text>
+        <text class="lot-distance" wx:if="{{item.distanceText}}">距您 {{item.distanceText}}</text>
       </view>
     </view>
   </block>

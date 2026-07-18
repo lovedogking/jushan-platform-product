@@ -38,4 +38,4 @@ CREATE TABLE duplicate_entry_log (
     INDEX idx_duplicate_entry_lot_plate (parking_lot_id, standardized_plate),
     INDEX idx_duplicate_entry_record (existing_record_id),
     INDEX idx_duplicate_entry_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='异常重复入场记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='异常重复入场记录表';

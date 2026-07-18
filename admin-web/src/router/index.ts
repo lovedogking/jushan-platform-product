@@ -38,14 +38,7 @@ export const constantRoutes: RouteRecordRaw[] = [
         path: 'parking-lots',
         name: 'ParkingLots',
         component: () => import('@/views/parking/ParkingLotManage.vue'),
-        meta: { title: '停车场管理', icon: 'CarOutlined' },
-      },
-      // Sprint 2：区域管理
-      {
-        path: 'parking-zones',
-        name: 'ParkingZones',
-        component: () => import('@/views/parking/ParkingZoneManage.vue'),
-        meta: { title: '区域管理', icon: 'AppstoreOutlined' },
+        meta: { title: '车场管理', icon: 'CarOutlined' },
       },
       // FIX-11：通道管理
       {
@@ -75,13 +68,6 @@ export const constantRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/manual-gate-record/index.vue'),
         meta: { title: '开闸记录', icon: 'HistoryOutlined', permission: 'device:audit', cache: true },
       },
-      // FIX-11：员工管理（已废弃，迁移至账号管理）
-      {
-        path: 'employees',
-        name: 'Employees',
-        component: () => import('@/views/employee/index.vue'),
-        meta: { title: '员工管理（已废弃）', icon: 'UserOutlined' },
-      },
       // FIX-11：审计日志
       {
         path: 'audit-logs',
@@ -95,13 +81,6 @@ export const constantRoutes: RouteRecordRaw[] = [
         name: 'BillingRules',
         component: () => import('@/views/billing-rule/index.vue'),
         meta: { title: '收费规则', icon: 'DollarOutlined', cache: true },
-      },
-      // Sprint 3：费用试算（二期恢复）
-      {
-        path: 'fee-calculator',
-        name: 'FeeCalculator',
-        component: () => import('@/views/billing-rule/FeeCalculator.vue'),
-        meta: { title: '费用试算（二期恢复）', icon: 'CalculatorOutlined' },
       },
       // Sprint 1：公司管理
       {

@@ -37,12 +37,12 @@ CREATE INDEX idx_lane_direction_role ON device (lane_id, recognition_direction, 
 --    双向车道(type=3) → 不自动回填（NULL，需人工补录）
 -- -----------------------------------------------------------------------------
 UPDATE device d
-    INNER JOIN parking_lane l ON d.lane_id = l.id AND l.direction IN ('ENTRY', 'EXIT')
-SET d.recognition_direction = CASE WHEN l.direction = 'ENTRY' THEN 1 WHEN l.direction = 'EXIT' THEN 2 END
+    INNER JOIN parking_lane l ON d.lane_id = l.id AND l.type IN (1, 2)
+SET d.recognition_direction = CASE WHEN l.type = 1 THEN 1 WHEN l.type = 2 THEN 2 END
 WHERE d.device_type = 'CAMERA' AND d.recognition_direction IS NULL;
 
 -- 回填日志：输出需要人工补录的双向车道相机清单
 -- 以下查询可在执行迁移后手动运行以识别需要人工补录的设备：
--- SELECT d.id AS device_id, d.name, d.device_sn, l.id AS lane_id, l.name AS lane_name, l.direction AS lane_direction
--- FROM device d INNER JOIN parking_lane l ON d.lane_id = l.id AND l.direction = 'MIXED'
+-- SELECT d.id AS device_id, d.name, d.device_sn, l.id AS lane_id, l.name AS lane_name, l.type AS lane_direction
+-- FROM device d INNER JOIN parking_lane l ON d.lane_id = l.id AND l.type = 3
 -- WHERE d.device_type = 'CAMERA' AND d.recognition_direction IS NULL;

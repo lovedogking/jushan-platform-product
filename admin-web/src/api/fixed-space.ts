@@ -106,26 +106,3 @@ export function rejectFixedSpace(id: number, remark?: string) {
     params: remark ? { remark } : undefined,
   })
 }
-
-/** 待审核固定车位列表 */
-export function getFixedSpacePendingList(params: {
-  page?: number
-  size?: number
-  parkingLotId?: number
-}) {
-  return request.get<PageResult<FixedSpaceVO>>('/v1/admin/fixed-space-audit/pending', params)
-}
-
-/** 通过固定车位审核 */
-export function approveFixedSpace(id: number, remark?: string) {
-  return request.post<FixedSpaceVO>(`/v1/admin/fixed-space-audit/${id}/approve`, undefined, {
-    params: remark ? { remark } : undefined,
-  })
-}
-
-/** 驳回固定车位审核 */
-export function rejectFixedSpace(id: number, remark?: string) {
-  return request.post<FixedSpaceVO>(`/v1/admin/fixed-space-audit/${id}/reject`, undefined, {
-    params: remark ? { remark } : undefined,
-  })
-}

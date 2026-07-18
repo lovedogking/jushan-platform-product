@@ -69,26 +69,22 @@
       <view class="card-row">
         <text class="plate">{{item.plateNumber}}</text>
         <text
-          class="status"
+          class="status status-review-pending"
           wx:if="{{item.reviewStatus === 'PENDING'}}"
-          style="color: #faad14"
         >审核中</text>
         <text
-          class="status"
+          class="status status-review-rejected"
           wx:elif="{{item.reviewStatus === 'REJECTED'}}"
-          style="color: #ff4d4f"
         >已驳回</text>
         <text
-          class="status"
+          class="status status-expired"
           wx:elif="{{item.status === 2}}"
-          style="color: #999"
         >已过期</text>
         <text
-          class="status"
+          class="status status-cancelled"
           wx:elif="{{item.status === 3}}"
-          style="color: #999"
         >已注销</text>
-        <text class="status" wx:else style="color: #999">{{item.reviewStatus}}</text>
+        <text class="status status-cancelled" wx:else>{{item.reviewStatus}}</text>
       </view>
       <view class="card-row">
         <text class="label">车位号：</text>

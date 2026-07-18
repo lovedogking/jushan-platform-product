@@ -32,11 +32,10 @@ CREATE TABLE IF NOT EXISTS sys_admin_account_parking_lot (
     INDEX idx_admin_account (admin_account_id),
     INDEX idx_parking_lot (parking_lot_id),
     UNIQUE KEY uk_account_lot (admin_account_id, parking_lot_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理员账号-停车场关联表（岗亭管理员多车场支持）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='管理员账号-停车场关联表（岗亭管理员多车场支持）';
 
 -- ---------------------------------------------------------------------------
 -- 3. 标记旧表为废弃（不删表，仅添加注释）
+--    注：employee / employee_parking_lot 表暂未创建，仅标记 sys_user
 -- ---------------------------------------------------------------------------
-ALTER TABLE employee COMMENT = '[已废弃-任务包6-2] 员工表已合并至 sys_admin_account，请勿新增数据';
-ALTER TABLE employee_parking_lot COMMENT = '[已废弃-任务包6-2] 员工停车场关联已迁移至 sys_admin_account_parking_lot';
 ALTER TABLE sys_user COMMENT = '[已废弃-任务包6-2] 旧用户表已合并至 sys_admin_account';

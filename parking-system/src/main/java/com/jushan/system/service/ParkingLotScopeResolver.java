@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.common.auth.TenantContext;
+import com.jushan.platform.modules.account.entity.SysAdminAccountParkingLot;
+import com.jushan.platform.modules.account.mapper.SysAdminAccountParkingLotMapper;
 import com.jushan.system.entity.EmployeeParkingLot;
 import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.mapper.EmployeeParkingLotMapper;
@@ -50,11 +52,14 @@ public class ParkingLotScopeResolver {
 
     private final EmployeeParkingLotMapper employeeParkingLotMapper;
     private final ParkingLotMapper parkingLotMapper;
+    private final SysAdminAccountParkingLotMapper accountParkingLotMapper;
 
     public ParkingLotScopeResolver(EmployeeParkingLotMapper employeeParkingLotMapper,
-                                   ParkingLotMapper parkingLotMapper) {
+                                   ParkingLotMapper parkingLotMapper,
+                                   SysAdminAccountParkingLotMapper accountParkingLotMapper) {
         this.employeeParkingLotMapper = employeeParkingLotMapper;
         this.parkingLotMapper = parkingLotMapper;
+        this.accountParkingLotMapper = accountParkingLotMapper;
     }
 
     // ==================== 公共方法 ====================
@@ -86,7 +91,24 @@ public class ParkingLotScopeResolver {
             return null;
         }
 
-        // 2. 租户用户
+        // 2. 岗亭管理员：从 sys_admin_account_parking_lot 获取跨租户授权停车场
+        if (ctx.isBoothUser()) {
+            Long boothUserId = ctx.userId();
+            if (boothUserId == null) {
+                log.warn("岗亭管理员 userId 为空，返回空集合");
+                return Collections.emptySet();
+            }
+            List<SysAdminAccountParkingLot> auths = accountParkingLotMapper.selectList(
+                    new LambdaQueryWrapper<SysAdminAccountParkingLot>()
+                            .eq(SysAdminAccountParkingLot::getAdminAccountId, boothUserId));
+            Set<Long> authorizedIds = auths.stream()
+                    .map(SysAdminAccountParkingLot::getParkingLotId)
+                    .collect(Collectors.toSet());
+            log.debug("岗亭管理员（{}），授权停车场={}", boothUserId, authorizedIds);
+            return authorizedIds;
+        }
+
+        // 3. 租户用户
         Long tenantId = ctx.tenantId();
         if (tenantId == null) {
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED,

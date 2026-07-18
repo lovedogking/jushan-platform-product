@@ -22,7 +22,7 @@ CREATE TABLE parking_record (
     fee_rule_version    VARCHAR(64)  DEFAULT NULL            COMMENT '收费规则版本（占位，T34 实现）',
     created_at          DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at          DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='停车记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='停车记录表';
 
 -- 2. 功能性唯一索引：同车同停车场仅允许一条 PARKING 记录
 --    利用 MySQL 8 功能索引，仅对 status='PARKING' 的行生效；

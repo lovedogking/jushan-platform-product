@@ -2,7 +2,7 @@
   <div class="order-page">
     <!-- 筛选栏 -->
     <div class="query-bar">
-      <a-space wrap>
+      <a-space wrap class="filter-group">
         <a-input v-model:value="query.orderNo" placeholder="订单号" allow-clear style="width: 180px" @press-enter="handleQuery" />
         <a-input v-model:value="query.plateNumber" placeholder="车牌号" allow-clear style="width: 140px" @press-enter="handleQuery" />
         <a-select
@@ -22,6 +22,8 @@
         />
         <a-select v-model:value="query.status" placeholder="状态" allow-clear style="width: 130px" :options="statusOptions" />
         <a-select v-model:value="query.orderType" placeholder="订单类型" allow-clear style="width: 130px" :options="orderTypeOptions" />
+      </a-space>
+      <a-space class="action-group">
         <a-button type="primary" @click="handleQuery">
           <template #icon><SearchOutlined /></template>
           查询
@@ -30,11 +32,11 @@
           <template #icon><ReloadOutlined /></template>
           重置
         </a-button>
+        <a-button type="primary" @click="handleExport">
+          <template #icon><DownloadOutlined /></template>
+          导出 Excel
+        </a-button>
       </a-space>
-      <a-button type="primary" @click="handleExport">
-        <template #icon><DownloadOutlined /></template>
-        导出 Excel
-      </a-button>
     </div>
 
     <!-- 订单列表 -->
@@ -488,10 +490,15 @@ onMounted(() => {
 .query-bar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: $spacing-lg;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+}
+
+.action-group {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .text-paid {

@@ -18,6 +18,9 @@ import jakarta.validation.constraints.Size;
 @Deprecated
 public class CreateCompanyRequest {
 
+    /** 租户 ID（仅平台用户创建时需要指定，租户用户忽略此字段） */
+    private Long tenantId;
+
     /** 上级公司 ID（null 表示顶级集团） */
     private Long parentId;
 
@@ -43,6 +46,9 @@ public class CreateCompanyRequest {
     private String contactPhone;
 
     // ==================== getter / setter ====================
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
     public Long getParentId() { return parentId; }
     public void setParentId(Long parentId) { this.parentId = parentId; }

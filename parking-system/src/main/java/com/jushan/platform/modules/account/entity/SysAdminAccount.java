@@ -12,9 +12,11 @@ import java.time.LocalDateTime;
  * <p>
  * 支持三级管理员绑定：
  * <ul>
- *   <li>一级：平台用户，tenant_id 可为 NULL，管理全平台</li>
- *   <li>二级：公司管理员，company_id 必填</li>
- *   <li>三级：停车场管理员，company_id 和 lot_id 必填</li>
+ *   <li>一级：平台用户，tenant_id 为 NULL，管理全平台</li>
+ *   <li>二级：公司/租户管理员，company_id 必填，tenant_id 必填</li>
+ *   <li>三级：岗亭管理员，tenant_id 为 NULL（跨租户），
+ *       停车场通过 sys_admin_account_parking_lot 多对多分配，
+ *       company_id / lot_id 可选</li>
  * </ul>
  *
  * @author Jushan Platform

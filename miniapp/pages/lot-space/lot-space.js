@@ -4,6 +4,35 @@
  */
 const { get } = require('../../utils/request')
 
+function formatDistanceText(distance) {
+  if (!distance) return ''
+  if (distance > 1000) return (distance / 1000).toFixed(1) + 'km'
+  return distance + 'm'
+}
+
+function remainText(remain) {
+  if (remain === undefined || remain === null) return '--'
+  if (remain <= 0) return '已满'
+  if (remain <= 10) return '紧张'
+  return String(remain)
+}
+
+function remainClass(remain) {
+  if (remain === undefined || remain === null) return 'remain-none'
+  if (remain <= 0) return 'remain-full'
+  if (remain <= 10) return 'remain-low'
+  return 'remain-ok'
+}
+
+function enrichLot(lot) {
+  return {
+    ...lot,
+    remainText: remainText(lot.remainingSpaces),
+    remainClass: remainClass(lot.remainingSpaces),
+    distanceText: formatDistanceText(lot.distance),
+  }
+}
+
 Page({
   data: {
     loading: true,
@@ -126,9 +155,10 @@ Page({
   processLots(lots) {
     const now = new Date()
     const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`
+    const enriched = lots.map(enrichLot)
     this.setData({
-      lots: lots,
-      filteredLots: lots,
+      lots: enriched,
+      filteredLots: enriched,
       loading: false,
       refreshing: false,
       lastRefreshTime: timeStr,
@@ -181,29 +211,6 @@ Page({
       (lot.address && lot.address.toUpperCase().includes(keyword))
     )
     this.setData({ filteredLots: filtered })
-  },
-
-  /** 格式化距离文本 */
-  formatDistance(distance) {
-    if (!distance) return ''
-    if (distance > 1000) return (distance / 1000).toFixed(1) + 'km'
-    return distance + 'm'
-  },
-
-  /** 获取剩余车位状态文本 */
-  getRemainText(remain) {
-    if (remain === undefined || remain === null) return '--'
-    if (remain <= 0) return '已满'
-    if (remain <= 10) return '紧张'
-    return String(remain)
-  },
-
-  /** 获取剩余车位状态颜色 */
-  getRemainClass(remain) {
-    if (remain === undefined || remain === null) return 'remain-none'
-    if (remain <= 0) return 'remain-full'
-    if (remain <= 10) return 'remain-low'
-    return 'remain-ok'
   },
 
   /** 跳转到车场详情/导航 */

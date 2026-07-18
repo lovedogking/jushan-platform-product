@@ -329,11 +329,12 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
     private CurrentScope resolveCurrentScope(TenantContext.Snapshot current) {
         if (current.isPlatformUser()) {
             SysAdminAccount account = adminAccountMapper.selectByIdIgnoreTenant(current.userId());
-            if (account != null) {
+            if (account != null && account.getTenantId() != null) {
+                // 有 tenant_id 的平台用户实际为租户管理员
                 return new CurrentScope(false, account.getLevel(), account.getTenantId(),
                         account.getCompanyId(), account.getLotId());
             }
-            // 平台用户无账号记录时默认拥有全平台范围
+            // 平台用户（tenantId=null）：全平台范围
             return new CurrentScope(true, LEVEL_PLATFORM, null, null, null);
         }
 
@@ -347,15 +348,16 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
 
     /**
      * 确定目标账号的租户 ID。
+     * 岗亭管理员（level=3）为跨租户设计，tenantId 为 null。
      */
     private Long resolveTargetTenantId(TenantContext.Snapshot current, CurrentScope scope,
                                        Long cmdTenantId, Integer level) {
-        if (level == LEVEL_PLATFORM) {
-            return null;
+        if (level == LEVEL_PLATFORM || level == LEVEL_LOT) {
+            return null;  // 平台管理员和岗亭管理员均为跨租户
         }
         if (current.isPlatformUser()) {
             if (cmdTenantId == null) {
-                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "创建二级/三级管理员必须指定租户 ID");
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "创建二级/公司管理员必须指定租户 ID");
             }
             return cmdTenantId;
         }
@@ -385,9 +387,7 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
             return;
         }
         if (level == LEVEL_LOT) {
-            if (companyId == null || lotId == null) {
-                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "停车场管理员必须同时绑定公司和停车场");
-            }
+            // 岗亭管理员：company_id 和 lot_id 可选，停车场通过 parkingLotIds 多对多分配
             return;
         }
         throw new BusinessException(CommonErrorCode.PARAM_ERROR, "无效的管理员级别: " + level);
@@ -395,13 +395,17 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
 
     /**
      * 校验创建操作的数据范围。
+     * 岗亭管理员（level=3）: 仅平台用户可创建，不需要租户匹配。
      */
     private void validateCreateScope(CurrentScope scope, Integer level, Long companyId, Long lotId) {
         if (scope.isPlatform()) {
-            return;
+            return;  // 平台用户可创建任意级别，包括跨租户岗亭管理员
         }
         if (level == LEVEL_PLATFORM) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN, "无权创建平台管理员");
+        }
+        if (level == LEVEL_LOT) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN, "仅平台管理员可创建岗亭管理员");
         }
         if (scope.getLevel() == LEVEL_COMPANY || scope.getLevel() == LEVEL_LOT) {
             if (!Objects.equals(scope.getCompanyId(), companyId)) {
@@ -479,6 +483,7 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
 
     /**
      * 保存管理员账号与停车场的多对多关联（先删后增）。
+     * 岗亭管理员（level=3）的 tenant_id 为 null，因为可跨租户分配停车场。
      */
     private void saveAccountParkingLots(Long accountId, Long tenantId, List<Long> parkingLotIds) {
         parkingLotMapper.deleteByAdminAccountId(accountId);
@@ -488,7 +493,7 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
         for (Long lotId : parkingLotIds) {
             SysAdminAccountParkingLot mapping = new SysAdminAccountParkingLot();
             mapping.setAdminAccountId(accountId);
-            mapping.setTenantId(tenantId);
+            mapping.setTenantId(tenantId);  // 岗亭管理员为 null
             mapping.setParkingLotId(lotId);
             mapping.setCreatedAt(LocalDateTime.now());
             parkingLotMapper.insert(mapping);

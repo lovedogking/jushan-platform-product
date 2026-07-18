@@ -5,16 +5,17 @@
 }
 
 .avatar {
-  width: 88rpx;
-  height: 88rpx;
+  width: 96rpx;
+  height: 96rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
-  font-size: 36rpx;
+  font-size: 40rpx;
   font-weight: 700;
-  background: linear-gradient(135deg, #1677ff, #165dff);
+  background: var(--primary);
   border-radius: 50%;
+  box-shadow: var(--shadow-button);
 }
 
 .profile-info {
@@ -25,24 +26,24 @@
 
 .nickname {
   color: var(--text);
-  font-size: 32rpx;
+  font-size: 34rpx;
   font-weight: 700;
 }
 
 .phone {
-  color: var(--muted);
+  color: var(--text-secondary);
   font-size: 26rpx;
 }
 
 .menu-card {
-  padding: 0 24rpx;
+  padding: 0 28rpx;
 }
 
 .menu-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 28rpx 0;
+  padding: 30rpx 0;
   font-size: 28rpx;
   color: var(--text);
   border-bottom: 1rpx solid var(--border);
@@ -52,8 +53,12 @@
   border-bottom: 0;
 }
 
+.menu-item:active {
+  opacity: 0.6;
+}
+
 .menu-arrow {
-  color: var(--muted);
+  color: var(--text-disabled);
   font-size: 32rpx;
   font-weight: 300;
 }

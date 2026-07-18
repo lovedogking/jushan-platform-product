@@ -3,6 +3,7 @@ package com.jushan.system.controller;
 import com.jushan.platform.infra.security.RequirePermission;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.jushan.common.R;
+import com.jushan.system.dto.CreateTenantDetail;
 import com.jushan.system.dto.TenantAuditRequest;
 import com.jushan.system.service.TenantService;
 import com.jushan.system.vo.TenantVO;
@@ -47,6 +48,21 @@ public class TenantController {
     }
 
     /**
+     * 超管直接创建租户。
+     * <p>
+     * 权限：tenant:create
+     * <p>
+     * 创建后租户状态直接为 ENABLED，同时自动创建默认集团。
+     * 超管后续通过账号管理页面为该租户创建管理员账号。
+     */
+    @PostMapping
+    @RequirePermission("tenant:create")
+    public R<TenantVO> create(@Valid @RequestBody CreateTenantDetail request) {
+        TenantVO vo = tenantService.createTenant(request);
+        return R.ok(vo);
+    }
+
+    /**
      * 查询租户详情。
      * <p>
      * 权限：tenant:read
@@ -75,6 +91,20 @@ public class TenantController {
     @RequirePermission("tenant:write")
     public R<Void> audit(@PathVariable Long id, @Valid @RequestBody TenantAuditRequest request) {
         tenantService.audit(id, request);
+        return R.ok();
+    }
+
+    /**
+     * 删除租户。
+     * <p>
+     * 权限：tenant:delete
+     * <p>
+     * 同时删除该租户下的所有公司记录。
+     */
+    @DeleteMapping("/{id}")
+    @RequirePermission("tenant:delete")
+    public R<Void> delete(@PathVariable Long id) {
+        tenantService.deleteTenant(id);
         return R.ok();
     }
 }

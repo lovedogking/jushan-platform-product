@@ -50,6 +50,10 @@ public class AuthController {
     private static final String USER_TYPE_PLATFORM = "platform";
     /** 租户用户类型 */
     private static final String USER_TYPE_TENANT = "tenant";
+    /** 岗亭管理员用户类型（跨租户） */
+    private static final String USER_TYPE_BOOTH = "booth";
+    /** 岗亭管理员级别 */
+    private static final int LEVEL_LOT = 3;
 
     /** 账号状态：正常（启用） */
     private static final int STATUS_NORMAL = 1;
@@ -140,7 +144,7 @@ public class AuthController {
                 .collect(Collectors.joining(",")) + "]";
 
         // 生成 Token
-        String userType = account.getTenantId() == null ? USER_TYPE_PLATFORM : USER_TYPE_TENANT;
+        String userType = resolveUserType(account);
         String token = JwtUtils.generateToken(account.getId(), account.getTenantId(), userType,
                 rolesJson, permissionsStr, jwtSecret, jwtExpiration);
         String refreshToken = JwtUtils.generateToken(account.getId(), account.getTenantId(), userType,
@@ -179,7 +183,7 @@ public class AuthController {
         String permissionsStr = permissions.stream()
                 .filter(p -> !p.isEmpty())
                 .collect(Collectors.joining(","));
-        String userType = account.getTenantId() == null ? USER_TYPE_PLATFORM : USER_TYPE_TENANT;
+        String userType = resolveUserType(account);
 
         String newToken = JwtUtils.generateToken(account.getId(), account.getTenantId(), userType,
                 null, permissionsStr, jwtSecret, jwtExpiration);
@@ -244,6 +248,24 @@ public class AuthController {
             permissionProvider.refresh(userId);
         }
         return R.ok();
+    }
+
+    /**
+     * 根据管理员级别和租户归属解析用户类型。
+     * <ul>
+     *   <li>level=1, tenantId=null → platform（超级管理员）</li>
+     *   <li>level=3, tenantId=null → booth（岗亭管理员，跨租户）</li>
+     *   <li>tenantId!=null → tenant（租户/公司管理员）</li>
+     * </ul>
+     */
+    private String resolveUserType(SysAdminAccount account) {
+        if (account.getTenantId() == null) {
+            if (account.getLevel() != null && account.getLevel() == LEVEL_LOT) {
+                return USER_TYPE_BOOTH;
+            }
+            return USER_TYPE_PLATFORM;
+        }
+        return USER_TYPE_TENANT;
     }
 
     /**

@@ -6,6 +6,7 @@ Page({
   data: {
     isLoggedIn: false,
     displayName: '',
+    avatarText: 'U',
     phone: '',
     phoneBound: false,
   },
@@ -18,15 +19,17 @@ Page({
     var token = app.globalData.token
     var ownerInfo = app.globalData.ownerInfo
     if (token && ownerInfo) {
+      var name = ownerInfo.displayName || ownerInfo.nickname || '车主'
       this.setData({
         isLoggedIn: true,
-        displayName: ownerInfo.displayName || ownerInfo.nickname || '车主',
+        displayName: name,
+        avatarText: name ? name.charAt(0).toUpperCase() : 'U',
         phone: ownerInfo.phone || ownerInfo.maskedPhone || '',
         phoneBound: app.globalData.phoneBound || false,
       })
     } else {
       this.setData({
-        isLoggedIn: false, displayName: '', phone: '', phoneBound: false,
+        isLoggedIn: false, displayName: '', avatarText: 'U', phone: '', phoneBound: false,
       })
     }
   },

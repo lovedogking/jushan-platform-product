@@ -27,6 +27,7 @@
         SELECT *
         FROM sys_admin_account
         WHERE deleted_at IS NULL
+        AND level != 1
         <if test="tenantId != null">
             AND tenant_id = #{tenantId}
         </if>

@@ -162,12 +162,11 @@ const formData = reactive<{
 const levelOptions = computed(() => {
   // 二级管理员只能创建三级账号
   if (props.currentLevel === 2) {
-    return [{ value: 3, label: '停车场' }]
+    return [{ value: 3, label: '岗亭管理员' }]
   }
   return [
-    { value: 1, label: authStore.tenantId ? '租户' : '平台' },
-    { value: 2, label: '公司' },
-    { value: 3, label: '停车场' },
+    { value: 2, label: '租户管理员' },
+    { value: 3, label: '岗亭管理员' },
   ]
 })
 
@@ -295,7 +294,9 @@ async function loadParkingLots() {
 async function loadRoles() {
   try {
     const res = await getCustomRoleList({ page: 1, size: 1000 })
-    roleList.value = res.records || []
+    roleList.value = (res.records || []).filter(
+      (role) => role.roleCode !== 'SUPER_ADMIN',
+    )
   } catch (e) {
     message.error('加载角色列表失败')
   }

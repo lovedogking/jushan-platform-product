@@ -33,7 +33,7 @@
             {{item.type === 'PAY_SUCCESS' ? '支付通知' : '系统通知'}}
           </text>
         </view>
-        <text class="msg-time">{{formatTime(item.createdAt)}}</text>
+        <text class="msg-time">{{item.timeText}}</text>
       </view>
 
       <view class="msg-title">{{item.title}}</view>

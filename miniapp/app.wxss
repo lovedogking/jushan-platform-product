@@ -1,19 +1,38 @@
 page {
-  --primary: #1677ff;
+  /* 设计令牌 — 与运营端/岗亭端 variables.scss 对齐 */
+  --primary: #165dff;
+  --primary-light: #eaf3ff;
+  --primary-dark: #102a43;
+  --info: #64748b;
   --success: #00b578;
-  --warning: #ff9500;
-  --danger: #f53f3f;
-  --background: #f5f7fa;
+  --success-dark: #00875a;
+  --warning: #f59e0b;
+  --danger: #dc2626;
+
+  --text: #111827;
+  --text-secondary: #64748b;
+  --text-disabled: #94a3b8;
+  --muted: #64748b;
+
+  --background: #f3f6fa;
   --card: #ffffff;
-  --text: #102a43;
-  --muted: #6b7a90;
-  --border: #e5eaf3;
+  --border: #e5e7eb;
+  --border-strong: #d8e1ea;
+
+  --radius-sm: 12rpx;
+  --radius-base: 16rpx;
+  --radius-lg: 20rpx;
+  --radius-full: 999rpx;
+
+  --shadow-base: 0 8rpx 24rpx rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 20rpx 48rpx rgba(15, 23, 42, 0.06);
+  --shadow-button: 0 16rpx 36rpx rgba(22, 93, 255, 0.22);
 
   min-height: 100vh;
   color: var(--text);
   background: var(--background);
   font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-  font-size: 27rpx;
+  font-size: 28rpx;
   line-height: 1.5;
   box-sizing: border-box;
   -webkit-font-smoothing: antialiased;
@@ -42,44 +61,138 @@ image {
 
 .page {
   min-height: 100vh;
-  padding: 24rpx 24rpx calc(168rpx + env(safe-area-inset-bottom));
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   background: var(--background);
 }
 
+/* 卡片 */
 .card {
-  padding: 24rpx;
+  padding: 28rpx;
   background: var(--card);
   border: 1rpx solid var(--border);
-  border-radius: 28rpx;
-  box-shadow: 0 10rpx 28rpx rgba(24, 42, 68, 0.07);
-  margin-bottom: 20rpx;
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-base);
+  margin-bottom: 24rpx;
 }
 
+/* 页头 */
+.page-header {
+  padding: 8rpx 8rpx 24rpx;
+}
+
+.page-title {
+  display: block;
+  font-size: 36rpx;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.page-desc {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 26rpx;
+  color: var(--text-secondary);
+}
+
+/* 主按钮 */
 .btn-primary {
-  min-height: 76rpx;
+  min-height: 88rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12rpx;
-  padding: 0 28rpx;
-  font-size: 28rpx;
-  font-weight: 800;
-  border-radius: 26rpx;
+  padding: 0 32rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  border-radius: var(--radius-base);
   color: #ffffff;
-  background: linear-gradient(135deg, #1677ff, #165dff);
-  box-shadow: 0 10rpx 22rpx rgba(22, 119, 255, 0.22);
+  background: var(--primary);
+  box-shadow: var(--shadow-button);
+}
+
+.btn-primary.button-hover,
+.btn-primary:active {
+  background: #0e4ddb;
 }
 
 .btn-full {
   width: 100%;
 }
 
+/* 次按钮 */
+.btn-secondary {
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 32rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+  border-radius: var(--radius-base);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.btn-ghost {
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 32rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
+  background: var(--card);
+  border: 1rpx solid var(--border-strong);
+}
+
+/* 危险按钮 */
+.btn-danger {
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 32rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  border-radius: var(--radius-base);
+  color: #ffffff;
+  background: var(--danger);
+}
+
+/* 文字链接按钮 */
+.btn-link {
+  color: var(--primary);
+  font-size: 26rpx;
+  font-weight: 500;
+}
+
+/* 加载态 */
+.loading-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80rpx 0;
+}
+
+.loading-text {
+  color: var(--text-secondary);
+  font-size: 26rpx;
+}
+
+/* 空状态 */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 60rpx 8rpx 8rpx;
+  padding: 64rpx 16rpx 32rpx;
   text-align: center;
+}
+
+.empty-icon {
+  font-size: 64rpx;
+  margin-bottom: 16rpx;
 }
 
 .empty-title {
@@ -91,8 +204,58 @@ image {
 
 .empty-desc {
   max-width: 520rpx;
-  margin: 8rpx 0 30rpx;
-  color: var(--muted);
+  margin: 12rpx 0 32rpx;
+  color: var(--text-secondary);
   font-size: 26rpx;
   line-height: 1.55;
+}
+
+/* 状态标签（Ant Design Tag 风格） */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4rpx 16rpx;
+  font-size: 22rpx;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  line-height: 1.6;
+}
+
+.tag-blue { background: var(--primary-light); color: var(--primary); }
+.tag-green { background: #e6f7f1; color: var(--success-dark); }
+.tag-orange { background: #fef3e2; color: #b45309; }
+.tag-red { background: #fee2e2; color: var(--danger); }
+.tag-gray { background: #f1f5f9; color: var(--text-secondary); }
+
+/* 列表项（菜单行） */
+.list-item {
+  display: flex;
+  align-items: center;
+  padding: 28rpx 0;
+  border-bottom: 1rpx solid var(--border);
+}
+
+.list-item:last-child {
+  border-bottom: none;
+}
+
+.list-item-arrow {
+  color: var(--text-disabled);
+  font-size: 32rpx;
+}
+
+/* 底部提示 */
+.footer-tip {
+  padding: 32rpx 0;
+  text-align: center;
+  color: var(--text-disabled);
+  font-size: 24rpx;
+}
+
+/* 加载更多 */
+.load-more {
+  padding: 24rpx 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 26rpx;
 }

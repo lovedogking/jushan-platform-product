@@ -122,8 +122,12 @@ public class CompanyService {
     public CompanyVO create(CreateCompanyRequest request) {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户需指定租户上下文后创建公司");
+            // 平台用户：从请求体获取目标租户 ID
+            tenantId = request.getTenantId();
+            if (tenantId == null) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "平台用户需指定租户ID后创建公司");
+            }
         }
 
         String name = request.getName().trim();
@@ -133,7 +137,7 @@ public class CompanyService {
         Long parentId = request.getParentId();
         String parentPath = "/";
 
-        if (parentId != null) {
+        if (parentId != null && parentId > 0) {
             Company parent = getCompanyById(parentId);
             if (parent.getLevel() >= LEVEL_BRANCH) {
                 throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
@@ -145,9 +149,9 @@ public class CompanyService {
                         "公司级别与上级不匹配，应为: " + expectedLevel);
             }
             parentPath = parent.getPath();
-        } else if (level != LEVEL_GROUP) {
+        } else if (level != LEVEL_GROUP && level != LEVEL_SUBSIDIARY) {
             throw new BusinessException(CommonErrorCode.PARAM_ERROR,
-                    "顶级公司级别必须为集团（1）");
+                    "顶级公司级别必须为集团（1）或公司（2）");
         }
 
         Company company = new Company();
@@ -232,9 +236,9 @@ public class CompanyService {
             }
             newParentPath = parent.getPath();
         } else {
-            if (newLevel != LEVEL_GROUP) {
+            if (newLevel != LEVEL_GROUP && newLevel != LEVEL_SUBSIDIARY) {
                 throw new BusinessException(CommonErrorCode.PARAM_ERROR,
-                        "顶级公司级别必须为集团（1）");
+                        "顶级公司级别必须为集团（1）或公司（2）");
             }
         }
 
@@ -344,8 +348,7 @@ public class CompanyService {
         if (parentId != null) {
             wrapper.eq(Company::getParentId, parentId);
         }
-        wrapper.orderByAsc(Company::getSortOrder)
-               .orderByDesc(Company::getCreatedAt);
+        wrapper.orderByAsc(Company::getId);
 
         IPage<Company> result = companyMapper.selectPage(new Page<>(page, size), wrapper);
         return result.convert(this::toVO);

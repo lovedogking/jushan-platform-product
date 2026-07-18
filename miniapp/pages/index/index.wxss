@@ -1,41 +1,40 @@
-/* 欢迎区域 */
 .welcome-section {
   text-align: center;
-  margin-bottom: 32rpx;
+  padding: 16rpx 8rpx;
 }
 
 .welcome-title {
   display: block;
   color: var(--text);
-  font-size: 34rpx;
+  font-size: 36rpx;
   font-weight: 700;
   margin-bottom: 12rpx;
 }
 
 .welcome-desc {
   display: block;
-  color: var(--muted);
+  color: var(--text-secondary);
   font-size: 26rpx;
   line-height: 1.6;
+  margin-top: 8rpx;
 }
 
 /* 车牌条 */
 .plate-bar {
   display: flex;
   align-items: center;
-  padding: 20rpx 28rpx;
-  margin-bottom: 20rpx;
+  padding: 24rpx 28rpx;
 }
-.plate-label { font-size: 26rpx; color: var(--muted); margin-right: 16rpx; }
-.plate-value { font-size: 30rpx; font-weight: 700; color: var(--text); flex: 1; }
-.plate-action { font-size: 26rpx; color: var(--primary); }
+.plate-label { font-size: 26rpx; color: var(--text-secondary); margin-right: 16rpx; }
+.plate-value { font-size: 32rpx; font-weight: 700; color: var(--primary); flex: 1; letter-spacing: 2rpx; }
+.plate-action { font-size: 26rpx; color: var(--primary); font-weight: 500; }
 
 /* 区域标题 */
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16rpx 8rpx 12rpx;
+  padding: 16rpx 8rpx 16rpx;
 }
 .section-title {
   font-size: 30rpx;
@@ -53,6 +52,7 @@
 }
 .active-session {
   border: 2rpx solid var(--primary);
+  box-shadow: var(--shadow-button);
 }
 .session-header {
   display: flex;
@@ -61,9 +61,9 @@
   margin-bottom: 18rpx;
 }
 .plate-number {
-  font-size: 34rpx;
+  font-size: 36rpx;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
   letter-spacing: 2rpx;
 }
 
@@ -71,29 +71,30 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8rpx 0;
+  padding: 10rpx 0;
 }
-.session-row .label { color: var(--muted); font-size: 26rpx; }
+.session-row .label { color: var(--text-secondary); font-size: 26rpx; }
 .session-row .value { color: var(--text); font-size: 26rpx; font-weight: 500; }
 
-/* 状态标签 */
+/* 状态标签 — Ant Design Tag 风格 */
 .status-badge {
-  font-size: 24rpx;
-  padding: 6rpx 16rpx;
-  border-radius: 12rpx;
-  font-weight: 600;
+  font-size: 22rpx;
+  padding: 4rpx 16rpx;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  line-height: 1.6;
 }
-.status-in { background: #e6fffb; color: #006d75; }
-.status-unpaid { background: #fff7e6; color: #d46b08; font-weight: 700; }
-.status-paid { background: #f6ffed; color: #237804; }
-.status-free { background: #f0f0f0; color: #87989f; }
+.status-in { background: var(--primary-light); color: var(--primary); }
+.status-unpaid { background: #fef3e2; color: #b45309; }
+.status-paid { background: #e6f7f1; color: var(--success-dark); }
+.status-free { background: #f1f5f9; color: var(--text-secondary); }
 
 /* 费用 */
 .fee { color: var(--danger); font-weight: 700; }
 
 /* 支付按钮 */
 .btn-pay {
-  margin-top: 20rpx;
+  margin-top: 24rpx;
 }
 
 /* 最近记录卡片 */
@@ -110,61 +111,56 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6rpx 0;
+  padding: 8rpx 0;
 }
-.record-row .label { color: var(--muted); font-size: 26rpx; }
+.record-row .label { color: var(--text-secondary); font-size: 26rpx; }
 .record-row .value { color: var(--text); font-size: 26rpx; font-weight: 500; }
 
 /* 快捷操作 */
 .quick-actions {
   display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  margin-top: 20rpx;
+  gap: 20rpx;
+  margin-top: 8rpx;
 }
 
-.btn-secondary {
-  background: #f0f0f0;
-  color: #666;
-  border: none;
-  font-size: 28rpx;
-  border-radius: 26rpx;
-  min-height: 76rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.quick-actions .btn-secondary {
+  flex: 1;
 }
 
 /* Phase 3 功能入口 */
 .feature-entry {
   margin-top: 24rpx;
-  background: #fff;
-  border-radius: 28rpx;
-  box-shadow: 0 10rpx 28rpx rgba(24, 42, 68, 0.07);
+  background: var(--card);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-base);
   overflow: hidden;
 }
 .feature-item {
   display: flex;
   align-items: center;
-  padding: 28rpx 28rpx;
-  border-bottom: 1rpx solid #f0f0f0;
+  padding: 28rpx;
+  border-bottom: 1rpx solid var(--border);
 }
 .feature-item:last-child {
   border-bottom: none;
 }
+.feature-item:active {
+  background: var(--primary-light);
+}
 .feature-icon {
   font-size: 36rpx;
-  margin-right: 16rpx;
+  margin-right: 20rpx;
   width: 48rpx;
   text-align: center;
 }
 .feature-name {
   flex: 1;
   font-size: 28rpx;
-  color: #1a1a1a;
+  color: var(--text);
   font-weight: 500;
 }
 .feature-arrow {
   font-size: 32rpx;
-  color: #b0b8c1;
+  color: var(--text-disabled);
 }

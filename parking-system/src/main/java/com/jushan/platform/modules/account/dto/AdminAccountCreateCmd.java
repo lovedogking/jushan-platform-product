@@ -38,14 +38,14 @@ public class AdminAccountCreateCmd {
     @Size(max = 128, message = "邮箱长度不能超过128个字符")
     private String email;
 
-    /** 管理员级别：1平台 2公司 3停车场 */
+    /** 管理员级别：1平台 2公司 3岗亭 */
     @NotNull(message = "管理员级别不能为空")
     private Integer level;
 
-    /** 所属公司 ID（二级、三级必填） */
+    /** 所属公司 ID（二级必填，三级可选） */
     private Long companyId;
 
-    /** 所属停车场 ID（三级必填） */
+    /** 所属停车场 ID（三级可选，多停车场通过 parkingLotIds 分配） */
     private Long lotId;
 
     /** 账号状态：0正常 1禁用 2锁定 */
@@ -54,7 +54,7 @@ public class AdminAccountCreateCmd {
     /** 绑定角色 ID 列表 */
     private List<Long> roleIds;
 
-    /** 租户 ID（平台用户创建二级/三级账号时必填） */
+    /** 租户 ID（平台用户创建二级账号时必填，三级岗亭管理员不需要） */
     private Long tenantId;
 
     /** 首次登录是否强制修改密码：0否 1是 */

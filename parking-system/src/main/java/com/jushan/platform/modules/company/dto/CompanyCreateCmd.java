@@ -13,6 +13,9 @@ import lombok.Data;
 @Data
 public class CompanyCreateCmd {
 
+    /** 租户 ID（仅平台用户创建时需要指定，租户用户忽略此字段） */
+    private Long tenantId;
+
     /** 上级公司ID（0表示顶级集团） */
     @NotNull(message = "上级公司ID不能为空")
     private Long parentId;

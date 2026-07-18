@@ -20,7 +20,6 @@
               <!-- 参数说明 -->
               <div class="param-info">
                 <div class="param-label">{{ param.description || param.key }}</div>
-                <div class="param-key">{{ param.key }}</div>
               </div>
 
               <!-- 编辑器区域 -->
@@ -123,12 +122,33 @@ async function loadParams() {
   }
 }
 
-/** 解析 ENUM 选项 */
+/** ENUM 值中文显示映射 */
+const ENUM_LABEL_MAP: Record<string, string> = {
+  // 出场策略
+  BLOCK: '拦截',
+  ALLOW_ARREARS: '允许欠费放行',
+  MUST_PAY: '必须补缴',
+  REMIND_ONLY: '仅提醒',
+  // 识别失败
+  MANUAL: '人工处理',
+  AUTO_RELEASE: '自动放行',
+  // 黑名单触发模式
+  '1': '禁止入场',
+  '2': '允许但告警',
+  '3': '按类型区分',
+  // 审核模式
+  AUTO: '自动通过',
+  // true/false
+  'true': '是',
+  'false': '否',
+}
+
+/** 解析 ENUM 选项，优先显示中文标签 */
 function enumOptions(optionsStr: string | undefined): { label: string; value: string }[] {
   if (!optionsStr) return []
   try {
     const opts: string[] = JSON.parse(optionsStr)
-    return opts.map((o) => ({ label: o, value: o }))
+    return opts.map((o) => ({ label: ENUM_LABEL_MAP[o] || o, value: o }))
   } catch {
     return []
   }

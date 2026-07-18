@@ -2,6 +2,7 @@ package com.jushan.system.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.io.Serializable;
@@ -79,19 +80,24 @@ public class ParkingLot implements Serializable {
     /** 重复入场策略：REJECT-拒绝, UPDATE-更新原记录, EXCEPTION-创建异常记录 */
     private String duplicateEntryPolicy;
 
-    /** 停用时是否允许新车入场：1-允许, 0-禁止 */
+    /** 停用时是否允许新车入场：1-允许, 0-禁止（数据库暂未添加此列） */
+    @TableField(exist = false)
     private Integer disableNewEntries;
 
-    /** 停用时是否允许缴费：1-允许, 0-禁止 */
+    /** 停用时是否允许缴费：1-允许, 0-禁止（数据库暂未添加此列） */
+    @TableField(exist = false)
     private Integer disablePayment;
 
-    /** 停用时是否允许出场：1-允许, 0-禁止 */
+    /** 停用时是否允许出场：1-允许, 0-禁止（数据库暂未添加此列） */
+    @TableField(exist = false)
     private Integer disableExit;
 
-    /** 停用时是否保留自动开闸：1-保留, 0-关闭 */
+    /** 停用时是否保留自动开闸：1-保留, 0-关闭（数据库暂未添加此列） */
+    @TableField(exist = false)
     private Integer disableAutoGate;
 
-    /** 停用时是否仅限制后台配置：1-是, 0-否 */
+    /** 停用时是否仅限制后台配置：1-是, 0-否（数据库暂未添加此列） */
+    @TableField(exist = false)
     private Integer disableOnlyConfig;
 
     private LocalDateTime createdAt;

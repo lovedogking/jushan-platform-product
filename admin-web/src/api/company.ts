@@ -18,6 +18,8 @@ export interface CompanyVO {
 }
 
 export interface CompanyCreateCmd {
+  /** 租户 ID（仅平台用户创建时需要指定） */
+  tenantId?: number
   parentId: number
   name: string
   code?: string

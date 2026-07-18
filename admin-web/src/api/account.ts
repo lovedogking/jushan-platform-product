@@ -23,6 +23,8 @@ export interface AdminAccountVO {
 }
 
 export interface AdminAccountCreateCmd {
+  /** 租户 ID（仅平台用户创建 tenant admin 时需要指定） */
+  tenantId?: number
   username: string
   password?: string
   realName?: string

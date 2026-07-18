@@ -5,10 +5,10 @@
 .backend-tip {
   margin: 0 24rpx 20rpx;
   padding: 18rpx 24rpx;
-  background: #fffbe6;
-  border: 1rpx solid #ffe58f;
-  border-radius: 16rpx;
-  color: #ad6800;
+  background: #fef3e2;
+  border: 1rpx solid #fde6c8;
+  border-radius: var(--radius-base);
+  color: #b45309;
   font-size: 26rpx;
   line-height: 1.5;
 }
@@ -21,11 +21,11 @@
 
 .plate-input {
   flex: 1;
-  height: 76rpx;
+  height: 80rpx;
   padding: 0 24rpx;
-  background: #f5f7fa;
-  border: 1rpx solid var(--border);
-  border-radius: 20rpx;
+  background: var(--background);
+  border: 1rpx solid var(--border-strong);
+  border-radius: var(--radius-sm);
   font-size: 28rpx;
   color: var(--text);
 }
@@ -36,14 +36,14 @@
 }
 
 .list-card {
-  padding: 8rpx 24rpx;
+  padding: 8rpx 28rpx;
 }
 
 .plate-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24rpx 0;
+  padding: 26rpx 0;
   border-bottom: 1rpx solid var(--border);
 }
 
@@ -67,20 +67,21 @@
   font-size: 32rpx;
   font-weight: 700;
   color: var(--text);
+  letter-spacing: 1rpx;
 }
 
 .default-tag {
-  padding: 4rpx 12rpx;
+  padding: 2rpx 12rpx;
   font-size: 22rpx;
-  font-weight: 600;
-  color: #ffffff;
-  background: var(--success);
-  border-radius: 8rpx;
+  font-weight: 500;
+  color: var(--success-dark);
+  background: #e6f7f1;
+  border-radius: var(--radius-sm);
 }
 
 .plate-meta {
-  font-size: 25rpx;
-  color: var(--muted);
+  font-size: 24rpx;
+  color: var(--text-secondary);
 }
 
 .meta-sep {
@@ -95,10 +96,10 @@
 
 .btn-action {
   min-height: 56rpx;
-  padding: 0 22rpx;
-  font-size: 25rpx;
-  font-weight: 600;
-  border-radius: 16rpx;
+  padding: 0 24rpx;
+  font-size: 24rpx;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -106,12 +107,12 @@
 
 .btn-default {
   color: var(--primary);
-  background: rgba(22, 119, 255, 0.08);
+  background: var(--primary-light);
 }
 
-.btn-danger {
+.btn-action.btn-danger {
   color: var(--danger);
-  background: rgba(245, 63, 63, 0.08);
+  background: #fee2e2;
 }
 
 .loading-mask {
@@ -120,7 +121,7 @@
   padding: 60rpx 0;
 }
 
-.loading-text {
-  color: var(--muted);
-  font-size: 28rpx;
+.loading-mask .loading-text {
+  color: var(--text-secondary);
+  font-size: 26rpx;
 }

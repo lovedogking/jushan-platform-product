@@ -10,9 +10,10 @@ import com.jushan.common.CommonErrorCode;
  * 推导租户 ID、用户 ID 和用户类型，存储到本 ThreadLocal 上下文中。
  * <b>前端传入的 tenantId 在任何情况下都不可信</b>——所有业务代码必须通过本上下文获取。
  * <p>
- * <strong>平台用户 vs 租户用户</strong>：
+ * <strong>平台用户 vs 租户用户 vs 岗亭管理员</strong>：
  * <ul>
- *   <li>平台用户（super_admin）：tenantId == null</li>
+ *   <li>平台用户（super_admin）：tenantId == null, userType == "platform"</li>
+ *   <li>岗亭管理员（booth）：tenantId == null, userType == "booth"（跨租户，仅限分配停车场）</li>
  *   <li>租户用户（customer_admin 等）：tenantId != null，所有数据操作限定在本租户范围内</li>
  * </ul>
  * <p>
@@ -56,6 +57,13 @@ public final class TenantContext {
          */
         public boolean isPlatformUser() {
             return tenantId == null && USER_TYPE_PLATFORM.equals(userType);
+        }
+
+        /**
+         * 是否为岗亭管理员（跨租户）。
+         */
+        public boolean isBoothUser() {
+            return tenantId == null && USER_TYPE_BOOTH.equals(userType);
         }
 
         /**
@@ -148,6 +156,12 @@ public final class TenantContext {
         return s != null && s.isPlatformUser();
     }
 
+    /** 当前是否为岗亭管理员。 */
+    public static boolean isBoothUser() {
+        Snapshot s = CONTEXT.get();
+        return s != null && s.isBoothUser();
+    }
+
     /** 当前是否为租户用户。 */
     public static boolean isTenantUser() {
         Snapshot s = CONTEXT.get();
@@ -165,6 +179,9 @@ public final class TenantContext {
 
     /** 用户类型：平台用户。 */
     public static final String USER_TYPE_PLATFORM = "platform";
+
+    /** 用户类型：岗亭管理员（跨租户）。 */
+    public static final String USER_TYPE_BOOTH = "booth";
 
     /** 用户类型：租户用户。 */
     public static final String USER_TYPE_TENANT = "tenant";

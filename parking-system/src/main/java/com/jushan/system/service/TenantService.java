@@ -17,6 +17,7 @@ import com.jushan.platform.modules.account.mapper.SysAdminAccountMapper;
 import com.jushan.platform.modules.account.mapper.SysAdminAccountRoleMapper;
 import com.jushan.platform.modules.account.mapper.SysCustomRoleMapper;
 import com.jushan.platform.modules.account.mapper.SysRolePermissionMapper;
+import com.jushan.system.dto.CreateTenantDetail;
 import com.jushan.system.dto.RegisterRequest;
 import com.jushan.system.dto.TenantAuditRequest;
 import com.jushan.system.entity.Company;
@@ -258,6 +259,85 @@ public class TenantService {
                 tenant.getId(), companyName, adminUser.getId());
     }
 
+    /**
+     * 超管直接创建租户。
+     * <p>
+     * 与 {@link #register(RegisterRequest)} 不同：
+     * <ul>
+     *   <li>状态直接设为 ENABLED，无需审核</li>
+     *   <li>不创建管理员账号（超管后续通过账号管理页面创建）</li>
+     *   <li>自动创建默认集团</li>
+     * </ul>
+     *
+     * @param detail 创建参数
+     * @return 租户视图
+     */
+    @Transactional
+    @TenantIgnore(reason = "平台用户创建租户，无租户上下文")
+    public TenantVO createTenant(CreateTenantDetail detail) {
+        String name = detail.getName().trim();
+        String contactPhone = detail.getContactPhone().trim();
+
+        // 1. 唯一性校验：企业名称
+        Long nameCount = tenantMapper.selectCount(
+                new LambdaQueryWrapper<Tenant>()
+                        .eq(Tenant::getName, name));
+        if (nameCount > 0) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "该企业名称已被注册");
+        }
+
+        // 2. 唯一性校验：手机号
+        Long phoneCount = tenantMapper.selectCount(
+                new LambdaQueryWrapper<Tenant>()
+                        .eq(Tenant::getContactPhone, contactPhone));
+        if (phoneCount > 0) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "该手机号已被注册");
+        }
+
+        // 3. 创建租户（直接启用）
+        Tenant tenant = new Tenant();
+        tenant.setName(name);
+        tenant.setContactPerson(detail.getContactPerson().trim());
+        tenant.setContactPhone(contactPhone);
+        tenant.setStatus(STATUS_ENABLED);
+        tenant.setMaxParkingLots(detail.getMaxParkingLots() != null ? detail.getMaxParkingLots() : 3);
+        tenant.setMaxDevices(detail.getMaxDevices() != null ? detail.getMaxDevices() : 10);
+        tenant.setMaxEmployees(detail.getMaxEmployees() != null ? detail.getMaxEmployees() : 20);
+        tenant.setCreatedAt(LocalDateTime.now());
+        tenant.setUpdatedAt(LocalDateTime.now());
+        tenantMapper.insert(tenant);
+
+        // 4. 创建默认集团
+        createDefaultCompany(tenant);
+
+        log.info("超管直接创建租户成功: tenantId={}, name={}", tenant.getId(), name);
+        return toVO(tenant);
+    }
+
+    /**
+     * 删除租户。
+     * <p>
+     * 同时删除该租户下的公司记录。需要提前清理停车场等关联数据。
+     *
+     * @param tenantId 租户 ID
+     */
+    @Transactional
+    @TenantIgnore(reason = "平台用户删除租户，无租户上下文")
+    public void deleteTenant(Long tenantId) {
+        Tenant tenant = tenantMapper.selectById(tenantId);
+        if (tenant == null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "租户不存在");
+        }
+
+        // 删除租户下的公司（旧 company 表，TenantIgnore 下不受租户拦截器限制）
+        companyMapper.delete(new LambdaQueryWrapper<Company>()
+                .eq(Company::getTenantId, tenantId));
+
+        // 删除租户
+        tenantMapper.deleteById(tenantId);
+        log.info("删除租户成功: tenantId={}", tenantId);
+    }
+
     // ==================== 审核与启停 ====================
 
     /**
@@ -341,7 +421,7 @@ public class TenantService {
     public IPage<TenantVO> listTenants(int page, int size, String status) {
         LambdaQueryWrapper<Tenant> wrapper = new LambdaQueryWrapper<Tenant>()
                 .eq(status != null && !status.isBlank(), Tenant::getStatus, status)
-                .orderByDesc(Tenant::getCreatedAt);
+                .orderByAsc(Tenant::getId);
 
         IPage<Tenant> tenantPage = tenantMapper.selectPage(new Page<>(page, size), wrapper);
 

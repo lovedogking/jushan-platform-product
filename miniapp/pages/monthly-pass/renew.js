@@ -21,6 +21,7 @@ Page({
     monthOptions: MONTH_OPTIONS,
     monthIndex: 0,
     amountCents: 0,
+    amountText: '0.00',
     newValidEndDate: '',
     loading: false,
     submitting: false,
@@ -65,7 +66,7 @@ Page({
     // Use a hardcoded default of 30000 cents/month since we don't expose the price via the API
     var pricePerMonth = 30000
     var amount = pricePerMonth * this.data.months
-    this.setData({ amountCents: amount })
+    this.setData({ amountCents: amount, amountText: (amount / 100).toFixed(2) })
 
     // Calculate new valid end date preview
     var currentEnd = this.data.validEndDate

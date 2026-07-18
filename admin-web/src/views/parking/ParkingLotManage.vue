@@ -40,9 +40,6 @@
             {{ statusText(record.status) }}
           </a-tag>
         </template>
-        <template v-if="column.key === 'regionType'">
-          {{ regionTypeText(record.regionType) }}
-        </template>
         <template v-if="column.key === 'address'">
           <a-tooltip :title="fullAddress(record)">
             <span class="ellipsis">{{ fullAddress(record) }}</span>
@@ -82,51 +79,8 @@
             <a-select-option v-for="c in companyOptions" :key="c.id" :value="c.id">{{ c.name }}</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="区域类型" name="regionType">
-          <a-select v-model:value="formData.regionType" placeholder="请选择区域类型">
-            <a-select-option v-for="opt in REGION_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item label="地图选点">
-          <MapLocationPicker
-            :address="formData.address"
-            :longitude="formData.longitude"
-            :latitude="formData.latitude"
-            @change="handleMapChange"
-          />
-        </a-form-item>
-        <a-form-item label="省市区">
-          <a-space>
-            <a-input v-model:value="formData.province" placeholder="省" style="width: 100px" />
-            <a-input v-model:value="formData.city" placeholder="市" style="width: 100px" />
-            <a-input v-model:value="formData.district" placeholder="区" style="width: 100px" />
-          </a-space>
-        </a-form-item>
         <a-form-item label="详细地址">
           <a-input v-model:value="formData.address" placeholder="请输入详细地址" />
-        </a-form-item>
-        <a-form-item label="经纬度">
-          <a-space>
-            <a-input v-model:value="formData.longitude" placeholder="经度" style="width: 140px" />
-            <a-input v-model:value="formData.latitude" placeholder="纬度" style="width: 140px" />
-          </a-space>
-        </a-form-item>
-        <a-form-item label="车场图片">
-          <div class="image-upload">
-            <a-upload
-              v-model:file-list="fileList"
-              list-type="picture-card"
-              :max-count="5"
-              :before-upload="beforeUpload"
-              @remove="handleRemove"
-            >
-              <div v-if="fileList.length < 5">
-                <PlusOutlined />
-                <div style="margin-top: 8px">上传</div>
-              </div>
-            </a-upload>
-            <div class="upload-tip">最多上传 5 张图片</div>
-          </div>
         </a-form-item>
         <a-form-item label="联系人">
           <a-input v-model:value="formData.contactName" placeholder="请输入联系人" />
@@ -134,15 +88,13 @@
         <a-form-item label="联系电话">
           <a-input v-model:value="formData.contactPhone" placeholder="请输入联系电话" />
         </a-form-item>
-        <a-form-item label="营业时间">
-          <a-input v-model:value="formData.businessHours" placeholder="如 00:00-24:00" />
-        </a-form-item>
         <a-form-item label="总车位数">
-          <a-input-number v-model:value="formData.totalSpaces" :min="0" style="width: 100%" placeholder="总车位数由区域汇总" disabled />
+          <a-input-number v-model:value="formData.totalSpaces" :min="0" style="width: 100%" placeholder="请输入总车位数" />
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="formData.status" placeholder="请选择状态">
-            <a-select-option v-for="opt in PARKING_LOT_STATUS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
+            <a-select-option :value="1">启用</a-select-option>
+            <a-select-option :value="2">禁用</a-select-option>
           </a-select>
         </a-form-item>
       </a-form>
@@ -157,8 +109,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
-import { SearchOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons-vue'
-import MapLocationPicker from '@/components/MapLocationPicker.vue'
+import { SearchOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import ParkingLotParamDrawer from './ParkingLotParamDrawer.vue'
 import {
   getParkingLots,
@@ -166,19 +117,15 @@ import {
   updateParkingLot,
   deleteParkingLot,
   updateParkingLotStatus,
-  PARKING_LOT_STATUS_OPTIONS,
-  REGION_TYPE_OPTIONS,
   type ParkingLotVO,
 } from '@/api/parking-lot'
 import { getCompanies } from '@/api/company'
-import { uploadFile } from '@/api/upload'
 
 const router = useRouter()
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
-  { title: '停车场名称', dataIndex: 'name', key: 'name', width: 180 },
-  { title: '区域类型', key: 'regionType', width: 100 },
+  { title: '车场名称', dataIndex: 'name', key: 'name', width: 180 },
   { title: '地址', key: 'address', ellipsis: true },
   { title: '联系人', dataIndex: 'contactName', key: 'contactName', width: 100 },
   { title: '联系电话', dataIndex: 'contactPhone', key: 'contactPhone', width: 130 },
@@ -214,26 +161,16 @@ const editingId = ref<number | null>(null)
 const formData = reactive({
   name: '',
   companyId: undefined as number | undefined,
-  regionType: undefined as number | undefined,
-  province: '',
-  city: '',
-  district: '',
   address: '',
-  longitude: '',
-  latitude: '',
   contactName: '',
   contactPhone: '',
-  businessHours: '',
   totalSpaces: 0,
   status: 1,
 })
 
-const fileList = ref<any[]>([])
-
 const formRules: Record<string, any> = {
-  name: [{ required: true, message: '请输入停车场名称', trigger: 'blur' }],
+  name: [{ required: true, message: '请输入车场名称', trigger: 'blur' }],
   companyId: [{ required: true, message: '请选择所属公司', trigger: 'change' }],
-  regionType: [{ required: true, message: '请选择区域类型', trigger: 'change' }],
   status: [{ required: true, message: '请选择状态', trigger: 'change' }],
 }
 
@@ -283,19 +220,12 @@ function handleTableChange(pag: any) {
 function handleCreate() {
   isEditing.value = false
   editingId.value = null
-  formModalTitle.value = '新增停车场'
+  formModalTitle.value = '新增车场'
   formData.name = ''
   formData.companyId = undefined
-  formData.regionType = undefined
-  formData.province = ''
-  formData.city = ''
-  formData.district = ''
   formData.address = ''
-  formData.longitude = ''
-  formData.latitude = ''
   formData.contactName = ''
   formData.contactPhone = ''
-  formData.businessHours = ''
   formData.totalSpaces = 0
   formData.status = 1
   formModalOpen.value = true
@@ -304,19 +234,12 @@ function handleCreate() {
 async function handleEdit(record: any) {
   isEditing.value = true
   editingId.value = record.id
-  formModalTitle.value = '编辑停车场'
+  formModalTitle.value = '编辑车场'
   formData.name = record.name
   formData.companyId = record.companyId
-  formData.regionType = record.regionType
-  formData.province = record.province || ''
-  formData.city = record.city || ''
-  formData.district = record.district || ''
   formData.address = record.address || ''
-  formData.longitude = record.longitude || ''
-  formData.latitude = record.latitude || ''
   formData.contactName = record.contactName || ''
   formData.contactPhone = record.contactPhone || ''
-  formData.businessHours = record.businessHours || ''
   formData.totalSpaces = record.totalSpaces || 0
   formData.status = record.status || 1
   formModalOpen.value = true
@@ -324,15 +247,11 @@ async function handleEdit(record: any) {
 
 async function handleFormSubmit() {
   if (!formData.name.trim()) {
-    message.warning('请输入停车场名称')
+    message.warning('请输入车场名称')
     return
   }
   if (!formData.companyId) {
     message.warning('请选择所属公司')
-    return
-  }
-  if (!formData.regionType) {
-    message.warning('请选择区域类型')
     return
   }
   formLoading.value = true
@@ -340,16 +259,10 @@ async function handleFormSubmit() {
     const payload = {
       name: formData.name.trim(),
       companyId: formData.companyId,
-      regionType: formData.regionType,
-      province: formData.province || undefined,
-      city: formData.city || undefined,
-      district: formData.district || undefined,
       address: formData.address || undefined,
-      longitude: formData.longitude || undefined,
-      latitude: formData.latitude || undefined,
       contactName: formData.contactName || undefined,
       contactPhone: formData.contactPhone || undefined,
-      businessHours: formData.businessHours || undefined,
+      totalSpaces: formData.totalSpaces,
       status: formData.status,
     }
     if (isEditing.value && editingId.value) {
@@ -394,56 +307,14 @@ function handleManageParams(record: any) {
   paramDrawerRef.value?.open({ id: record.id, name: record.name })
 }
 
-function handleMapChange(data: { address: string; province: string; city: string; district: string; longitude: string; latitude: string }) {
-  formData.address = data.address
-  formData.province = data.province
-  formData.city = data.city
-  formData.district = data.district
-  formData.longitude = data.longitude
-  formData.latitude = data.latitude
-}
-
-async function beforeUpload(file: any) {
-  const isImage = file.type.startsWith('image/')
-  if (!isImage) {
-    message.error('只能上传图片文件')
-    return false
-  }
-  const isLt5M = file.size / 1024 / 1024 < 5
-  if (!isLt5M) {
-    message.error('图片大小不能超过 5MB')
-    return false
-  }
-  try {
-    const result = await uploadFile(file)
-    file.url = result.url
-    file.thumbUrl = result.url
-  } catch {
-    message.error('图片上传失败')
-    return false
-  }
-  return false
-}
-
-function handleRemove(file: any) {
-  if (file.url && file.url.startsWith('blob:')) {
-    URL.revokeObjectURL(file.url)
-  }
-}
-
 function statusText(status: number) {
-  const map: Record<number, string> = { 1: '营业中', 2: '暂停营业', 3: '装修升级' }
+  const map: Record<number, string> = { 1: '启用', 2: '禁用' }
   return map[status] || '未知'
 }
 
 function statusColor(status: number) {
-  const map: Record<number, string> = { 1: 'green', 2: 'orange', 3: 'blue' }
+  const map: Record<number, string> = { 1: 'green', 2: 'orange' }
   return map[status] || 'default'
-}
-
-function regionTypeText(type: number) {
-  const opt = REGION_TYPE_OPTIONS.find(o => o.value === type)
-  return opt?.label || '未知'
 }
 
 function fullAddress(record: any) {

@@ -1,11 +1,8 @@
 package com.jushan.system.dto;
 
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-
-import java.math.BigDecimal;
 
 /**
  * 创建停车场请求。
@@ -33,14 +30,12 @@ public class CreateParkingLotRequest {
     private String contactPhone;
 
     /** 经度（预留） */
-    private BigDecimal longitude;
+    private String longitude;
 
     /** 纬度（预留） */
-    private BigDecimal latitude;
+    private String latitude;
 
-    /** 总车位数 */
-    @NotNull(message = "总车位数不能为空")
-    @Min(value = 0, message = "总车位数不能为负数")
+    /** 总车位数（默认 0，由区域汇总计算） */
     private Integer totalSpaces;
 
     /** 支付模式 */
@@ -78,11 +73,11 @@ public class CreateParkingLotRequest {
     public String getContactPhone() { return contactPhone; }
     public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
 
-    public BigDecimal getLongitude() { return longitude; }
-    public void setLongitude(BigDecimal longitude) { this.longitude = longitude; }
+    public String getLongitude() { return longitude; }
+    public void setLongitude(String longitude) { this.longitude = longitude; }
 
-    public BigDecimal getLatitude() { return latitude; }
-    public void setLatitude(BigDecimal latitude) { this.latitude = latitude; }
+    public String getLatitude() { return latitude; }
+    public void setLatitude(String latitude) { this.latitude = latitude; }
 
     public Integer getTotalSpaces() { return totalSpaces; }
     public void setTotalSpaces(Integer totalSpaces) { this.totalSpaces = totalSpaces; }

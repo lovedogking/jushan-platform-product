@@ -1,28 +1,6 @@
-.page {
-  padding: 24rpx;
-  min-height: 100vh;
-  background-color: #F5F7FA;
-}
-
-/* 加载 */
-.loading-wrap {
-  display: flex;
-  justify-content: center;
-  padding: 200rpx 0;
-}
-.loading-text { font-size: 28rpx; color: #b0b8c1; }
-
-/* 卡片 */
-.card {
-  background: #fff;
-  border-radius: 16rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
-}
-
 /* 停车详情卡片 */
 .detail-card {
   padding: 36rpx 32rpx;
-  margin-bottom: 20rpx;
 }
 
 .plate-display {
@@ -34,16 +12,18 @@
 .plate-text {
   font-size: 44rpx;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
   letter-spacing: 4rpx;
 }
 .status-tag {
-  font-size: 24rpx;
-  padding: 6rpx 16rpx;
-  border-radius: 8rpx;
+  font-size: 22rpx;
+  padding: 4rpx 16rpx;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  line-height: 1.6;
 }
-.tag-in { background: #E6F7FF; color: #1677FF; }
-.tag-out { background: #F0F0F0; color: #87989f; }
+.tag-in { background: var(--primary-light); color: var(--primary); }
+.tag-out { background: #f1f5f9; color: var(--text-secondary); }
 
 .detail-row {
   display: flex;
@@ -51,13 +31,13 @@
   align-items: center;
   padding: 14rpx 0;
 }
-.detail-label { font-size: 28rpx; color: #87989f; }
-.detail-value { font-size: 28rpx; color: #333; }
+.detail-label { font-size: 28rpx; color: var(--text-secondary); }
+.detail-value { font-size: 28rpx; color: var(--text); }
 .detail-value.duration { font-weight: 600; }
 
 .divider {
   height: 1rpx;
-  background: #f0f0f0;
+  background: var(--border);
   margin: 24rpx 0;
 }
 
@@ -67,28 +47,28 @@
   align-items: center;
   margin-bottom: 12rpx;
 }
-.fee-label { font-size: 30rpx; color: #333; }
+.fee-label { font-size: 30rpx; color: var(--text); }
 .fee-amount {
-  font-size: 44rpx;
+  font-size: 48rpx;
   font-weight: 700;
-  color: #FF4D4F;
+  color: var(--danger);
 }
 
 .message-hint {
   font-size: 24rpx;
-  color: #52C41A;
+  color: var(--success);
   text-align: right;
 }
 
 /* 错误提示 */
 .error-bar {
-  background: #FFF1F0;
-  border: 1rpx solid #FFCCC7;
-  border-radius: 12rpx;
+  background: #fee2e2;
+  border: 1rpx solid #fecaca;
+  border-radius: var(--radius-sm);
   padding: 20rpx 24rpx;
   margin-bottom: 20rpx;
 }
-.error-text { font-size: 26rpx; color: #FF4D4F; }
+.error-text { font-size: 26rpx; color: var(--danger); }
 
 /* 支付按钮区 */
 .pay-action {
@@ -100,28 +80,29 @@
   width: 100%;
   height: 96rpx;
   line-height: 96rpx;
-  background: linear-gradient(135deg, #1677FF, #4096FF);
+  background: var(--primary);
   color: #fff;
-  font-size: 34rpx;
+  font-size: 32rpx;
   font-weight: 600;
   border: none;
-  border-radius: 48rpx;
-  box-shadow: 0 8rpx 24rpx rgba(22, 119, 255, 0.3);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-button);
 }
 .btn-pay-primary.btn-disabled {
-  background: #d9d9d9;
-  color: #999;
+  background: var(--text-disabled);
+  color: #fff;
   box-shadow: none;
 }
 .btn-pay-primary[disabled] {
-  background: #d9d9d9;
-  color: #999;
+  background: var(--text-disabled);
+  color: #fff;
+  box-shadow: none;
 }
 
 .pay-hint {
   display: block;
   font-size: 24rpx;
-  color: #b0b8c1;
+  color: var(--text-disabled);
   margin-top: 16rpx;
 }
 
@@ -145,33 +126,22 @@
   font-weight: 700;
   margin-bottom: 32rpx;
 }
-.success-icon { background: #F6FFED; color: #52C41A; border: 4rpx solid #52C41A; }
-.fail-icon { background: #FFF1F0; color: #FF4D4F; border: 4rpx solid #FF4D4F; }
+.success-icon { background: #e6f7f1; color: var(--success); border: 4rpx solid var(--success); }
+.fail-icon { background: #fee2e2; color: var(--danger); border: 4rpx solid var(--danger); }
 
 .result-title {
   font-size: 38rpx;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
   margin-bottom: 16rpx;
 }
 .result-desc {
   font-size: 28rpx;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 8rpx;
 }
-.error-msg { color: #FF4D4F; }
+.error-msg { color: var(--danger); }
 
 .result-btn {
   margin-top: 48rpx;
 }
-
-/* 通用按钮 */
-.btn-primary {
-  background: #1677FF;
-  color: #fff;
-  border: none;
-  font-size: 30rpx;
-  border-radius: 12rpx;
-  padding: 22rpx 0;
-}
-.btn-full { width: 100%; }

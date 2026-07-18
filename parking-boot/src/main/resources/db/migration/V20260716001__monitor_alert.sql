@@ -11,4 +11,4 @@ CREATE TABLE monitor_alert (
     acknowledged_at DATETIME COMMENT '确认时间',
     INDEX idx_parking_lot_ack (parking_lot_id, acknowledged),
     INDEX idx_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='岗亭监控异常提醒表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='岗亭监控异常提醒表';

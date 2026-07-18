@@ -107,11 +107,6 @@
             <a-select-option v-for="lot in parkingLotOptions" :key="lot.id" :value="lot.id">{{ lot.name }}</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="所属区域">
-          <a-select v-model:value="formData.zoneId" placeholder="请选择区域" :disabled="!formData.lotId || isEditing" allow-clear>
-            <a-select-option v-for="zone in formZoneOptions" :key="zone.id" :value="zone.id">{{ zone.name }}</a-select-option>
-          </a-select>
-        </a-form-item>
         <a-form-item label="通道编号" required>
           <a-input v-model:value="formData.laneNo" placeholder="如：A1" />
         </a-form-item>
@@ -230,7 +225,6 @@ const isEditing = ref(false)
 const editingId = ref<number | null>(null)
 const formData = reactive({
   lotId: undefined as number | undefined,
-  zoneId: undefined as number | undefined,
   laneNo: '',
   name: '',
   type: 1,
@@ -240,7 +234,6 @@ const formData = reactive({
   cameraMode: 1,
   status: 1,
 })
-const formZoneOptions = ref<ParkingZoneVO[]>([])
 
 const availableCameras = ref<AvailableCamera[]>([])
 
@@ -305,12 +298,9 @@ async function handleLotChange() {
 }
 
 async function handleFormLotChange() {
-  formData.zoneId = undefined
   if (formData.lotId) {
-    formZoneOptions.value = await loadZonesByLotId(formData.lotId)
     loadAvailableCameras(formData.lotId)
   } else {
-    formZoneOptions.value = []
     availableCameras.value = []
   }
 }
@@ -350,7 +340,6 @@ function handleCreate() {
   editingId.value = null
   formModalTitle.value = '新增通道'
   formData.lotId = queryLotId.value
-  formData.zoneId = queryZoneId.value
   formData.laneNo = ''
   formData.name = ''
   formData.type = 1
@@ -370,7 +359,6 @@ function handleEdit(record: any) {
   editingId.value = record.id
   formModalTitle.value = '编辑通道'
   formData.lotId = record.lotId
-  formData.zoneId = record.zoneId || undefined
   formData.laneNo = record.laneNo
   formData.name = record.name
   formData.type = record.type || 1
@@ -402,7 +390,6 @@ async function handleFormSubmit() {
   try {
     const payload = {
       lotId: formData.lotId,
-      zoneId: formData.zoneId,
       laneNo: formData.laneNo.trim(),
       name: formData.name.trim(),
       type: formData.type,

@@ -25,14 +25,14 @@
   "lazyCodeLoading": "requiredComponents",
   "window": {
     "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#F5F7FA",
+    "navigationBarBackgroundColor": "#165DFF",
     "navigationBarTitleText": "智慧停车",
-    "navigationBarTextStyle": "black",
-    "backgroundColor": "#F5F7FA"
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F3F6FA"
   },
   "tabBar": {
-    "color": "#87989f",
-    "selectedColor": "#1677FF",
+    "color": "#94A3B8",
+    "selectedColor": "#165DFF",
     "backgroundColor": "#ffffff",
     "borderStyle": "black",
     "list": [

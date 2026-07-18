@@ -19,9 +19,9 @@ export type MenuItem = {
 export const NAV_ITEMS: NavItem[] = [
   { key: 'overview', label: '运营总览' },
   { key: 'parking', label: '车场运营' },
-  { key: 'deviceOps', label: '设备运维' },
+  { key: 'deviceOps', label: '设备管理' },
   { key: 'billing', label: '收费与支付' },
-  { key: 'platform', label: '平台管理' },
+  { key: 'platform', label: '权限管理' },
   { key: 'settings', label: '系统配置' },
 ]
 
@@ -32,27 +32,24 @@ export const MENU_MAP: Record<string, MenuItem[]> = {
   ],
   // FIX-11：车场运营菜单
   parking: [
-    { key: 'parking-lots', label: '停车场管理', icon: 'CarOutlined', path: '/parking-lots' },
-    { key: 'parking-zones', label: '区域管理', icon: 'AppstoreOutlined', path: '/parking-zones' },
+    { key: 'parking-lots', label: '车场管理', icon: 'CarOutlined', path: '/parking-lots' },
     { key: 'parking-lanes', label: '通道管理', icon: 'BranchesOutlined', path: '/parking-lanes' },
     { key: 'vehicles', label: '车辆管理', icon: 'IdcardOutlined', path: '/vehicles', permission: 'vehicle:view' },
     { key: 'monthly-passes', label: '月卡管理', icon: 'IdcardOutlined', path: '/monthly-passes', permission: 'monthly:manage' },
     { key: 'fixed-spaces', label: '固定车位', icon: 'CarOutlined', path: '/fixed-spaces', permission: 'fixed:manage' },
     { key: 'parking-records', label: '通行记录', icon: 'FileTextOutlined', path: '/parking-records', permission: 'record:view' },
+    { key: 'remote-gate', label: '远程开闸', icon: 'ThunderboltOutlined', path: '/remote-gate', permission: 'device:remote:open' },
   ],
-  // FIX-11：设备运维菜单
+  // 设备管理菜单
   deviceOps: [
     { key: 'devices', label: '设备管理', icon: 'ToolOutlined', path: '/devices' },
-    { key: 'remote-gate', label: '远程开闸', icon: 'ThunderboltOutlined', path: '/remote-gate', permission: 'device:remote:open' },
     { key: 'manual-gate-records', label: '开闸记录', icon: 'HistoryOutlined', path: '/manual-gate-records', permission: 'device:audit' },
     { key: 'exception-records', label: '异常记录', icon: 'ExclamationCircleOutlined', path: '/exception-records', permission: 'exception:view' },
   ],
   // 包6-1：收费与支付菜单
   billing: [
     { key: 'billing-rules', label: '收费规则', icon: 'DollarOutlined', path: '/billing-rules' },
-    { key: 'fee-calculator', label: '费用试算', icon: 'CalculatorOutlined', path: '/fee-calculator' },
     { key: 'orders', label: '订单管理', icon: 'FileTextOutlined', path: '/orders', permission: 'order:manage' },
-    { key: 'vehicle-list', label: '黑白名单', icon: 'SafetyOutlined', path: '/vehicle-list', permission: 'vehicle-list:view' },
     { key: 'report-revenue', label: '收入报表', icon: 'DollarCircleOutlined', path: '/report-revenue', permission: 'dashboard:view' },
     { key: 'report-traffic', label: '车流量报表', icon: 'BarChartOutlined', path: '/report-traffic', permission: 'dashboard:view' },
   ],
@@ -62,7 +59,6 @@ export const MENU_MAP: Record<string, MenuItem[]> = {
     { key: 'companies', label: '公司管理', icon: 'ApartmentOutlined', path: '/companies', permission: 'company:view' },
     { key: 'admin-accounts', label: '账号管理', icon: 'UserOutlined', path: '/admin-accounts', permission: 'account:view' },
     { key: 'custom-roles', label: '角色管理', icon: 'IdcardOutlined', path: '/custom-roles', permission: 'role:view' },
-    { key: 'employees', label: '员工管理', icon: 'UserOutlined', path: '/employees' },
 
     { key: 'audit-logs', label: '审计日志', icon: 'FileTextOutlined', path: '/audit-logs' },
   ],

@@ -68,8 +68,12 @@ public class SysCompanyServiceImpl extends ServiceImpl<SysCompanyMapper, SysComp
     public CompanyVO create(CompanyCreateCmd cmd) {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "平台用户需指定租户上下文后创建公司");
+            // 平台用户：从请求体获取目标租户 ID
+            tenantId = cmd.getTenantId();
+            if (tenantId == null) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "平台用户需指定租户ID后创建公司");
+            }
         }
         validateNameUnique(tenantId, cmd.getName(), null);
 
@@ -258,11 +262,11 @@ public class SysCompanyServiceImpl extends ServiceImpl<SysCompanyMapper, SysComp
         Long parentId = company.getParentId();
         Integer level = company.getLevel();
 
-        // 未指定或小于等于0视为顶级集团
+        // 未指定或小于等于0视为顶级节点
         if (parentId == null || parentId <= 0) {
             company.setParentId(TOP_PARENT_ID);
-            if (!Integer.valueOf(LEVEL_GROUP).equals(level)) {
-                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "顶级集团级别必须为1");
+            if (level != LEVEL_GROUP && level != LEVEL_SUBSIDIARY) {
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "顶级节点级别必须为集团（1）或公司（2）");
             }
             return;
         }

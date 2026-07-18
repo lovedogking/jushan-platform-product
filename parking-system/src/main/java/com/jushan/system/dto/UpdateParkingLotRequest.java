@@ -3,8 +3,6 @@ package com.jushan.system.dto;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 
-import java.math.BigDecimal;
-
 /**
  * 更新停车场请求。
  * <p>
@@ -31,10 +29,10 @@ public class UpdateParkingLotRequest {
     private String contactPhone;
 
     /** 经度 */
-    private BigDecimal longitude;
+    private String longitude;
 
     /** 纬度 */
-    private BigDecimal latitude;
+    private String latitude;
 
     /** 支付模式 */
     private String paymentMode;
@@ -74,11 +72,11 @@ public class UpdateParkingLotRequest {
     public String getContactPhone() { return contactPhone; }
     public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
 
-    public BigDecimal getLongitude() { return longitude; }
-    public void setLongitude(BigDecimal longitude) { this.longitude = longitude; }
+    public String getLongitude() { return longitude; }
+    public void setLongitude(String longitude) { this.longitude = longitude; }
 
-    public BigDecimal getLatitude() { return latitude; }
-    public void setLatitude(BigDecimal latitude) { this.latitude = latitude; }
+    public String getLatitude() { return latitude; }
+    public void setLatitude(String latitude) { this.latitude = latitude; }
 
     public String getPaymentMode() { return paymentMode; }
     public void setPaymentMode(String paymentMode) { this.paymentMode = paymentMode; }

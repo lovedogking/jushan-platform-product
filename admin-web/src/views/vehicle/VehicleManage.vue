@@ -33,6 +33,10 @@
           重置
         </a-button>
       </a-space>
+      <a-button type="default" @click="handleGoBlacklist">
+        <template #icon><SafetyOutlined /></template>
+        黑白名单
+      </a-button>
     </div>
 
     <!-- 表格区 -->
@@ -135,8 +139,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { SearchOutlined, ReloadOutlined } from '@ant-design/icons-vue'
+import { SearchOutlined, ReloadOutlined, SafetyOutlined } from '@ant-design/icons-vue'
 import {
   getVehiclePage,
   previewRenewal,
@@ -149,6 +154,8 @@ import {
   type RenewalPreviewVO,
 } from '@/api/vehicle'
 import PermissionButton from '@/components/PermissionButton.vue'
+
+const router = useRouter()
 
 type VehicleTableRow = VehicleVO
 
@@ -231,6 +238,9 @@ function handleReset() {
   queryStatus.value = undefined
   pagination.current = 1
   fetchData()
+}
+function handleGoBlacklist() {
+  router.push('/vehicle-list')
 }
 function handleTableChange(pag: any) {
   pagination.current = pag.current

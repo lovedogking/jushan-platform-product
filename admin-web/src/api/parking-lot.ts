@@ -38,9 +38,8 @@ export const REGION_TYPE_OPTIONS = [
 
 /** 状态选项 */
 export const PARKING_LOT_STATUS_OPTIONS = [
-  { label: '营业中', value: 1 },
-  { label: '暂停营业', value: 2 },
-  { label: '装修升级', value: 3 },
+  { label: '启用', value: 1 },
+  { label: '禁用', value: 2 },
 ]
 
 /** 分页查询停车场列表 */
