@@ -58,7 +58,7 @@ public interface DeviceAccessClient {
      * 开闸。
      * <p>
      * 对应 {@code POST /api/v1/devices/{deviceSn}/gate/open}。
-     * 写操作，<strong>禁止自动重试</strong>。网络超时标记为 UNCERTAIN。
+     * 写操作，<strong>不携带 commandId</strong>。如需幂等重试请使用 {@link #openGate(String, String)}。
      *
      * @param deviceSn 设备厂商序列号（来自平台可信设备记录，非前端传入）
      * @return 命令执行结果
@@ -70,13 +70,36 @@ public interface DeviceAccessClient {
      * 关闸。
      * <p>
      * 对应 {@code POST /api/v1/devices/{deviceSn}/gate/close}。
-     * 写操作，<strong>禁止自动重试</strong>。网络超时标记为 UNCERTAIN。
+     * 写操作，<strong>不携带 commandId</strong>。如需幂等重试请使用 {@link #closeGate(String, String)}。
      *
      * @param deviceSn 设备厂商序列号（来自平台可信设备记录，非前端传入）
      * @return 命令执行结果
      * @throws com.jushan.common.BusinessException DA 返回错误或网络异常
      */
     CommandResultDTO closeGate(String deviceSn);
+
+    /**
+     * 开闸（携带 commandId 幂等标记，任务包 7-1）。
+     * <p>
+     * 与 {@link #openGate(String)} 的区别在于携带应用层幂等键，
+     * 写入 {@code X-Command-Id} 请求头，支持网络瞬断场景的自动重试。
+     *
+     * @param deviceSn  设备厂商序列号
+     * @param commandId 幂等命令 ID（UUID），跨重试保持一致
+     * @return 命令执行结果
+     * @throws com.jushan.common.BusinessException DA 返回错误或重试耗尽
+     */
+    CommandResultDTO openGate(String deviceSn, String commandId);
+
+    /**
+     * 关闸（携带 commandId 幂等标记，任务包 7-1）。
+     *
+     * @param deviceSn  设备厂商序列号
+     * @param commandId 幂等命令 ID（UUID），跨重试保持一致
+     * @return 命令执行结果
+     * @throws com.jushan.common.BusinessException DA 返回错误或重试耗尽
+     */
+    CommandResultDTO closeGate(String deviceSn, String commandId);
 
     /**
      * 显示屏实时文字。
