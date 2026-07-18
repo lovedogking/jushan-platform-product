@@ -37,7 +37,7 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
 
-# ---- 平台内部 MQ 开关（测试默认关闭）及 Device Access 客户端（T23） ----
+# ---- 平台内部 MQ 开关（测试默认关闭）及 Device Access 客户端（T23, 任务包 7-1 增强） ----
 # Device Access 测试通过 WireMock 动态端口覆盖 jushan.device-access.base-url
 jushan:
   mq:
@@ -47,6 +47,12 @@ jushan:
     base-url: http://localhost:8081
     connect-timeout: 3000
     read-timeout: 12000
+    retry:
+      max-attempts: 3
+      intervals: 100,200,500
+    mock:
+      enabled: true
+    whitelist-sync-api-key: "test-whitelist-sync-key-001"
 
 # ---- Actuator 测试模式 ----
 management:

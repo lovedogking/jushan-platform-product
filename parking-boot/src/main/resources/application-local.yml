@@ -1,0 +1,89 @@
+# =============================================================================
+# 智慧停车 SaaS 平台 — 本地开发配置（Profile: local，默认激活）
+# =============================================================================
+# 适用于不依赖 Docker 的纯本地开发：
+#   需要本机安装 MySQL（localhost:3306）和 Redis（localhost:6379）
+#
+# 如需使用 Docker Compose 提供基础设施（推荐）：
+#   1. docker compose up -d mysql redis
+#   2. 切换 Profile 为 docker：
+#      ./mvnw spring-boot:run -Dspring-boot.run.profiles=docker
+#     或在 IDE 中设置 Active profiles: docker
+#   3. 也可在此文件直接修改端口为 3307 / 6378
+# =============================================================================
+
+spring:
+
+  # ---- 数据源（本机 MySQL） ----
+  datasource:
+    url: jdbc:mysql://localhost:3306/jushan_platform?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # ---- Flyway ----
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  # ---- Redis（默认连接本机 Redis 6379） ----
+  # 如果本机没有 Redis，注释掉此段即可——框架会降级为内存模式。
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+  # ---- RabbitMQ ----
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    listener:
+      simple:
+        retry:
+          enabled: true
+          initial-interval: 1000ms
+          max-attempts: 3
+          max-interval: 10000ms
+          multiplier: 2.0
+
+# ---- Actuator 本地开发宽松模式 ----
+management:
+  endpoint:
+    health:
+      show-details: always
+
+# ---- 微信 Mock 登录（仅 local/test 环境可用，生产必须关闭） ----
+# 启用后使用 code 作为 mock openid，无需真实微信 AppId/Secret
+wx:
+  mock-login: true
+
+# ---- Device Access Webhook 接收端（本地开发） ----
+device-access:
+  webhook:
+    allowed-ips: "*"
+    signature-enabled: false
+
+# ---- 本地日志 ----
+logging:
+  level:
+    com.jushan: DEBUG
+
+# ---- Device Access Mock 适配器（本地开发启用） ----
+jushan:
+  device-access:
+    mock:
+      enabled: true
+    whitelist-sync-api-key: "local-whitelist-sync-key-dev"

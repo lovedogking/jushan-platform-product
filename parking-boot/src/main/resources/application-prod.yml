@@ -79,6 +79,15 @@ device-access:
     allowed-ips: ${DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS:}
     signature-enabled: true
 
+# ---- Device Access 客户端（T23, 生产环境） ----
+jushan:
+  device-access:
+    base-url: ${JUSHAN_DEVICE_ACCESS_BASE_URL:http://127.0.0.1:8082}
+    api-key: ${JUSHAN_DEVICE_ACCESS_API_KEY:}
+    mock:
+      enabled: false
+    whitelist-sync-api-key: ${JUSHAN_WHITELIST_SYNC_API_KEY:}
+
 # ---- 生产日志 ----
 logging:
   level:
