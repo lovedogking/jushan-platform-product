@@ -51,6 +51,11 @@ export const useMonitorStore = defineStore('monitor', () => {
     gateOpened: boolean | null
   } | null>(null)
 
+  // ========== 交接班状态 ==========
+  const currentShift = ref<any>(null)
+  const shiftHistory = ref<any[]>([])
+  const shiftLoading = ref(false)
+
   // ========== getters ==========
   const criticalAlerts = computed(() => alerts.value.filter((a) => a.severity === 'CRITICAL'))
   const hasLot = computed(() => parkingLot.value !== null)
@@ -216,6 +221,30 @@ export const useMonitorStore = defineStore('monitor', () => {
     chargeResult.value = result
   }
 
+  // ========== 交接班操作 ==========
+
+  async function loadCurrentShift() {
+    try {
+      const { getCurrentShift } = await import('@/api/shift')
+      currentShift.value = await getCurrentShift()
+    } catch {
+      currentShift.value = null
+    }
+  }
+
+  async function loadShiftHistory(parkingLotId: number) {
+    shiftLoading.value = true
+    try {
+      const { getShiftHistory } = await import('@/api/shift')
+      const result = await getShiftHistory({ parkingLotId, current: 1, size: 20 })
+      shiftHistory.value = result.records || []
+    } catch {
+      shiftHistory.value = []
+    } finally {
+      shiftLoading.value = false
+    }
+  }
+
   function reset() {
     currentLotId.value = null
     connectionStatus.value = 'disconnected'
@@ -230,6 +259,9 @@ export const useMonitorStore = defineStore('monitor', () => {
     currentChargeInfo.value = null
     chargeLoading.value = false
     chargeResult.value = null
+    currentShift.value = null
+    shiftHistory.value = []
+    shiftLoading.value = false
   }
 
   return {
@@ -263,6 +295,11 @@ export const useMonitorStore = defineStore('monitor', () => {
     showChargePanel,
     hideChargePanel,
     setChargeResult,
+    currentShift,
+    shiftHistory,
+    shiftLoading,
+    loadCurrentShift,
+    loadShiftHistory,
     reset,
   }
 })
