@@ -45,7 +45,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             
             if (StringUtils.hasText(token) && JwtUtils.validateToken(token, secretKey)) {
                 var claims = JwtUtils.parseClaims(token, secretKey);
-                
+
+                // audience 校验：/api/v1/mini/** 路径要求 aud=miniapp
+                String audience = JwtUtils.getAudienceFromClaims(claims);
+                String requestPath = request.getRequestURI();
+                if (requestPath.startsWith("/api/v1/mini/")
+                        && !"miniapp".equals(audience)) {
+                    log.warn("JWT audience 校验失败: path={}, aud={}", requestPath, audience);
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 Long userId = JwtUtils.getUserIdFromClaims(claims);
                 Long tenantId = JwtUtils.getTenantIdFromClaims(claims);
                 String userType = JwtUtils.getUserTypeFromClaims(claims);
