@@ -170,27 +170,56 @@
                         size="small"
                       >
                         <template #renderItem="{ item }">
+                          <!-- EXIT 事件：点击弹出下拉菜单（收费处理 / 校正车牌） -->
                           <a-list-item
+                            v-if="item.direction === 'EXIT'"
                             class="event-list-item"
-                            :class="{ 'event-exit-unpaid': item.direction === 'EXIT' && !item.paymentStatus }"
+                            :class="{ 'event-exit-unpaid': !item.paymentStatus }"
+                          >
+                            <a-dropdown :trigger="['click']">
+                              <div class="event-row dropdown-trigger">
+                                <div class="event-main">
+                                  <span class="event-plate-text">{{ item.correctedPlate || item.plateNumber || '-' }}</span>
+                                  <a-tag size="small" color="orange">出</a-tag>
+                                  <a-tag v-if="item.correctedPlate" size="small" color="purple">已校正</a-tag>
+                                  <a-tag size="small" :color="sourceColor(item.source)">{{ item.source }}</a-tag>
+                                  <a-tag
+                                    v-if="item.paymentStatus"
+                                    size="small"
+                                    :color="item.paymentStatus === 'PAID' ? 'success' : 'warning'"
+                                  >
+                                    {{ item.paymentStatus === 'PAID' ? '已支付' : '待支付' }}
+                                  </a-tag>
+                                </div>
+                                <div class="event-sub">
+                                  <span>{{ item.laneName || '未知车道' }}</span>
+                                  <span class="event-time-text">{{ store.formatTime(item.eventTime) }}</span>
+                                </div>
+                                <div v-if="item.feeAmount != null && item.feeAmount > 0" class="event-fee">
+                                  应收: ¥{{ item.feeAmount.toFixed(2) }}
+                                </div>
+                              </div>
+                              <template #overlay>
+                                <a-menu @click="(e: any) => handleExitMenuClick(e, item)">
+                                  <a-menu-item key="charge">收费处理</a-menu-item>
+                                  <a-menu-item v-if="!item.correctedPlate" key="correct">校正车牌</a-menu-item>
+                                </a-menu>
+                              </template>
+                            </a-dropdown>
+                          </a-list-item>
+
+                          <!-- ENTRY 事件：点击直接打开校正弹窗 -->
+                          <a-list-item
+                            v-else
+                            class="event-list-item"
                             @click="handleEventClick(item)"
                           >
                             <div class="event-row">
                               <div class="event-main">
-                                <span class="event-plate-text">{{ item.plateNumber || '-' }}</span>
-                                <a-tag size="small" :color="item.direction === 'EXIT' ? 'orange' : 'blue'">
-                                  {{ item.direction === 'ENTRY' ? '入' : '出' }}
-                                </a-tag>
-                                <a-tag size="small" :color="sourceColor(item.source)">
-                                  {{ item.source }}
-                                </a-tag>
-                                <a-tag
-                                  v-if="item.direction === 'EXIT' && item.paymentStatus"
-                                  size="small"
-                                  :color="item.paymentStatus === 'PAID' ? 'success' : 'warning'"
-                                >
-                                  {{ item.paymentStatus === 'PAID' ? '已支付' : '待支付' }}
-                                </a-tag>
+                                <span class="event-plate-text">{{ item.correctedPlate || item.plateNumber || '-' }}</span>
+                                <a-tag size="small" color="blue">入</a-tag>
+                                <a-tag v-if="item.correctedPlate" size="small" color="purple">已校正</a-tag>
+                                <a-tag size="small" :color="sourceColor(item.source)">{{ item.source }}</a-tag>
                               </div>
                               <div class="event-sub">
                                 <span>{{ item.laneName || '未知车道' }}</span>
@@ -349,6 +378,13 @@
       </div>
     </a-drawer>
 
+    <!-- 车牌校正弹窗 -->
+    <PlateCorrectionModal
+      v-model:open="correctionModalOpen"
+      :event="correctionTarget"
+      @corrected="handleCorrectionDone"
+    />
+
   </div>
 </template>
 
@@ -360,6 +396,7 @@ import { useMonitorStore } from '@/stores/monitor'
 import { MonitorWebSocketClient, type ConnectionStatus } from '@/utils/websocket'
 import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPayload, RecognitionEvent, RemoteGateAlertPayload, LaneCamera } from '@/api/monitor-types'
 import ChargePanel from '@/components/ChargePanel.vue'
+import PlateCorrectionModal from '@/components/PlateCorrectionModal.vue'
 import ManualReleaseModal, { type BatchLaneOption } from '@/components/ManualReleaseModal.vue'
 import FeeRuleEditModal from '@/components/FeeRuleEditModal.vue'
 import ParkingLotSidebar from './ParkingLotSidebar.vue'
@@ -401,6 +438,10 @@ const tempPlateExitLane = ref<number | null>(null)
 const tempPlateExiting = ref(false)
 /** 识别失败未处理计数 */
 const unhandledRecognitionFailedCount = ref(0)
+
+// 车牌校正
+const correctionModalOpen = ref(false)
+const correctionTarget = ref<RecognitionEvent | null>(null)
 
 // 车场列表（左侧栏）
 const sidebarLots = ref<{ id: number; name: string; status: string; currentVehicles?: number }[]>([])
@@ -657,13 +698,30 @@ function sourceColor(source?: string) {
   return 'default'
 }
 
-/** 点击事件列表项：EXIT 事件打开收费面板 */
+/** 点击事件列表项：ENTRY 事件打开校正弹窗 */
 function handleEventClick(item: RecognitionEvent) {
-  if (item.direction === 'EXIT') {
-    store.showChargePanel(item.plateNumber, item.laneId).catch(() => {
+  correctionTarget.value = item
+  correctionModalOpen.value = true
+}
+
+/** EXIT 事件下拉菜单点击处理 */
+function handleExitMenuClick(e: { key: string }, item: RecognitionEvent) {
+  if (e.key === 'charge') {
+    store.showChargePanel(
+      item.correctedPlate || item.plateNumber,
+      item.laneId
+    ).catch(() => {
       // 查询失败不阻塞
     })
+  } else if (e.key === 'correct') {
+    correctionTarget.value = item
+    correctionModalOpen.value = true
   }
+}
+
+/** 校正完成后 */
+function handleCorrectionDone() {
+  // WebSocket 推送的校正后事件会自动更新 store.recentEvents
 }
 
 function getToken(): string | null {
@@ -1012,6 +1070,11 @@ onUnmounted(() => {
 
 .event-row {
   width: 100%;
+}
+
+.dropdown-trigger {
+  cursor: pointer;
+  user-select: none;
 }
 
 .event-main {
