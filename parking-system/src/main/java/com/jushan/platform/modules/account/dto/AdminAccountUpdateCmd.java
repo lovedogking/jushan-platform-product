@@ -46,6 +46,15 @@ public class AdminAccountUpdateCmd {
     /** 绑定角色 ID 列表 */
     private List<Long> roleIds;
 
+    /** 首次登录是否强制修改密码：0否 1是 */
+    private Integer mustChangePassword;
+
+    /** 是否允许费用减免：0否 1是 */
+    private Integer allowFeeReduction;
+
+    /** 分配停车场 ID 列表 */
+    private List<Long> parkingLotIds;
+
     // ==================== getter / setter ====================
 
     public String getRealName() { return realName; }
@@ -71,4 +80,13 @@ public class AdminAccountUpdateCmd {
 
     public List<Long> getRoleIds() { return roleIds; }
     public void setRoleIds(List<Long> roleIds) { this.roleIds = roleIds; }
+
+    public Integer getMustChangePassword() { return mustChangePassword; }
+    public void setMustChangePassword(Integer mustChangePassword) { this.mustChangePassword = mustChangePassword; }
+
+    public Integer getAllowFeeReduction() { return allowFeeReduction; }
+    public void setAllowFeeReduction(Integer allowFeeReduction) { this.allowFeeReduction = allowFeeReduction; }
+
+    public List<Long> getParkingLotIds() { return parkingLotIds; }
+    public void setParkingLotIds(List<Long> parkingLotIds) { this.parkingLotIds = parkingLotIds; }
 }
