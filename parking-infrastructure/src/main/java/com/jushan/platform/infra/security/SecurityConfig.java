@@ -46,6 +46,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/auth/login", "/api/v1/auth/captcha").permitAll()
                 // 微信登录与注册
                 .requestMatchers("/wx/login").permitAll()
+                // 小程序认证接口（无需登录）
+                .requestMatchers("/api/v1/mini/login", "/api/v1/mini/phone").permitAll()
                 .requestMatchers("/register", "/register/**").permitAll()
                 .requestMatchers("/api/v1/register").permitAll()
                 // 演示与内部 mock 接口
