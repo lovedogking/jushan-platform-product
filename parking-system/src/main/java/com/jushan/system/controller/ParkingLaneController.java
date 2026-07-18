@@ -49,17 +49,17 @@ public class ParkingLaneController {
      * @param page         页码（从 1 开始）
      * @param size         每页大小
      * @param parkingLotId 停车场 ID（必填）
-     * @param status       状态筛选（可选：ENABLED / DISABLED）
-     * @param direction    方向筛选（可选：ENTRY / EXIT / MIXED）
+     * @param status       状态筛选（可选：1=启用, 2=禁用, 3=维护中）
+     * @param type         方向筛选（可选：1=入口, 2=出口, 3=双向）
      */
     @GetMapping
     @RequirePermission("parking:read")
     public R<IPage<ParkingLaneVO>> list(@RequestParam(defaultValue = "1") int page,
                                          @RequestParam(defaultValue = "20") int size,
                                          @RequestParam(required = false) Long parkingLotId,
-                                         @RequestParam(required = false) String status,
-                                         @RequestParam(required = false) String direction) {
-        IPage<ParkingLaneVO> result = laneService.list(page, size, parkingLotId, status, direction);
+                                         @RequestParam(required = false) Integer status,
+                                         @RequestParam(required = false) Integer type) {
+        IPage<ParkingLaneVO> result = laneService.list(page, size, parkingLotId, status, type);
         return R.ok(result);
     }
 
@@ -84,8 +84,8 @@ public class ParkingLaneController {
     @RequirePermission("parking:write")
     public R<ParkingLaneVO> create(@Valid @RequestBody CreateLaneRequest request) {
         ParkingLaneVO vo = laneService.create(request);
-        log.info("创建车道成功: laneId={}, parkingLotId={}, name={}, direction={}",
-                vo.getId(), vo.getParkingLotId(), vo.getName(), vo.getDirection());
+        log.info("创建车道成功: laneId={}, parkingLotId={}, name={}, type={}",
+                vo.getId(), vo.getParkingLotId(), vo.getName(), vo.getType());
         return R.ok(vo);
     }
 

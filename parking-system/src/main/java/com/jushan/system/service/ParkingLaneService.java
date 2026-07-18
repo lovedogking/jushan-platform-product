@@ -157,17 +157,14 @@ public class ParkingLaneService {
      */
     @Transactional
     public ParkingLaneVO create(CreateLaneRequest request) {
-        // 1. 校验停车场归属
-        getParkingLotWithAuth(request.getParkingLotId());
+        // 1. 校验停车场归属并获取租户ID
+        ParkingLot lot = getParkingLotWithAuth(request.getLotId());
 
-        // 2. 校验方向
-        Integer type = directionToInt(request.getDirection());
-
-        // 3. 校验编码在停车场内唯一
-        String laneNo = request.getCode().trim();
+        // 2. 校验编码在停车场内唯一
+        String laneNo = request.getLaneNo().trim();
         Long existingCount = laneMapper.selectCount(
                 new LambdaQueryWrapper<ParkingLane>()
-                        .eq(ParkingLane::getLotId, request.getParkingLotId())
+                        .eq(ParkingLane::getLotId, request.getLotId())
                         .eq(ParkingLane::getLaneNo, laneNo));
         if (existingCount > 0) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
@@ -175,17 +172,23 @@ public class ParkingLaneService {
         }
 
         ParkingLane lane = new ParkingLane();
-        lane.setLotId(request.getParkingLotId());
+        lane.setTenantId(lot.getTenantId());
+        lane.setLotId(request.getLotId());
+        lane.setZoneId(0L); // 默认无区域
         lane.setName(request.getName().trim());
         lane.setLaneNo(laneNo);
-        lane.setType(type);
-        lane.setStatus(DB_STATUS_ENABLED);
+        lane.setType(request.getType());
+        lane.setEntryCameraId(request.getEntryCameraId());
+        lane.setExitCameraId(request.getExitCameraId());
+        lane.setTideMode(request.getTideMode());
+        lane.setCameraMode(request.getCameraMode());
+        lane.setStatus(request.getStatus() != null ? request.getStatus() : DB_STATUS_ENABLED);
         lane.setCreatedAt(LocalDateTime.now());
         lane.setUpdatedAt(LocalDateTime.now());
         laneMapper.insert(lane);
 
         log.info("创建车道成功: lotId={}, laneId={}, name={}, laneNo={}, type={}",
-                request.getParkingLotId(), lane.getId(), lane.getName(), laneNo, type);
+                request.getLotId(), lane.getId(), lane.getName(), laneNo, request.getType());
 
         return toVO(lane);
     }
@@ -212,8 +215,8 @@ public class ParkingLaneService {
             wrapper.set(ParkingLane::getName, request.getName().trim());
             hasUpdate = true;
         }
-        if (request.getCode() != null) {
-            String newLaneNo = request.getCode().trim();
+        if (request.getLaneNo() != null) {
+            String newLaneNo = request.getLaneNo().trim();
             // 编码变更时检查唯一性（排除自身）
             Long existingCount = laneMapper.selectCount(
                     new LambdaQueryWrapper<ParkingLane>()
@@ -227,9 +230,28 @@ public class ParkingLaneService {
             wrapper.set(ParkingLane::getLaneNo, newLaneNo);
             hasUpdate = true;
         }
-        if (request.getDirection() != null) {
-            Integer newType = directionToInt(request.getDirection());
-            wrapper.set(ParkingLane::getType, newType);
+        if (request.getType() != null) {
+            wrapper.set(ParkingLane::getType, request.getType());
+            hasUpdate = true;
+        }
+        if (request.getEntryCameraId() != null) {
+            wrapper.set(ParkingLane::getEntryCameraId, request.getEntryCameraId());
+            hasUpdate = true;
+        }
+        if (request.getExitCameraId() != null) {
+            wrapper.set(ParkingLane::getExitCameraId, request.getExitCameraId());
+            hasUpdate = true;
+        }
+        if (request.getTideMode() != null) {
+            wrapper.set(ParkingLane::getTideMode, request.getTideMode());
+            hasUpdate = true;
+        }
+        if (request.getCameraMode() != null) {
+            wrapper.set(ParkingLane::getCameraMode, request.getCameraMode());
+            hasUpdate = true;
+        }
+        if (request.getStatus() != null) {
+            wrapper.set(ParkingLane::getStatus, request.getStatus());
             hasUpdate = true;
         }
 
@@ -256,11 +278,11 @@ public class ParkingLaneService {
      * @param page         页码
      * @param size         每页大小
      * @param parkingLotId 停车场 ID（必填，用于限定范围）
-     * @param status       状态筛选（可选：ENABLED / DISABLED）
-     * @param direction    方向筛选（可选：ENTRY / EXIT / MIXED）
+     * @param status       状态筛选（可选：1=启用, 2=禁用, 3=维护中）
+     * @param type         方向筛选（可选：1=入口, 2=出口, 3=双向）
      * @return 分页结果
      */
-    public IPage<ParkingLaneVO> list(int page, int size, Long parkingLotId, String status, String direction) {
+    public IPage<ParkingLaneVO> list(int page, int size, Long parkingLotId, Integer status, Integer type) {
         if (parkingLotId == null) {
             throw new BusinessException(CommonErrorCode.PARAM_ERROR, "停车场 ID 不能为空");
         }
@@ -268,40 +290,26 @@ public class ParkingLaneService {
         // 校验停车场归属（租户隔离）
         getParkingLotWithAuth(parkingLotId);
 
-        Integer typeFilter = directionToInt(direction);
-        Integer statusFilter = statusToInt(status);
-
         LambdaQueryWrapper<ParkingLane> wrapper = new LambdaQueryWrapper<ParkingLane>()
                 .eq(ParkingLane::getLotId, parkingLotId)
-                .eq(statusFilter != null, ParkingLane::getStatus, statusFilter)
-                .eq(typeFilter != null, ParkingLane::getType, typeFilter)
+                .eq(status != null, ParkingLane::getStatus, status)
+                .eq(type != null, ParkingLane::getType, type)
                 .orderByDesc(ParkingLane::getCreatedAt);
 
         IPage<ParkingLane> lanePage = laneMapper.selectPage(new Page<>(page, size), wrapper);
 
-        // 批量查询绑定设备
-        List<Long> laneIds = lanePage.getRecords().stream()
-                .map(ParkingLane::getId).collect(Collectors.toList());
-        Map<Long, List<DeviceVO>> devicesByLane = getBoundDevicesByLaneIds(laneIds);
-
-        return lanePage.convert(lane -> {
-            ParkingLaneVO vo = toVO(lane);
-            vo.setDevices(devicesByLane.getOrDefault(lane.getId(), Collections.emptyList()));
-            return vo;
-        });
+        return lanePage.convert(this::toVO);
     }
 
     /**
-     * 查询单个车道详情（含绑定设备）。
+     * 查询单个车道详情。
      *
      * @param laneId 车道 ID
      * @return 车道视图
      */
     public ParkingLaneVO get(Long laneId) {
         ParkingLane lane = getLaneWithAuth(laneId);
-        ParkingLaneVO vo = toVO(lane);
-        vo.setDevices(getBoundDevices(laneId));
-        return vo;
+        return toVO(lane);
     }
 
     // ==================== 启用/停用 ====================
@@ -381,19 +389,23 @@ public class ParkingLaneService {
     }
 
     /**
-     * 实体转视图（DB Integer → 前端 String）。
+     * 实体转视图（直接映射 DB 字段，不做枚举转换，前端负责渲染中文标签）。
      */
     private ParkingLaneVO toVO(ParkingLane lane) {
         ParkingLaneVO vo = new ParkingLaneVO();
         vo.setId(lane.getId());
+        vo.setTenantId(lane.getTenantId());
         vo.setParkingLotId(lane.getLotId());
+        vo.setZoneId(lane.getZoneId());
+        vo.setLaneNo(lane.getLaneNo());
         vo.setName(lane.getName());
-        vo.setCode(lane.getLaneNo());
-        vo.setDirection(intToDirectionStr(lane.getType()));
-        vo.setStatus(intToStatusStr(lane.getStatus()));
-        vo.setIsKeyLane(null);        // 预留：DB 不含此字段，后续迁移补齐
-        vo.setAutoReleasePolicy(null); // 预留：DB 不含此字段
-        vo.setDescription(null);       // 预留：DB 不含此字段
+        vo.setType(lane.getType());
+        vo.setEntryCameraId(lane.getEntryCameraId());
+        vo.setExitCameraId(lane.getExitCameraId());
+        vo.setStatus(lane.getStatus());
+        vo.setTideMode(lane.getTideMode());
+        vo.setCameraMode(lane.getCameraMode());
+        vo.setVersion(lane.getVersion());
         vo.setCreatedAt(lane.getCreatedAt());
         vo.setUpdatedAt(lane.getUpdatedAt());
         return vo;

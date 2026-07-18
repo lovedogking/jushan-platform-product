@@ -14,52 +14,63 @@ public class CreateLaneRequest {
 
     /** 所属停车场 ID */
     @NotNull(message = "所属停车场不能为空")
-    private Long parkingLotId;
+    private Long lotId;
 
     /** 车道名称 */
     @NotBlank(message = "车道名称不能为空")
     @Size(max = 128, message = "车道名称最长128个字符")
     private String name;
 
-    /** 车道编码（停车场内唯一） */
-    @NotBlank(message = "车道编码不能为空")
-    @Size(max = 64, message = "车道编码最长64个字符")
-    private String code;
+    /** 车道编号（停车场内唯一） */
+    @NotBlank(message = "车道编号不能为空")
+    @Size(max = 64, message = "车道编号最长64个字符")
+    private String laneNo;
 
-    /** 车道方向：ENTRY-入口, EXIT-出口, MIXED-混合 */
-    @NotBlank(message = "车道方向不能为空")
-    private String direction;
+    /** 通道类型：1-入口, 2-出口, 3-双向 */
+    @NotNull(message = "通道类型不能为空")
+    private Integer type;
 
-    /** 是否为关键车道 */
-    private Integer isKeyLane;
+    /** 入口相机 ID（可选） */
+    private Long entryCameraId;
 
-    /** 自动放行策略 */
-    private String autoReleasePolicy;
+    /** 出口相机 ID（可选） */
+    private Long exitCameraId;
 
-    /** 备注 */
-    @Size(max = 255, message = "备注最长255个字符")
-    private String description;
+    /** 潮汐模式（可选，双向通道时有效） */
+    private Integer tideMode;
+
+    /** 相机模式（可选，双向通道时有效） */
+    private Integer cameraMode;
+
+    /** 状态：1-启用, 2-禁用 */
+    private Integer status;
 
     // ==================== getter / setter ====================
 
-    public Long getParkingLotId() { return parkingLotId; }
-    public void setParkingLotId(Long parkingLotId) { this.parkingLotId = parkingLotId; }
+    public Long getLotId() { return lotId; }
+    public void setLotId(Long lotId) { this.lotId = lotId; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
-    public String getCode() { return code; }
-    public void setCode(String code) { this.code = code; }
+    public String getLaneNo() { return laneNo; }
+    public void setLaneNo(String laneNo) { this.laneNo = laneNo; }
 
-    public String getDirection() { return direction; }
-    public void setDirection(String direction) { this.direction = direction; }
+    public Integer getType() { return type; }
+    public void setType(Integer type) { this.type = type; }
 
-    public Integer getIsKeyLane() { return isKeyLane; }
-    public void setIsKeyLane(Integer isKeyLane) { this.isKeyLane = isKeyLane; }
+    public Long getEntryCameraId() { return entryCameraId; }
+    public void setEntryCameraId(Long entryCameraId) { this.entryCameraId = entryCameraId; }
 
-    public String getAutoReleasePolicy() { return autoReleasePolicy; }
-    public void setAutoReleasePolicy(String autoReleasePolicy) { this.autoReleasePolicy = autoReleasePolicy; }
+    public Long getExitCameraId() { return exitCameraId; }
+    public void setExitCameraId(Long exitCameraId) { this.exitCameraId = exitCameraId; }
 
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
+    public Integer getTideMode() { return tideMode; }
+    public void setTideMode(Integer tideMode) { this.tideMode = tideMode; }
+
+    public Integer getCameraMode() { return cameraMode; }
+    public void setCameraMode(Integer cameraMode) { this.cameraMode = cameraMode; }
+
+    public Integer getStatus() { return status; }
+    public void setStatus(Integer status) { this.status = status; }
 }

@@ -12,16 +12,6 @@
         >
           <a-select-option v-for="lot in parkingLotOptions" :key="lot.id" :value="lot.id">{{ lot.name }}</a-select-option>
         </a-select>
-        <a-select
-          v-model:value="queryZoneId"
-          placeholder="选择区域"
-          allow-clear
-          style="width: 180px"
-          :disabled="!queryLotId"
-          @change="handleQuery"
-        >
-          <a-select-option v-for="zone in zoneOptions" :key="zone.id" :value="zone.id">{{ zone.name }}</a-select-option>
-        </a-select>
         <a-select v-model:value="queryType" placeholder="全部类型" allow-clear style="width: 120px" @change="handleQuery">
           <a-select-option v-for="opt in LANE_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
         </a-select>
@@ -185,7 +175,6 @@ import {
   type AvailableCamera,
 } from '@/api/parking-lane'
 import { getParkingLots, type ParkingLotVO } from '@/api/parking-lot'
-import { getParkingZonesByLotId, type ParkingZoneVO } from '@/api/parking-zone'
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
@@ -205,9 +194,7 @@ const dataSource = ref<ParkingLaneVO[]>([])
 const queryType = ref<number | undefined>(undefined)
 const queryStatus = ref<number | undefined>(undefined)
 const queryLotId = ref<number | undefined>(undefined)
-const queryZoneId = ref<number | undefined>(undefined)
 const parkingLotOptions = ref<ParkingLotVO[]>([])
-const zoneOptions = ref<ParkingZoneVO[]>([])
 
 const pagination = reactive({
   current: 1,
@@ -252,13 +239,17 @@ const showEntryCamera = computed(() => formData.type === 1 || formData.type === 
 const showExitCamera = computed(() => formData.type === 2 || formData.type === 3)
 
 async function fetchData() {
+  if (!queryLotId.value) {
+    dataSource.value = []
+    pagination.total = 0
+    return
+  }
   loading.value = true
   try {
     const res = await getParkingLanes({
-      current: pagination.current,
+      page: pagination.current,
       size: pagination.pageSize,
-      lotId: queryLotId.value,
-      zoneId: queryZoneId.value,
+      parkingLotId: queryLotId.value,
       type: queryType.value,
       status: queryStatus.value,
     })
@@ -278,22 +269,7 @@ async function loadParkingLots() {
   }
 }
 
-async function loadZonesByLotId(lotId: number) {
-  try {
-    const res = await getParkingZonesByLotId(lotId)
-    return res
-  } catch {
-    return []
-  }
-}
-
 async function handleLotChange() {
-  queryZoneId.value = undefined
-  if (queryLotId.value) {
-    zoneOptions.value = await loadZonesByLotId(queryLotId.value)
-  } else {
-    zoneOptions.value = []
-  }
   handleQuery()
 }
 
@@ -323,8 +299,6 @@ function handleReset() {
   queryType.value = undefined
   queryStatus.value = undefined
   queryLotId.value = undefined
-  queryZoneId.value = undefined
-  zoneOptions.value = []
   pagination.current = 1
   fetchData()
 }
