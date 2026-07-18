@@ -6,6 +6,7 @@ import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.common.auth.TenantContext;
 import com.jushan.platform.infra.security.JwtUtils;
+import com.jushan.system.client.WeChatApiClient;
 import com.jushan.system.dto.BindPhoneRequest;
 import com.jushan.system.dto.BindPlateRequest;
 import com.jushan.system.dto.UnbindPlateRequest;
@@ -49,10 +50,7 @@ public class WxUserService {
     private final VehicleMapper vehicleMapper;
     private final PlateBindingMapper plateBindingMapper;
     private final BindingPolicyMapper bindingPolicyMapper;
-
-    /** 是否启用 Mock 微信登录（仅 local/test 环境可用） */
-    @Value("${wx.mock-login:false}")
-    private boolean mockLoginEnabled;
+    private final WeChatApiClient weChatApiClient;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -63,11 +61,13 @@ public class WxUserService {
     public WxUserService(WxUserMapper wxUserMapper,
                          VehicleMapper vehicleMapper,
                          PlateBindingMapper plateBindingMapper,
-                         BindingPolicyMapper bindingPolicyMapper) {
+                         BindingPolicyMapper bindingPolicyMapper,
+                         WeChatApiClient weChatApiClient) {
         this.wxUserMapper = wxUserMapper;
         this.vehicleMapper = vehicleMapper;
         this.plateBindingMapper = plateBindingMapper;
         this.bindingPolicyMapper = bindingPolicyMapper;
+        this.weChatApiClient = weChatApiClient;
     }
 
     /**
@@ -117,6 +117,7 @@ public class WxUserService {
         result.setNickname(wxUser.getMaskedNickname());
         result.setAvatarUrl(wxUser.getAvatarUrl());
         result.setIsNewUser(isNewUser);
+        result.setPhoneBound(Boolean.TRUE.equals(wxUser.getPhoneVerified()));
         result.setPlateCount((int) plateCount);
         result.setLoginTime(LocalDateTime.now());
         result.setMessage(isNewUser ? "欢迎首次使用" : "欢迎回来");
@@ -128,22 +129,10 @@ public class WxUserService {
     }
 
     /**
-     * 解析 openid。
-     * <p>
-     * - Mock 模式：使用 code 作为 openid 前缀
-     * - 真实模式：调用微信接口
+     * 解析 openid（委托给 WeChatApiClient，由它统一处理 mock/真实模式）。
      */
     private String resolveOpenid(String code) {
-        if (mockLoginEnabled) {
-            // Mock 模式：code 即为 mock openid
-            log.debug("Mock 微信登录：code={}", code);
-            return "mock_openid_" + code;
-        }
-        // TODO: 真实微信登录需要调用微信接口
-        // String url = "https://api.weixin.qq.com/sns/jscode2session?appid=APPID&secret=SECRET&js_code=CODE&grant_type=authorization_code";
-        // 真实实现需要 AppId/Secret（外部依赖 B05）
-        throw new BusinessException(CommonErrorCode.UNSUPPORTED_OPERATION,
-                "真实微信登录尚未配置，请联系平台管理员");
+        return weChatApiClient.code2session(code).getOpenid();
     }
 
     /**
@@ -367,8 +356,8 @@ public class WxUserService {
             throw new BusinessException(CommonErrorCode.CONFLICT, "该手机号已被其他账号绑定");
         }
 
-        // Mock 模式下不验证验证码
-        if (!mockLoginEnabled && (request.getVerifyCode() == null || request.getVerifyCode().isEmpty())) {
+        // 验证码校验
+        if (request.getVerifyCode() == null || request.getVerifyCode().isEmpty()) {
             throw new BusinessException(CommonErrorCode.PARAM_ERROR, "验证码不能为空");
         }
 
