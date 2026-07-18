@@ -15,6 +15,10 @@ export interface FixedSpaceVO {
   validEnd?: string
   /** 1=生效中, 2=已过期, 3=已注销 */
   status: number
+  reviewStatus?: string
+  reviewRemark?: string
+  payMethod?: string
+  paidAmountCents?: number
   remark?: string
   createdAt?: string
 }
@@ -78,6 +82,29 @@ export function renewFixedSpace(id: number, data: FixedSpaceRenewRequest) {
 /** 固定车位注销 */
 export function cancelFixedSpace(id: number) {
   return request.put<FixedSpaceVO>(`/v1/fixed-spaces/${id}/cancel`)
+}
+
+/** 待审核固定车位列表 */
+export function getFixedSpacePendingList(params: {
+  page?: number
+  size?: number
+  parkingLotId?: number
+}) {
+  return request.get<PageResult<FixedSpaceVO>>('/v1/admin/fixed-space-audit/pending', params)
+}
+
+/** 通过固定车位审核 */
+export function approveFixedSpace(id: number, remark?: string) {
+  return request.post<FixedSpaceVO>(`/v1/admin/fixed-space-audit/${id}/approve`, null, {
+    params: remark ? { remark } : undefined,
+  })
+}
+
+/** 驳回固定车位审核 */
+export function rejectFixedSpace(id: number, remark?: string) {
+  return request.post<FixedSpaceVO>(`/v1/admin/fixed-space-audit/${id}/reject`, null, {
+    params: remark ? { remark } : undefined,
+  })
 }
 
 /** 待审核固定车位列表 */
