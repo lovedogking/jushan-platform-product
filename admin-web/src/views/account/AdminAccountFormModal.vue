@@ -59,12 +59,16 @@
           :field-names="{ children: 'children', label: 'name', value: 'id' }"
         />
       </a-form-item>
-      <a-form-item v-if="formData.level === 3" label="所属车场" name="lotId">
-        <a-select v-model:value="formData.lotId" placeholder="请选择所属车场" allow-clear>
+      <a-form-item v-if="formData.level === 3" label="所属车场" name="parkingLotIds">
+        <a-select v-model:value="formData.parkingLotIds" mode="multiple" placeholder="请选择授权停车场" allow-clear>
           <a-select-option v-for="lot in parkingLots" :key="lot.id" :value="lot.id">
             {{ lot.name }}
           </a-select-option>
         </a-select>
+      </a-form-item>
+      <a-form-item v-if="formData.level === 3" label="费用减免权限">
+        <a-switch v-model:checked="formData.allowFeeReduction" checked-children="允许" un-checked-children="禁止" />
+        <span style="margin-left: 8px; color: #999; font-size: 12px;">岗亭管理员费用减免权限需创建时勾选</span>
       </a-form-item>
       <a-form-item label="角色" name="roleIds">
         <a-select
@@ -112,7 +116,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:open', val: boolean): void
-  (e: 'success'): void
+  (e: 'success', result?: any): void
 }>()
 
 const authStore = useAuthStore()
@@ -137,6 +141,8 @@ const formData = reactive<{
   lotId: number | undefined
   roleIds: number[]
   status: number
+  parkingLotIds: number[]
+  allowFeeReduction: boolean
 }>({
   username: '',
   password: '',
@@ -148,6 +154,8 @@ const formData = reactive<{
   lotId: undefined,
   roleIds: [],
   status: 0,
+  parkingLotIds: [],
+  allowFeeReduction: false,
 })
 
 // 级别选项
@@ -225,12 +233,12 @@ const formRules: Record<string, Rule[]> = {
       trigger: 'change',
     },
   ],
-  lotId: [
+  parkingLotIds: [
     {
       required: true,
-      validator: (_rule: any, value: number | undefined) => {
-        if (formData.level === 3 && !value) {
-          return Promise.reject(new Error('请选择所属车场'))
+      validator: (_rule: any, value: number[]) => {
+        if (formData.level === 3 && (!value || value.length === 0)) {
+          return Promise.reject(new Error('请选择至少一个授权停车场'))
         }
         return Promise.resolve()
       },
@@ -243,9 +251,8 @@ const formRules: Record<string, Rule[]> = {
 function handleLevelChange(level: number) {
   formData.companyId = undefined
   formData.lotId = undefined
-  if (level !== 3) {
-    formData.lotId = undefined
-  }
+  formData.parkingLotIds = []
+  formData.allowFeeReduction = false
 }
 
 // 账号失焦唯一性校验
@@ -307,6 +314,8 @@ function resetForm() {
   formData.lotId = undefined
   formData.roleIds = []
   formData.status = 0
+  formData.parkingLotIds = []
+  formData.allowFeeReduction = false
   formRef.value?.resetFields()
 }
 
@@ -322,6 +331,8 @@ function fillForm(record: AdminAccountVO) {
   formData.lotId = record.lotId
   formData.roleIds = record.roleIds || []
   formData.status = record.status ?? 0
+  formData.parkingLotIds = record.parkingLotIds || []
+  formData.allowFeeReduction = record.allowFeeReduction === 1
 }
 
 // 监听弹窗打开状态
@@ -374,10 +385,12 @@ async function handleSubmit() {
         lotId: formData.lotId,
         status: formData.status,
         roleIds: formData.roleIds,
+        parkingLotIds: formData.parkingLotIds,
+        allowFeeReduction: formData.allowFeeReduction ? 1 : 0,
       })
       message.success('更新成功')
     } else {
-      await createAdminAccount({
+      const result = await createAdminAccount({
         username: formData.username.trim(),
         password: formData.password || undefined,
         realName: formData.realName.trim(),
@@ -388,8 +401,14 @@ async function handleSubmit() {
         lotId: formData.lotId,
         status: formData.status,
         roleIds: formData.roleIds,
+        parkingLotIds: formData.parkingLotIds.length > 0 ? formData.parkingLotIds : undefined,
+        mustChangePassword: 1,
+        allowFeeReduction: formData.allowFeeReduction ? 1 : 0,
       })
       message.success('创建成功')
+      emit('update:open', false)
+      emit('success', result)
+      return
     }
     emit('update:open', false)
     emit('success')
