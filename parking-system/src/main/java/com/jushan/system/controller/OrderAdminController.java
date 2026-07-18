@@ -192,8 +192,30 @@ public class OrderAdminController {
 
         IPage<ParkingOrder> orderPage = orderMapper.selectPage(new Page<>(page, size), wrapper);
 
+        // 批量预查询重算来源原订单号（避免 N+1）
+        Set<Long> recalcIds = orderPage.getRecords().stream()
+                .map(ParkingOrder::getRecalcSourceOrderId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> recalcNoMap = Collections.emptyMap();
+        if (!recalcIds.isEmpty()) {
+            recalcNoMap = orderMapper.selectBatchIds(recalcIds).stream()
+                    .collect(Collectors.toMap(ParkingOrder::getId, ParkingOrder::getOrderNo));
+        }
+        final Map<Long, String> finalRecalcNoMap = recalcNoMap;
+
         List<OrderAdminVO> voList = orderPage.getRecords().stream()
-                .map(this::convertToVO)
+                .map(o -> {
+                    OrderAdminVO vo = convertToVO(o);
+                    if (o.getRecalcSourceOrderId() != null) {
+                        vo.setRecalcSourceOrderId(o.getRecalcSourceOrderId());
+                        String sourceOrderNo = finalRecalcNoMap.get(o.getRecalcSourceOrderId());
+                        if (sourceOrderNo != null) {
+                            vo.setRecalcSourceOrderNo(sourceOrderNo);
+                        }
+                    }
+                    return vo;
+                })
                 .collect(Collectors.toList());
 
         IPage<OrderAdminVO> result = new Page<>(orderPage.getCurrent(), orderPage.getSize(), orderPage.getTotal());
@@ -217,7 +239,16 @@ public class OrderAdminController {
         scopeResolver.validateAccess(order.getParkingLotId());
         DataScope.validateTenantMatch(order.getTenantId(), "订单");
 
-        return R.ok(convertToVO(order));
+        OrderAdminVO vo = convertToVO(order);
+        // 单条查询：填充重算关联原订单号
+        if (order.getRecalcSourceOrderId() != null) {
+            vo.setRecalcSourceOrderId(order.getRecalcSourceOrderId());
+            ParkingOrder sourceOrder = orderMapper.selectById(order.getRecalcSourceOrderId());
+            if (sourceOrder != null) {
+                vo.setRecalcSourceOrderNo(sourceOrder.getOrderNo());
+            }
+        }
+        return R.ok(vo);
     }
 
     /**
@@ -378,8 +409,31 @@ public class OrderAdminController {
 
         // 查询数据（限制最大条数）
         List<ParkingOrder> orders = orderMapper.selectList(wrapper.last("LIMIT " + EXPORT_MAX_LIMIT));
+
+        // 批量预查询重算来源原订单号（避免 N+1）
+        Set<Long> exportRecalcIds = orders.stream()
+                .map(ParkingOrder::getRecalcSourceOrderId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> exportRecalcNoMap = Collections.emptyMap();
+        if (!exportRecalcIds.isEmpty()) {
+            exportRecalcNoMap = orderMapper.selectBatchIds(exportRecalcIds).stream()
+                    .collect(Collectors.toMap(ParkingOrder::getId, ParkingOrder::getOrderNo));
+        }
+        final Map<Long, String> finalExportRecalcNoMap = exportRecalcNoMap;
+
         List<OrderAdminVO> voList = orders.stream()
-                .map(this::convertToVO)
+                .map(o -> {
+                    OrderAdminVO vo = convertToVO(o);
+                    if (o.getRecalcSourceOrderId() != null) {
+                        vo.setRecalcSourceOrderId(o.getRecalcSourceOrderId());
+                        String sourceOrderNo = finalExportRecalcNoMap.get(o.getRecalcSourceOrderId());
+                        if (sourceOrderNo != null) {
+                            vo.setRecalcSourceOrderNo(sourceOrderNo);
+                        }
+                    }
+                    return vo;
+                })
                 .collect(Collectors.toList());
 
         // xlsx 导出
