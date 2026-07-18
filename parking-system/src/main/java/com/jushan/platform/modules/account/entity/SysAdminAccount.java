@@ -62,4 +62,10 @@ public class SysAdminAccount extends BaseEntity {
 
     /** 最后登录时间 */
     private LocalDateTime lastLoginTime;
+
+    /** 首次登录是否强制改密：0=否，1=是 */
+    private Integer mustChangePassword;
+
+    /** 是否允许费用减免：0=否，1=是（仅岗亭管理员生效） */
+    private Integer allowFeeReduction;
 }
