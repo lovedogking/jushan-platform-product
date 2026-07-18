@@ -7,25 +7,6 @@
         <a-tag :color="statusColor">{{ statusText }}</a-tag>
       </div>
       <div class="header-right">
-        <a-select
-          v-model:value="selectedLotId"
-          placeholder="选择停车场"
-          style="width: 200px"
-          :disabled="wsClient?.status === 'connected'"
-          :options="lotOptions"
-          :loading="loadingLots"
-          show-search
-          :filter-option="filterLotOption"
-          allow-clear
-        />
-        <a-button
-          type="primary"
-          :loading="store.loading"
-          :disabled="!selectedLotId"
-          @click="connectOrReconnect"
-        >
-          {{ wsClient?.status === 'connected' ? '重连' : '连接' }}
-        </a-button>
         <a-button @click="refreshDevices">刷新设备</a-button>
         <a-button @click="openBatchRelease">批量开闸</a-button>
         <a-button @click="tempPlateDrawerOpen = true">无牌车处理</a-button>
@@ -50,185 +31,209 @@
       class="critical-banner"
     />
 
-    <!-- 主体内容 -->
-    <a-row :gutter="[16, 16]" class="monitor-body">
-      <!-- 左侧：车位与车道 -->
-      <a-col :xs="24" :lg="16">
-        <!-- 车位大卡 -->
-        <a-card :bordered="false" class="space-card">
-          <div class="space-grid">
-            <div class="space-item">
-              <div class="space-value remaining">{{ parkingLot?.remainingSpaces ?? '-' }}</div>
-              <div class="space-label">剩余车位</div>
-            </div>
-            <div class="space-item">
-              <div class="space-value">{{ parkingLot?.currentVehicles ?? '-' }}</div>
-              <div class="space-label">在场车辆</div>
-            </div>
-            <div class="space-item">
-              <div class="space-value">{{ parkingLot?.totalSpaces ?? '-' }}</div>
-              <div class="space-label">总车位</div>
-            </div>
+    <!-- 三段式主体 -->
+    <div class="monitor-body">
+      <!-- 左侧：车场列表 -->
+      <ParkingLotSidebar
+        :lots="sidebarLots"
+        :selected-id="selectedLotId"
+        @select="handleLotSelect"
+      />
+
+      <!-- 右侧：上下分区 -->
+      <div class="monitor-right">
+        <!-- 右上：视频预览占位 -->
+        <div class="video-placeholder">
+          <div class="video-placeholder-content">
+            <VideoCameraOutlined style="font-size: 48px; color: #d1d5db;" />
+            <p>视频接入中，敬请期待</p>
           </div>
-        </a-card>
+        </div>
 
-        <!-- 车道网格 -->
-        <a-spin :spinning="store.loading">
-          <div class="lane-grid">
-            <a-card
-              v-for="lane in laneCards"
-              :key="lane.laneId"
-              :bordered="false"
-              class="lane-card"
-              :class="{
-                'lane-offline': lane.isOffline,
-                'lane-charging': lane.charging,
-                'lane-primary-offline': lane.primaryOffline,
-              }"
-            >
-              <div class="lane-header">
-                <span class="lane-name">
-                  {{ lane.laneName }}
-                  <span v-if="lane.primaryOffline" style="color: #f59e0b; margin-left: 6px;">
-                    <ExclamationCircleOutlined />
-                    <span style="font-size: 12px; margin-left: 2px;">主相机离线</span>
-                  </span>
-                </span>
-                <div class="lane-tags">
-                  <a-tag v-if="lane.charging" color="processing">
-                    <SyncOutlined :spin="true" style="margin-right: 2px" />收费中
-                  </a-tag>
-                  <template v-if="!lane.cameras || lane.cameras.length === 0">
-                    <a-tag :color="lane.deviceOnline ? 'success' : 'error'">
-                      {{ lane.deviceOnline ? '在线' : '离线' }}
-                    </a-tag>
-                  </template>
-                  <template v-else>
-                    <a-tag
-                      v-for="cam in lane.cameras"
-                      :key="cam.deviceId"
-                      :color="cam.online ? (cam.isActive ? 'blue' : 'green') : 'error'"
+        <!-- 右下：Tab 操作面板 -->
+        <div class="monitor-panel">
+          <MonitorTabs :parking-lot-id="selectedLotId ?? 0">
+            <template #monitor>
+              <!-- 原有监控内容：车位 + 车道网格 + 事件/告警 -->
+              <div class="monitor-tab-content">
+                <!-- 车位大卡 -->
+                <a-card :bordered="false" class="space-card">
+                  <div class="space-grid">
+                    <div class="space-item">
+                      <div class="space-value remaining">{{ parkingLot?.remainingSpaces ?? '-' }}</div>
+                      <div class="space-label">剩余车位</div>
+                    </div>
+                    <div class="space-item">
+                      <div class="space-value">{{ parkingLot?.currentVehicles ?? '-' }}</div>
+                      <div class="space-label">在场车辆</div>
+                    </div>
+                    <div class="space-item">
+                      <div class="space-value">{{ parkingLot?.totalSpaces ?? '-' }}</div>
+                      <div class="space-label">总车位</div>
+                    </div>
+                  </div>
+                </a-card>
+
+                <!-- 车道网格 -->
+                <a-spin :spinning="store.loading">
+                  <div class="lane-grid">
+                    <a-card
+                      v-for="lane in laneCards"
+                      :key="lane.laneId"
+                      :bordered="false"
+                      class="lane-card"
+                      :class="{
+                        'lane-offline': lane.isOffline,
+                        'lane-charging': lane.charging,
+                        'lane-primary-offline': lane.primaryOffline,
+                      }"
                     >
-                      {{ cam.role === 'PRIMARY' ? '主' : '备' }}:{{ cam.direction === 'ENTRY' ? '入' : '出' }}
-                    </a-tag>
-                  </template>
-                </div>
-              </div>
-              <div class="lane-direction">
-                <a-tag :color="lane.direction === 'EXIT' ? 'orange' : 'blue'">
-                  {{ lane.direction === 'ENTRY' ? '入口' : lane.direction === 'EXIT' ? '出口' : '混合' }}
-                </a-tag>
-              </div>
-              <div class="lane-event">
-                <div v-if="lane.latestEvent" class="event-plate">
-                  {{ lane.latestEvent.plateNumber }}
-                </div>
-                <div v-else class="event-empty">暂无事件</div>
-                <div v-if="lane.latestEvent" class="event-time">
-                  {{ store.formatTime(lane.latestEvent.eventTime) }}
-                </div>
-              </div>
-              <div class="lane-actions">
-                <a-space>
-                  <a-button
-                    type="primary"
-                    size="small"
-                    :disabled="lane.isOffline"
-                    @click="handleManualOpenGate(lane.laneId)"
-                  >
-                    开闸
-                  </a-button>
-                  <a-button
-                    size="small"
-                    @click="handleManualCloseGate(lane.laneId)"
-                  >
-                    关闸
-                  </a-button>
-                  <a-button
-                    size="small"
-                    @click="handleEditFeeRule(lane.laneId)"
-                  >
-                    修改收费
-                  </a-button>
-                </a-space>
-              </div>
-            </a-card>
-          </div>
-        </a-spin>
-      </a-col>
+                      <div class="lane-header">
+                        <span class="lane-name">
+                          {{ lane.laneName }}
+                          <span v-if="lane.primaryOffline" style="color: #f59e0b; margin-left: 6px;">
+                            <ExclamationCircleOutlined />
+                            <span style="font-size: 12px; margin-left: 2px;">主相机离线</span>
+                          </span>
+                        </span>
+                        <div class="lane-tags">
+                          <a-tag v-if="lane.charging" color="processing">
+                            <SyncOutlined :spin="true" style="margin-right: 2px" />收费中
+                          </a-tag>
+                          <template v-if="!lane.cameras || lane.cameras.length === 0">
+                            <a-tag :color="lane.deviceOnline ? 'success' : 'error'">
+                              {{ lane.deviceOnline ? '在线' : '离线' }}
+                            </a-tag>
+                          </template>
+                          <template v-else>
+                            <a-tag
+                              v-for="cam in lane.cameras"
+                              :key="cam.deviceId"
+                              :color="cam.online ? (cam.isActive ? 'blue' : 'green') : 'error'"
+                            >
+                              {{ cam.role === 'PRIMARY' ? '主' : '备' }}:{{ cam.direction === 'ENTRY' ? '入' : '出' }}
+                            </a-tag>
+                          </template>
+                        </div>
+                      </div>
+                      <div class="lane-direction">
+                        <a-tag :color="lane.direction === 'EXIT' ? 'orange' : 'blue'">
+                          {{ lane.direction === 'ENTRY' ? '入口' : lane.direction === 'EXIT' ? '出口' : '混合' }}
+                        </a-tag>
+                      </div>
+                      <div class="lane-event">
+                        <div v-if="lane.latestEvent" class="event-plate">
+                          {{ lane.latestEvent.plateNumber }}
+                        </div>
+                        <div v-else class="event-empty">暂无事件</div>
+                        <div v-if="lane.latestEvent" class="event-time">
+                          {{ store.formatTime(lane.latestEvent.eventTime) }}
+                        </div>
+                      </div>
+                      <div class="lane-actions">
+                        <a-space>
+                          <a-button
+                            type="primary"
+                            size="small"
+                            :disabled="lane.isOffline"
+                            @click="handleManualOpenGate(lane.laneId)"
+                          >
+                            开闸
+                          </a-button>
+                          <a-button
+                            size="small"
+                            @click="handleManualCloseGate(lane.laneId)"
+                          >
+                            关闸
+                          </a-button>
+                          <a-button
+                            size="small"
+                            @click="handleEditFeeRule(lane.laneId)"
+                          >
+                            修改收费
+                          </a-button>
+                        </a-space>
+                      </div>
+                    </a-card>
+                  </div>
+                </a-spin>
 
-      <!-- 右侧：事件与异常 -->
-      <a-col :xs="24" :lg="8">
-        <!-- 最近识别事件 -->
-        <a-card title="最近识别事件" :bordered="false" class="right-card">
-          <a-list
-            :data-source="store.recentEvents"
-            :locale="{ emptyText: '暂无识别事件' }"
-            size="small"
-          >
-            <template #renderItem="{ item }">
-              <a-list-item
-                class="event-list-item"
-                :class="{ 'event-exit-unpaid': item.direction === 'EXIT' && !item.paymentStatus }"
-                @click="handleEventClick(item)"
-              >
-                <div class="event-row">
-                  <div class="event-main">
-                    <span class="event-plate-text">{{ item.plateNumber || '-' }}</span>
-                    <a-tag size="small" :color="item.direction === 'EXIT' ? 'orange' : 'blue'">
-                      {{ item.direction === 'ENTRY' ? '入' : '出' }}
-                    </a-tag>
-                    <a-tag size="small" :color="sourceColor(item.source)">
-                      {{ item.source }}
-                    </a-tag>
-                    <!-- 支付状态标记 -->
-                    <a-tag
-                      v-if="item.direction === 'EXIT' && item.paymentStatus"
-                      size="small"
-                      :color="item.paymentStatus === 'PAID' ? 'success' : 'warning'"
-                    >
-                      {{ item.paymentStatus === 'PAID' ? '已支付' : '待支付' }}
-                    </a-tag>
-                  </div>
-                  <div class="event-sub">
-                    <span>{{ item.laneName || '未知车道' }}</span>
-                    <span class="event-time-text">{{ store.formatTime(item.eventTime) }}</span>
-                  </div>
-                  <!-- 费用信息 -->
-                  <div v-if="item.feeAmount != null && item.feeAmount > 0" class="event-fee">
-                    应收: ¥{{ item.feeAmount.toFixed(2) }}
-                  </div>
-                </div>
-              </a-list-item>
+                <!-- 事件与异常（内嵌于监控Tab） -->
+                <a-row :gutter="[12, 12]" style="margin-top: 12px">
+                  <a-col :xs="24" :lg="12">
+                    <a-card title="最近识别事件" :bordered="false" size="small" class="inner-card">
+                      <a-list
+                        :data-source="store.recentEvents"
+                        :locale="{ emptyText: '暂无识别事件' }"
+                        size="small"
+                      >
+                        <template #renderItem="{ item }">
+                          <a-list-item
+                            class="event-list-item"
+                            :class="{ 'event-exit-unpaid': item.direction === 'EXIT' && !item.paymentStatus }"
+                            @click="handleEventClick(item)"
+                          >
+                            <div class="event-row">
+                              <div class="event-main">
+                                <span class="event-plate-text">{{ item.plateNumber || '-' }}</span>
+                                <a-tag size="small" :color="item.direction === 'EXIT' ? 'orange' : 'blue'">
+                                  {{ item.direction === 'ENTRY' ? '入' : '出' }}
+                                </a-tag>
+                                <a-tag size="small" :color="sourceColor(item.source)">
+                                  {{ item.source }}
+                                </a-tag>
+                                <a-tag
+                                  v-if="item.direction === 'EXIT' && item.paymentStatus"
+                                  size="small"
+                                  :color="item.paymentStatus === 'PAID' ? 'success' : 'warning'"
+                                >
+                                  {{ item.paymentStatus === 'PAID' ? '已支付' : '待支付' }}
+                                </a-tag>
+                              </div>
+                              <div class="event-sub">
+                                <span>{{ item.laneName || '未知车道' }}</span>
+                                <span class="event-time-text">{{ store.formatTime(item.eventTime) }}</span>
+                              </div>
+                              <div v-if="item.feeAmount != null && item.feeAmount > 0" class="event-fee">
+                                应收: ¥{{ item.feeAmount.toFixed(2) }}
+                              </div>
+                            </div>
+                          </a-list-item>
+                        </template>
+                      </a-list>
+                    </a-card>
+                  </a-col>
+                  <a-col :xs="24" :lg="12">
+                    <a-card title="异常提醒" :bordered="false" size="small" class="inner-card">
+                      <a-list
+                        :data-source="store.alerts"
+                        :locale="{ emptyText: '暂无异常提醒' }"
+                        size="small"
+                      >
+                        <template #renderItem="{ item }">
+                          <a-list-item class="alert-list-item">
+                            <div class="alert-row">
+                              <a-tag :color="item.severity === 'CRITICAL' ? 'error' : 'warning'">
+                                {{ item.severity === 'CRITICAL' ? '严重' : '警告' }}
+                              </a-tag>
+                              <span class="alert-message">{{ item.message }}</span>
+                              <a-button type="link" size="small" @click="store.ackAlert(item.id)">
+                                确认
+                              </a-button>
+                            </div>
+                            <div class="alert-time">{{ store.formatTime(item.createdAt) }}</div>
+                          </a-list-item>
+                        </template>
+                      </a-list>
+                    </a-card>
+                  </a-col>
+                </a-row>
+              </div>
             </template>
-          </a-list>
-        </a-card>
-
-        <!-- 异常提醒 -->
-        <a-card title="异常提醒" :bordered="false" class="right-card">
-          <a-list
-            :data-source="store.alerts"
-            :locale="{ emptyText: '暂无异常提醒' }"
-            size="small"
-          >
-            <template #renderItem="{ item }">
-              <a-list-item class="alert-list-item">
-                <div class="alert-row">
-                  <a-tag :color="item.severity === 'CRITICAL' ? 'error' : 'warning'">
-                    {{ item.severity === 'CRITICAL' ? '严重' : '警告' }}
-                  </a-tag>
-                  <span class="alert-message">{{ item.message }}</span>
-                  <a-button type="link" size="small" @click="store.ackAlert(item.id)">
-                    确认
-                  </a-button>
-                </div>
-                <div class="alert-time">{{ store.formatTime(item.createdAt) }}</div>
-              </a-list-item>
-            </template>
-          </a-list>
-        </a-card>
-      </a-col>
-    </a-row>
+          </MonitorTabs>
+        </div>
+      </div>
+    </div>
 
     <!-- 收费面板 -->
     <ChargePanel />
@@ -241,7 +246,7 @@
       @success="handleManualReleaseResult"
     />
 
-    <!-- 批量开闸弹窗（Phase 2 D5） -->
+    <!-- 批量开闸弹窗 -->
     <ManualReleaseModal
       v-model:open="batchReleaseOpen"
       :lane-id="0"
@@ -313,6 +318,7 @@
         <a-empty description="暂无远程开闸记录" />
       </template>
     </a-drawer>
+
     <!-- 无牌车处理抽屉 -->
     <a-drawer
       v-model:open="tempPlateDrawerOpen"
@@ -341,7 +347,7 @@
       </div>
     </a-drawer>
 
-    <!-- 识别失败告警弹窗 -->
+    <!-- 识别失败告警弹窗（Task 23 将替换为 notification） -->
     <TempPlateAlertModal
       :alert="recognitionFailedAlert"
       @close="recognitionFailedAlert = null"
@@ -351,9 +357,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
-import { SyncOutlined, BellOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue'
+import { SyncOutlined, BellOutlined, ExclamationCircleOutlined, VideoCameraOutlined } from '@ant-design/icons-vue'
 import { useMonitorStore } from '@/stores/monitor'
 import { MonitorWebSocketClient, type ConnectionStatus } from '@/utils/websocket'
 import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPayload, RecognitionEvent, RemoteGateAlertPayload, LaneCamera } from '@/api/monitor-types'
@@ -361,6 +367,8 @@ import ChargePanel from '@/components/ChargePanel.vue'
 import ManualReleaseModal, { type BatchLaneOption } from '@/components/ManualReleaseModal.vue'
 import FeeRuleEditModal from '@/components/FeeRuleEditModal.vue'
 import TempPlateAlertModal, { type RecognitionFailedAlert } from '@/components/TempPlateAlertModal.vue'
+import ParkingLotSidebar from './ParkingLotSidebar.vue'
+import MonitorTabs from './MonitorTabs.vue'
 import { getBoothParkingLots, type BoothParkingLot } from '@/api/parking-lot'
 
 const TOKEN_KEY = 'jushan_access_token'
@@ -379,7 +387,7 @@ const feeRuleEditOpen = ref(false)
 const feeRuleEditLaneId = ref(0)
 const currentFeeRule = ref<any>(null)
 
-// 远程开闸弹窗（Phase 1 B2）
+// 远程开闸弹窗
 const remoteGateModalVisible = ref(false)
 const currentRemoteGateAlert = ref<RemoteGateAlertPayload | null>(null)
 let remoteGateDismissTimer: ReturnType<typeof setTimeout> | null = null
@@ -387,7 +395,7 @@ let remoteGateDismissTimer: ReturnType<typeof setTimeout> | null = null
 // 远程开闸历史通知抽屉
 const historyDrawerOpen = ref(false)
 
-// Phase 2 D5：批量开闸
+// 批量开闸
 const batchReleaseOpen = ref(false)
 const batchLaneOptions = ref<BatchLaneOption[]>([])
 
@@ -398,13 +406,11 @@ const tempPlateExitLane = ref<number | null>(null)
 const tempPlateExiting = ref(false)
 const recognitionFailedAlert = ref<RecognitionFailedAlert | null>(null)
 
-// Phase 2 D6：车场下拉选项
-const lotOptions = ref<{ value: number; label: string }[]>([])
-const loadingLots = ref(false)
+// 车场列表（左侧栏）
+const sidebarLots = ref<{ id: number; name: string; status: string; currentVehicles?: number }[]>([])
 
 /** 打开批量开闸弹窗 */
 function openBatchRelease() {
-  // 从 store 的 lanes 构建批量选项
   batchLaneOptions.value = store.lanes.map((lane) => ({
     id: lane.id,
     name: lane.name || `车道 ${lane.id}`,
@@ -462,24 +468,19 @@ function onTempPlateConfirmed(recordId: number, tempPlate: string) {
   console.log('Temp plate confirmed:', recordId, tempPlate)
 }
 
-/** 加载车场列表 */
+/** 加载车场列表（填充左侧栏） */
 async function loadLotOptions() {
-  loadingLots.value = true
   try {
     const lots = await getBoothParkingLots()
-    lotOptions.value = (lots || []).map((lot: BoothParkingLot) => ({
-      value: lot.id,
-      label: lot.name,
+    sidebarLots.value = (lots || []).map((lot: BoothParkingLot) => ({
+      id: lot.id,
+      name: lot.name,
+      status: lot.status,
+      currentVehicles: undefined,
     }))
   } catch {
     // 静默失败
-  } finally {
-    loadingLots.value = false
   }
-}
-
-function filterLotOption(input: string, option: { value: number; label: string } | undefined) {
-  return option?.label?.toLowerCase().includes(input.toLowerCase()) ?? false
 }
 
 function handleManualOpenGate(laneId: number) {
@@ -519,7 +520,6 @@ async function handleEditFeeRule(laneId: number) {
       message.warning('请先连接停车场')
       return
     }
-    // 查询当前生效规则（简化：按车场查询，不区分区域）
     const rule = await getCurrentFeeRule(lotId)
     currentFeeRule.value = rule
   } catch (e: any) {
@@ -543,7 +543,6 @@ async function handleSaveFeeRule(data: any) {
 
 /** 显示远程开闸弹窗并启动自动消失计时器 */
 function showRemoteGateAlert(payload: RemoteGateAlertPayload) {
-  // 清除旧计时器
   if (remoteGateDismissTimer) {
     clearTimeout(remoteGateDismissTimer)
     remoteGateDismissTimer = null
@@ -552,7 +551,6 @@ function showRemoteGateAlert(payload: RemoteGateAlertPayload) {
   currentRemoteGateAlert.value = payload
   remoteGateModalVisible.value = true
 
-  // 自动消失
   const dismissMs = (payload.autoDismissSeconds || 10) * 1000
   remoteGateDismissTimer = setTimeout(() => {
     remoteGateModalVisible.value = false
@@ -602,14 +600,10 @@ interface LaneCard {
   deviceId?: number
   deviceOnline: boolean
   isOffline: boolean
-  /** 是否正在收费中 */
   charging: boolean
   latestEvent?: RecognitionEventPayload
-  /** 多相机模式下的相机详情 */
   cameras?: LaneCamera[]
-  /** 主相机是否离线（用于高亮告警） */
   primaryOffline: boolean
-  /** 当前活跃相机描述文本 */
   activeSourceLabel?: string
 }
 
@@ -618,14 +612,12 @@ const laneCards = computed((): LaneCard[] => {
     const cameras = lane.cameras || []
     const hasMultiCameras = cameras.length > 0
 
-    // 单相机模式（兼容现有逻辑）
     if (!hasMultiCameras) {
       const device = lane.deviceId
         ? store.deviceStatuses.find((d) => d.deviceId === lane.deviceId)
         : undefined
       const latestEvent = store.recentEvents.find((e) => e.laneId === lane.id)
 
-      // 判断当前车道是否处于收费中状态（收费面板打开且对应此车道）
       const charging =
         store.chargePanelVisible &&
         store.currentChargeInfo?.laneId === lane.id
@@ -645,8 +637,6 @@ const laneCards = computed((): LaneCard[] => {
       }
     }
 
-    // 多相机模式：cameras 已由后端 BoothMonitorService.loadLanes 填充
-    // 在线状态从后端 cameras[].online 直接使用（loadLanes 已查询 DeviceStatusVO 快照）
     const primaryCameras = cameras.filter(c => c.role === 'PRIMARY')
     const primaryOffline = primaryCameras.some(c => !c.online)
     const activeCamera = cameras.find(c => c.isActive)
@@ -686,7 +676,7 @@ function handleEventClick(item: RecognitionEvent) {
 }
 
 function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
+  return sessionStorage.getItem(TOKEN_KEY)
 }
 
 function buildWsClient(lotId: number) {
@@ -711,7 +701,6 @@ function buildWsClient(lotId: number) {
         store.handleRecognitionEvent(payload)
         message.info(`${payload.direction === 'ENTRY' ? '入场' : '出场'}识别: ${payload.plateNumber}`)
 
-        // EXIT 出场事件自动弹出收费面板
         if (payload.direction === 'EXIT') {
           store.showChargePanel(payload.plateNumber, payload.laneId).catch(() => {
             // 查询失败时不阻塞，收费面板已显示（含错误提示）
@@ -750,19 +739,26 @@ function buildWsClient(lotId: number) {
   wsClient.connect()
 }
 
-async function connectOrReconnect() {
-  if (!selectedLotId.value) {
-    message.warning('请选择停车场')
-    return
-  }
+/** 切换车场（替代原 connectOrReconnect） */
+async function handleLotSelect(lotId: number) {
+  if (lotId === selectedLotId.value) return
 
-  localStorage.setItem(LOT_ID_KEY, String(selectedLotId.value))
+  // 断开当前 WebSocket
+  wsClient?.disconnect()
 
+  // 清空 store
+  store.reset()
+
+  // 更新选中
+  selectedLotId.value = lotId
+  sessionStorage.setItem(LOT_ID_KEY, String(lotId))
+
+  // 加载新快照
   try {
-    await store.loadSnapshot(selectedLotId.value)
-    buildWsClient(selectedLotId.value)
+    await store.loadSnapshot(lotId)
+    buildWsClient(lotId)
   } catch (e: any) {
-    message.error(e?.message || '连接失败')
+    message.error(e?.message || '车场切换失败')
   }
 }
 
@@ -781,10 +777,9 @@ async function refreshDevices() {
 
 onMounted(() => {
   loadLotOptions()
-  const saved = localStorage.getItem(LOT_ID_KEY)
+  const saved = sessionStorage.getItem(LOT_ID_KEY)
   if (saved) {
-    selectedLotId.value = Number(saved)
-    connectOrReconnect()
+    handleLotSelect(Number(saved))
   }
 })
 
@@ -799,16 +794,21 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .monitor-page {
-  padding: 16px;
-  min-height: 100vh;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   background: #f5f7fa;
+  overflow: hidden;
 }
 
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  padding: 8px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
 
   .header-left {
     display: flex;
@@ -823,32 +823,80 @@ onUnmounted(() => {
   }
 
   .page-title {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     color: #1f2937;
   }
 }
 
 .critical-banner {
-  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.monitor-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.monitor-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.video-placeholder {
+  height: 200px;
+  min-height: 200px;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.video-placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 14px;
+
+  p {
+    margin: 0;
+  }
+}
+
+.monitor-panel {
+  flex: 1;
+  overflow: hidden;
+}
+
+.monitor-tab-content {
+  height: 100%;
+  overflow: auto;
+  padding: 8px;
 }
 
 .space-card {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 
   .space-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
+    gap: 12px;
     text-align: center;
   }
 
   .space-item {
-    padding: 16px;
+    padding: 8px;
   }
 
   .space-value {
-    font-size: 36px;
+    font-size: 28px;
     font-weight: 700;
     color: #1f2937;
 
@@ -858,16 +906,16 @@ onUnmounted(() => {
   }
 
   .space-label {
-    margin-top: 8px;
+    margin-top: 4px;
     color: #6b7280;
-    font-size: 14px;
+    font-size: 12px;
   }
 }
 
 .lane-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
 }
 
 .lane-card {
@@ -875,16 +923,22 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
 
   .lane-name {
     font-weight: 600;
-    font-size: 15px;
+    font-size: 14px;
+  }
+
+  .lane-tags {
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .lane-direction {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
 
   .lane-actions {
@@ -894,12 +948,12 @@ onUnmounted(() => {
 
   .lane-event {
     text-align: center;
-    padding: 12px 0;
+    padding: 8px 0;
     background: #f9fafb;
     border-radius: 6px;
 
     .event-plate {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
       color: #111827;
     }
@@ -909,7 +963,7 @@ onUnmounted(() => {
     }
 
     .event-time {
-      margin-top: 4px;
+      margin-top: 2px;
       font-size: 12px;
       color: #6b7280;
     }
@@ -928,22 +982,15 @@ onUnmounted(() => {
     border: 2px solid #f59e0b;
     background-color: rgba(245, 158, 11, 0.04);
   }
-
-  .lane-tags {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
 }
 
-.right-card {
-  margin-bottom: 16px;
-  max-height: 420px;
+.inner-card {
+  max-height: 320px;
   overflow: auto;
 }
 
 .event-list-item {
-  padding: 8px 0;
+  padding: 6px 0;
   cursor: pointer;
   transition: background-color 0.2s;
 
@@ -965,19 +1012,19 @@ onUnmounted(() => {
 .event-main {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 6px;
+  margin-bottom: 2px;
 }
 
 .event-plate-text {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .event-sub {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 11px;
   color: #6b7280;
 }
 
@@ -987,21 +1034,21 @@ onUnmounted(() => {
 
 .event-fee {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: $error-color;
   text-align: right;
 }
 
 .alert-list-item {
-  padding: 8px 0;
+  padding: 6px 0;
 }
 
 .alert-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 6px;
+  margin-bottom: 2px;
 }
 
 .alert-message {
@@ -1011,7 +1058,7 @@ onUnmounted(() => {
 }
 
 .alert-time {
-  font-size: 12px;
+  font-size: 11px;
   color: #9ca3af;
 }
 </style>
