@@ -75,12 +75,12 @@ export const constantRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/manual-gate-record/index.vue'),
         meta: { title: '开闸记录', icon: 'HistoryOutlined', permission: 'device:audit', cache: true },
       },
-      // FIX-11：员工管理
+      // FIX-11：员工管理（已废弃，迁移至账号管理）
       {
         path: 'employees',
         name: 'Employees',
         component: () => import('@/views/employee/index.vue'),
-        meta: { title: '员工管理', icon: 'UserOutlined' },
+        meta: { title: '员工管理（已废弃）', icon: 'UserOutlined' },
       },
       // FIX-11：审计日志
       {

@@ -1,5 +1,19 @@
 <template>
   <div class="employee-page">
+    <a-alert
+      v-if="!hideDeprecatedBanner"
+      type="warning"
+      show-icon
+      closable
+      @close="hideDeprecatedBanner = true"
+      style="margin-bottom: 16px"
+    >
+      <template #message>
+        <strong>【系统通知】</strong>员工管理已合并至"账号管理"页面。
+        <a @click="goToAccounts">点击前往账号管理</a>
+        &nbsp;本页面仅保留历史数据查看，不再支持新增/编辑/删除操作。
+      </template>
+    </a-alert>
     <div class="query-bar">
       <a-space>
         <a-select v-model:value="queryStatus" placeholder="全部状态" allow-clear style="width: 130px" @change="handleQuery">
@@ -14,9 +28,7 @@
           <template #icon><ReloadOutlined /></template>重置
         </a-button>
       </a-space>
-      <a-button type="primary" @click="handleCreate">
-        <template #icon><PlusOutlined /></template>新增员工
-      </a-button>
+      <!-- 新增员工按钮已废弃 -->
     </div>
 
     <a-table
@@ -38,12 +50,7 @@
           <span v-if="!record.parkingLotNames?.length" style="color: #999">未分配</span>
         </template>
         <template v-if="column.key === 'action'">
-          <a-space>
-            <a @click="handleEdit(record)">编辑</a>
-            <a @click="handleResetPassword(record)">重置密码</a>
-            <a v-if="record.status === 'DISABLED'" @click="handleToggleStatus(record, 'ENABLED')">启用</a>
-            <a v-else style="color: #dc2626" @click="handleToggleStatus(record, 'DISABLED')">禁用</a>
-          </a-space>
+          <a @click="goToAccounts">前往账号管理</a>
         </template>
       </template>
     </a-table>
@@ -89,6 +96,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { SearchOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { getEmployees, createEmployee, updateEmployee, resetEmployeePassword, updateEmployeeStatus, type EmployeeVO } from '@/api/employee'
@@ -109,6 +117,13 @@ const loading = ref(false)
 const dataSource = ref<EmployeeVO[]>([])
 const queryStatus = ref('')
 const parkingLotOptions = ref<ParkingLotVO[]>([])
+
+const router = useRouter()
+const hideDeprecatedBanner = ref(false)
+
+function goToAccounts() {
+  router.push('/admin-accounts')
+}
 
 const pagination = reactive({
   current: 1, pageSize: 10, total: 0,
