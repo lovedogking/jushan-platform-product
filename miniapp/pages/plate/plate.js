@@ -123,7 +123,7 @@ Page({
 
     this.setData({ binding: true })
     try {
-      await post('/wx/plates', { plate, vehicleType: 'SMALL' })
+      await post('/api/v1/mini/plates', { plate, vehicleType: 'SMALL' })
       wx.showToast({ title: '绑定成功', icon: 'success' })
       this.setData({ newPlate: '' })
       await this.loadPlates()
@@ -142,7 +142,7 @@ Page({
     const { id } = e.currentTarget.dataset
     this.setData({ actionLoading: true })
     try {
-      await put(`/wx/plates/${id}/default`)
+      await put(`/api/v1/mini/plates/${id}/default`)
       wx.showToast({ title: '设置成功', icon: 'success' })
       await this.loadPlates()
     } catch (err) {
@@ -167,7 +167,7 @@ Page({
 
     this.setData({ actionLoading: true })
     try {
-      await del(`/wx/plates/${id}`)
+      await del(`/api/v1/mini/plates/${id}`)
       wx.showToast({ title: '解绑成功', icon: 'success' })
       await this.loadPlates()
     } catch (err) {

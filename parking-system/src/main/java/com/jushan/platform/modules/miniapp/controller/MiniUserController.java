@@ -6,8 +6,12 @@ import com.jushan.platform.infra.security.RequirePermission;
 import com.jushan.platform.modules.miniapp.service.MiniUserService;
 import com.jushan.platform.modules.miniapp.vo.MiniParkingRecordVO;
 import com.jushan.platform.modules.parking.vo.ParkingSpaceRemainVO;
+import com.jushan.system.dto.BindPlateRequest;
+import com.jushan.system.dto.UnbindPlateRequest;
 import com.jushan.system.service.WxUserService;
 import com.jushan.system.vo.PlateBindingVo;
+import com.jushan.system.vo.WxUserVo;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -91,5 +95,45 @@ public class MiniUserController {
     @RequirePermission("miniapp:view")
     public R<List<PlateBindingVo>> listPlates() {
         return R.ok(wxUserService.getCurrentUser().getPlates());
+    }
+
+    /**
+     * 绑定车牌。
+     */
+    @PostMapping("/plates")
+    @RequirePermission("miniapp:view")
+    public R<PlateBindingVo> bindPlate(@Valid @RequestBody BindPlateRequest request) {
+        return R.ok(wxUserService.bindPlate(request));
+    }
+
+    /**
+     * 解绑车牌。
+     */
+    @DeleteMapping("/plates/{bindingId}")
+    @RequirePermission("miniapp:view")
+    public R<Void> unbindPlate(@PathVariable Long bindingId) {
+        UnbindPlateRequest request = new UnbindPlateRequest();
+        request.setBindingId(bindingId);
+        wxUserService.unbindPlate(request);
+        return R.ok();
+    }
+
+    /**
+     * 设置默认车牌。
+     */
+    @PutMapping("/plates/{bindingId}/default")
+    @RequirePermission("miniapp:view")
+    public R<Void> setDefaultPlate(@PathVariable Long bindingId) {
+        wxUserService.setDefaultPlate(bindingId);
+        return R.ok();
+    }
+
+    /**
+     * 获取当前用户信息。
+     */
+    @GetMapping("/user")
+    @RequirePermission("miniapp:view")
+    public R<WxUserVo> getCurrentUser() {
+        return R.ok(wxUserService.getCurrentUser());
     }
 }

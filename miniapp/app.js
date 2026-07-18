@@ -36,7 +36,7 @@ App({
     if (!token) { await this.doLogin(); return }
     this.globalData.token = token
     try {
-      const userInfo = await this.request({ url: '/wx/user', method: 'GET' })
+      const userInfo = await this.request({ url: '/api/v1/mini/user', method: 'GET' })
       this.globalData.ownerInfo = userInfo
       this.globalData.phoneBound = userInfo && userInfo.phoneVerified === true
     } catch (err) {
