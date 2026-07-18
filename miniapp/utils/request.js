@@ -49,7 +49,7 @@ function request(options) {
       'Content-Type': 'application/json',
       ...(options.header || {}),
     }
-    if (token) {
+    if (token && !options.skipAuth) {
       header['Authorization'] = `Bearer ${token}`
     }
 
@@ -81,15 +81,26 @@ function request(options) {
 
         // 非 2xx HTTP 响应
         if (statusCode === 401) {
-          // 清除登录态
-          app.logout()
-          const err = createApiError(
-            (body && body.message) || '未登录或登录已过期',
-            body && body.code,
-            statusCode,
-            body && body.traceId,
-          )
-          reject(err)
+          if (options._noRefresh || options._retrying) {
+            app.logout()
+            const err = createApiError(
+              (body && body.message) || '未登录或登录已过期',
+              body && body.code,
+              statusCode,
+              body && body.traceId,
+            )
+            reject(err)
+            return
+          }
+          refreshToken().then((newToken) => {
+            if (newToken) {
+              const retryOptions = Object.assign({}, options, { _retrying: true })
+              request(retryOptions).then(resolve).catch(reject)
+            } else {
+              app.logout()
+              reject(createApiError('登录已过期，请重新登录', undefined, 401))
+            }
+          })
           return
         }
 
@@ -132,6 +143,32 @@ function handleErrorResponse(body, statusCode, reject) {
   const traceId = body.traceId
   const code = body.code
   reject(createApiError(msg, code, statusCode, traceId))
+}
+
+/**
+ * 刷新 Token（通过 wx.login 重新登录）。
+ * 单例 Promise：并发 401 只发一次刷新请求。
+ */
+function refreshToken() {
+  const app = getApp()
+  if (app.globalData._refreshPromise) return app.globalData._refreshPromise
+  app.globalData._refreshPromise = (async () => {
+    try {
+      const { code } = await new Promise((resolve, reject) => {
+        wx.login({ success: resolve, fail: reject })
+      })
+      const result = await request({
+        url: '/api/v1/mini/login', method: 'POST', data: { code },
+        skipAuth: true, _noRefresh: true,
+      })
+      app.globalData.token = result.token
+      app.globalData.phoneBound = result.phoneBound === true
+      wx.setStorageSync('jushan_access_token', result.token)
+      return result.token
+    } catch (err) { return null }
+    finally { app.globalData._refreshPromise = null }
+  })()
+  return app.globalData._refreshPromise
 }
 
 /**
