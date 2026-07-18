@@ -74,6 +74,9 @@ public class LoginResult {
         /** 租户ID（平台用户为 null） */
         private Long tenantId;
 
+        /** 首次登录是否强制改密：0=否，1=是 */
+        private Integer mustChangePassword;
+
         public Long getUserId() {
             return userId;
         }
@@ -112,6 +115,14 @@ public class LoginResult {
 
         public void setTenantId(Long tenantId) {
             this.tenantId = tenantId;
+        }
+
+        public Integer getMustChangePassword() {
+            return mustChangePassword;
+        }
+
+        public void setMustChangePassword(Integer mustChangePassword) {
+            this.mustChangePassword = mustChangePassword;
         }
     }
 }

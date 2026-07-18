@@ -288,6 +288,7 @@ public class AuthController {
         userInfo.setRealName(account.getRealName());
         userInfo.setLevel(account.getLevel());
         userInfo.setTenantId(account.getTenantId());
+        userInfo.setMustChangePassword(account.getMustChangePassword());
         return userInfo;
     }
 
