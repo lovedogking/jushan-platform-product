@@ -179,6 +179,20 @@ export const constantRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/exception-record/index.vue'),
         meta: { title: '异常记录', icon: 'ExclamationCircleOutlined', permission: 'exception:view', cache: true },
       },
+      // 包6-1：收入报表
+      {
+        path: 'report-revenue',
+        name: 'ReportRevenue',
+        component: () => import('@/views/report/RevenueReport.vue'),
+        meta: { title: '收入报表', icon: 'DollarCircleOutlined', permission: 'dashboard:view', cache: true },
+      },
+      // 包6-1：车流量报表
+      {
+        path: 'report-traffic',
+        name: 'ReportTraffic',
+        component: () => import('@/views/report/TrafficReport.vue'),
+        meta: { title: '车流量报表', icon: 'BarChartOutlined', permission: 'dashboard:view', cache: true },
+      },
 
     ],
   },
