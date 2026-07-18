@@ -20,6 +20,7 @@ import com.jushan.system.service.FixedSpaceService;
 import com.jushan.system.service.PrepaidDeductionService;
 import com.jushan.system.ws.BoothWebSocketPublisher;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
+import com.jushan.platform.modules.vehicle.service.VehicleTypeDecisionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -102,6 +103,9 @@ class ExitServiceTest extends TestcontainersBaseTest {
     @Mock
     private com.jushan.system.service.ParamResolver paramResolver;
 
+    @Mock
+    private VehicleTypeDecisionService vehicleTypeDecisionService;
+
     private ExitService exitService;
 
     @BeforeEach
@@ -109,7 +113,8 @@ class ExitServiceTest extends TestcontainersBaseTest {
         exitService = new ExitService(recordMapper, exitRecordMapper, parkingOrderService,
                 parkingLotMapper, billingEngine, boothWebSocketPublisher, parkingSessionService,
                 prepaidDeductionService, fixedSpaceService, deviceService,
-                distributedLock, recalcLogMapper, orderMapper, paramResolver);
+                distributedLock, recalcLogMapper, orderMapper, paramResolver,
+                vehicleTypeDecisionService);
     }
 
     @Test
