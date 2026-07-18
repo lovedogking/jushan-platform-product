@@ -52,6 +52,43 @@ public final class JwtUtils {
     }
 
     /**
+     * 生成 JWT Token（含 audience）。
+     *
+     * @param userId     用户ID
+     * @param tenantId   租户ID（平台用户为 null）
+     * @param userType   用户类型（platform/tenant/wx_user）
+     * @param roles      角色JSON字符串
+     * @param permissions 权限编码列表（逗号分隔）
+     * @param audience   JWT audience（如 "miniapp"、"web"），可为 null
+     * @param secretKey  密钥
+     * @param expiration 过期时间（毫秒）
+     * @return JWT Token
+     */
+    public static String generateToken(Long userId, Long tenantId, String userType, String roles,
+                                       String permissions, String audience, String secretKey, long expiration) {
+        SecretKey key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + expiration);
+
+        var builder = Jwts.builder()
+                .subject(String.valueOf(userId))
+                .claim("tenantId", tenantId)
+                .claim("userType", userType)
+                .claim("roles", roles)
+                .claim("permissions", permissions);
+
+        if (audience != null && !audience.isBlank()) {
+            builder.audience().add(audience);
+        }
+
+        return builder
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(key)
+                .compact();
+    }
+
+    /**
      * 验证 Token 是否有效。
      *
      * @param token     JWT Token
@@ -133,5 +170,27 @@ public final class JwtUtils {
      */
     public static String getPermissionsFromClaims(Claims claims) {
         return claims.get("permissions", String.class);
+    }
+
+    /**
+     * 从 Claims 中提取 audience。
+     *
+     * @param claims Claims
+     * @return audience 字符串（可能为 null）
+     */
+    public static String getAudienceFromClaims(Claims claims) {
+        Object aud = claims.get("aud");
+        if (aud == null) {
+            return null;
+        }
+        if (aud instanceof String) {
+            return (String) aud;
+        }
+        // jjwt 0.12.x 可能返回 List
+        if (aud instanceof java.util.List) {
+            var list = (java.util.List<?>) aud;
+            return list.isEmpty() ? null : String.valueOf(list.get(0));
+        }
+        return aud.toString();
     }
 }
