@@ -3,7 +3,6 @@ package com.jushan.system.controller;
 import com.jushan.common.R;
 import com.jushan.common.auth.TenantContext;
 import com.jushan.system.service.DeviceService;
-import com.jushan.system.service.GpioGateService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
@@ -28,11 +27,9 @@ public class InternalGateController {
     private static final Logger log = LoggerFactory.getLogger(InternalGateController.class);
 
     private final DeviceService deviceService;
-    private final GpioGateService gpioGateService;
 
-    public InternalGateController(DeviceService deviceService, GpioGateService gpioGateService) {
+    public InternalGateController(DeviceService deviceService) {
         this.deviceService = deviceService;
-        this.gpioGateService = gpioGateService;
     }
 
     /**
@@ -71,25 +68,4 @@ public class InternalGateController {
         }
     }
 
-    /**
-     * 直接 GPIO 开闸（不经过 DA，只控制 C5H）。
-     * GET /api/v1/internal/gate/gpio-open/{deviceId}
-     */
-    @GetMapping("/gpio-open/{deviceId}")
-    public R<String> gpioOpen(@PathVariable Long deviceId) {
-        log.info("内部GPIO开闸测试: deviceId={}", deviceId);
-        boolean ok = gpioGateService.openGate("917e2298-8ddf3e46");
-        return ok ? R.ok("GPIO开闸成功") : R.fail(500, "GPIO开闸失败");
-    }
-
-    /**
-     * 直接 GPIO 关闸（不经过 DA，只控制 C5H）。
-     * GET /api/v1/internal/gate/gpio-close
-     */
-    @GetMapping("/gpio-close")
-    public R<String> gpioClose() {
-        log.info("内部GPIO关闸测试");
-        boolean ok = gpioGateService.closeGate("917e2298-8ddf3e46");
-        return ok ? R.ok("GPIO关闸成功") : R.fail(500, "GPIO关闸失败");
-    }
 }
