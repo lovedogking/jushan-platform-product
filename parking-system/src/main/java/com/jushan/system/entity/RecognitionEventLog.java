@@ -91,6 +91,18 @@ public class RecognitionEventLog implements Serializable {
     /** 相机来源：PRIMARY=主相机, BACKUP=备相机, NULL=单相机或无主备配置 */
     private String cameraSource;
 
+    /** 校正后车牌号（NULL 表示未校正） */
+    private String correctedPlate;
+
+    /** 校正类型：MANUAL_CORRECTION */
+    private String correctionType;
+
+    /** 校正操作时间 */
+    private LocalDateTime correctedAt;
+
+    /** 校正人 ID（sys_user.id，岗亭管理员） */
+    private Long correctorId;
+
     // ==================== getter / setter ====================
 
     public Long getId() { return id; }
@@ -155,4 +167,16 @@ public class RecognitionEventLog implements Serializable {
 
     public String getCameraSource() { return cameraSource; }
     public void setCameraSource(String cameraSource) { this.cameraSource = cameraSource; }
+
+    public String getCorrectedPlate() { return correctedPlate; }
+    public void setCorrectedPlate(String correctedPlate) { this.correctedPlate = correctedPlate; }
+
+    public String getCorrectionType() { return correctionType; }
+    public void setCorrectionType(String correctionType) { this.correctionType = correctionType; }
+
+    public LocalDateTime getCorrectedAt() { return correctedAt; }
+    public void setCorrectedAt(LocalDateTime correctedAt) { this.correctedAt = correctedAt; }
+
+    public Long getCorrectorId() { return correctorId; }
+    public void setCorrectorId(Long correctorId) { this.correctorId = correctorId; }
 }
