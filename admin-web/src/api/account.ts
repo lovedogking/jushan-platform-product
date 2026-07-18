@@ -12,10 +12,14 @@ export interface AdminAccountVO {
   email?: string
   level: number
   status: number
+  mustChangePassword?: number
+  allowFeeReduction?: number
   lastLoginTime?: string
   createdAt?: string
   roleIds?: number[]
   roleNames?: string[]
+  parkingLotIds?: number[]
+  plainPassword?: string
 }
 
 export interface AdminAccountCreateCmd {
@@ -29,6 +33,9 @@ export interface AdminAccountCreateCmd {
   lotId?: number
   status: number
   roleIds?: number[]
+  mustChangePassword?: number
+  allowFeeReduction?: number
+  parkingLotIds?: number[]
 }
 
 export interface AdminAccountUpdateCmd {
@@ -41,6 +48,9 @@ export interface AdminAccountUpdateCmd {
   lotId?: number
   status: number
   roleIds?: number[]
+  mustChangePassword?: number
+  allowFeeReduction?: number
+  parkingLotIds?: number[]
 }
 
 export interface CustomRoleVO {
