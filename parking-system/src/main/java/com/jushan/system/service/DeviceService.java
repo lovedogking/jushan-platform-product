@@ -37,7 +37,6 @@ import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.SysAuditLogMapper;
 import com.jushan.system.vo.DeviceStatusVO;
 import com.jushan.system.vo.DeviceVO;
-import com.jushan.system.service.GpioGateService;
 import com.jushan.system.service.CameraFailoverService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.UUID;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -131,7 +131,6 @@ public class DeviceService {
     private final SysAuditLogMapper auditLogMapper;
     private final DeviceCommandAuditMapper commandAuditMapper;
     private final ParkingLotScopeResolver scopeResolver;
-    private final GpioGateService gpioGateService;
     private final CameraFailoverService cameraFailoverService;
 
     public DeviceService(DeviceMapper deviceMapper,
@@ -144,7 +143,6 @@ public class DeviceService {
                          SysAuditLogMapper auditLogMapper,
                          DeviceCommandAuditMapper commandAuditMapper,
                          ParkingLotScopeResolver scopeResolver,
-                         GpioGateService gpioGateService,
                          CameraFailoverService cameraFailoverService) {
         this.deviceMapper = deviceMapper;
         this.vendorMapper = vendorMapper;
@@ -156,7 +154,6 @@ public class DeviceService {
         this.auditLogMapper = auditLogMapper;
         this.commandAuditMapper = commandAuditMapper;
         this.scopeResolver = scopeResolver;
-        this.gpioGateService = gpioGateService;
         this.cameraFailoverService = cameraFailoverService;
     }
 
@@ -1039,25 +1036,19 @@ public class DeviceService {
         Long tenantId = lot.getTenantId();
         LocalDateTime now = LocalDateTime.now();
 
+        // 生成幂等 commandId
+        String commandId = UUID.randomUUID().toString();
+
         // 构造命令审计记录
         DeviceCommandAudit audit = buildCommandAudit(device, lot, tenantId,
                 COMMAND_TYPE_OPEN_GATE, reason, null, now);
+        audit.setCommandId(commandId);
         audit.setPlateNumber(plateNumber);
         audit.setFeeCents(feeCents);
 
         try {
-            CommandResultDTO result;
-
-            // CAMERA 设备通过 GPIO 控制（臻识 C5H）
-            if ("CAMERA".equals(deviceType) && hasOpenGateCapability(device)) {
-                boolean success = gpioGateService.openGate(deviceSn);
-                result = buildCommandResult(success, success ? 200 : 500,
-                        success ? "GPIO开闸成功" : "GPIO开闸失败");
-                log.info("GPIO开闸: deviceId={}, deviceSn={}, success={}", deviceId, deviceSn, success);
-            } else {
-                // GATE 设备通过 DA 开闸
-                result = deviceAccessClient.openGate(deviceSn);
-            }
+            // 统一通过 DeviceAccessClient 开闸（内部含重试）
+            CommandResultDTO result = deviceAccessClient.openGate(deviceSn, commandId);
 
             audit.setStatus(result.isSuccessful() ? AUDIT_STATUS_SUCCESS : AUDIT_STATUS_FAILED);
             audit.setUncertain(false);
@@ -1066,8 +1057,8 @@ public class DeviceService {
             audit.setUpdatedAt(LocalDateTime.now());
             commandAuditMapper.updateById(audit);
 
-            log.info("开闸完成: deviceId={}, auditId={}, success={}, deviceCode={}",
-                    deviceId, audit.getId(), result.getSuccess(), result.getDeviceCode());
+            log.info("开闸完成: deviceId={}, auditId={}, commandId={}, success={}, deviceCode={}",
+                    deviceId, audit.getId(), commandId, result.getSuccess(), result.getDeviceCode());
 
             if (!result.isSuccessful()) {
                 throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
@@ -1083,18 +1074,26 @@ public class DeviceService {
             audit.setUpdatedAt(LocalDateTime.now());
             commandAuditMapper.updateById(audit);
 
-            log.error("开闸异常（UNCERTAIN）: deviceId={}, auditId={}, error={}",
-                    deviceId, audit.getId(), e.getMessage());
+            log.error("开闸异常（UNCERTAIN）: deviceId={}, auditId={}, commandId={}, error={}",
+                    deviceId, audit.getId(), commandId, e.getMessage());
             throw e;
         }
     }
 
     /**
-     * 检查设备是否具备 OPEN_GATE 能力（CAMERA 类型通过 GPIO 直接控制道闸）。
+     * 检查设备是否具备 OPEN_GATE 能力。
+     * <p>
+     * 任务包 7-1：CAMERA GPIO 控制已收敛至 DeviceAccessClient → Adapter，
+     * Adapter 侧根据设备类型自动选择 gate_direct_open 或 gpio_out 协议。
+     * 本方法仅保留用于日志提示，不再执行 GPIO 旁路调用。
      */
     private boolean hasOpenGateCapability(Device device) {
         String capabilities = device.getCapabilities();
-        return capabilities != null && capabilities.contains("OPEN_GATE");
+        boolean hasCap = capabilities != null && capabilities.contains("OPEN_GATE");
+        if (hasCap && "CAMERA".equals(device.getDeviceType())) {
+            log.info("CAMERA 设备具备 OPEN_GATE 能力，将通过 Adapter 下发: deviceSn={}", device.getDeviceSn());
+        }
+        return hasCap;
     }
 
     /**
@@ -1137,21 +1136,14 @@ public class DeviceService {
         Long tenantId = lot.getTenantId();
         LocalDateTime now = LocalDateTime.now();
 
+        String commandId = UUID.randomUUID().toString();
+
         DeviceCommandAudit audit = buildCommandAudit(device, lot, tenantId,
                 "CLOSE_GATE", reason, null, now);
+        audit.setCommandId(commandId);
 
         try {
-            CommandResultDTO result;
-
-            // CAMERA 设备通过 GPIO 控制（臻识 C5H）
-            if ("CAMERA".equals(deviceType) && hasOpenGateCapability(device)) {
-                boolean success = gpioGateService.closeGate(deviceSn);
-                result = buildCommandResult(success, success ? 200 : 500,
-                        success ? "GPIO关闸成功" : "GPIO关闸失败");
-                log.info("GPIO关闸: deviceId={}, deviceSn={}, success={}", deviceId, deviceSn, success);
-            } else {
-                result = deviceAccessClient.closeGate(deviceSn);
-            }
+            CommandResultDTO result = deviceAccessClient.closeGate(deviceSn, commandId);
 
             audit.setStatus(result.isSuccessful() ? AUDIT_STATUS_SUCCESS : AUDIT_STATUS_FAILED);
             audit.setUncertain(false);
@@ -1160,8 +1152,8 @@ public class DeviceService {
             audit.setUpdatedAt(LocalDateTime.now());
             commandAuditMapper.updateById(audit);
 
-            log.info("关闸完成: deviceId={}, auditId={}, success={}, deviceCode={}",
-                    deviceId, audit.getId(), result.getSuccess(), result.getDeviceCode());
+            log.info("关闸完成: deviceId={}, auditId={}, commandId={}, success={}, deviceCode={}",
+                    deviceId, audit.getId(), commandId, result.getSuccess(), result.getDeviceCode());
 
             if (!result.isSuccessful()) {
                 throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
@@ -1177,8 +1169,8 @@ public class DeviceService {
             audit.setUpdatedAt(LocalDateTime.now());
             commandAuditMapper.updateById(audit);
 
-            log.error("关闸异常（UNCERTAIN）: deviceId={}, auditId={}, error={}",
-                    deviceId, audit.getId(), e.getMessage());
+            log.error("关闸异常（UNCERTAIN）: deviceId={}, auditId={}, commandId={}, error={}",
+                    deviceId, audit.getId(), commandId, e.getMessage());
             throw e;
         }
     }
