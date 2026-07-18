@@ -10,6 +10,8 @@ import com.jushan.platform.modules.miniapp.service.MiniUserService;
 import com.jushan.platform.modules.miniapp.vo.MiniParkingRecordVO;
 import com.jushan.platform.modules.parking.service.ParkingSpacePolicyService;
 import com.jushan.platform.modules.parking.vo.ParkingSpaceRemainVO;
+import com.jushan.platform.modules.miniapp.entity.ProxyPayRecord;
+import com.jushan.platform.modules.miniapp.mapper.ProxyPayRecordMapper;
 import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.entity.ParkingRecord;
@@ -54,6 +56,7 @@ public class MiniUserServiceImpl implements MiniUserService {
     private final VehicleMapper vehicleMapper;
     private final WxUserService wxUserService;
     private final ParkingSpacePolicyService parkingSpacePolicyService;
+    private final ProxyPayRecordMapper proxyPayRecordMapper;
 
     public MiniUserServiceImpl(ParkingRecordMapper parkingRecordMapper,
                                ParkingLotMapper parkingLotMapper,
@@ -61,7 +64,8 @@ public class MiniUserServiceImpl implements MiniUserService {
                                PlateBindingMapper plateBindingMapper,
                                VehicleMapper vehicleMapper,
                                WxUserService wxUserService,
-                               ParkingSpacePolicyService parkingSpacePolicyService) {
+                               ParkingSpacePolicyService parkingSpacePolicyService,
+                               ProxyPayRecordMapper proxyPayRecordMapper) {
         this.parkingRecordMapper = parkingRecordMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.parkingOrderMapper = parkingOrderMapper;
@@ -69,15 +73,150 @@ public class MiniUserServiceImpl implements MiniUserService {
         this.vehicleMapper = vehicleMapper;
         this.wxUserService = wxUserService;
         this.parkingSpacePolicyService = parkingSpacePolicyService;
+        this.proxyPayRecordMapper = proxyPayRecordMapper;
     }
 
     @Override
-    public IPage<MiniParkingRecordVO> listParkingRecords(long current, long size) {
+    public IPage<MiniParkingRecordVO> listParkingRecords(long current, long size, String tab) {
         List<String> plates = getBoundPlates();
+        Long wxUserId = getCurrentWxUserIdQuietly();
+
+        if ("in_progress".equals(tab)) {
+            // 在场中：只查 status=PARKING 的记录
+            if (plates.isEmpty()) {
+                return new Page<>(current, size, 0);
+            }
+            List<ParkingRecord> activeRecords = parkingRecordMapper.selectActiveByPlates(plates);
+            // 手动分页
+            int start = (int) ((current - 1) * size);
+            int end = Math.min(start + (int) size, activeRecords.size());
+            if (start >= activeRecords.size()) {
+                return new Page<>(current, size, 0);
+            }
+            List<ParkingRecord> pagedRecords = activeRecords.subList(start, end);
+            List<MiniParkingRecordVO> vos = pagedRecords.stream().map(this::toMiniVO).collect(Collectors.toList());
+            Page<MiniParkingRecordVO> page = new Page<>(current, size, activeRecords.size());
+            page.setRecords(vos);
+            return page;
+        }
+
+        if ("pending_pay".equals(tab)) {
+            // 待支付/欠费中：查询有 UNPAID/ARREARS 订单的<b>所有</b>记录（含已出场欠费）
+            if (plates.isEmpty()) {
+                return new Page<>(current, size, 0);
+            }
+            List<ParkingRecord> allRecords = parkingRecordMapper.selectByPlates(plates);
+            // 限制最大扫描量防止内存溢出
+            if (allRecords.size() > 500) {
+                allRecords = allRecords.subList(0, 500);
+            }
+            List<MiniParkingRecordVO> results = new ArrayList<>();
+            for (ParkingRecord record : allRecords) {
+                ParkingOrder order = findLatestOrder(record.getId());
+                if (order != null && (ParkingOrder.STATUS_PENDING_PAY.equals(order.getStatus())
+                        || ParkingOrder.STATUS_ARREARS.equals(order.getStatus()))) {
+                    results.add(toMiniVO(record));
+                }
+            }
+            // 分页截取
+            int start = (int) ((current - 1) * size);
+            int end = Math.min(start + (int) size, results.size());
+            if (start >= results.size()) {
+                return new Page<>(current, size, 0);
+            }
+            List<MiniParkingRecordVO> paged = results.subList(start, end);
+            Page<MiniParkingRecordVO> page = new Page<>(current, size, results.size());
+            page.setRecords(paged);
+            return page;
+        }
+
+        if ("completed".equals(tab)) {
+            // 已完成：已支付/已出场的记录 + 代缴记录
+            List<MiniParkingRecordVO> results = new ArrayList<>();
+
+            // 1. 自己名下已完成记录
+            if (!plates.isEmpty()) {
+                List<ParkingRecord> allRecords = parkingRecordMapper.selectByPlates(plates);
+                // 限制最大扫描量
+                if (allRecords.size() > 500) {
+                    allRecords = allRecords.subList(0, 500);
+                }
+                for (ParkingRecord record : allRecords) {
+                    MiniParkingRecordVO vo = toMiniVO(record);
+                    if ("PAID".equals(vo.getPayStatus()) && "OUT".equals(vo.getStatus())) {
+                        results.add(vo);
+                    }
+                }
+            }
+
+            // 2. 代缴记录（当前用户作为代缴人）
+            if (wxUserId != null) {
+                List<ProxyPayRecord> proxyRecords = proxyPayRecordMapper.selectList(
+                        new LambdaQueryWrapper<ProxyPayRecord>()
+                                .eq(ProxyPayRecord::getPayerId, wxUserId)
+                                .eq(ProxyPayRecord::getStatus, ProxyPayRecord.STATUS_COMPLETED)
+                                .isNull(ProxyPayRecord::getDeletedAt)
+                                .orderByDesc(ProxyPayRecord::getCreatedAt));
+                for (ProxyPayRecord proxy : proxyRecords) {
+                    MiniParkingRecordVO proxyVo = new MiniParkingRecordVO();
+                    proxyVo.setId(proxy.getRecordId());
+                    proxyVo.setRecordId(proxy.getRecordId());
+                    proxyVo.setPlateNumber(proxy.getPlateNumber());
+                    proxyVo.setPayStatus("PAID");
+                    proxyVo.setStatus("OUT");
+                    proxyVo.setProxyPay(true); // 标记为代缴
+                    proxyVo.setFeeCents(proxy.getAmountCents());
+                    if (proxy.getAmountCents() != null) {
+                        proxyVo.setFeeAmount(new BigDecimal(proxy.getAmountCents())
+                                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP));
+                    }
+                    // 查停车场名称
+                    if (proxy.getParkingLotId() != null) {
+                        ParkingLot lot = parkingLotMapper.selectById(proxy.getParkingLotId());
+                        proxyVo.setParkingLotName(lot != null ? lot.getName() : "");
+                    }
+                    // 查入场时间（从 record）
+                    ParkingRecord proxyRecord = parkingRecordMapper.selectById(proxy.getRecordId());
+                    if (proxyRecord != null) {
+                        proxyVo.setEntryTime(proxyRecord.getEntryTime());
+                        proxyVo.setExitTime(proxyRecord.getExitTime());
+                        if (proxyRecord.getEntryTime() != null) {
+                            LocalDateTime endTime = proxyRecord.getExitTime() != null
+                                    ? proxyRecord.getExitTime() : LocalDateTime.now();
+                            proxyVo.setDurationMinutes(ChronoUnit.MINUTES.between(
+                                    proxyRecord.getEntryTime(), endTime));
+                        }
+                    }
+                    results.add(proxyVo);
+                }
+            }
+
+            // 按入场时间倒序排序
+            results.sort((a, b) -> {
+                LocalDateTime ta = a.getEntryTime();
+                LocalDateTime tb = b.getEntryTime();
+                if (ta == null && tb == null) return 0;
+                if (ta == null) return 1;
+                if (tb == null) return -1;
+                return tb.compareTo(ta);
+            });
+
+            // 分页截取
+            int start = (int) ((current - 1) * size);
+            int end = Math.min(start + (int) size, results.size());
+            if (start >= results.size()) {
+                return new Page<>(current, size, 0);
+            }
+            List<MiniParkingRecordVO> paged = results.subList(start, end);
+            Page<MiniParkingRecordVO> page = new Page<>(current, size, results.size());
+            page.setRecords(paged);
+            return page;
+        }
+
+        // 默认：返回全部
         if (plates.isEmpty()) {
             return new Page<>(current, size, 0);
         }
-
         IPage<ParkingRecord> entityPage = parkingRecordMapper.selectPageByPlates(
                 new Page<>(current, size), plates);
         return entityPage.convert(this::toMiniVO);
@@ -157,6 +296,18 @@ public class MiniUserServiceImpl implements MiniUserService {
             }
         }
         return plates;
+    }
+
+    /**
+     * 静默获取当前 wx 用户 ID（不抛异常）。
+     */
+    private Long getCurrentWxUserIdQuietly() {
+        try {
+            return wxUserService.getCurrentWxUserId();
+        } catch (Exception e) {
+            log.debug("获取当前 wx 用户 ID 失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**

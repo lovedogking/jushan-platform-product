@@ -145,7 +145,7 @@ Page({
 
   /** 跳转停车记录 */
   goToRecords() {
-    wx.navigateTo({ url: '/pages/parking/parking' })
+    wx.navigateTo({ url: '/pages/records/records' })
   },
 
   /** 跳转支付页 */

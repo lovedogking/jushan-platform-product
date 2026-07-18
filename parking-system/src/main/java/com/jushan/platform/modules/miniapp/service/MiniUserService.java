@@ -17,13 +17,14 @@ import java.util.List;
 public interface MiniUserService {
 
     /**
-     * 查询当前用户的停车记录。
+     * 查询当前用户的停车记录（支持 tab 筛选）。
      *
      * @param current 当前页
      * @param size    每页大小
+     * @param tab     标签筛选：in_progress / pending_pay / completed；为 null 时返回全部
      * @return 分页结果
      */
-    IPage<MiniParkingRecordVO> listParkingRecords(long current, long size);
+    IPage<MiniParkingRecordVO> listParkingRecords(long current, long size, String tab);
 
     /**
      * 查询指定车牌的停车记录。

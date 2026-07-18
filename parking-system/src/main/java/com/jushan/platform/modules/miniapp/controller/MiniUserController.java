@@ -36,8 +36,9 @@ public class MiniUserController {
     @RequirePermission("miniapp:view")
     public R<IPage<MiniParkingRecordVO>> listParkingRecords(
             @RequestParam(defaultValue = "1") long current,
-            @RequestParam(defaultValue = "10") long size) {
-        return R.ok(miniUserService.listParkingRecords(current, size));
+            @RequestParam(defaultValue = "10") long size,
+            @RequestParam(required = false) String tab) {
+        return R.ok(miniUserService.listParkingRecords(current, size, tab));
     }
 
     @GetMapping("/parking-records/{id}")

@@ -49,4 +49,7 @@ public class MiniParkingRecordVO {
 
     /** 订单原始状态（透传 ParkingOrder.status），如 PENDING_PAY, ARREARS, COMPLETED 等。前端用于区分欠费标识 */
     private String orderStatus;
+
+    /** 是否为代缴记录（来自 proxy_pay_record），前端用于展示"代缴"标签 */
+    private Boolean proxyPay;
 }

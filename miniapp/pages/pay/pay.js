@@ -282,7 +282,7 @@ Page({
 
   /** 查看记录 */
   goToRecords() {
-    wx.redirectTo({ url: '/pages/parking/parking' })
+    wx.redirectTo({ url: '/pages/records/records' })
   },
 
   /** 返回 */
