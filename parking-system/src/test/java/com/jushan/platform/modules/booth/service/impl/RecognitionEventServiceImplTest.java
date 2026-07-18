@@ -19,7 +19,6 @@ import com.jushan.system.mapper.DeviceMapper;
 import com.jushan.system.mapper.ParkingLaneMapper;
 import com.jushan.system.service.BillingEngine;
 import com.jushan.system.service.DeviceService;
-import com.jushan.system.service.GpioGateService;
 import com.jushan.system.service.MonitorAlertService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,9 +74,6 @@ class RecognitionEventServiceImplTest {
     private MonitorAlertService monitorAlertService;
 
     @Mock
-    private GpioGateService gpioGateService;
-
-    @Mock
     private DeviceService deviceService;
 
     @Mock
@@ -95,7 +91,7 @@ class RecognitionEventServiceImplTest {
     void setUp() {
         service = new RecognitionEventServiceImpl(
                 vehicleTypeDecisionService, parkingSessionService, billingEngine,
-                deviceMapper, deviceAccessClient, monitorAlertService, gpioGateService,
+                deviceMapper, deviceAccessClient, monitorAlertService,
                 deviceService, parkingLaneMapper);
         // 设置租户上下文
         TenantContext.set(new TenantContext.Snapshot(TENANT_ID, 1L, "tenant", null, null));
@@ -120,7 +116,7 @@ class RecognitionEventServiceImplTest {
         when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
         when(parkingSessionService.entry(any(ParkingSessionEntryCmd.class))).thenReturn(sessionVO);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
-        when(deviceAccessClient.openGate(DEVICE_SN)).thenReturn(commandResult(true, 200, "gate opened"));
+        when(deviceAccessClient.openGate(eq(DEVICE_SN), anyString())).thenReturn(commandResult(true, 200, "gate opened"));
 
         // when
         RecognitionResultVO result = service.handleEvent(cmd);
@@ -135,7 +131,7 @@ class RecognitionEventServiceImplTest {
         assertThat(result.getException()).isFalse();
         assertThat(result.getFeeAmount()).isEqualByComparingTo(BigDecimal.ZERO);
 
-        verify(deviceAccessClient).openGate(DEVICE_SN);
+        verify(deviceAccessClient).openGate(eq(DEVICE_SN), anyString());
         verify(parkingSessionService).entry(any(ParkingSessionEntryCmd.class));
     }
 
@@ -151,7 +147,7 @@ class RecognitionEventServiceImplTest {
         when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
         when(parkingSessionService.entry(any(ParkingSessionEntryCmd.class))).thenReturn(sessionVO);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
-        when(deviceAccessClient.openGate(DEVICE_SN))
+        when(deviceAccessClient.openGate(eq(DEVICE_SN), anyString()))
                 .thenReturn(commandResult(false, 500, "device motor error"));
 
         // when
@@ -166,7 +162,7 @@ class RecognitionEventServiceImplTest {
         assertThat(result.getGateResult()).contains("开闸失败");
         assertThat(result.getException()).isFalse(); // 入场业务不标记异常
 
-        verify(deviceAccessClient).openGate(DEVICE_SN);
+        verify(deviceAccessClient).openGate(eq(DEVICE_SN), anyString());
         verify(parkingSessionService).entry(any(ParkingSessionEntryCmd.class));
     }
 
@@ -182,7 +178,7 @@ class RecognitionEventServiceImplTest {
         when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
         when(parkingSessionService.entry(any(ParkingSessionEntryCmd.class))).thenReturn(sessionVO);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
-        when(deviceAccessClient.openGate(DEVICE_SN))
+        when(deviceAccessClient.openGate(eq(DEVICE_SN), anyString()))
                 .thenThrow(new BusinessException(CommonErrorCode.INTERNAL_ERROR,
                         "Device Access 网络异常（UNCERTAIN）: deviceSn=GATE-SN-001, error=Read timed out"));
 
@@ -198,7 +194,7 @@ class RecognitionEventServiceImplTest {
         assertThat(result.getGateResult()).contains("UNCERTAIN");
         assertThat(result.getException()).isFalse();
 
-        verify(deviceAccessClient).openGate(DEVICE_SN);
+        verify(deviceAccessClient).openGate(eq(DEVICE_SN), anyString());
         verify(parkingSessionService).entry(any(ParkingSessionEntryCmd.class));
     }
 
@@ -225,7 +221,7 @@ class RecognitionEventServiceImplTest {
         assertThat(result.getGateOpened()).isNull(); // 一期无法确认闸杆实际状态
         assertThat(result.getGateResult()).contains("未找到");
 
-        verify(deviceAccessClient, never()).openGate(any());
+        verify(deviceAccessClient, never()).openGate(anyString(), anyString());
     }
 
     // ==================== 出场开闸 ====================
@@ -246,7 +242,7 @@ class RecognitionEventServiceImplTest {
                 .thenReturn(500); // 5 元
         when(parkingSessionService.exit(any(ParkingSessionExitCmd.class))).thenReturn(outSession);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
-        when(deviceAccessClient.openGate(DEVICE_SN)).thenReturn(commandResult(true, 200, "gate opened"));
+        when(deviceAccessClient.openGate(eq(DEVICE_SN), anyString())).thenReturn(commandResult(true, 200, "gate opened"));
 
         // when
         RecognitionResultVO result = service.handleEvent(cmd);
@@ -260,7 +256,7 @@ class RecognitionEventServiceImplTest {
         assertThat(result.getGateResult()).contains("开闸成功");
         assertThat(result.getException()).isFalse();
 
-        verify(deviceAccessClient).openGate(DEVICE_SN);
+        verify(deviceAccessClient).openGate(eq(DEVICE_SN), anyString());
         verify(parkingSessionService).exit(any(ParkingSessionExitCmd.class));
     }
 
@@ -280,7 +276,7 @@ class RecognitionEventServiceImplTest {
                 .thenReturn(800);
         when(parkingSessionService.exit(any(ParkingSessionExitCmd.class))).thenReturn(outSession);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
-        when(deviceAccessClient.openGate(DEVICE_SN))
+        when(deviceAccessClient.openGate(eq(DEVICE_SN), anyString()))
                 .thenReturn(commandResult(false, 501, "gate motor stuck"));
 
         // when
@@ -294,7 +290,7 @@ class RecognitionEventServiceImplTest {
         assertThat(result.getGateResult()).contains("开闸失败");
         assertThat(result.getException()).isFalse();
 
-        verify(deviceAccessClient).openGate(DEVICE_SN);
+        verify(deviceAccessClient).openGate(eq(DEVICE_SN), anyString());
         verify(parkingSessionService).exit(any(ParkingSessionExitCmd.class));
     }
 
@@ -314,7 +310,7 @@ class RecognitionEventServiceImplTest {
                 .thenReturn(1000);
         when(parkingSessionService.exit(any(ParkingSessionExitCmd.class))).thenReturn(outSession);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
-        when(deviceAccessClient.openGate(DEVICE_SN))
+        when(deviceAccessClient.openGate(eq(DEVICE_SN), anyString()))
                 .thenThrow(new BusinessException(CommonErrorCode.INTERNAL_ERROR,
                         "Device Access 网络异常（UNCERTAIN）: deviceSn=GATE-SN-001, error=Read timed out"));
 
@@ -329,7 +325,7 @@ class RecognitionEventServiceImplTest {
         assertThat(result.getGateResult()).contains("UNCERTAIN");
         assertThat(result.getException()).isFalse();
 
-        verify(deviceAccessClient).openGate(DEVICE_SN);
+        verify(deviceAccessClient).openGate(eq(DEVICE_SN), anyString());
         verify(parkingSessionService).exit(any(ParkingSessionExitCmd.class));
     }
 
@@ -340,11 +336,12 @@ class RecognitionEventServiceImplTest {
     void shouldManualOpenGateSuccess() {
         // given
         Device gateDevice = gateDevice();
-        when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
-        when(deviceAccessClient.openGate(DEVICE_SN)).thenReturn(commandResult(true, 200, "gate opened"));
+        when(deviceMapper.selectByLaneIdAndTypeIgnoreTenant(LANE_ID, "GATE")).thenReturn(gateDevice);
+        when(deviceService.openGate(eq(gateDevice.getId()), anyString(), isNull(), isNull()))
+                .thenReturn(commandResult(true, 200, "gate opened"));
 
         // when
-        RecognitionResultVO result = service.manualOpenGate(LANE_ID, 99L, "岗亭人工放行");
+        RecognitionResultVO result = service.manualOpenGate(LANE_ID, 99L, "岗亭人工放行", false, null, PLATE);
 
         // then
         assertThat(result.getAllowPass()).isTrue();
@@ -355,7 +352,7 @@ class RecognitionEventServiceImplTest {
         assertThat(result.getResultMessage()).contains("岗亭人工放行");
         assertThat(result.getException()).isFalse();
 
-        verify(deviceAccessClient).openGate(DEVICE_SN);
+        verify(deviceService).openGate(eq(gateDevice.getId()), anyString(), isNull(), isNull());
     }
 
     @Test
@@ -363,12 +360,12 @@ class RecognitionEventServiceImplTest {
     void shouldManualOpenGateFailure() {
         // given
         Device gateDevice = gateDevice();
-        when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
-        when(deviceAccessClient.openGate(DEVICE_SN))
+        when(deviceMapper.selectByLaneIdAndTypeIgnoreTenant(LANE_ID, "GATE")).thenReturn(gateDevice);
+        when(deviceService.openGate(eq(gateDevice.getId()), anyString(), isNull(), isNull()))
                 .thenReturn(commandResult(false, 500, "device motor error"));
 
         // when
-        RecognitionResultVO result = service.manualOpenGate(LANE_ID, 99L, "紧急放行");
+        RecognitionResultVO result = service.manualOpenGate(LANE_ID, 99L, "紧急放行", false, null, PLATE);
 
         // then
         assertThat(result.getGateCommandSent()).isTrue();
@@ -378,7 +375,7 @@ class RecognitionEventServiceImplTest {
         assertThat(result.getException()).isTrue();
         assertThat(result.getExceptionType()).isEqualTo("GATE_OPEN_FAILED");
 
-        verify(deviceAccessClient).openGate(DEVICE_SN);
+        verify(deviceService).openGate(eq(gateDevice.getId()), anyString(), isNull(), isNull());
     }
 
     @Test
@@ -386,13 +383,13 @@ class RecognitionEventServiceImplTest {
     void shouldManualOpenGateException() {
         // given
         Device gateDevice = gateDevice();
-        when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
-        when(deviceAccessClient.openGate(DEVICE_SN))
+        when(deviceMapper.selectByLaneIdAndTypeIgnoreTenant(LANE_ID, "GATE")).thenReturn(gateDevice);
+        when(deviceService.openGate(eq(gateDevice.getId()), anyString(), isNull(), isNull()))
                 .thenThrow(new BusinessException(CommonErrorCode.INTERNAL_ERROR,
                         "Device Access 网络异常（UNCERTAIN）: deviceSn=GATE-SN-001, error=Read timed out"));
 
         // when
-        RecognitionResultVO result = service.manualOpenGate(LANE_ID, 99L, "系统故障后人工放行");
+        RecognitionResultVO result = service.manualOpenGate(LANE_ID, 99L, "系统故障后人工放行", false, null, PLATE);
 
         // then
         assertThat(result.getGateCommandSent()).isTrue();
@@ -402,17 +399,18 @@ class RecognitionEventServiceImplTest {
         assertThat(result.getException()).isTrue();
         assertThat(result.getExceptionType()).isEqualTo("GATE_OPEN_UNCERTAIN");
 
-        verify(deviceAccessClient).openGate(DEVICE_SN);
+        verify(deviceService).openGate(eq(gateDevice.getId()), anyString(), isNull(), isNull());
     }
 
     @Test
     @DisplayName("人工开闸无 GATE 设备 → gateOpened=null, exception=GATE_DEVICE_NOT_FOUND")
     void shouldManualOpenGateNoDevice() {
         // given
-        when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.emptyList());
+        when(deviceMapper.selectByLaneIdAndTypeIgnoreTenant(LANE_ID, "GATE")).thenReturn(null);
+        when(deviceMapper.selectByLaneIdAndTypeIgnoreTenant(LANE_ID, "CAMERA")).thenReturn(null);
 
         // when
-        RecognitionResultVO result = service.manualOpenGate(LANE_ID, 99L, "测试");
+        RecognitionResultVO result = service.manualOpenGate(LANE_ID, 99L, "测试", false, null, PLATE);
 
         // then
         assertThat(result.getGateCommandSent()).isFalse();
@@ -422,7 +420,7 @@ class RecognitionEventServiceImplTest {
         assertThat(result.getException()).isTrue();
         assertThat(result.getExceptionType()).isEqualTo("GATE_DEVICE_NOT_FOUND");
 
-        verify(deviceAccessClient, never()).openGate(any());
+        verify(deviceService, never()).openGate(anyLong(), anyString(), any(), any());
     }
 
     // ==================== 无自动重试 ====================
@@ -439,14 +437,14 @@ class RecognitionEventServiceImplTest {
         when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
         when(parkingSessionService.entry(any(ParkingSessionEntryCmd.class))).thenReturn(sessionVO);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
-        when(deviceAccessClient.openGate(DEVICE_SN))
+        when(deviceAccessClient.openGate(eq(DEVICE_SN), anyString()))
                 .thenReturn(commandResult(false, 503, "MQTT unavailable"));
 
         // when
         service.handleEvent(cmd);
 
         // then — 只调用一次，无自动重试
-        verify(deviceAccessClient, times(1)).openGate(DEVICE_SN);
+        verify(deviceAccessClient, times(1)).openGate(eq(DEVICE_SN), anyString());
     }
 
     // ==================== 辅助方法 ====================
