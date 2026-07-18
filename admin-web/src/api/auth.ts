@@ -20,3 +20,8 @@ export function logout(): Promise<void> {
 export function getUserInfo(): Promise<UserInfo> {
   return request.get('/v1/auth/userinfo')
 }
+
+/** 修改密码（首次登录强制改密） */
+export function changePassword(data: { oldPassword: string; newPassword: string }): Promise<void> {
+  return request.post('/v1/auth/change-password', data)
+}

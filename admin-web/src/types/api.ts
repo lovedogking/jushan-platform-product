@@ -43,6 +43,7 @@ export interface LoginUser {
   realName: string
   level: number
   tenantId?: number
+  mustChangePassword?: number
 }
 
 // 当前会话用户（与后端 /api/v1/auth/userinfo 响应 data 对齐）
@@ -52,4 +53,5 @@ export interface UserInfo {
   realName: string
   level: number
   tenantId?: number
+  mustChangePassword?: number
 }
