@@ -77,3 +77,26 @@ export function renewMonthlyPass(id: number, data: MonthlyPassRenewRequest) {
 export function cancelMonthlyPass(id: number) {
   return request.put<MonthlyPassVO>(`/v1/monthly-passes/${id}/cancel`)
 }
+
+/** 待审核月卡列表 */
+export function getMonthlyPassPendingList(params: {
+  page?: number
+  size?: number
+  parkingLotId?: number
+}) {
+  return request.get<PageResult<MonthlyPassVO>>('/v1/admin/monthly-pass-audit/pending', params)
+}
+
+/** 通过月卡审核 */
+export function approveMonthlyPass(id: number, remark?: string) {
+  return request.post<MonthlyPassVO>(`/v1/admin/monthly-pass-audit/${id}/approve`, undefined, {
+    params: remark ? { remark } : undefined,
+  })
+}
+
+/** 驳回月卡审核 */
+export function rejectMonthlyPass(id: number, remark?: string) {
+  return request.post<MonthlyPassVO>(`/v1/admin/monthly-pass-audit/${id}/reject`, undefined, {
+    params: remark ? { remark } : undefined,
+  })
+}
