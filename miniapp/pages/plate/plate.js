@@ -4,6 +4,8 @@
  */
 const { get, post, put, del } = require('../../utils/request')
 
+const BIND_LIMIT = 3
+
 const VEHICLE_TYPE_MAP = {
   SMALL: '小型车',
   NEW_ENERGY: '新能源车',
@@ -17,11 +19,6 @@ const VERIFY_STATUS_MAP = {
   REJECTED: '认证失败',
   UNVERIFIED: '未认证',
 }
-
-const MOCK_PLATES = [
-  { id: 1, plate: '京A12345', vehicleType: 'SMALL', isDefault: true, verifyStatus: 'APPROVED', createdAt: '2026-07-10T10:00:00' },
-  { id: 2, plate: '京B67890', vehicleType: 'NEW_ENERGY', isDefault: false, verifyStatus: 'APPROVED', createdAt: '2026-07-12T14:30:00' },
-]
 
 function checkPhoneBinding() {
   var app = getApp()
@@ -82,11 +79,7 @@ Page({
   async loadPlates() {
     this.setData({ loading: true })
     try {
-      // 【需后端补充】后端 WxUserController 仅提供 POST /wx/plates（绑定）、
-      // DELETE /wx/plates/{id}（解绑）、PUT /wx/plates/{id}/default（默认），
-      // 尚未提供 GET /wx/plates 列表查询接口。此处请求会 404，失败时回退到模拟数据，
-      // 待后端补齐列表接口后即为真实数据，无需改动前端。
-      const data = await get('/wx/plates')
+      const data = await get('/api/v1/mini/plates')
       const list = Array.isArray(data) ? data : (data && data.list) || []
       this.setData({
         plates: list.map(item => this.formatPlate(item)),
@@ -94,11 +87,13 @@ Page({
       })
     } catch (err) {
       this.setData({
-        plates: MOCK_PLATES.map(item => this.formatPlate(item)),
-        backendMissingTip: '【需后端补充】车牌列表查询接口 GET /wx/plates 后端尚未提供，当前展示模拟数据。绑定/解绑/默认已对接真实接口。',
+        plates: [],
+        backendMissingTip: '车牌列表加载失败，请检查网络后重试',
       })
       if (err.status === 401) {
         this.handleAuthError()
+      } else {
+        wx.showToast({ title: err.message || '加载失败', icon: 'none' })
       }
     } finally {
       this.setData({ loading: false })
@@ -119,6 +114,13 @@ Page({
       wx.showToast({ title: '请输入车牌号码', icon: 'none' })
       return
     }
+
+    // 检查绑定上限
+    if (this.data.plates.length >= BIND_LIMIT) {
+      wx.showToast({ title: '绑定数量已达上限（' + BIND_LIMIT + '辆）', icon: 'none' })
+      return
+    }
+
     this.setData({ binding: true })
     try {
       await post('/wx/plates', { plate, vehicleType: 'SMALL' })

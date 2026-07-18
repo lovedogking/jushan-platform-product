@@ -6,9 +6,15 @@ import com.jushan.platform.infra.security.RequirePermission;
 import com.jushan.platform.modules.miniapp.service.MiniUserService;
 import com.jushan.platform.modules.miniapp.vo.MiniParkingRecordVO;
 import com.jushan.platform.modules.parking.vo.ParkingSpaceRemainVO;
+import com.jushan.system.service.WxUserService;
+import com.jushan.system.vo.PlateBindingVo;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,9 +33,11 @@ import java.util.List;
 public class MiniUserController {
 
     private final MiniUserService miniUserService;
+    private final WxUserService wxUserService;
 
-    public MiniUserController(MiniUserService miniUserService) {
+    public MiniUserController(MiniUserService miniUserService, WxUserService wxUserService) {
         this.miniUserService = miniUserService;
+        this.wxUserService = wxUserService;
     }
 
     @GetMapping("/parking-records")
@@ -72,5 +80,16 @@ public class MiniUserController {
     @RequirePermission("miniapp:view")
     public R<List<String>> listBoundPlates() {
         return R.ok(miniUserService.listBoundPlates());
+    }
+
+    /**
+     * 查询当前用户绑定的车牌列表（含完整信息）。
+     *
+     * @return 车牌绑定列表
+     */
+    @GetMapping("/plates")
+    @RequirePermission("miniapp:view")
+    public R<List<PlateBindingVo>> listPlates() {
+        return R.ok(wxUserService.getCurrentUser().getPlates());
     }
 }

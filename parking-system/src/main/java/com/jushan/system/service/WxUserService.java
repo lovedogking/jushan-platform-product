@@ -51,6 +51,7 @@ public class WxUserService {
     private final PlateBindingMapper plateBindingMapper;
     private final BindingPolicyMapper bindingPolicyMapper;
     private final WeChatApiClient weChatApiClient;
+    private final ParamResolver paramResolver;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -62,12 +63,14 @@ public class WxUserService {
                          VehicleMapper vehicleMapper,
                          PlateBindingMapper plateBindingMapper,
                          BindingPolicyMapper bindingPolicyMapper,
-                         WeChatApiClient weChatApiClient) {
+                         WeChatApiClient weChatApiClient,
+                         ParamResolver paramResolver) {
         this.wxUserMapper = wxUserMapper;
         this.vehicleMapper = vehicleMapper;
         this.plateBindingMapper = plateBindingMapper;
         this.bindingPolicyMapper = bindingPolicyMapper;
         this.weChatApiClient = weChatApiClient;
+        this.paramResolver = paramResolver;
     }
 
     /**
@@ -394,12 +397,20 @@ public class WxUserService {
      * 检查绑定策略。
      */
     private void checkBindingPolicy(Long userId, String plate, BindingPolicy policy) {
+        // 绑定上限：策略配置优先，否则从系统参数/默认值 3
+        int maxBindings;
+        if (policy != null && policy.getMaxBindingsPerUser() != null && policy.getMaxBindingsPerUser() > 0) {
+            maxBindings = policy.getMaxBindingsPerUser();
+        } else {
+            maxBindings = paramResolver.getInt("vehicle.bind_limit_per_user", null, 3);
+        }
+
         // 检查用户绑定数量上限
         long userBindingCount = plateBindingMapper.selectCount(
                 new LambdaQueryWrapper<PlateBinding>().eq(PlateBinding::getWxUserId, userId));
-        if (userBindingCount >= policy.getMaxBindingsPerUser()) {
+        if (userBindingCount >= maxBindings) {
             throw new BusinessException(CommonErrorCode.PARAM_ERROR,
-                    "绑定车辆数量已达上限（" + policy.getMaxBindingsPerUser() + "辆）");
+                    "绑定车辆数量已达上限（" + maxBindings + "辆）");
         }
 
         // 检查车牌绑定用户数量上限
