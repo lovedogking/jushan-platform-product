@@ -9,8 +9,10 @@ import com.jushan.common.auth.TenantContext;
 import com.jushan.platform.modules.account.dto.AdminAccountCreateCmd;
 import com.jushan.platform.modules.account.dto.AdminAccountUpdateCmd;
 import com.jushan.platform.modules.account.entity.SysAdminAccount;
+import com.jushan.platform.modules.account.entity.SysAdminAccountParkingLot;
 import com.jushan.platform.modules.account.entity.SysAdminAccountRole;
 import com.jushan.platform.modules.account.mapper.SysAdminAccountMapper;
+import com.jushan.platform.modules.account.mapper.SysAdminAccountParkingLotMapper;
 import com.jushan.platform.modules.account.mapper.SysAdminAccountRoleMapper;
 import com.jushan.platform.modules.account.service.SysAdminAccountService;
 import com.jushan.platform.modules.account.vo.AdminAccountVO;
@@ -67,13 +69,16 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
 
     private final SysAdminAccountMapper adminAccountMapper;
     private final SysAdminAccountRoleMapper adminAccountRoleMapper;
+    private final SysAdminAccountParkingLotMapper parkingLotMapper;
     private final BCryptPasswordEncoder passwordEncoder;
 
     public SysAdminAccountServiceImpl(SysAdminAccountMapper adminAccountMapper,
                                       SysAdminAccountRoleMapper adminAccountRoleMapper,
+                                      SysAdminAccountParkingLotMapper parkingLotMapper,
                                       BCryptPasswordEncoder passwordEncoder) {
         this.adminAccountMapper = adminAccountMapper;
         this.adminAccountRoleMapper = adminAccountRoleMapper;
+        this.parkingLotMapper = parkingLotMapper;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -113,6 +118,8 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
         account.setEmail(cmd.getEmail());
         account.setLevel(level);
         account.setStatus(cmd.getStatus() != null ? cmd.getStatus() : STATUS_NORMAL);
+        account.setMustChangePassword(cmd.getMustChangePassword() != null ? cmd.getMustChangePassword() : 1);
+        account.setAllowFeeReduction(cmd.getAllowFeeReduction() != null ? cmd.getAllowFeeReduction() : 0);
         account.setLoginFailCount(0);
         account.setLockUntil(null);
         account.setLastLoginTime(null);
@@ -121,6 +128,7 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
 
         adminAccountMapper.insert(account);
         saveAccountRoles(account.getId(), cmd.getRoleIds());
+        saveAccountParkingLots(account.getId(), tenantId, cmd.getParkingLotIds());
 
         log.info("创建管理员账号成功: id={}, level={}, tenantId={}, operator={}",
                 account.getId(), level, tenantId, current.userId());
@@ -159,6 +167,12 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
         }
         account.setLevel(level);
         account.setStatus(cmd.getStatus());
+        if (cmd.getMustChangePassword() != null) {
+            account.setMustChangePassword(cmd.getMustChangePassword());
+        }
+        if (cmd.getAllowFeeReduction() != null) {
+            account.setAllowFeeReduction(cmd.getAllowFeeReduction());
+        }
         account.setUpdatedAt(LocalDateTime.now());
 
         int rows = adminAccountMapper.updateByIdIgnoreTenant(account);
@@ -167,6 +181,7 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
         }
 
         saveAccountRoles(id, cmd.getRoleIds());
+        saveAccountParkingLots(id, account.getTenantId(), cmd.getParkingLotIds());
 
         log.info("编辑管理员账号成功: id={}, operator={}", id, current.userId());
 
@@ -463,6 +478,24 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
     }
 
     /**
+     * 保存管理员账号与停车场的多对多关联（先删后增）。
+     */
+    private void saveAccountParkingLots(Long accountId, Long tenantId, List<Long> parkingLotIds) {
+        parkingLotMapper.deleteByAdminAccountId(accountId);
+        if (parkingLotIds == null || parkingLotIds.isEmpty()) {
+            return;
+        }
+        for (Long lotId : parkingLotIds) {
+            SysAdminAccountParkingLot mapping = new SysAdminAccountParkingLot();
+            mapping.setAdminAccountId(accountId);
+            mapping.setTenantId(tenantId);
+            mapping.setParkingLotId(lotId);
+            mapping.setCreatedAt(LocalDateTime.now());
+            parkingLotMapper.insert(mapping);
+        }
+    }
+
+    /**
      * 生成随机密码。
      */
     private String generateRandomPassword() {
@@ -494,6 +527,8 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
         vo.setLastLoginTime(account.getLastLoginTime());
         vo.setCreatedAt(account.getCreatedAt());
         vo.setUpdatedAt(account.getUpdatedAt());
+        vo.setMustChangePassword(account.getMustChangePassword());
+        vo.setAllowFeeReduction(account.getAllowFeeReduction());
         return vo;
     }
 
