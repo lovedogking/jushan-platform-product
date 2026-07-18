@@ -71,6 +71,9 @@ public final class ParamKeys {
     /** 固定车位审核模式：AUTO=自动通过, MANUAL=需审核。 */
     public static final String FIXED_SPACE_REVIEW_MODE = "fixed_space.review_mode";
 
+    /** 月卡单价（分/月），默认 30000（即 300 元/月）。 */
+    public static final String MONTHLY_PASS_PRICE_PER_MONTH_CENTS = "monthly_pass.price_per_month_cents";
+
     /** 月卡审核模式：AUTO=自动通过, MANUAL=需审核。 */
     public static final String MONTHLY_FIXED_REVIEW_MODE = "monthly_fixed.review_mode";
 
@@ -132,7 +135,9 @@ public final class ParamKeys {
                     "false", "月卡/固定车位是否计入余位"),
             new Definition(FIXED_SPACE_REVIEW_MODE, "固定车位设置", TYPE_ENUM,
                     "[\"AUTO\",\"MANUAL\"]", "AUTO",
-                    "固定车位审核模式：AUTO=自动通过, MANUAL=需审核"));
+                    "固定车位审核模式：AUTO=自动通过, MANUAL=需审核"),
+            new Definition(MONTHLY_PASS_PRICE_PER_MONTH_CENTS, "计费设置", TYPE_INT, null,
+                    "30000", "月卡单价（分/月）"));
 
     /** 键 → 定义 的快速查找表。 */
     public static final Map<String, Definition> LOT_PARAM_INDEX = LOT_PARAMS.stream()
