@@ -396,7 +396,7 @@ async function handleExport() {
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    const fileName = `订单导出_${dayjs().format('YYYYMMDD_HHmmss')}.csv`
+    const fileName = `订单导出_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`
     link.setAttribute('download', fileName)
     document.body.appendChild(link)
     link.click()
