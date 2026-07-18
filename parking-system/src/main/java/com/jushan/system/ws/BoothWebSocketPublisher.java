@@ -81,6 +81,8 @@ public class BoothWebSocketPublisher {
             payload.put("deviceId", event.getDeviceId());
             payload.put("imagePath", event.getImagePath());
             payload.put("plateImagePath", event.getPlateImagePath());
+            payload.put("correctedPlate", event.getCorrectedPlate());
+            payload.put("correctionType", event.getCorrectionType());
 
             send(String.format(TOPIC_EVENTS, parkingLotId), payload);
             log.debug("识别事件已推送到岗亭: parkingLotId={}, eventId={}", parkingLotId, event.getEventId());
