@@ -109,6 +109,7 @@ Page({
         ownerPhone: this.data.ownerPhone,
       })
       wx.showToast({ title: '申请成功', icon: 'success' })
+      this.requestSubscribe()
       setTimeout(function () {
         wx.navigateBack()
       }, 1500)
@@ -117,5 +118,13 @@ Page({
     } finally {
       this.setData({ submitLoading: false })
     }
+  },
+
+  requestSubscribe() {
+    wx.requestSubscribeMessage({
+      tmplIds: [''],
+      success: () => {},
+      fail: () => {},
+    })
   },
 })

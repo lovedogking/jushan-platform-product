@@ -413,10 +413,11 @@ public class MiniPayController {
         log.info("代缴完成: orderId={} plate={} payerId={} payer={} amount={}",
                 order.getId(), plate, payerId, payerName, order.getPayableAmount());
 
-        // 9. 创建支付成功消息通知给代缴人（Phase 3 E3）
+        // 9. 创建支付成功消息通知（代缴人 + 车主双向推送，Phase 3 E3）
         try {
-            miniMessageService.createPaySuccessMessage(
-                    payerId, record.getTenantId(),
+            Long ownerUserId = miniMessageService.findOwnerByPlate(plate);
+            miniMessageService.createProxyPaySuccessMessages(
+                    payerId, ownerUserId, record.getTenantId(),
                     order.getId(), plate, order.getPayableAmount());
         } catch (Exception e) {
             log.warn("代缴消息通知创建失败（不影响主流程）: orderId={}", order.getId(), e);

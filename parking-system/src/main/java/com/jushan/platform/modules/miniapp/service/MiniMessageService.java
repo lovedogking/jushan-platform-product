@@ -47,4 +47,26 @@ public interface MiniMessageService {
     @Transactional(rollbackFor = Exception.class)
     MiniMessage createArrearsPaidMessage(Long wxUserId, Long tenantId, Long orderId,
                                           String plateNumber, Integer amountCents);
+
+    /**
+     * 创建代缴支付成功消息，同时推送给代缴人和车主双方。
+     *
+     * @param payerUserId 代缴人用户ID
+     * @param ownerUserId 车主用户ID（可为null）
+     * @param tenantId    租户ID
+     * @param orderId     订单ID
+     * @param plateNumber 车牌号
+     * @param amountCents 支付金额（分）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    void createProxyPaySuccessMessages(Long payerUserId, Long ownerUserId, Long tenantId,
+                                        Long orderId, String plateNumber, Integer amountCents);
+
+    /**
+     * 通过车牌号查找车主 wxUserId。
+     *
+     * @param plateNumber 车牌号
+     * @return 车主用户ID；未找到返回 null
+     */
+    Long findOwnerByPlate(String plateNumber);
 }

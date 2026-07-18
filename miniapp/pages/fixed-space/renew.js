@@ -101,6 +101,7 @@ Page({
         months: this.data.months,
       })
       wx.showToast({ title: '续费成功', icon: 'success' })
+      this.requestSubscribe()
       setTimeout(function () {
         wx.navigateBack()
       }, 1500)
@@ -109,5 +110,13 @@ Page({
     } finally {
       this.setData({ submitting: false })
     }
+  },
+
+  requestSubscribe() {
+    wx.requestSubscribeMessage({
+      tmplIds: [''],
+      success: () => {},
+      fail: () => {},
+    })
   },
 })

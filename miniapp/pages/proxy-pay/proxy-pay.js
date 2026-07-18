@@ -159,6 +159,7 @@ Page({
         feeText: result.amountYuan || '0.00',
       })
       wx.showToast({ title: '代缴成功', icon: 'success' })
+      this.requestSubscribe()
     } catch (err) {
       this.setData({
         paying: false,
@@ -174,5 +175,13 @@ Page({
 
   goToHome() {
     wx.switchTab({ url: '/pages/index/index' })
+  },
+
+  requestSubscribe() {
+    wx.requestSubscribeMessage({
+      tmplIds: [''],
+      success: () => {},
+      fail: () => {},
+    })
   },
 })

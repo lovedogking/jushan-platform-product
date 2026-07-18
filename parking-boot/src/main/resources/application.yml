@@ -135,6 +135,7 @@ wx:
     secret: ${WX_MINIAPP_SECRET:}
     connect-timeout: 5000
     read-timeout: 10000
+    subscribe-template-id: ${WX_SUBSCRIBE_TEMPLATE_ID:}
   mock-login: false
 
 # ---- springdoc-openapi 文档 ----

@@ -27,6 +27,9 @@ public class WxMiniappProperties {
     /** 读取超时（毫秒） */
     private int readTimeout = 10000;
 
+    /** 订阅消息模板 ID */
+    private String subscribeTemplateId;
+
     // ==================== getter / setter ====================
 
     public String getAppid() { return appid; }
@@ -40,4 +43,7 @@ public class WxMiniappProperties {
 
     public int getReadTimeout() { return readTimeout; }
     public void setReadTimeout(int readTimeout) { this.readTimeout = readTimeout; }
+
+    public String getSubscribeTemplateId() { return subscribeTemplateId; }
+    public void setSubscribeTemplateId(String subscribeTemplateId) { this.subscribeTemplateId = subscribeTemplateId; }
 }

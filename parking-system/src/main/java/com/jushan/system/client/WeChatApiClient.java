@@ -47,6 +47,10 @@ public class WeChatApiClient {
             "https://api.weixin.qq.com/wxa/business/getuserphonenumber"
                     + "?access_token={accessToken}";
 
+    private static final String SUBSCRIBE_MESSAGE_SEND_URL =
+            "https://api.weixin.qq.com/cgi-bin/message/subscribe/send"
+                    + "?access_token={accessToken}";
+
     // ---- Redis 缓存键 ----
     private static final String ACCESS_TOKEN_KEY_PREFIX = "wechat:access_token:";
     private static final long ACCESS_TOKEN_TTL_SECONDS = 6900; // 7200 - 300
@@ -280,6 +284,76 @@ public class WeChatApiClient {
         } catch (Exception e) {
             log.error("getPhoneNumber 解析异常", e);
             throw new BusinessException(9999, "微信服务繁忙，请重试");
+        }
+    }
+
+    // ==================== sendSubscribeMessage ====================
+
+    /**
+     * 发送微信订阅消息。
+     * <p>
+     * 调用 {@code POST https://api.weixin.qq.com/cgi-bin/message/subscribe/send}。
+     * 错误码 43101（用户拒收）/ 41030（模板不存在）仅记录警告日志，不抛异常。
+     *
+     * @param openid     接收者 openid
+     * @param templateId 订阅消息模板 ID
+     * @param data       模板数据，key 为模板字段名，value 为该字段值的 Map
+     * @return true 表示发送成功；用户拒收或模板不存在时返回 false
+     * @throws BusinessException 网络异常或微信服务内部错误
+     */
+    public boolean sendSubscribeMessage(String openid, String templateId,
+                                         java.util.Map<String, Object> data) {
+        if (openid == null || openid.isBlank() || templateId == null || templateId.isBlank()) {
+            log.warn("sendSubscribeMessage 参数不完整: openid={} templateId={}", openid, templateId);
+            return false;
+        }
+
+        String accessToken = getAccessToken();
+
+        // 构造请求体: {"touser":"OPENID","template_id":"TEMPLATE_ID","data":{...}}
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("touser", openid);
+        body.put("template_id", templateId);
+        body.put("data", data);
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            String requestBody = objectMapper.writeValueAsString(body);
+
+            String responseJson = restTemplate.postForObject(
+                    SUBSCRIBE_MESSAGE_SEND_URL,
+                    new HttpEntity<>(requestBody, headers),
+                    String.class,
+                    accessToken);
+
+            JsonNode node = objectMapper.readTree(responseJson);
+            int errcode = node.has("errcode") ? node.get("errcode").asInt() : 0;
+
+            if (errcode == 0) {
+                log.info("订阅消息发送成功: openid={} templateId={}", maskOpenid(openid), templateId);
+                return true;
+            }
+
+            String errmsg = node.has("errmsg") ? node.get("errmsg").asText() : "未知错误";
+
+            // 43101: 用户拒收 / 41030: 模板不存在 → 仅 warn，不抛异常
+            if (errcode == 43101 || errcode == 41030) {
+                log.warn("订阅消息发送被拒绝: errcode={} errmsg={} openid={} templateId={}",
+                        errcode, errmsg, maskOpenid(openid), templateId);
+                return false;
+            }
+
+            log.error("订阅消息发送失败: errcode={} errmsg={} openid={} templateId={}",
+                    errcode, errmsg, maskOpenid(openid), templateId);
+            return false;
+
+        } catch (RestClientException e) {
+            log.error("订阅消息发送网络异常: openid={}", maskOpenid(openid), e);
+            return false;
+        } catch (Exception e) {
+            log.error("订阅消息发送异常: openid={}", maskOpenid(openid), e);
+            return false;
         }
     }
 

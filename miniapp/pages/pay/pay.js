@@ -236,6 +236,8 @@ Page({
       // 4. 支付成功
       this.setData({ paying: false, payResult: 'success' })
       wx.showToast({ title: '支付成功', icon: 'success' })
+      // 引导订阅消息授权（非阻塞）
+      this.requestSubscribe()
     } catch (err) {
       if (err && err.status === 401) {
         getApp().logout()
@@ -288,5 +290,14 @@ Page({
   /** 返回 */
   goBack() {
     wx.navigateBack()
+  },
+
+  /** 引导订阅消息授权（非阻塞） */
+  requestSubscribe() {
+    wx.requestSubscribeMessage({
+      tmplIds: [''],
+      success: () => {},
+      fail: () => {},
+    })
   },
 })
