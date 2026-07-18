@@ -38,6 +38,15 @@
                 {{ statusLabel(record.status) }}
               </a-tag>
             </template>
+            <template v-if="column.key === 'reviewStatus'">
+              <a-tag v-if="record.reviewStatus === 'PENDING'" color="orange">待审核</a-tag>
+              <a-tag v-else-if="record.reviewStatus === 'APPROVED'" color="green">已通过</a-tag>
+              <a-tag v-else-if="record.reviewStatus === 'REJECTED'" color="red">已驳回</a-tag>
+              <span v-else>-</span>
+            </template>
+            <template v-if="column.key === 'paidAmountCents'">
+              {{ record.paidAmountCents != null ? (record.paidAmountCents / 100).toFixed(2) + ' 元' : '-' }}
+            </template>
             <template v-if="column.key === 'validEndDate'">
               <span :class="{ 'text-warning': isNearExpiry(record as any) }">{{ record.validEndDate || '—' }}</span>
             </template>
@@ -86,6 +95,38 @@
           </template>
           <template #emptyText>
             <a-empty description="暂无即将到期的月卡" />
+          </template>
+        </a-table>
+      </a-tab-pane>
+
+      <a-tab-pane key="pending" tab="待审核">
+        <div class="query-bar">
+          <span class="expiring-hint">待审核月卡，共 {{ pendingTotal }} 条</span>
+          <a-button @click="fetchPendingList">
+            <template #icon><ReloadOutlined /></template>刷新
+          </a-button>
+        </div>
+        <a-table
+          :columns="pendingColumns"
+          :data-source="pendingDataSource"
+          :loading="pendingLoading"
+          :pagination="pendingPagination"
+          row-key="id"
+          @change="handlePendingTableChange"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'reviewStatus'">
+              <a-tag color="orange">待审核</a-tag>
+            </template>
+            <template v-if="column.key === 'action'">
+              <a-space>
+                <a @click="handleApprove(record as any)">通过</a>
+                <a style="color: #dc2626" @click="handleReject(record as any)">驳回</a>
+              </a-space>
+            </template>
+          </template>
+          <template #emptyText>
+            <a-empty description="暂无待审核的月卡" />
           </template>
         </a-table>
       </a-tab-pane>
@@ -168,6 +209,9 @@ import {
   createMonthlyPass,
   renewMonthlyPass,
   cancelMonthlyPass,
+  getMonthlyPassPendingList,
+  approveMonthlyPass,
+  rejectMonthlyPass,
   MONTHLY_STATUS_MAP,
   type MonthlyPassVO,
   type MonthlyPassCreateRequest,
@@ -201,6 +245,9 @@ const allColumns = [
   { title: '有效期起', dataIndex: 'validStartDate', key: 'validStartDate', width: 120 },
   { title: '有效期止', key: 'validEndDate', width: 120 },
   { title: '状态', key: 'status', width: 90 },
+  { title: '审核状态', dataIndex: 'reviewStatus', key: 'reviewStatus', width: 90 },
+  { title: '支付方式', dataIndex: 'payMethod', key: 'payMethod', width: 90 },
+  { title: '实收金额', dataIndex: 'paidAmountCents', key: 'paidAmountCents', width: 100 },
   { title: '车主', dataIndex: 'ownerName', key: 'ownerName', width: 110 },
   { title: '操作', key: 'action', width: 140, fixed: 'right' as const },
 ]
@@ -219,6 +266,8 @@ const activeTab = ref('all')
 function handleTabChange(key: string | number) {
   if (key === 'expiring') {
     fetchExpiringList()
+  } else if (key === 'pending') {
+    fetchPendingList()
   } else {
     fetchData()
   }
@@ -303,6 +352,73 @@ function handleExpiringTableChange(pag: any) {
   expiringPagination.current = pag.current
   expiringPagination.pageSize = pag.pageSize
   fetchExpiringList()
+}
+
+// ==================== 待审核 ====================
+const pendingColumns = [
+  { title: '车牌号', dataIndex: 'plateNumber', key: 'plateNumber', width: 130 },
+  { title: '车场', dataIndex: 'parkingLotName', key: 'parkingLotName', width: 180 },
+  { title: '有效期', dataIndex: 'validEndDate', key: 'validEndDate', width: 120 },
+  { title: '车主', dataIndex: 'ownerName', key: 'ownerName', width: 110 },
+  { title: '审核状态', key: 'reviewStatus', width: 90 },
+  { title: '操作', key: 'action', width: 140, fixed: 'right' as const },
+]
+
+const pendingLoading = ref(false)
+const pendingDataSource = ref<MonthlyPassVO[]>([])
+const pendingTotal = ref(0)
+
+const pendingPagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 0,
+  showSizeChanger: true,
+  showTotal: (total: number) => `共 ${total} 条`,
+})
+
+async function fetchPendingList() {
+  pendingLoading.value = true
+  try {
+    const res = await getMonthlyPassPendingList({
+      page: pendingPagination.current,
+      size: pendingPagination.pageSize,
+    })
+    pendingDataSource.value = res.records || []
+    pendingTotal.value = res.total || 0
+    pendingPagination.total = res.total || 0
+  } finally {
+    pendingLoading.value = false
+  }
+}
+
+function handlePendingTableChange(pag: any) {
+  pendingPagination.current = pag.current
+  pendingPagination.pageSize = pag.pageSize
+  fetchPendingList()
+}
+
+async function handleApprove(record: MonthlyPassVO) {
+  Modal.confirm({
+    title: '确认通过审核',
+    content: `确定通过月卡 ${record.plateNumber} 的审核？`,
+    onOk: async () => {
+      await approveMonthlyPass(record.id)
+      message.success('已通过')
+      fetchPendingList()
+    },
+  })
+}
+
+async function handleReject(record: MonthlyPassVO) {
+  Modal.confirm({
+    title: '确认驳回',
+    content: `确定驳回月卡 ${record.plateNumber}？`,
+    onOk: async () => {
+      await rejectMonthlyPass(record.id)
+      message.success('已驳回')
+      fetchPendingList()
+    },
+  })
 }
 
 // ==================== 车场选项 ====================
