@@ -171,6 +171,7 @@ import {
   type ParkingLotVO,
 } from '@/api/parking-lot'
 import { getCompanies } from '@/api/company'
+import { uploadFile } from '@/api/upload'
 
 const router = useRouter()
 
@@ -402,7 +403,7 @@ function handleMapChange(data: { address: string; province: string; city: string
   formData.latitude = data.latitude
 }
 
-function beforeUpload(file: any) {
+async function beforeUpload(file: any) {
   const isImage = file.type.startsWith('image/')
   if (!isImage) {
     message.error('只能上传图片文件')
@@ -413,10 +414,14 @@ function beforeUpload(file: any) {
     message.error('图片大小不能超过 5MB')
     return false
   }
-  // 开发阶段：不上传真实服务器，生成 mock URL
-  const mockUrl = URL.createObjectURL(file)
-  file.url = mockUrl
-  file.thumbUrl = mockUrl
+  try {
+    const result = await uploadFile(file)
+    file.url = result.url
+    file.thumbUrl = result.url
+  } catch {
+    message.error('图片上传失败')
+    return false
+  }
   return false
 }
 
