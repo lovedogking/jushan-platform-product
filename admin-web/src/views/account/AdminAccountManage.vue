@@ -79,7 +79,7 @@
       v-model:open="formModalOpen"
       :record="editingRecord"
       :current-level="currentLevel"
-      @success="handleQuery"
+      @success="handleFormSuccess"
     />
 
     <!-- 重置密码结果弹窗 -->
@@ -92,6 +92,25 @@
       <p>账号：{{ resetPasswordTarget?.username }}</p>
       <p>新密码：<strong>{{ resetPasswordResult }}</strong></p>
       <p class="text-muted">请妥善保存密码，关闭后将无法再次查看。</p>
+    </a-modal>
+
+    <!-- 创建成功显示密码 -->
+    <a-modal
+      v-model:open="createdPasswordModalOpen"
+      title="账号创建成功"
+      :footer="null"
+      :closable="false"
+      width="480px"
+    >
+      <a-result status="success" title="账号创建成功" sub-title="初始密码仅在本次显示，请妥善保存">
+        <template #extra>
+          <div style="text-align: left; background: #f6f8fa; padding: 16px; border-radius: 6px; margin-top: 16px;">
+            <p><strong>账号：</strong>{{ createdAccountInfo?.username }}</p>
+            <p><strong>初始密码：</strong><code style="font-size: 18px; letter-spacing: 2px;">{{ createdAccountInfo?.plainPassword }}</code></p>
+          </div>
+          <a-button type="primary" style="margin-top: 16px;" @click="createdPasswordModalOpen = false">我已保存，关闭</a-button>
+        </template>
+      </a-result>
     </a-modal>
   </div>
 </template>
@@ -154,6 +173,10 @@ const editingRecord = ref<AdminAccountVO | undefined>(undefined)
 const resetPasswordModalOpen = ref(false)
 const resetPasswordTarget = ref<AdminAccountVO | null>(null)
 const resetPasswordResult = ref('')
+
+// 创建成功密码展示
+const createdPasswordModalOpen = ref(false)
+const createdAccountInfo = ref<{ username: string; plainPassword: string } | null>(null)
 
 const LEVEL_LABELS_TENANT: Record<number, string> = {
   1: '租户',
@@ -239,6 +262,17 @@ function handleReset() {
 function handleTableChange(pag: any) {
   pagination.current = pag.current
   pagination.pageSize = pag.pageSize
+  fetchData()
+}
+
+function handleFormSuccess(result?: any) {
+  if (result?.plainPassword) {
+    createdAccountInfo.value = {
+      username: result.username,
+      plainPassword: result.plainPassword,
+    }
+    createdPasswordModalOpen.value = true
+  }
   fetchData()
 }
 
