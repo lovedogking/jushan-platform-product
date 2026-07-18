@@ -92,7 +92,15 @@ public class MonthlyPassService {
         pass.setAmountCents(request.getPaidAmountCents());
         pass.setPaidAmountCents(request.getPaidAmountCents());
         pass.setPayMethod(request.getPayMethod());
-        pass.setPassStatus(MonthlyPass.STATUS_ACTIVE);
+        // 读取审核模式决定 review_status
+        String reviewMode = paramResolver.getString(ParamKeys.MONTHLY_FIXED_REVIEW_MODE, null);
+        if ("MANUAL".equals(reviewMode)) {
+            pass.setReviewStatus(MonthlyPass.REVIEW_PENDING);
+            pass.setPassStatus(MonthlyPass.STATUS_ACTIVE);
+        } else {
+            pass.setReviewStatus(MonthlyPass.REVIEW_APPROVED);
+            pass.setPassStatus(MonthlyPass.STATUS_ACTIVE);
+        }
         pass.setSource(MonthlyPass.SOURCE_ADMIN);
         pass.setApplicantId(null);
         pass.setOwnerName(request.getOwnerName());
@@ -284,6 +292,36 @@ public class MonthlyPassService {
         return result;
     }
 
+    // ==================== 审核列表 ====================
+
+    /**
+     * 分页查询待审核月卡（review_status = PENDING）。
+     */
+    public IPage<MonthlyPassVO> pageAuditPending(int page, int size, Long parkingLotId) {
+        Long tenantId = TenantContext.requireTenantId();
+        QueryWrapper<MonthlyPass> query = new QueryWrapper<MonthlyPass>()
+                .eq("tenant_id", tenantId)
+                .eq("review_status", MonthlyPass.REVIEW_PENDING);
+        if (parkingLotId != null) {
+            query.eq("parking_lot_id", parkingLotId);
+        }
+        query.orderByDesc("created_at");
+
+        IPage<MonthlyPass> passPage = monthlyPassMapper.selectPage(new Page<>(page, size), query);
+        if (passPage.getRecords().isEmpty()) {
+            return new Page<>(page, size);
+        }
+
+        Map<Long, String> lotNames = loadParkingLotNames(passPage.getRecords());
+        List<MonthlyPassVO> voList = passPage.getRecords().stream()
+                .map(p -> toVO(p, lotNames.get(p.getParkingLotId()), null))
+                .collect(Collectors.toList());
+
+        IPage<MonthlyPassVO> result = new Page<>(passPage.getCurrent(), passPage.getSize(), passPage.getTotal());
+        result.setRecords(voList);
+        return result;
+    }
+
     // ==================== 详情 ====================
 
     public MonthlyPassVO detail(Long id) {
@@ -339,6 +377,13 @@ public class MonthlyPassService {
         if (lotIds.isEmpty()) return Collections.emptyMap();
         List<ParkingLot> lots = parkingLotMapper.selectBatchIds(lotIds);
         return lots.stream().collect(Collectors.toMap(ParkingLot::getId, ParkingLot::getName));
+    }
+
+    /**
+     * 公开的单参 toVO（供审核 Controller 等外部调用）。
+     */
+    public MonthlyPassVO toVO(MonthlyPass pass) {
+        return toVO(pass, getParkingLotName(pass.getParkingLotId()), null);
     }
 
     private MonthlyPassVO toVO(MonthlyPass pass, String parkingLotName, Long orderId) {

@@ -176,6 +176,36 @@ public class FixedSpaceService {
         return result;
     }
 
+    // ==================== 审核列表 ====================
+
+    /**
+     * 分页查询待审核固定车位绑定（review_status = PENDING）。
+     */
+    public IPage<FixedSpaceVO> pageAuditPending(int page, int size, Long parkingLotId) {
+        Long tenantId = TenantContext.requireTenantId();
+        QueryWrapper<FixedSpaceBinding> query = new QueryWrapper<FixedSpaceBinding>()
+                .eq("tenant_id", tenantId)
+                .eq("review_status", FixedSpaceBinding.REVIEW_PENDING);
+        if (parkingLotId != null) {
+            query.eq("parking_lot_id", parkingLotId);
+        }
+        query.orderByDesc("created_at");
+
+        IPage<FixedSpaceBinding> entityPage = bindingMapper.selectPage(new Page<>(page, size), query);
+        if (entityPage.getRecords().isEmpty()) {
+            return new Page<>(page, size);
+        }
+
+        Map<Long, String> lotNames = loadParkingLotNames(entityPage.getRecords());
+        List<FixedSpaceVO> voList = entityPage.getRecords().stream()
+                .map(e -> toVO(e, lotNames.get(e.getParkingLotId())))
+                .collect(Collectors.toList());
+
+        IPage<FixedSpaceVO> result = new Page<>(entityPage.getCurrent(), entityPage.getSize(), entityPage.getTotal());
+        result.setRecords(voList);
+        return result;
+    }
+
     // ==================== 绑定 ====================
 
     /**
@@ -532,7 +562,10 @@ public class FixedSpaceService {
     /**
      * 单条补全信息，创建 toVO 时使用。
      */
-    private FixedSpaceVO toVO(FixedSpaceBinding binding) {
+    /**
+     * 单条补全信息，创建 toVO 时使用。公开供审核 Controller 调用。
+     */
+    public FixedSpaceVO toVO(FixedSpaceBinding binding) {
         FixedSpaceVO vo = new FixedSpaceVO();
         vo.setId(binding.getId());
         vo.setParkingLotId(binding.getParkingLotId());
@@ -565,6 +598,42 @@ public class FixedSpaceService {
         vo.setPayMethod(binding.getPayMethod());
         vo.setPaidAmountCents(binding.getPaidAmountCents());
         vo.setReviewStatus(binding.getReviewStatus());
+        vo.setReviewRemark(binding.getReviewRemark());
+        vo.setSource(binding.getSource());
+        vo.setApplicantId(binding.getApplicantId());
+        vo.setCreatedAt(binding.getCreatedAt());
+        return vo;
+    }
+
+    private Map<Long, String> loadParkingLotNames(List<FixedSpaceBinding> bindings) {
+        List<Long> lotIds = bindings.stream()
+                .map(FixedSpaceBinding::getParkingLotId)
+                .distinct()
+                .collect(Collectors.toList());
+        if (lotIds.isEmpty()) return Collections.emptyMap();
+        List<ParkingLot> lots = parkingLotMapper.selectBatchIds(lotIds);
+        return lots.stream().collect(Collectors.toMap(ParkingLot::getId, ParkingLot::getName));
+    }
+
+    /**
+     * 两参 toVO（审核列表等批量场景使用预加载的 lotName 避免 N+1）。
+     */
+    private FixedSpaceVO toVO(FixedSpaceBinding binding, String parkingLotName) {
+        FixedSpaceVO vo = new FixedSpaceVO();
+        vo.setId(binding.getId());
+        vo.setParkingLotId(binding.getParkingLotId());
+        vo.setParkingLotName(parkingLotName);
+        vo.setZoneId(binding.getZoneId());
+        vo.setSpaceNo(binding.getSpaceNo());
+        vo.setVehicleId(binding.getVehicleId());
+        vo.setValidStart(binding.getValidStart());
+        vo.setValidEnd(binding.getValidEnd());
+        vo.setStatus(binding.getStatus());
+        vo.setRemark(binding.getRemark());
+        vo.setPayMethod(binding.getPayMethod());
+        vo.setPaidAmountCents(binding.getPaidAmountCents());
+        vo.setReviewStatus(binding.getReviewStatus());
+        vo.setReviewRemark(binding.getReviewRemark());
         vo.setSource(binding.getSource());
         vo.setApplicantId(binding.getApplicantId());
         vo.setCreatedAt(binding.getCreatedAt());

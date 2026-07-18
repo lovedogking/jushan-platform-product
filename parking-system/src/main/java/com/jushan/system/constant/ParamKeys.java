@@ -71,6 +71,9 @@ public final class ParamKeys {
     /** 固定车位审核模式：AUTO=自动通过, MANUAL=需审核。 */
     public static final String FIXED_SPACE_REVIEW_MODE = "fixed_space.review_mode";
 
+    /** 月卡审核模式：AUTO=自动通过, MANUAL=需审核。 */
+    public static final String MONTHLY_FIXED_REVIEW_MODE = "monthly_fixed.review_mode";
+
     // ==================== 枚举选项常量 ====================
 
     public static final String EXIT_UNPAID_BLOCK = "BLOCK";

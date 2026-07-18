@@ -59,6 +59,8 @@ public class FixedSpaceBinding implements Serializable {
     private String payMethod;
     private Integer paidAmountCents;
     private String reviewStatus;
+    /** 审核备注 */
+    private String reviewRemark;
     private String source;
     private Long applicantId;
     private String remark;
@@ -90,6 +92,8 @@ public class FixedSpaceBinding implements Serializable {
     public void setPaidAmountCents(Integer paidAmountCents) { this.paidAmountCents = paidAmountCents; }
     public String getReviewStatus() { return reviewStatus; }
     public void setReviewStatus(String reviewStatus) { this.reviewStatus = reviewStatus; }
+    public String getReviewRemark() { return reviewRemark; }
+    public void setReviewRemark(String reviewRemark) { this.reviewRemark = reviewRemark; }
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }
     public Long getApplicantId() { return applicantId; }

@@ -41,6 +41,8 @@ public class FixedSpaceVO {
     private Integer paidAmountCents;
     /** 审核状态：PENDING-待审核 / APPROVED-已通过 / REJECTED-已驳回 */
     private String reviewStatus;
+    /** 审核备注 */
+    private String reviewRemark;
     /** 来源：ADMIN-运营端 / MINIAPP-小程序端 */
     private String source;
     /** 申请人ID（小程序用户ID；运营端录入为NULL） */
@@ -78,6 +80,8 @@ public class FixedSpaceVO {
     public void setPaidAmountCents(Integer paidAmountCents) { this.paidAmountCents = paidAmountCents; }
     public String getReviewStatus() { return reviewStatus; }
     public void setReviewStatus(String reviewStatus) { this.reviewStatus = reviewStatus; }
+    public String getReviewRemark() { return reviewRemark; }
+    public void setReviewRemark(String reviewRemark) { this.reviewRemark = reviewRemark; }
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }
     public Long getApplicantId() { return applicantId; }
