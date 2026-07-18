@@ -85,3 +85,12 @@ logging:
     root: WARN
     com.jushan: INFO
   # 生产环境建议使用文件追加器，由运维侧配置 logback-spring.xml
+
+# ---- 微信小程序（prod 强制环境变量注入，不设置默认值） ----
+wx:
+  miniapp:
+    appid: ${WX_MINIAPP_APPID}
+    secret: ${WX_MINIAPP_SECRET}
+    connect-timeout: 5000
+    read-timeout: 10000
+  mock-login: false
