@@ -1,0 +1,48 @@
+.container {
+  padding: 16px;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+.form-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.form-item {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+.picker-value {
+  font-size: 16px;
+  color: #333;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.no-plate {
+  font-size: 14px;
+  color: #999;
+  padding: 10px 0;
+}
+
+.form-input {
+  font-size: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+  width: 100%;
+}
+
+.submit-btn {
+  margin-top: 30px;
+  width: 100%;
+  border-radius: 8px;
+}

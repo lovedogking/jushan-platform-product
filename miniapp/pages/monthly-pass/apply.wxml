@@ -1,0 +1,41 @@
+<view class="container">
+  <view class="form-card">
+    <!-- 选择车场 -->
+    <view class="form-item">
+      <view class="form-label">选择车场</view>
+      <picker mode="selector" range="{{lots}}" range-key="name" bindchange="onLotChange" value="{{lotIndex}}">
+        <view class="picker-value">
+          {{lots[lotIndex] ? lots[lotIndex].name : '请选择车场'}}
+        </view>
+      </picker>
+    </view>
+
+    <!-- 选择车牌 -->
+    <view class="form-item">
+      <view class="form-label">选择车牌</view>
+      <picker wx:if="{{plates.length > 0}}" mode="selector" range="{{plates}}" bindchange="onPlateChange" value="{{plateIndex}}">
+        <view class="picker-value">
+          {{plates[plateIndex] || '请选择车牌'}}
+        </view>
+      </picker>
+      <view wx:else class="no-plate">暂无可选车牌，请先在"我的车辆"中绑定</view>
+    </view>
+
+    <!-- 车主姓名 -->
+    <view class="form-item">
+      <view class="form-label">车主姓名（选填）</view>
+      <input class="form-input" placeholder="请输入车主姓名" value="{{ownerName}}" bindinput="onNameInput" />
+    </view>
+
+    <!-- 车主电话 -->
+    <view class="form-item">
+      <view class="form-label">车主电话（选填）</view>
+      <input class="form-input" type="number" placeholder="请输入车主电话" value="{{ownerPhone}}" bindinput="onPhoneInput" />
+    </view>
+  </view>
+
+  <!-- 提交按钮 -->
+  <button class="submit-btn" type="primary" bindtap="onSubmit" loading="{{submitLoading}}" disabled="{{submitLoading || plates.length === 0}}">
+    {{submitLoading ? '提交中...' : '提交申请'}}
+  </button>
+</view>
