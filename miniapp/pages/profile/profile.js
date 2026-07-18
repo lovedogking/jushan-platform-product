@@ -48,6 +48,23 @@ Page({
 
   goToMessages() { wx.navigateTo({ url: '/pages/messages/messages' }) },
   goToVehicles() { wx.showToast({ title: '我的车辆 — 后续版本开放', icon: 'none' }) },
-  goToMonthCards() { wx.showToast({ title: '我的月卡 — 后续版本开放', icon: 'none' }) },
+  goToMonthCards() {
+    var app = getApp()
+    if (!app.globalData.phoneBound) {
+      wx.showModal({
+        title: '请先绑定手机号',
+        content: '办理月卡前需要先绑定手机号',
+        confirmText: '去绑定',
+        cancelText: '取消',
+        success: function (res) {
+          if (res.confirm) {
+            wx.navigateTo({ url: '/pages/bind-phone/bind-phone' })
+          }
+        },
+      })
+      return
+    }
+    wx.navigateTo({ url: '/pages/monthly-pass/monthly-pass' })
+  },
   goToCoupons() { wx.showToast({ title: '优惠券 — 后续版本开放', icon: 'none' }) },
 })
