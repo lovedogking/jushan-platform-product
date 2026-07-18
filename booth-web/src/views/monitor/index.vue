@@ -9,7 +9,9 @@
       <div class="header-right">
         <a-button @click="refreshDevices">刷新设备</a-button>
         <a-button @click="openBatchRelease">批量开闸</a-button>
-        <a-button @click="tempPlateDrawerOpen = true">无牌车处理</a-button>
+        <a-badge :count="unhandledRecognitionFailedCount" :overflow-count="99">
+          <a-button @click="tempPlateDrawerOpen = true">无牌车处理</a-button>
+        </a-badge>
         <a-badge :count="store.remoteGateAlerts.length" :overflow-count="99">
           <a-button @click="historyDrawerOpen = true">
             <template #icon><BellOutlined /></template>
@@ -347,18 +349,12 @@
       </div>
     </a-drawer>
 
-    <!-- 识别失败告警弹窗（Task 23 将替换为 notification） -->
-    <TempPlateAlertModal
-      :alert="recognitionFailedAlert"
-      @close="recognitionFailedAlert = null"
-      @confirmed="onTempPlateConfirmed"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { message } from 'ant-design-vue'
+import { computed, h, onMounted, onUnmounted, ref } from 'vue'
+import { message, notification } from 'ant-design-vue'
 import { SyncOutlined, BellOutlined, ExclamationCircleOutlined, VideoCameraOutlined } from '@ant-design/icons-vue'
 import { useMonitorStore } from '@/stores/monitor'
 import { MonitorWebSocketClient, type ConnectionStatus } from '@/utils/websocket'
@@ -366,7 +362,6 @@ import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPa
 import ChargePanel from '@/components/ChargePanel.vue'
 import ManualReleaseModal, { type BatchLaneOption } from '@/components/ManualReleaseModal.vue'
 import FeeRuleEditModal from '@/components/FeeRuleEditModal.vue'
-import TempPlateAlertModal, { type RecognitionFailedAlert } from '@/components/TempPlateAlertModal.vue'
 import ParkingLotSidebar from './ParkingLotSidebar.vue'
 import MonitorTabs from './MonitorTabs.vue'
 import { getBoothParkingLots, type BoothParkingLot } from '@/api/parking-lot'
@@ -404,7 +399,8 @@ const tempPlateDrawerOpen = ref(false)
 const tempPlateSearch = ref('')
 const tempPlateExitLane = ref<number | null>(null)
 const tempPlateExiting = ref(false)
-const recognitionFailedAlert = ref<RecognitionFailedAlert | null>(null)
+/** 识别失败未处理计数 */
+const unhandledRecognitionFailedCount = ref(0)
 
 // 车场列表（左侧栏）
 const sidebarLots = ref<{ id: number; name: string; status: string; currentVehicles?: number }[]>([])
@@ -461,11 +457,6 @@ async function handleTempPlateExit() {
   } finally {
     tempPlateExiting.value = false
   }
-}
-
-/** 无牌车入场确认回调 */
-function onTempPlateConfirmed(recordId: number, tempPlate: string) {
-  console.log('Temp plate confirmed:', recordId, tempPlate)
 }
 
 /** 加载车场列表（填充左侧栏） */
@@ -712,17 +703,31 @@ function buildWsClient(lotId: number) {
       },
       onAlert: (payload: any) => {
         if (payload.type === 'RECOGNITION_FAILED') {
-          recognitionFailedAlert.value = {
-            eventId: payload.eventId,
-            logId: payload.logId,
-            parkingLotId: payload.parkingLotId,
-            laneId: payload.laneId,
-            laneName: payload.laneName,
-            direction: payload.direction,
-            imagePath: payload.imagePath,
-            eventTime: payload.eventTime,
-            message: payload.message,
-          }
+          unhandledRecognitionFailedCount.value++
+          const key = `recognition-failed-${payload.eventId || Date.now()}`
+          notification.warning({
+            message: '识别失败',
+            description: `${payload.laneName || ''} | ${payload.eventTime || ''} | ${payload.message || '车牌未识别'}`,
+            placement: 'bottomRight',
+            duration: 0,
+            btn: () => h(
+              'a-button',
+              {
+                size: 'small',
+                type: 'primary',
+                onClick: () => {
+                  notification.close(key)
+                  unhandledRecognitionFailedCount.value = Math.max(0, unhandledRecognitionFailedCount.value - 1)
+                  tempPlateDrawerOpen.value = true
+                },
+              },
+              '处理',
+            ),
+            onClose: () => {
+              unhandledRecognitionFailedCount.value = Math.max(0, unhandledRecognitionFailedCount.value - 1)
+            },
+            key,
+          })
         } else {
           store.handleAlert(payload)
         }
