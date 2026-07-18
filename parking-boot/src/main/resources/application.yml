@@ -127,6 +127,16 @@ jwt:
   expiration: 86400000 # access token 有效期 24 小时（毫秒）
   refresh-expiration: 604800000 # refresh token 有效期 7 天（毫秒）
 
+# ---- 微信小程序配置 ----
+# appid/secret 通过环境变量注入，不入库、不入仓
+wx:
+  miniapp:
+    appid: ${WX_MINIAPP_APPID:}
+    secret: ${WX_MINIAPP_SECRET:}
+    connect-timeout: 5000
+    read-timeout: 10000
+  mock-login: false
+
 # ---- springdoc-openapi 文档 ----
 springdoc:
   api-docs:
