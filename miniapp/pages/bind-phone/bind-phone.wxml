@@ -1,0 +1,21 @@
+<view class="bind-phone-page">
+  <view class="bind-header">
+    <image class="bind-icon" src="/images/phone-bind.png" mode="aspectFit" />
+    <text class="bind-title">为保障服务，请绑定手机号</text>
+    <text class="bind-desc">绑定后可享受停车缴费、月卡申请等服务</text>
+  </view>
+  <view class="bind-body">
+    <button class="btn-get-phone" open-type="getPhoneNumber"
+            bindgetphonenumber="onGetPhoneNumber"
+            loading="{{loading}}"
+            disabled="{{loading}}">
+      {{loading ? '绑定中...' : '微信手机号一键绑定'}}
+    </button>
+    <view class="skip-bind" bindtap="onSkip">
+      稍后绑定
+    </view>
+  </view>
+  <view class="bind-footer">
+    <text class="footer-text">您的手机号仅用于接收停车通知和账单</text>
+  </view>
+</view>
