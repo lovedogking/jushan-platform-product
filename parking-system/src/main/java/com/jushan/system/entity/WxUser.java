@@ -42,6 +42,9 @@ public class WxUser implements Serializable {
     /** 绑定手机号（脱敏展示） */
     private String phone;
 
+    /** 微信会话密钥（用于旧版 getPhoneNumber 解密，可选） */
+    private String sessionKey;
+
     /** 手机号是否已验证：0-未验证, 1-已验证 */
     private Boolean phoneVerified;
 
@@ -80,6 +83,9 @@ public class WxUser implements Serializable {
 
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+
+    public String getSessionKey() { return sessionKey; }
+    public void setSessionKey(String sessionKey) { this.sessionKey = sessionKey; }
 
     public Boolean getPhoneVerified() { return phoneVerified; }
     public void setPhoneVerified(Boolean phoneVerified) { this.phoneVerified = phoneVerified; }
