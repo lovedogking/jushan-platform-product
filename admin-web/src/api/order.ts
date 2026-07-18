@@ -28,6 +28,10 @@ export interface OrderAdminVO {
   refundOperatorName?: string
   createdAt: string
   updatedAt?: string
+  /** 重算来源订单 ID */
+  recalcSourceOrderId?: number
+  /** 重算来源订单号 */
+  recalcSourceOrderNo?: string
 }
 
 export interface OrderStatusLogVO {
