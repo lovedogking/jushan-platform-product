@@ -54,6 +54,15 @@ public class AdminAccountVO {
     /** 最后登录时间 */
     private LocalDateTime lastLoginTime;
 
+    /** 首次登录是否强制修改密码：0否 1是 */
+    private Integer mustChangePassword;
+
+    /** 是否允许费用减免：0否 1是 */
+    private Integer allowFeeReduction;
+
+    /** 分配停车场 ID 列表 */
+    private List<Long> parkingLotIds;
+
     /** 绑定角色 ID 列表 */
     private List<Long> roleIds;
 
@@ -103,6 +112,15 @@ public class AdminAccountVO {
 
     public LocalDateTime getLastLoginTime() { return lastLoginTime; }
     public void setLastLoginTime(LocalDateTime lastLoginTime) { this.lastLoginTime = lastLoginTime; }
+
+    public Integer getMustChangePassword() { return mustChangePassword; }
+    public void setMustChangePassword(Integer mustChangePassword) { this.mustChangePassword = mustChangePassword; }
+
+    public Integer getAllowFeeReduction() { return allowFeeReduction; }
+    public void setAllowFeeReduction(Integer allowFeeReduction) { this.allowFeeReduction = allowFeeReduction; }
+
+    public List<Long> getParkingLotIds() { return parkingLotIds; }
+    public void setParkingLotIds(List<Long> parkingLotIds) { this.parkingLotIds = parkingLotIds; }
 
     public List<Long> getRoleIds() { return roleIds; }
     public void setRoleIds(List<Long> roleIds) { this.roleIds = roleIds; }
