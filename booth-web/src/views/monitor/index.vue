@@ -133,6 +133,7 @@
                   <a-button
                     type="primary"
                     size="small"
+                    :disabled="lane.isOffline"
                     @click="handleManualOpenGate(lane.laneId)"
                   >
                     开闸
@@ -482,6 +483,11 @@ function filterLotOption(input: string, option: { value: number; label: string }
 }
 
 function handleManualOpenGate(laneId: number) {
+  const laneCard = laneCards.value.find(lc => lc.laneId === laneId)
+  if (laneCard?.isOffline) {
+    message.warning('设备离线，无法操作')
+    return
+  }
   manualReleaseLaneId.value = laneId
   manualReleaseOpen.value = true
 }
