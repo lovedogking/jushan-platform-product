@@ -1,0 +1,1 @@
+regsvr32 "F:\发布\sdk\设备SDK开发包2.0.6.97\SDK\ActiveX\activex\VZLPRClientCtrl.ocx"

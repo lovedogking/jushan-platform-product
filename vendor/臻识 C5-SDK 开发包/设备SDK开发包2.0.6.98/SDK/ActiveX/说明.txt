@@ -1,0 +1,10 @@
+1.控件注册
+  运行"activex"目录下的"LPROCXReg.exe"程序注册控件，注册成功会弹出成功的对话框。如果注册失败，则请以管理员方式运行"cmd"命令。打开"install.bat"文件，把这个文件里面的内容拷贝到命令窗口中执行注册。
+
+2.Demo源码包括以下几种
+  语言      开发环境   Demo说明 
+  (1)C#，   vs2008
+  (2)Delphi delphi7
+  (3)VB     vb6.0
+  (4)VC     vs2008     iLPRClientDemo(综合demo) OCXGroupDemo(组网Demo)
+  

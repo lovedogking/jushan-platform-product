@@ -1,0 +1,13 @@
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\obj\Debug\Interop.VZLPRClientCtrlLib.dll
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\obj\Debug\AxInterop.VZLPRClientCtrlLib.dll
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\obj\Debug\LPRDemo.csproj.ResolveComReference.cache
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\bin\Debug\LPRDemo.exe
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\bin\Debug\LPRDemo.pdb
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\bin\Debug\Interop.VZLPRClientCtrlLib.dll
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\bin\Debug\AxInterop.VZLPRClientCtrlLib.dll
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\obj\Debug\ResolveAssemblyReference.cache
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\obj\Debug\LPRDemo.Form1.resources
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\obj\Debug\LPRDemo.Properties.Resources.resources
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\obj\Debug\LPRDemo.csproj.GenerateResource.Cache
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\obj\Debug\LPRDemo.exe
+E:\VzClientSDK_LPR\Trunk\Demos\OCX\C#\LPRDemo\LPRDemo\obj\Debug\LPRDemo.pdb

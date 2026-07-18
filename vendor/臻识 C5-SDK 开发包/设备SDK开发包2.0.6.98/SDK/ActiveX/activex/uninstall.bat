@@ -1,0 +1,1 @@
+regsvr32 /u "F:\发布\C系列\车牌识别一体机开发包2.0.5.9\SDK\ActiveX\activex\VZLPRClientCtrl.ocx"
