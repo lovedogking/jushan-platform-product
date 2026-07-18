@@ -32,6 +32,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.net.URLEncoder;
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -379,39 +382,54 @@ public class OrderAdminController {
                 .map(this::convertToVO)
                 .collect(Collectors.toList());
 
-        // 生成 CSV 导出（不依赖外部库，使用纯 Java 实现）
-        String fileName = URLEncoder.encode("订单导出_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".csv", StandardCharsets.UTF_8);
-        response.setContentType("text/csv;charset=UTF-8");
-        response.setHeader("Content-Disposition", "attachment; filename=" + fileName);
+        // xlsx 导出
+        Workbook wb = new XSSFWorkbook();
+        Sheet sheet = wb.createSheet("订单导出");
+        Row headerRow = sheet.createRow(0);
+        CellStyle headerStyle = wb.createCellStyle();
+        Font headerFont = wb.createFont();
+        headerFont.setBold(true);
+        headerStyle.setFont(headerFont);
 
-        // BOM for Excel UTF-8
-        response.getOutputStream().write(0xEF);
-        response.getOutputStream().write(0xBB);
-        response.getOutputStream().write(0xBF);
-
-        // CSV 表头
         String[] headers = {"订单号", "车牌号", "车场", "入场时间", "出场时间", "停车时长", "应收金额(元)", "实付金额(元)", "状态", "支付方式", "订单类型", "操作人", "创建时间"};
-        response.getWriter().println(String.join(",", headers));
-
-        for (OrderAdminVO vo : voList) {
-            String[] row = {
-                    escapeCsv(vo.getOrderNo()),
-                    escapeCsv(vo.getPlateNumber()),
-                    escapeCsv(vo.getParkingLotName()),
-                    escapeCsv(formatDateTime(vo.getEntryTime())),
-                    escapeCsv(formatDateTime(vo.getExitTime())),
-                    escapeCsv(formatDuration(vo.getParkingDurationMinutes())),
-                    escapeCsv(formatYuan(vo.getPayableAmount())),
-                    escapeCsv(formatYuan(vo.getPaidAmount())),
-                    escapeCsv(vo.getStatusLabel()),
-                    escapeCsv(vo.getPayChannelLabel()),
-                    escapeCsv(vo.getOrderTypeLabel()),
-                    escapeCsv(vo.getOperatorName()),
-                    escapeCsv(formatDateTime(vo.getCreatedAt()))
-            };
-            response.getWriter().println(String.join(",", row));
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
         }
-        response.getWriter().flush();
+
+        CellStyle yuanStyle = wb.createCellStyle();
+        yuanStyle.setDataFormat(wb.getCreationHelper().createDataFormat().getFormat("#,##0.00"));
+
+        int rowIdx = 1;
+        for (OrderAdminVO vo : voList) {
+            Row row = sheet.createRow(rowIdx++);
+            row.createCell(0).setCellValue(vo.getOrderNo() != null ? vo.getOrderNo() : "");
+            row.createCell(1).setCellValue(vo.getPlateNumber() != null ? vo.getPlateNumber() : "");
+            row.createCell(2).setCellValue(vo.getParkingLotName() != null ? vo.getParkingLotName() : "");
+            row.createCell(3).setCellValue(formatDateTime(vo.getEntryTime()));
+            row.createCell(4).setCellValue(formatDateTime(vo.getExitTime()));
+            row.createCell(5).setCellValue(formatDuration(vo.getParkingDurationMinutes()));
+            Cell payableCell = row.createCell(6);
+            payableCell.setCellValue(vo.getPayableAmount() != null ? vo.getPayableAmount() / 100.0 : 0.0);
+            payableCell.setCellStyle(yuanStyle);
+            Cell paidCell = row.createCell(7);
+            paidCell.setCellValue(vo.getPaidAmount() != null ? vo.getPaidAmount() / 100.0 : 0.0);
+            paidCell.setCellStyle(yuanStyle);
+            row.createCell(8).setCellValue(vo.getStatusLabel() != null ? vo.getStatusLabel() : "");
+            row.createCell(9).setCellValue(vo.getPayChannelLabel() != null ? vo.getPayChannelLabel() : "");
+            row.createCell(10).setCellValue(vo.getOrderTypeLabel() != null ? vo.getOrderTypeLabel() : "");
+            row.createCell(11).setCellValue(vo.getOperatorName() != null ? vo.getOperatorName() : "");
+            row.createCell(12).setCellValue(formatDateTime(vo.getCreatedAt()));
+        }
+        for (int i = 0; i < headers.length; i++) sheet.autoSizeColumn(i);
+
+        String fileName = URLEncoder.encode("订单导出_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx", StandardCharsets.UTF_8);
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setHeader("Content-Disposition", "attachment; filename=" + fileName);
+        wb.write(response.getOutputStream());
+        wb.close();
+        response.getOutputStream().flush();
     }
 
     // ==================== 私有方法 ====================
@@ -534,12 +552,5 @@ public class OrderAdminController {
         return mins + "分钟";
     }
 
-    private String escapeCsv(String value) {
-        if (value == null) return "";
-        // 如果包含逗号、双引号或换行，需要转义
-        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
-    }
+
 }
