@@ -42,6 +42,10 @@
         <text>优惠券</text>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-item" bindtap="goToInvoice">
+        <text>电子发票</text>
+        <text class="menu-arrow">›</text>
+      </view>
     </view>
 
     <!-- 退出登录 -->

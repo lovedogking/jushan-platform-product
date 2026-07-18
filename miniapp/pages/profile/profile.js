@@ -85,4 +85,5 @@ Page({
     wx.navigateTo({ url: '/pages/fixed-space/fixed-space' })
   },
   goToCoupons() { wx.showToast({ title: '优惠券 — 后续版本开放', icon: 'none' }) },
+  goToInvoice() { wx.navigateTo({ url: '/pages/invoice/invoice' }) },
 })

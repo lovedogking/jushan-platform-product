@@ -14,7 +14,8 @@
     "pages/monthly-pass/renew",
     "pages/fixed-space/fixed-space",
     "pages/fixed-space/apply",
-    "pages/fixed-space/renew"
+    "pages/fixed-space/renew",
+    "pages/invoice/invoice"
   ],
   "permission": {
     "scope.userLocation": {
