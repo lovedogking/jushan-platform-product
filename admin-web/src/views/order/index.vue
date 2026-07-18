@@ -112,6 +112,14 @@
         <a-descriptions-item label="操作人">{{ detailRecord.operatorName || '—' }}</a-descriptions-item>
         <a-descriptions-item label="创建时间">{{ formatDateTime(detailRecord.createdAt) }}</a-descriptions-item>
         <a-descriptions-item label="更新时间">{{ formatDateTime(detailRecord.updatedAt) || '—' }}</a-descriptions-item>
+        <a-descriptions-item label="重算关联" :span="2">
+          <template v-if="detailRecord?.recalcSourceOrderNo && detailRecord?.recalcSourceOrderId">
+            <a @click="openDetailById(detailRecord.recalcSourceOrderId)">
+              查看原订单：{{ detailRecord.recalcSourceOrderNo }}
+            </a>
+          </template>
+          <template v-else>—</template>
+        </a-descriptions-item>
       </a-descriptions>
 
       <div v-if="detailRecord && detailRecord.refundReason" class="detail-section">
@@ -181,6 +189,7 @@ import dayjs from 'dayjs'
 
 import {
   getOrderPage,
+  getOrderDetail,
   closeOrder,
   refundOrder,
   getOrderStatusLogs,
@@ -333,6 +342,26 @@ async function openDetail(record: OrderAdminVO) {
     // 错误由拦截器处理
   } finally {
     logsLoading.value = false
+  }
+}
+
+/** 通过订单 ID 打开详情弹窗（用于重算关联跳转） */
+async function openDetailById(id: number) {
+  try {
+    const detail = await getOrderDetail(id)
+    detailRecord.value = detail
+    detailOpen.value = true
+    statusLogs.value = []
+    logsLoading.value = true
+    try {
+      statusLogs.value = await getOrderStatusLogs(id)
+    } catch {
+      // 错误由拦截器处理
+    } finally {
+      logsLoading.value = false
+    }
+  } catch {
+    // 错误由拦截器处理
   }
 }
 
