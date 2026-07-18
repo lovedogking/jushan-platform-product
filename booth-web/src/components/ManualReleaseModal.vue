@@ -8,17 +8,37 @@
     @ok="handleConfirm"
     @cancel="handleCancel"
   >
-    <!-- 单通道模式：显示放行车辆 -->
+    <!-- 单通道模式：显示放行车辆 + 是否计费 + 金额 + 原因 -->
     <template v-if="!batch">
       <a-form :model="formState" layout="vertical">
         <a-form-item label="放行车辆">
           <a-input :value="plateNumber" disabled />
         </a-form-item>
 
-        <a-form-item label="备注">
+        <a-form-item label="是否计费">
+          <a-switch v-model:checked="formState.isCharge" :disabled="releasing" />
+          <span style="margin-left: 8px; color: #6b7280; font-size: 12px;">
+            {{ formState.isCharge ? '计费放行' : '免费放行' }}
+          </span>
+        </a-form-item>
+
+        <a-form-item v-if="formState.isCharge" label="计费金额（元）">
+          <a-input-number
+            v-model:value="formState.amountYuan"
+            :min="0"
+            :precision="2"
+            :disabled="releasing"
+            placeholder="请输入收费金额"
+            style="width: 100%"
+          >
+            <template #addonAfter>元</template>
+          </a-input-number>
+        </a-form-item>
+
+        <a-form-item label="放行原因" required>
           <a-textarea
             v-model:value="formState.remark"
-            placeholder="选填：放行备注说明"
+            placeholder="必填：请填写放行原因"
             :rows="2"
             :maxlength="200"
             :disabled="releasing"
@@ -161,6 +181,8 @@ const emit = defineEmits<{
 
 const formState = reactive({
   remark: '',
+  isCharge: false,
+  amountYuan: 0,
 })
 
 const releasing = ref(false)
@@ -187,6 +209,8 @@ watch(
   (newVal) => {
     if (newVal) {
       formState.remark = ''
+      formState.isCharge = false
+      formState.amountYuan = 0
       releaseResult.value = null
       selectedLaneIds.value = []
       batchResult.success = []
@@ -207,6 +231,20 @@ async function handleConfirm() {
 
   releasing.value = true
   releaseResult.value = null
+
+  // 单通道模式：放行原因必填
+  if (!props.batch && !formState.remark.trim()) {
+    message.warning('请填写放行原因')
+    releasing.value = false
+    return
+  }
+
+  // 单通道计费模式：金额必填且 > 0
+  if (!props.batch && formState.isCharge && formState.amountYuan <= 0) {
+    message.warning('计费放行请填写收费金额')
+    releasing.value = false
+    return
+  }
 
   if (props.batch) {
     // 批量模式
@@ -253,8 +291,19 @@ async function handleConfirm() {
   } else {
     // 单通道模式
     try {
+      const feeCents = formState.isCharge
+        ? Math.round(formState.amountYuan * 100)
+        : 0
       const reasonText = getReasonText(formState.remark)
-      const result = await manualOpenGate(props.laneId, reasonText)
+      const result = await manualOpenGate(
+        props.laneId,
+        reasonText,
+        {
+          isCharge: formState.isCharge,
+          feeCents,
+          plateNumber: props.plateNumber || undefined,
+        },
+      )
 
       const success = result.gateDeviceAck === true
       const resultMsg = success
