@@ -31,6 +31,9 @@ public class WxLoginResult {
     /** 登录结果描述 */
     private String message;
 
+    /** 手机号是否已绑定 */
+    private Boolean phoneBound;
+
     /** 登录时间 */
     private LocalDateTime loginTime;
 
@@ -56,6 +59,9 @@ public class WxLoginResult {
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
+
+    public Boolean getPhoneBound() { return phoneBound; }
+    public void setPhoneBound(Boolean phoneBound) { this.phoneBound = phoneBound; }
 
     public LocalDateTime getLoginTime() { return loginTime; }
     public void setLoginTime(LocalDateTime loginTime) { this.loginTime = loginTime; }
