@@ -19,7 +19,6 @@ import com.jushan.system.service.BillingEngine;
 import com.jushan.system.entity.ParkingLane;
 import com.jushan.system.mapper.ParkingLaneMapper;
 import com.jushan.system.service.DeviceService;
-import com.jushan.system.service.GpioGateService;
 import com.jushan.system.service.MonitorAlertService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,17 +27,19 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 识别事件处理服务实现。
  * <p>
- * 处理入场/出场识别事件，调用 Device Access v0.4 真实开闸。
+ * 处理入场/出场识别事件，统一通过 Device Access → Adapter 下发开闸命令。
+ * Adapter 根据设备类型自动选择 gate_direct_open 或 gpio_out 协议。
  * 开闸失败不阻塞业务记录（入场记录已创建、出场费用已计算）。
  * <p>
  * <strong>安全约束</strong>：
  * <ul>
  *   <li>deviceSn 从平台设备台账可信记录读取，不信任前端输入</li>
- *   <li>开闸禁止自动重试，失败后由岗亭人工兜底</li>
+ *   <li>携带 commandId 支持网络瞬断场景的自动重试（最多 3 次，1s/5s/30s）</li>
  *   <li>开闸异常标记为 UNCERTAIN，保留完整审计信息</li>
  * </ul>
  *
@@ -55,7 +56,6 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     private final DeviceMapper deviceMapper;
     private final DeviceAccessClient deviceAccessClient;
     private final MonitorAlertService monitorAlertService;
-    private final GpioGateService gpioGateService;
     private final DeviceService deviceService;
     private final ParkingLaneMapper parkingLaneMapper;
 
@@ -65,7 +65,6 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                                        DeviceMapper deviceMapper,
                                        DeviceAccessClient deviceAccessClient,
                                        MonitorAlertService monitorAlertService,
-                                       GpioGateService gpioGateService,
                                        DeviceService deviceService,
                                        ParkingLaneMapper parkingLaneMapper) {
         this.vehicleTypeDecisionService = vehicleTypeDecisionService;
@@ -74,7 +73,6 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         this.deviceMapper = deviceMapper;
         this.deviceAccessClient = deviceAccessClient;
         this.monitorAlertService = monitorAlertService;
-        this.gpioGateService = gpioGateService;
         this.deviceService = deviceService;
         this.parkingLaneMapper = parkingLaneMapper;
     }
@@ -386,7 +384,9 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
      * 执行开闸操作，填充三层状态到 result。
      * <p>
      * 优先查找车道绑定的 GATE 设备并通过 Device Access 开闸。
-     * 若车道无 GATE 设备但有 CAMERA 设备（如臻识 C5H），则通过 MQTT gpio_out 控制 GPIO 开闸。
+     * 若车道无 GATE 设备但有 CAMERA 设备（如臻识 C5H），则回退到 CAMERA 设备开闸。
+     * 所有设备统一通过 Device Access → Adapter 下发开闸命令，Adapter 根据设备类型
+     * 自动选择 gate_direct_open 或 gpio_out 协议。
      * 所有异常均被捕获，不向外传播（保证入场/出场记录不因开闸失败而回滚）。
      *
      * @param parkingLotId 停车场 ID（用于告警）
@@ -420,14 +420,8 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
 
         String deviceSn = gateDevice.getDeviceSn();
 
-        // 3. 根据设备类型选择开闸方式
-        if ("CAMERA".equals(gateDevice.getDeviceType())) {
-            // CAMERA 设备：通过 MQTT gpio_out 控制 GPIO 开闸（臻识 C5H 方案）
-            executeCameraGpioOpen(deviceSn, result, direction, plateNumber);
-        } else {
-            // GATE 设备：通过 Device Access 开闸
-            executeDaGateOpen(deviceSn, result, direction, plateNumber);
-        }
+        // 3. 统一通过 Device Access 开闸（Adapter 根据设备类型自动选择 gate_direct_open 或 gpio_out 协议）
+        executeDaGateOpen(deviceSn, result, direction, plateNumber);
 
         // 记录 UNCERTAIN 告警（gateOpened=null 时）
         if (result.getGateOpened() == null && result.getGateCommandSent() == Boolean.TRUE) {
@@ -439,13 +433,18 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     }
 
     /**
-     * 通过 Device Access 开闸（适用于 GATE 类型设备）。
+     * 通过 Device Access 开闸（统一路径，任务包 7-1）。
+     * <p>
+     * Adapter 根据设备类型自动选择 gate_direct_open（GATE 设备）或
+     * gpio_out（CAMERA GPIO 控制）协议。
+     * 携带 commandId 支持网络瞬断场景的自动重试。
      */
     private void executeDaGateOpen(String deviceSn, RecognitionResultVO result,
                                     String direction, String plateNumber) {
+        String commandId = UUID.randomUUID().toString();
         try {
             result.setGateCommandSent(true);
-            CommandResultDTO gateResult = deviceAccessClient.openGate(deviceSn);
+            CommandResultDTO gateResult = deviceAccessClient.openGate(deviceSn, commandId);
             boolean success = gateResult.isSuccessful();
             result.setGateDeviceAck(success);
             result.setGateOpened(null); // 一期无法确认闸杆实际状态
@@ -454,47 +453,16 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
             } else {
                 result.setGateResult(direction + "开闸失败: "
                         + (gateResult.getMessage() != null ? gateResult.getMessage() : "设备返回异常"));
-                log.warn("{}开闸设备返回失败: plate={}, deviceSn={}, deviceCode={}, message={}",
-                        direction, plateNumber, deviceSn, gateResult.getDeviceCode(), gateResult.getMessage());
+                log.warn("{}开闸设备返回失败: plate={}, deviceSn={}, commandId={}, deviceCode={}, message={}",
+                        direction, plateNumber, deviceSn, commandId, gateResult.getDeviceCode(), gateResult.getMessage());
             }
         } catch (BusinessException e) {
             result.setGateCommandSent(true);
             result.setGateDeviceAck(false);
             result.setGateOpened(null);
             result.setGateResult(direction + "开闸异常（UNCERTAIN）: " + e.getMessage());
-            log.error("{}开闸异常（UNCERTAIN）: plate={}, deviceSn={}, error={}",
-                    direction, plateNumber, deviceSn, e.getMessage());
-        }
-    }
-
-    /**
-     * 通过 MQTT gpio_out 控制 CAMERA GPIO 开闸（臻识 C5H 方案）。
-     * <p>
-     * 臻识 C5H 固件版本 bv=16771 不支持 gate_direct_open 命令，
-     * 需通过 gpio_out 命令控制 GPIO 引脚输出脉冲来触发道闸。
-     * 开闸信号：io=0, value=2（脉冲）, delay=1500ms
-     */
-    private void executeCameraGpioOpen(String deviceSn, RecognitionResultVO result,
-                                        String direction, String plateNumber) {
-        try {
-            result.setGateCommandSent(true);
-            boolean success = gpioGateService.openGate(deviceSn);
-            result.setGateDeviceAck(success);
-            result.setGateOpened(null); // 一期无法确认闸杆实际状态
-            if (success) {
-                result.setGateResult(direction + "GPIO开闸命令已发送");
-                log.info("{}GPIO开闸命令已发送: plate={}, deviceSn={}", direction, plateNumber, deviceSn);
-            } else {
-                result.setGateResult(direction + "GPIO开闸命令发送失败");
-                log.warn("{}GPIO开闸命令发送失败: plate={}, deviceSn={}", direction, plateNumber, deviceSn);
-            }
-        } catch (Exception e) {
-            result.setGateCommandSent(true);
-            result.setGateDeviceAck(false);
-            result.setGateOpened(null);
-            result.setGateResult(direction + "GPIO开闸异常: " + e.getMessage());
-            log.error("{}GPIO开闸异常: plate={}, deviceSn={}, error={}",
-                    direction, plateNumber, deviceSn, e.getMessage());
+            log.error("{}开闸异常（UNCERTAIN）: plate={}, deviceSn={}, commandId={}, error={}",
+                    direction, plateNumber, deviceSn, commandId, e.getMessage());
         }
     }
 
