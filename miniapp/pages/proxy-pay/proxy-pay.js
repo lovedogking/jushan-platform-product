@@ -22,6 +22,34 @@ function formatDuration(minutes) {
   return m > 0 ? `${h}小时${m}分钟` : `${h}小时`
 }
 
+function checkPhoneBinding() {
+  var app = getApp()
+  if (!app.globalData.token) {
+    wx.showModal({
+      title: '请先登录',
+      content: '需要登录后才能使用此功能',
+      confirmText: '去登录',
+      success: function(res) {
+        if (res.confirm) { app.doLogin() }
+        else { wx.switchTab({ url: '/pages/index/index' }) }
+      },
+    })
+    return false
+  }
+  if (!app.globalData.phoneBound) {
+    wx.showModal({
+      title: '请先绑定手机号',
+      content: '绑定手机号后即可使用代缴停车费等服务',
+      confirmText: '去绑定',
+      success: function(res) {
+        if (res.confirm) { wx.navigateTo({ url: '/pages/bind-phone/bind-phone' }) }
+      },
+    })
+    return false
+  }
+  return true
+}
+
 Page({
   data: {
     // 输入
@@ -50,6 +78,7 @@ Page({
   },
 
   onLoad() {
+    if (!checkPhoneBinding()) { return }
     this.getClipboardPlate()
   },
 
