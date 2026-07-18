@@ -1,10 +1,13 @@
 package com.jushan.system.controller;
 
+import com.jushan.common.CommonErrorCode;
 import com.jushan.common.R;
 import com.jushan.system.dto.BindPhoneRequest;
 import com.jushan.system.dto.BindPlateRequest;
+import com.jushan.system.dto.MiniLoginRequest;
 import com.jushan.system.dto.UnbindPlateRequest;
 import com.jushan.system.dto.WxLoginRequest;
+import com.jushan.system.service.MiniAuthService;
 import com.jushan.system.service.WxUserService;
 import com.jushan.system.vo.PlateBindingVo;
 import com.jushan.system.vo.WxLoginResult;
@@ -27,23 +30,29 @@ import java.util.Map;
 public class WxUserController {
 
     private final WxUserService wxUserService;
+    private final MiniAuthService miniAuthService;
 
-    public WxUserController(WxUserService wxUserService) {
+    public WxUserController(WxUserService wxUserService, MiniAuthService miniAuthService) {
         this.wxUserService = wxUserService;
+        this.miniAuthService = miniAuthService;
     }
 
     /**
-     * 微信登录。
+     * 微信登录（已废弃，请使用 POST /api/v1/mini/login）。
      * <p>
-     * 前端调用：{@code POST /api/wx/login}
-     * <p>
-     * 微信小程序通过 wx.login() 获取 code，后端使用 code 换取 openid。
-     * 真实微信登录需要调用微信接口；本版本提供 Mock 登录用于 local/test 环境。
+     * 当前委托新 MiniAuthService 处理，保持向后兼容。
+     *
+     * @deprecated 请迁移至 POST /api/v1/mini/login
      */
     @PostMapping("/login")
+    @Deprecated
     public R<WxLoginResult> login(@Valid @RequestBody WxLoginRequest request) {
-        WxLoginResult result = wxUserService.login(request);
-        return R.ok(result);
+        // 将 WxLoginRequest 转换为 MiniLoginRequest
+        MiniLoginRequest miniRequest = new MiniLoginRequest();
+        miniRequest.setCode(request.getCode());
+        miniRequest.setNickname(request.getNickname());
+        miniRequest.setAvatarUrl(request.getAvatarUrl());
+        return R.ok(miniAuthService.login(miniRequest));
     }
 
     /**
@@ -104,13 +113,16 @@ public class WxUserController {
     }
 
     /**
-     * 绑定手机号。
+     * 绑定手机号（已废弃，请使用 POST /api/v1/mini/phone）。
      * <p>
-     * 前端调用：{@code POST /api/wx/phone}
+     * 旧接口明文手机号绑定已废弃，getPhoneNumber 流程请用 /api/v1/mini/phone。
+     *
+     * @deprecated 请迁移至 POST /api/v1/mini/phone
      */
     @PostMapping("/phone")
+    @Deprecated
     public R<Void> bindPhone(@Valid @RequestBody BindPhoneRequest request) {
-        wxUserService.bindPhone(request);
-        return R.ok();
+        return R.fail(CommonErrorCode.METHOD_NOT_ALLOWED.getCode(),
+                "此接口已废弃，请在微信小程序中更新版本");
     }
 }
