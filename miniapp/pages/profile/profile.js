@@ -7,56 +7,47 @@ Page({
     isLoggedIn: false,
     displayName: '',
     phone: '',
+    phoneBound: false,
   },
 
-  onLoad() {
-    const app = getApp()
-    if (app.globalData.token && app.globalData.ownerInfo) {
+  onLoad() { this.refreshState() },
+  onShow() { this.refreshState() },
+
+  refreshState() {
+    var app = getApp()
+    var token = app.globalData.token
+    var ownerInfo = app.globalData.ownerInfo
+    if (token && ownerInfo) {
       this.setData({
         isLoggedIn: true,
-        displayName: app.globalData.ownerInfo.displayName || '车主',
-        phone: app.globalData.ownerInfo.phone || '',
+        displayName: ownerInfo.displayName || ownerInfo.nickname || '车主',
+        phone: ownerInfo.phone || ownerInfo.maskedPhone || '',
+        phoneBound: app.globalData.phoneBound || false,
+      })
+    } else {
+      this.setData({
+        isLoggedIn: false, displayName: '', phone: '', phoneBound: false,
       })
     }
   },
 
-  onShow() {
-    this.onLoad()
-  },
-
-  /** 退出登录 */
   handleLogout() {
     wx.showModal({
       title: '提示',
       content: '确定要退出登录吗？',
-      success: (res) => {
+      success: function(res) {
         if (res.confirm) {
-          const app = getApp()
+          var app = getApp()
           app.logout()
-          this.setData({ isLoggedIn: false })
+          this.setData({ isLoggedIn: false, displayName: '', phone: '', phoneBound: false })
           wx.showToast({ title: '已退出', icon: 'success' })
         }
-      },
+      }.bind(this),
     })
   },
 
-  /** 跳转消息中心 */
-  goToMessages() {
-    wx.navigateTo({ url: '/pages/messages/messages' })
-  },
-
-  /** 跳转我的车辆 */
-  goToVehicles() {
-    wx.showToast({ title: '我的车辆 — 后续版本开放', icon: 'none' })
-  },
-
-  /** 跳转我的月卡 */
-  goToMonthCards() {
-    wx.showToast({ title: '我的月卡 — 后续版本开放', icon: 'none' })
-  },
-
-  /** 跳转优惠券 */
-  goToCoupons() {
-    wx.showToast({ title: '优惠券 — 后续版本开放', icon: 'none' })
-  },
+  goToMessages() { wx.navigateTo({ url: '/pages/messages/messages' }) },
+  goToVehicles() { wx.showToast({ title: '我的车辆 — 后续版本开放', icon: 'none' }) },
+  goToMonthCards() { wx.showToast({ title: '我的月卡 — 后续版本开放', icon: 'none' }) },
+  goToCoupons() { wx.showToast({ title: '优惠券 — 后续版本开放', icon: 'none' }) },
 })
