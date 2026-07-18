@@ -110,8 +110,10 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     }
 
     @Override
-    public RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason) {
-        log.info("人工开闸请求: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+    public RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason,
+                                              boolean isCharge, Integer feeCents, String plateNumber) {
+        log.info("人工开闸请求: laneId={}, operatorId={}, reason={}, isCharge={}, feeCents={}, plateNumber={}",
+                laneId, operatorId, reason, isCharge, feeCents, plateNumber);
 
         RecognitionResultVO result = new RecognitionResultVO();
         result.setAllowPass(true);
@@ -156,7 +158,8 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         // 3. 通过 DeviceService.openGate() 执行开闸（同时处理 GATE→DA 和 CAMERA+OPEN_GATE→GPIO）
         try {
             result.setGateCommandSent(true);
-            CommandResultDTO gateResult = deviceService.openGate(gateDevice.getId(), "人工开闸: " + reason);
+            CommandResultDTO gateResult = deviceService.openGate(gateDevice.getId(), "人工开闸: " + reason,
+                    isCharge ? plateNumber : null, isCharge ? feeCents : null);
             boolean success = gateResult.isSuccessful();
             result.setGateDeviceAck(success);
             result.setGateOpened(null); // 一期无法确认闸杆实际状态
@@ -187,9 +190,9 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         }
 
         // 记录审计日志
-        log.info("人工开闸审计: laneId={}, operatorId={}, reason={}, deviceId={}, deviceSn={}, "
+        log.info("人工开闸审计: laneId={}, operatorId={}, reason={}, isCharge={}, feeCents={}, plateNumber={}, deviceId={}, deviceSn={}, "
                 + "gateCommandSent={}, gateDeviceAck={}, gateOpened={}",
-                laneId, operatorId, reason, gateDevice.getId(), gateDevice.getDeviceSn(),
+                laneId, operatorId, reason, isCharge, feeCents, plateNumber, gateDevice.getId(), gateDevice.getDeviceSn(),
                 result.getGateCommandSent(), result.getGateDeviceAck(), result.getGateOpened());
 
         return result;

@@ -1005,6 +1005,23 @@ public class DeviceService {
      */
     @Transactional
     public CommandResultDTO openGate(Long deviceId, String reason) {
+        return openGate(deviceId, reason, null, null);
+    }
+
+    /**
+     * 开闸（调用 DA v0.4），支持传入车牌号和费用用于审计记录。
+     * <p>
+     * 与 {@link #openGate(Long, String)} 逻辑一致，额外允许在审计记录中写入
+     * {@code plateNumber} 和 {@code feeCents}，供岗亭端手工计费/免费放行场景使用。
+     *
+     * @param deviceId    平台设备 ID
+     * @param reason      操作原因
+     * @param plateNumber 车牌号（可选）
+     * @param feeCents    计费金额（分，可选）
+     * @return 命令执行结果
+     */
+    @Transactional
+    public CommandResultDTO openGate(Long deviceId, String reason, String plateNumber, Integer feeCents) {
         Device device = getDeviceWithAuth(deviceId);
 
         if (!STATUS_ENABLED.equals(device.getStatus())) {
@@ -1025,6 +1042,8 @@ public class DeviceService {
         // 构造命令审计记录
         DeviceCommandAudit audit = buildCommandAudit(device, lot, tenantId,
                 COMMAND_TYPE_OPEN_GATE, reason, null, now);
+        audit.setPlateNumber(plateNumber);
+        audit.setFeeCents(feeCents);
 
         try {
             CommandResultDTO result;

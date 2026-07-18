@@ -29,13 +29,21 @@ public interface RecognitionEventService {
      * <p>
      * 通过 Device Access v0.4 {@code POST /api/v1/devices/{deviceSn}/gate/open} 真实调用，
      * 禁止自动重试，失败后由操作员在 UI 层面手动重试。
+     * <p>
+     * 当 {@code isCharge} 为 {@code true} 时，{@code feeCents} 和 {@code plateNumber}
+     * 会被写入设备命令审计记录（{@code device_command_audit}），
+     * 用于记录手工计费或免费放行的审计信息。
      *
      * @param laneId      通道ID
      * @param operatorId  操作人ID
      * @param reason      开闸原因
+     * @param isCharge    是否计费（true=计费开闸，false=免费放行）
+     * @param feeCents    计费金额（分），isCharge=true 时有效
+     * @param plateNumber 车牌号（可选，用于审计记录）
      * @return 开闸结果（含三层状态：gateCommandSent / gateDeviceAck / gateOpened）
      */
-    RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason);
+    RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason,
+                                       boolean isCharge, Integer feeCents, String plateNumber);
 
     /**
      * 人工关闸。

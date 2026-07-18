@@ -56,15 +56,23 @@ public class RecognitionEventController {
 
     /**
      * 人工开闸（单通道）。
+     * <p>
+     * 支持传入 isCharge / feeCents / plateNumber 用于记录手工计费或免费放行的审计信息。
+     * 向后兼容：所有新参数均可选（有默认值），已有调用方（如批量开闸）无需修改。
      */
     @PostMapping("/manual-open-gate")
     @RequirePermission("booth:operate")
     public R<RecognitionResultVO> manualOpenGate(
             @RequestParam Long laneId,
-            @RequestParam String reason) {
+            @RequestParam String reason,
+            @RequestParam(defaultValue = "false") boolean isCharge,
+            @RequestParam(defaultValue = "0") Integer feeCents,
+            @RequestParam(required = false) String plateNumber) {
         Long operatorId = com.jushan.common.auth.TenantContext.getUserId();
-        RecognitionResultVO result = recognitionEventService.manualOpenGate(laneId, operatorId, reason);
-        log.info("人工开闸: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+        RecognitionResultVO result = recognitionEventService.manualOpenGate(
+                laneId, operatorId, reason, isCharge, feeCents, plateNumber);
+        log.info("人工开闸: laneId={}, operatorId={}, reason={}, isCharge={}, feeCents={}, plateNumber={}",
+                laneId, operatorId, reason, isCharge, feeCents, plateNumber);
         return R.ok(result);
     }
 
