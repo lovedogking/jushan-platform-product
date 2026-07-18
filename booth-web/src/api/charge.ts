@@ -36,15 +36,24 @@ export function submitCharge(data: {
   })
 }
 
-/**
- * 人工开闸。
- * POST /api/v1/booth/recognition/manual-open-gate
- */
-export function manualOpenGate(laneId: number, reason: string): Promise<GateOpenResult> {
+/** 人工开闸（扩展版，支持计费参数）。 */
+export function manualOpenGate(
+  laneId: number,
+  reason: string,
+  options?: { isCharge?: boolean; feeCents?: number; plateNumber?: string },
+): Promise<GateOpenResult> {
   return request.post<GateOpenResult>(
     '/v1/booth/recognition/manual-open-gate',
     undefined,
-    { params: { laneId, reason } },
+    {
+      params: {
+        laneId,
+        reason,
+        isCharge: options?.isCharge ?? false,
+        feeCents: options?.feeCents ?? 0,
+        plateNumber: options?.plateNumber ?? undefined,
+      },
+    },
   )
 }
 
