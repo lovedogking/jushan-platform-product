@@ -12,7 +12,10 @@
     "pages/bind-phone/bind-phone",
     "pages/monthly-pass/monthly-pass",
     "pages/monthly-pass/apply",
-    "pages/monthly-pass/renew"
+    "pages/monthly-pass/renew",
+    "pages/fixed-space/fixed-space",
+    "pages/fixed-space/apply",
+    "pages/fixed-space/renew"
   ],
   "permission": {
     "scope.userLocation": {

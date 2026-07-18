@@ -66,5 +66,23 @@ Page({
     }
     wx.navigateTo({ url: '/pages/monthly-pass/monthly-pass' })
   },
+  goToFixedSpaces() {
+    var app = getApp()
+    if (!app.globalData.phoneBound) {
+      wx.showModal({
+        title: '请先绑定手机号',
+        content: '办理固定车位前需要先绑定手机号',
+        confirmText: '去绑定',
+        cancelText: '取消',
+        success: function (res) {
+          if (res.confirm) {
+            wx.navigateTo({ url: '/pages/bind-phone/bind-phone' })
+          }
+        },
+      })
+      return
+    }
+    wx.navigateTo({ url: '/pages/fixed-space/fixed-space' })
+  },
   goToCoupons() { wx.showToast({ title: '优惠券 — 后续版本开放', icon: 'none' }) },
 })

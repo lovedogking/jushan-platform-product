@@ -34,6 +34,10 @@
         <text>我的月卡</text>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-item" bindtap="goToFixedSpaces">
+        <text>固定车位</text>
+        <text class="menu-arrow">›</text>
+      </view>
       <view class="menu-item" bindtap="goToCoupons">
         <text>优惠券</text>
         <text class="menu-arrow">›</text>
