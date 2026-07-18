@@ -52,7 +52,7 @@ export const MENU_MAP: Record<string, MenuItem[]> = {
     { key: 'billing-rules', label: '收费规则', icon: 'DollarOutlined', path: '/billing-rules' },
     { key: 'fee-calculator', label: '费用试算', icon: 'CalculatorOutlined', path: '/fee-calculator' },
     { key: 'orders', label: '订单管理', icon: 'FileTextOutlined', path: '/orders', permission: 'order:manage' },
-    { key: 'access-policies', label: '黑白名单', icon: 'SafetyOutlined', path: '/access-policies', permission: 'parking:view' },
+    { key: 'vehicle-list', label: '黑白名单', icon: 'SafetyOutlined', path: '/vehicle-list', permission: 'vehicle-list:view' },
     { key: 'report-revenue', label: '收入报表', icon: 'DollarCircleOutlined', path: '/report-revenue', permission: 'dashboard:view' },
     { key: 'report-traffic', label: '车流量报表', icon: 'BarChartOutlined', path: '/report-traffic', permission: 'dashboard:view' },
   ],

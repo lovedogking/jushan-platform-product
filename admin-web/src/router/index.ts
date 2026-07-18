@@ -158,12 +158,12 @@ export const constantRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/account/CustomRoleManage.vue'),
         meta: { title: '角色管理', icon: 'IdcardOutlined', permission: 'role:view', cache: true },
       },
-      // 黑白名单管理
+      // 黑白名单管理（任务包 6-2：替换为 vehicle-list 新页面）
       {
-        path: 'access-policies',
-        name: 'AccessPolicies',
-        component: () => import('@/views/access-policy/index.vue'),
-        meta: { title: '黑白名单', icon: 'SafetyOutlined', permission: 'parking:view', cache: true },
+        path: 'vehicle-list',
+        name: 'VehicleList',
+        component: () => import('@/views/vehicle-list/VehicleListManage.vue'),
+        meta: { title: '黑白名单', icon: 'SafetyOutlined', permission: 'vehicle-list:view', cache: true },
       },
       // Phase 1 A3：系统参数管理
       {
