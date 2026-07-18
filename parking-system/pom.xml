@@ -68,11 +68,6 @@
             <artifactId>poi-ooxml</artifactId>
         </dependency>
 
-        <!-- Eclipse Paho MQTT 客户端（用于 gpio_out 道闸控制） -->
-        <dependency>
-            <groupId>org.eclipse.paho</groupId>
-            <artifactId>org.eclipse.paho.client.mqttv3</artifactId>
-        </dependency>
     </dependencies>
 
 </project>

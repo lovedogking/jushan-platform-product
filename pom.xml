@@ -145,12 +145,6 @@
                 <version>${poi.version}</version>
             </dependency>
 
-            <!-- ===== Eclipse Paho MQTT 客户端 ===== -->
-            <dependency>
-                <groupId>org.eclipse.paho</groupId>
-                <artifactId>org.eclipse.paho.client.mqttv3</artifactId>
-                <version>1.2.5</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 
