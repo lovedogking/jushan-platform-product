@@ -93,6 +93,12 @@ public class OrderAdminVO implements Serializable {
     /** 更新时间 */
     private LocalDateTime updatedAt;
 
+    /** 重算来源订单 ID。超时关单后重算时，新订单记录关联的原订单主键 */
+    private Long recalcSourceOrderId;
+
+    /** 重算来源订单号。超时关单后重算时，新订单记录关联的原订单号 */
+    private String recalcSourceOrderNo;
+
     // ==================== getter / setter ====================
 
     public Long getId() { return id; }
@@ -163,6 +169,12 @@ public class OrderAdminVO implements Serializable {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public Long getRecalcSourceOrderId() { return recalcSourceOrderId; }
+    public void setRecalcSourceOrderId(Long recalcSourceOrderId) { this.recalcSourceOrderId = recalcSourceOrderId; }
+
+    public String getRecalcSourceOrderNo() { return recalcSourceOrderNo; }
+    public void setRecalcSourceOrderNo(String recalcSourceOrderNo) { this.recalcSourceOrderNo = recalcSourceOrderNo; }
 
     public String getRefundReason() { return refundReason; }
     public void setRefundReason(String refundReason) { this.refundReason = refundReason; }
