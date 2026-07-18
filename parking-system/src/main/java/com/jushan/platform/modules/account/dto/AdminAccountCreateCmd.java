@@ -57,6 +57,15 @@ public class AdminAccountCreateCmd {
     /** 租户 ID（平台用户创建二级/三级账号时必填） */
     private Long tenantId;
 
+    /** 首次登录是否强制修改密码：0否 1是 */
+    private Integer mustChangePassword;
+
+    /** 是否允许费用减免：0否 1是 */
+    private Integer allowFeeReduction;
+
+    /** 分配停车场 ID 列表 */
+    private List<Long> parkingLotIds;
+
     // ==================== getter / setter ====================
 
     public String getUsername() { return username; }
@@ -91,4 +100,13 @@ public class AdminAccountCreateCmd {
 
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+
+    public Integer getMustChangePassword() { return mustChangePassword; }
+    public void setMustChangePassword(Integer mustChangePassword) { this.mustChangePassword = mustChangePassword; }
+
+    public Integer getAllowFeeReduction() { return allowFeeReduction; }
+    public void setAllowFeeReduction(Integer allowFeeReduction) { this.allowFeeReduction = allowFeeReduction; }
+
+    public List<Long> getParkingLotIds() { return parkingLotIds; }
+    public void setParkingLotIds(List<Long> parkingLotIds) { this.parkingLotIds = parkingLotIds; }
 }
