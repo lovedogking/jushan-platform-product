@@ -27,6 +27,9 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -237,36 +240,53 @@ public class ParkingRecordAdminController {
         List<ParkingRecord> records = recordMapper.selectList(wrapper.last("LIMIT " + EXPORT_MAX_LIMIT));
         List<ParkingRecordAdminVO> voList = convertToVOList(records);
 
-        String fileName = URLEncoder.encode("通行记录导出_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".csv", StandardCharsets.UTF_8);
-        response.setContentType("text/csv;charset=UTF-8");
-        response.setHeader("Content-Disposition", "attachment; filename=" + fileName);
-
-        // BOM for Excel UTF-8
-        response.getOutputStream().write(0xEF);
-        response.getOutputStream().write(0xBB);
-        response.getOutputStream().write(0xBF);
+        // xlsx 导出
+        Workbook wb = new XSSFWorkbook();
+        Sheet sheet = wb.createSheet("通行记录导出");
+        Row headerRow = sheet.createRow(0);
+        CellStyle headerStyle = wb.createCellStyle();
+        Font headerFont = wb.createFont();
+        headerFont.setBold(true);
+        headerStyle.setFont(headerFont);
 
         String[] headers = {"车牌号", "入场时间", "出场时间", "停车时长", "应收金额(元)", "实付金额(元)", "支付方式", "状态", "入场通道", "出口通道", "操作人", "放行原因"};
-        response.getWriter().println(String.join(",", headers));
-
-        for (ParkingRecordAdminVO vo : voList) {
-            String[] row = {
-                    escapeCsv(vo.getPlateNumber()),
-                    escapeCsv(formatDateTime(vo.getEntryTime())),
-                    escapeCsv(formatDateTime(vo.getExitTime())),
-                    escapeCsv(formatDuration(vo.getParkingDurationMinutes())),
-                    escapeCsv(formatYuan(vo.getFeeAmount())),
-                    escapeCsv(formatYuan(vo.getPaidAmount())),
-                    escapeCsv(vo.getPayChannelLabel()),
-                    escapeCsv(vo.getStatusLabel()),
-                    escapeCsv(vo.getEntryLaneName()),
-                    escapeCsv(vo.getExitLaneName()),
-                    escapeCsv(vo.getOperatorName()),
-                    escapeCsv(vo.getReleaseReason())
-            };
-            response.getWriter().println(String.join(",", row));
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
         }
-        response.getWriter().flush();
+
+        CellStyle yuanStyle = wb.createCellStyle();
+        yuanStyle.setDataFormat(wb.getCreationHelper().createDataFormat().getFormat("#,##0.00"));
+
+        int rowIdx = 1;
+        for (ParkingRecordAdminVO vo : voList) {
+            Row row = sheet.createRow(rowIdx++);
+            row.createCell(0).setCellValue(vo.getPlateNumber() != null ? vo.getPlateNumber() : "");
+            row.createCell(1).setCellValue(formatDateTime(vo.getEntryTime()));
+            row.createCell(2).setCellValue(formatDateTime(vo.getExitTime()));
+            row.createCell(3).setCellValue(formatDuration(vo.getParkingDurationMinutes()));
+            Cell feeCell = row.createCell(4);
+            feeCell.setCellValue(vo.getFeeAmount() != null ? vo.getFeeAmount() / 100.0 : 0.0);
+            feeCell.setCellStyle(yuanStyle);
+            Cell paidCell = row.createCell(5);
+            paidCell.setCellValue(vo.getPaidAmount() != null ? vo.getPaidAmount() / 100.0 : 0.0);
+            paidCell.setCellStyle(yuanStyle);
+            row.createCell(6).setCellValue(vo.getPayChannelLabel() != null ? vo.getPayChannelLabel() : "");
+            row.createCell(7).setCellValue(vo.getStatusLabel() != null ? vo.getStatusLabel() : "");
+            row.createCell(8).setCellValue(vo.getEntryLaneName() != null ? vo.getEntryLaneName() : "");
+            row.createCell(9).setCellValue(vo.getExitLaneName() != null ? vo.getExitLaneName() : "");
+            row.createCell(10).setCellValue(vo.getOperatorName() != null ? vo.getOperatorName() : "");
+            row.createCell(11).setCellValue(vo.getReleaseReason() != null ? vo.getReleaseReason() : "");
+        }
+        for (int i = 0; i < headers.length; i++) sheet.autoSizeColumn(i);
+
+        String fileName = URLEncoder.encode("通行记录导出_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx", StandardCharsets.UTF_8);
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setHeader("Content-Disposition", "attachment; filename=" + fileName);
+        wb.write(response.getOutputStream());
+        wb.close();
+        response.getOutputStream().flush();
     }
 
     // ==================== 批量 VO 转换 ====================
@@ -411,11 +431,6 @@ public class ParkingRecordAdminController {
 
     // ==================== 导出工具方法 ====================
 
-    private String formatYuan(Integer cents) {
-        if (cents == null) return "0.00";
-        return String.format("%.2f", cents / 100.0);
-    }
-
     private String formatDateTime(LocalDateTime dt) {
         if (dt == null) return "";
         return dt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
@@ -431,11 +446,4 @@ public class ParkingRecordAdminController {
         return mins + "分钟";
     }
 
-    private String escapeCsv(String value) {
-        if (value == null) return "";
-        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
-    }
 }
