@@ -76,8 +76,6 @@ Page({
     // 订单信息
     orderId: null,
     orderNo: '',
-    paySerial: '',
-    prepayParams: null,
 
     // 错误信息
     errorMsg: '',
@@ -165,7 +163,7 @@ Page({
     }, 30000)
   },
 
-  /** 发起支付 */
+  /** 发起支付（模拟支付：预下单 → 确认支付） */
   async onPay() {
     if (this.data.paying) return
 
@@ -196,44 +194,20 @@ Page({
         return
       }
 
-      const { orderId, orderNo, paySerial, prepayParams, payableAmountYuan } = prepayRes
+      const { orderId, orderNo, payableAmountYuan } = prepayRes
       this.setData({
         orderId,
         orderNo,
-        paySerial,
-        prepayParams,
         feeText: payableAmountYuan || this.data.feeText,
       })
 
-      // 2. 调用微信支付
-      // 注意：实际的 wx.requestPayment 参数格式依赖 P云预请求返回的具体字段
-      // 当前使用 P云 mock 模式时，prepayParams 包含 paySerial 和 appId
-      // 真实环境下需要 P云返回 timeStamp, nonceStr, package, signType, paySign
-      try {
-        await this.requestWxPayment(prepayParams)
-      } catch (payErr) {
-        // wx.requestPayment 失败（用户取消或支付错误）
-        if (payErr.errMsg && payErr.errMsg.includes('cancel')) {
-          this.setData({ paying: false, errorMsg: '支付已取消' })
-        } else {
-          this.setData({ paying: false, errorMsg: payErr.errMsg || '支付失败，请重试' })
-        }
-        return
-      }
+      // 2. 模拟支付确认（直接调用后端通知，无需 wx.requestPayment）
+      await post('/api/v1/mini/pay/notify', {
+        orderId: orderId,
+        paidAmount: this.data.feeCents,
+      })
 
-      // 3. 通知后端支付成功
-      try {
-        await post('/api/v1/mini/pay/notify', {
-          orderId: orderId,
-          paySerial: paySerial,
-          paidAmount: this.data.feeCents,
-        })
-      } catch (notifyErr) {
-        // 通知后端失败也视为支付成功（微信侧已扣款）
-        console.warn('支付通知后端失败:', notifyErr)
-      }
-
-      // 4. 支付成功
+      // 3. 支付成功
       this.setData({ paying: false, payResult: 'success' })
       wx.showToast({ title: '支付成功', icon: 'success' })
       // 引导订阅消息授权（非阻塞）
@@ -247,33 +221,9 @@ Page({
       this.setData({
         paying: false,
         payResult: 'fail',
-        errorMsg: err.message || '支付预请求失败，请重试',
+        errorMsg: err.message || '支付失败，请重试',
       })
     }
-  },
-
-  /** 封装 wx.requestPayment */
-  requestWxPayment(prepayParams) {
-    return new Promise((resolve, reject) => {
-      // P云 mock 模式下可能没有完整微信支付参数
-      // 此时模拟支付成功（用于开发测试）
-      if (!prepayParams || !prepayParams.timeStamp) {
-        console.log('[Mock] 模拟微信支付成功，prepayParams:', JSON.stringify(prepayParams))
-        // Mock 模式下直接 resolve，跳过真实支付
-        setTimeout(() => resolve({ errMsg: 'requestPayment:ok (mock)' }), 500)
-        return
-      }
-
-      wx.requestPayment({
-        timeStamp: prepayParams.timeStamp || '',
-        nonceStr: prepayParams.nonceStr || '',
-        package: prepayParams.package || '',
-        signType: prepayParams.signType || 'MD5',
-        paySign: prepayParams.paySign || '',
-        success: resolve,
-        fail: reject,
-      })
-    })
   },
 
   /** 重试支付 */
