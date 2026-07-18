@@ -32,3 +32,8 @@ export function manualTempPlateEntry(data: { parkingLotId: number; laneId: numbe
 export function manualTempPlateExit(data: { tempPlate: string; parkingLotId: number; laneId: number }) {
   return request.post<{ exitRecordId: number; orderId: number; feeCents: number; message: string }>('/booth/temp-plate/exit-match', data)
 }
+
+/** 车牌校正 */
+export function correctPlate(logId: number, correctedPlate: string) {
+  return request.post<void>(`/booth/recognition/${logId}/correct`, { correctedPlate })
+}
