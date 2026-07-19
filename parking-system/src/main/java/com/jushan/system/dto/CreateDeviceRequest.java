@@ -57,6 +57,18 @@ public class CreateDeviceRequest {
     @Size(max = 255, message = "备注最长255个字符")
     private String description;
 
+    /** 设备 IP 地址 */
+    private String ipAddress;
+
+    /** 设备端口，默认 80 */
+    private Integer port;
+
+    /** 子网掩码 */
+    private String subnetMask;
+
+    /** 网关地址 */
+    private String gateway;
+
     // ==================== getter / setter ====================
 
     public Long getParkingLotId() { return parkingLotId; }
@@ -91,4 +103,16 @@ public class CreateDeviceRequest {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public String getIpAddress() { return ipAddress; }
+    public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
+
+    public Integer getPort() { return port; }
+    public void setPort(Integer port) { this.port = port; }
+
+    public String getSubnetMask() { return subnetMask; }
+    public void setSubnetMask(String subnetMask) { this.subnetMask = subnetMask; }
+
+    public String getGateway() { return gateway; }
+    public void setGateway(String gateway) { this.gateway = gateway; }
 }
