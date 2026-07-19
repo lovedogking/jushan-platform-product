@@ -70,7 +70,7 @@ make clean
 
 | 文档 | 用途 |
 |------|------|
-| [需求规格说明书](docs/需求规格说明书_v1.2.md) | 权威需求基线 |
+| [AGENTS.md](AGENTS.md) | 权威需求基线（一期） |
 | [接口契约](docs/接口契约/) | Platform ↔ Device Access 跨项目约定 |
 
 ### 平台侧
