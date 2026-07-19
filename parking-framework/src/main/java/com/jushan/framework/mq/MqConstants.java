@@ -60,15 +60,4 @@ public final class MqConstants {
 
     /** 租户/账号模块 */
     public static final String MODULE_TENANT = "tenant";
-
-    // ==================== 识别事件（T28） ====================
-
-    /** 识别事件 Queue */
-    public static final String QUEUE_RECOGNITION_EVENT = "jushan.record.recognition.event";
-
-    /** 识别事件 RoutingKey */
-    public static final String ROUTING_KEY_RECOGNITION_EVENT = "jushan.record.recognition.event";
-
-    /** 识别事件消息类型 */
-    public static final String TYPE_RECOGNITION_EVENT = "record.recognition.event";
 }

@@ -51,6 +51,14 @@ public class ParkingLane extends BaseEntity {
     /** 相机配置模式：1单相机 2双相机 3主从相机 */
     private Integer cameraMode;
 
+    /** 闸机模式：AUTO-自动, ALWAYS_OPEN-常开, ALWAYS_CLOSE-常关 */
+    private String gateMode;
+
     /** 乐观锁版本号 */
     private Integer version;
+
+    // gate_mode 常量
+    public static final String GATE_MODE_AUTO = "AUTO";
+    public static final String GATE_MODE_ALWAYS_OPEN = "ALWAYS_OPEN";
+    public static final String GATE_MODE_ALWAYS_CLOSE = "ALWAYS_CLOSE";
 }

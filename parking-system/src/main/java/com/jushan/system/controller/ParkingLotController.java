@@ -1,6 +1,7 @@
 package com.jushan.system.controller;
 
 import com.jushan.platform.infra.security.RequirePermission;
+import com.jushan.platform.infra.security.RequireRole;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.jushan.common.R;
 import com.jushan.system.dto.CreateParkingLotRequest;
@@ -34,6 +35,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/api/admin/parking-lots")
+@RequireRole("platform") // SA-01: 仅超管（V1.4 权限矩阵修正）
 public class ParkingLotController {
 
     private static final Logger log = LoggerFactory.getLogger(ParkingLotController.class);

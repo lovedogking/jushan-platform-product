@@ -1,6 +1,7 @@
 package com.jushan.system.controller;
 
 import com.jushan.platform.infra.security.RequirePermission;
+import com.jushan.platform.infra.security.RequireRole;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.jushan.common.R;
 import com.jushan.system.dto.CreateLaneRequest;
@@ -31,6 +32,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/admin/lanes")
+@RequireRole("platform") // SA-02: 仅超管（V1.4 权限矩阵修正）
 public class ParkingLaneController {
 
     private static final Logger log = LoggerFactory.getLogger(ParkingLaneController.class);

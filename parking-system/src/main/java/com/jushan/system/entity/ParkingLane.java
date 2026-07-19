@@ -61,6 +61,9 @@ public class ParkingLane implements Serializable {
     /** 相机配置模式：1-单相机, 2-双相机, 3-主从相机 */
     private Integer cameraMode;
 
+    /** 闸机模式：AUTO-自动, ALWAYS_OPEN-常开, ALWAYS_CLOSE-常关 */
+    private String gateMode;
+
     /** 乐观锁版本号 */
     private Integer version;
 
@@ -70,6 +73,11 @@ public class ParkingLane implements Serializable {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    // gate_mode 常量
+    public static final String GATE_MODE_AUTO = "AUTO";
+    public static final String GATE_MODE_ALWAYS_OPEN = "ALWAYS_OPEN";
+    public static final String GATE_MODE_ALWAYS_CLOSE = "ALWAYS_CLOSE";
 
     // ==================== getter / setter ====================
 
@@ -108,6 +116,9 @@ public class ParkingLane implements Serializable {
 
     public Integer getCameraMode() { return cameraMode; }
     public void setCameraMode(Integer cameraMode) { this.cameraMode = cameraMode; }
+
+    public String getGateMode() { return gateMode; }
+    public void setGateMode(String gateMode) { this.gateMode = gateMode; }
 
     public Integer getVersion() { return version; }
     public void setVersion(Integer version) { this.version = version; }

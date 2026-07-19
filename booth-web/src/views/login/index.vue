@@ -71,8 +71,26 @@ async function handleSubmit() {
       username: formState.username,
       password: formState.password,
     })
-    validateAndSetToken(result.token || result.accessToken, result.user?.permissions)
-    const redirect = (route.query.redirect as string) || '/monitor'
+    const token = result.accessToken
+    const permissions = result.user?.permissions
+    const roles = result.user?.roles || []
+
+    validateAndSetToken(token, permissions)
+    // 存储用户角色信息（供路由守卫使用）
+    if (roles.length > 0) {
+      sessionStorage.setItem('jushan_roles', JSON.stringify(roles))
+    }
+    if (result.user) {
+      sessionStorage.setItem('jushan_user', JSON.stringify(result.user))
+    }
+
+    // 按角色跳转默认页
+    let redirect = (route.query.redirect as string) || null
+    if (!redirect) {
+      if (roles.includes('platform')) redirect = '/admin/accounts'
+      else if (roles.includes('tenant')) redirect = '/operation/dashboard'
+      else redirect = '/booth/monitor'
+    }
     router.push(redirect)
   } catch (e: any) {
     const traceInfo = e.traceId ? `（traceId: ${e.traceId}）` : ''

@@ -47,6 +47,9 @@ public class ParkingSession extends BaseEntity {
     /** 入场操作人ID（人工放行时） */
     private Long entryOperator;
 
+    /** 入场触发方式：whitelist_auto-白名单自动, manual_open-人工放行, always_open_period-常开时段, manual_entry-人工补录 */
+    private String entryTrigger;
+
     /** 出场时间 */
     private LocalDateTime exitTime;
 
@@ -82,4 +85,10 @@ public class ParkingSession extends BaseEntity {
     public static final String STATUS_IN = "IN";
     public static final String STATUS_OUT = "OUT";
     public static final String STATUS_EXCEPTION = "EXCEPTION";
+
+    // entry_trigger 常量
+    public static final String TRIGGER_WHITELIST_AUTO = "whitelist_auto";
+    public static final String TRIGGER_MANUAL_OPEN = "manual_open";
+    public static final String TRIGGER_ALWAYS_OPEN_PERIOD = "always_open_period";
+    public static final String TRIGGER_MANUAL_ENTRY = "manual_entry";
 }

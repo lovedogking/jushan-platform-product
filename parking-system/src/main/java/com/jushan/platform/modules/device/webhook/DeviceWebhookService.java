@@ -7,6 +7,7 @@ import com.jushan.system.entity.Device;
 import com.jushan.system.entity.ParkingLane;
 import com.jushan.system.mapper.DeviceMapper;
 import com.jushan.system.mapper.ParkingLaneMapper;
+import com.jushan.system.ws.BoothWebSocketPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -59,22 +61,25 @@ public class DeviceWebhookService {
      */
     static final Duration EVENT_TTL = Duration.ofHours(24);
 
-    /** 车牌级去重窗口（秒） */
-    private static final int PLATE_DEDUP_WINDOW_SECONDS = 60;
+    /** 车牌级去重窗口（秒），BR-08: 同一车道同一车牌 30 秒内去重 */
+    private static final int PLATE_DEDUP_WINDOW_SECONDS = 30;
 
     private final DeviceMapper deviceMapper;
     private final ParkingLaneMapper laneMapper;
     private final DeviceWebhookEventHandler eventHandler;
     private final StringRedisTemplate stringRedisTemplate;
+    private final BoothWebSocketPublisher wsPublisher;
 
     public DeviceWebhookService(DeviceMapper deviceMapper,
                                 ParkingLaneMapper laneMapper,
                                 DeviceWebhookEventHandler eventHandler,
-                                ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
+                                ObjectProvider<StringRedisTemplate> redisTemplateProvider,
+                                BoothWebSocketPublisher wsPublisher) {
         this.deviceMapper = deviceMapper;
         this.laneMapper = laneMapper;
         this.eventHandler = eventHandler;
         this.stringRedisTemplate = redisTemplateProvider.getIfAvailable();
+        this.wsPublisher = wsPublisher;
     }
 
     /**
@@ -153,13 +158,13 @@ public class DeviceWebhookService {
             }
         }
 
-        // 5b. 车牌级去重：同一（车牌+方向）在 60 秒窗口内去重
+        // 5b. 车牌级去重（BR-08）：同一车道同一车牌同一方向在 30 秒窗口内去重
         //     臻识 C5H 每次识别发两条 MQTT（quick_ivs_result + ivs_result），
         //     DA 为两者分别生成不同 eventId 但车牌相同，两事件可能几乎同时到达。
-        //     使用 ConcurrentHashMap.computeIfAbsent 原子操作避免竞态条件。
+        //     使用 ConcurrentHashMap.compute 原子操作避免竞态条件。
         //     方向在步骤 3 中已从车道绑定推断，此时有效。
-        if (normalizedPlate != null && event.getDirection() != null) {
-            String plateKey = normalizedPlate + ":" + event.getDirection();
+        if (normalizedPlate != null && event.getDirection() != null && trustedLaneId != null) {
+            String plateKey = normalizedPlate + ":" + event.getDirection() + ":" + trustedLaneId;
             LocalDateTime now = LocalDateTime.now();
             LocalDateTime existing = recentPlateEvents.compute(plateKey, (k, v) -> {
                 if (v != null && v.plusSeconds(PLATE_DEDUP_WINDOW_SECONDS).isAfter(now)) {
@@ -169,8 +174,18 @@ public class DeviceWebhookService {
             });
             // 如果 existing 不等于 now，说明窗口内已有记录（compute 返回了旧值）
             if (!existing.equals(now)) {
-                log.info("Webhook 同一车牌短时重复，已跳过: plate={}, direction={}, eventId={}",
-                        normalizedPlate, event.getDirection(), event.getEventId());
+                log.info("Webhook 同一车道同一车牌短时重复（BR-08），跳过会话创建但事件照常推送: plate={}, direction={}, laneId={}, eventId={}",
+                        normalizedPlate, event.getDirection(), trustedLaneId, event.getEventId());
+                // V1.4: BR-08 去重仅跳过会话创建，事件照常推送岗亭
+                wsPublisher.sendLightweightRecognitionEvent(
+                        trustedParkingLotId,
+                        normalizedPlate,
+                        event.getDirection(),
+                        trustedLaneId,
+                        event.getDeviceSn(),
+                        event.getImageUrl(),
+                        confidence,
+                        event.getCaptureTime() != null ? event.getCaptureTime().toString() : null);
                 return;
             }
         }

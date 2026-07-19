@@ -2,6 +2,7 @@ package com.jushan.platform.modules.booth.controller;
 
 import com.jushan.common.R;
 import com.jushan.platform.infra.security.RequirePermission;
+import com.jushan.platform.infra.security.RequireRole;
 import com.jushan.platform.modules.booth.dto.RecognitionEventCmd;
 import com.jushan.platform.modules.booth.service.RecognitionEventService;
 import com.jushan.platform.modules.booth.vo.RecognitionResultVO;
@@ -31,6 +32,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/booth/recognition")
+@RequireRole({"platform", "tenant", "booth"}) // GB-02~05: 三种角色均可使用岗亭工作区（V1.4）
 public class RecognitionEventController {
 
     private final RecognitionEventService recognitionEventService;

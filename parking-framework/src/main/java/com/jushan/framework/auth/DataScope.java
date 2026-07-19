@@ -49,8 +49,8 @@ public final class DataScope {
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED,
                     "未登录或会话已过期");
         }
-        // 只有显式确认为平台用户后才允许跨租户访问
-        if (s.isPlatformUser()) {
+        // 平台用户和岗亭管理员允许跨租户访问
+        if (s.isPlatformUser() || s.isBoothUser()) {
             return;
         }
         // 租户用户：tenantId 不可为空，且必须匹配

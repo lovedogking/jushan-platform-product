@@ -223,14 +223,15 @@ public class ZhenshiDeviceCoordinator implements DeviceCoordinator {
     }
 
     /**
-     * 解除道闸锁定（解锁 IO0 + 重置状态机 + 关闸）。
+     * 解除道闸锁定（解锁 IO0 + gpio_out 开闸脉冲复位状态机）。
      * <p>
-     * 三步流程：
+     * 两步流程：
      * <ol>
-     *   <li>发送 set_io_lock_status ioout=0 status=0 解除 IO0 锁定</li>
-     *   <li>发送 gate_direct_open 重置摄像头道闸状态机</li>
-     *   <li>发送 gpio_out IO1 关闸脉冲</li>
+     *   <li>发送 set_io_lock_status io=0 status=0 解除 IO0 锁定</li>
+     *   <li>发送 gpio_out IO0 开闸脉冲，重置设备内部道闸状态机，恢复 gpio_out 命令的正常响应</li>
      * </ol>
+     * <p>
+     * 注意：本设备固件 bv=16771 不支持 gate_direct_open，使用 gpio_out 开闸脉冲替代。
      */
     public CompletableFuture<CommandResultDTO> unlockGate(String deviceId, UnlockGateRequest req) {
         Device device = deviceRegistry.getByDeviceId(deviceId);
@@ -250,56 +251,51 @@ public class ZhenshiDeviceCoordinator implements DeviceCoordinator {
         int io = 0; // IO0 = 开闸继电器
         log.info("[Gate] Coordinator: unlockGate  deviceId={}  io={}", deviceId, io);
 
-        // 1. 先解除 IO 锁定
+        // 两步流程：
+        // 1. 解除 IO 锁定（set_io_lock_status status=0）
+        // 2. 重置设备内部道闸状态机（gate_direct_open），恢复 gpio_out 命令的正常响应
+        //    步骤 2 为 best-effort，失败不影响解锁结果
         return handler.sendUnlockGate(device.getDeviceId(), io, DEFAULT_TIMEOUT_SECONDS)
                 .thenCompose(reply -> {
                     boolean unlockSuccess = reply.getCode() != null && reply.getCode() == 200;
+
                     if (!unlockSuccess) {
+                        // IO 解锁失败 → 直接返回失败
                         String msg = "Device returned error code: " + reply.getCode();
                         logGateResult(device, "UNLOCK_GATE", false, reply.getCode());
                         commandLogService.recordResponse(cmdLog.getId(), false, reply.getCode(), msg);
-                        return CompletableFuture.completedFuture(CommandResultDTO.builder()
-                                .success(false)
-                                .deviceCode(reply.getCode())
-                                .message(msg)
-                                .build());
+                        return CompletableFuture.completedFuture(
+                                CommandResultDTO.builder()
+                                        .success(false)
+                                        .deviceCode(reply.getCode())
+                                        .message(msg)
+                                        .build());
                     }
 
-                    // 2. 发送 gate_direct_open 重置摄像头道闸状态机
-                    log.info("[Gate] Coordinator: unlockGate  deviceId={}  resetting state machine via gate_direct_open",
-                            deviceId);
-
-                    return handler.sendGateDirectOpen(device.getDeviceId(), DEFAULT_TIMEOUT_SECONDS)
+                    // IO 解锁成功 → best-effort 重置状态机
+                    // gate_direct_open 不被本设备固件(bv=16771)支持，改用 gpio_out 开闸脉冲复位
+                    log.info("[Gate] Coordinator: unlockGate IO unlocked, resetting state machine via gpio_out(openGate)  deviceId={}", deviceId);
+                    return handler.sendOpenGate(device.getDeviceId(), DEFAULT_TIMEOUT_SECONDS)
                             .handle((resetReply, resetError) -> {
-                                if (resetError != null || resetReply == null || resetReply.getCode() == null || resetReply.getCode() != 200) {
-                                    String reason = resetError != null ? resetError.getMessage()
-                                            : (resetReply != null ? "code=" + resetReply.getCode() : "null reply");
-                                    log.warn("[Gate] Coordinator: unlockGate  deviceId={}  gate_direct_open failed ({}), still trying close gate",
-                                            deviceId, reason);
+                                String msg = "Gate unlocked";
+                                if (resetError != null) {
+                                    log.warn("[Gate] Coordinator: unlockGate state reset(gpio_out) failed, close gate may not respond  deviceId={}  error={}",
+                                            deviceId, resetError.getMessage());
+                                    msg += " (state reset warning: " + resetError.getMessage() + ")";
+                                } else if (resetReply.getCode() == null || resetReply.getCode() != 200) {
+                                    log.warn("[Gate] Coordinator: unlockGate state reset(gpio_out) returned non-200  deviceId={}  code={}",
+                                            deviceId, resetReply.getCode());
+                                    msg += " (state reset warning: code=" + resetReply.getCode() + ")";
                                 } else {
-                                    log.info("[Gate] Coordinator: unlockGate  deviceId={}  state machine reset ok",
-                                            deviceId);
+                                    log.info("[Gate] Coordinator: unlockGate state machine reset via gpio_out successful  deviceId={}", deviceId);
                                 }
-                                return null;
-                            })
-                            .thenCompose(ignored -> {
-                                // 3. 发送关闸命令
-                                log.info("[Gate] Coordinator: unlockGate  deviceId={}  sending close gate", deviceId);
-
-                                return handler.sendCloseGate(device.getDeviceId(), DEFAULT_TIMEOUT_SECONDS)
-                                        .thenApply(pulseReply -> {
-                                            boolean pulseSuccess = pulseReply.getCode() != null && pulseReply.getCode() == 200;
-                                            String msg = pulseSuccess
-                                                    ? "Gate unlocked and closed"
-                                                    : "Gate unlocked but failed to close: " + pulseReply.getCode();
-                                            logGateResult(device, "UNLOCK_GATE", pulseSuccess, pulseReply.getCode());
-                                            commandLogService.recordResponse(cmdLog.getId(), pulseSuccess, pulseReply.getCode(), msg);
-                                            return CommandResultDTO.builder()
-                                                    .success(pulseSuccess)
-                                                    .deviceCode(pulseReply.getCode())
-                                                    .message(msg)
-                                                    .build();
-                                        });
+                                logGateResult(device, "UNLOCK_GATE", true, reply.getCode());
+                                commandLogService.recordResponse(cmdLog.getId(), true, reply.getCode(), msg);
+                                return CommandResultDTO.builder()
+                                        .success(true)
+                                        .deviceCode(reply.getCode())
+                                        .message(msg)
+                                        .build();
                             });
                 })
                 .exceptionally(e -> {

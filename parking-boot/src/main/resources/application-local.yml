@@ -81,7 +81,7 @@ logging:
   level:
     com.jushan: DEBUG
 
-# ---- Device Access 真实适配器（已切换到真实 HTTP 调用） ----
+# ---- Device Access 真实适配器 ----
 jushan:
   device-access:
     mock:

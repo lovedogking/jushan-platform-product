@@ -139,16 +139,21 @@ public class ParkingLotService {
     public ParkingLotVO create(CreateParkingLotRequest request) {
         Long tenantId = resolveTenantId();
         if (tenantId == null) {
-            // 平台用户：从所属公司推导租户ID
-            if (request.getCompanyId() == null) {
+            // 平台用户：直接使用上下文中的租户（超管无需绑定公司）
+            if (TenantContext.isPlatformUser()) {
+                tenantId = TenantContext.getTenantId();
+            }
+            // 如果仍无租户，使用公司推导（兼容旧逻辑）
+            if (tenantId == null && request.getCompanyId() != null) {
+                Company preCompany = companyMapper.selectById(request.getCompanyId());
+                if (preCompany != null && preCompany.getDeletedAt() == null) {
+                    tenantId = preCompany.getTenantId();
+                }
+            }
+            if (tenantId == null) {
                 throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                        "平台用户需指定所属公司后创建停车场");
+                        "无法确定租户，请检查登录状态");
             }
-            Company preCompany = companyMapper.selectById(request.getCompanyId());
-            if (preCompany == null || preCompany.getDeletedAt() != null) {
-                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "所属公司不存在");
-            }
-            tenantId = preCompany.getTenantId();
         } else {
             DataScope.requireCustomerAdmin();
         }
@@ -157,13 +162,16 @@ public class ParkingLotService {
         Tenant tenant = tenantMapper.selectById(tenantId);
         DataScope.validateTenantEnabled(tenant != null ? tenant.getStatus() : null);
 
-        // 校验并设置所属公司
-        Company company = resolveCompany(request.getCompanyId(), tenantId);
-
         ParkingLot lot = new ParkingLot();
         lot.setTenantId(tenantId);
-        lot.setCompanyId(company.getId());
-        lot.setGroupId(company.getLevel() == 1 ? company.getId() : company.getParentId());
+        // 公司/集团模型扁平化：companyId 为空时置 0
+        if (request.getCompanyId() != null && request.getCompanyId() > 0) {
+            Company company = companyMapper.selectById(request.getCompanyId());
+            if (company != null && company.getDeletedAt() == null) {
+                lot.setCompanyId(company.getId());
+                lot.setGroupId(company.getLevel() == 1 ? company.getId() : company.getParentId());
+            }
+        }
         lot.setName(request.getName().trim());
         lot.setAddress(defaultString(request.getAddress(), ""));
         lot.setContactPhone(defaultString(request.getContactPhone(), ""));

@@ -34,7 +34,7 @@ export function getParkingLots(params: ParkingLotPageQuery) {
 }
 
 export interface ParkingLotCreateCmd {
-  companyId: number
+  companyId?: number
   name: string
   address?: string
   totalSpaces?: number

@@ -176,14 +176,14 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
             vehicle = findByMultiPlate(standardizedPlate, tenantId);
         }
 
-        // 3. 未找到任何记录 → 临时车
+        // 3. 未找到任何记录 → 临时车（一期：非白名单车辆需岗亭人工放行）
         if (vehicle == null) {
             result.setVehicleType("TEMP");
             result.setTypeDescription("临时车");
-            result.setAllowEntry(true);
+            result.setAllowEntry(false); // 一期：非白名单车辆默认不允许自动入场，需岗亭人工放行
             result.setAllowExit(true);
             result.setNeedCharge(true);
-            result.setDecisionReason("未找到车辆登记记录，按临时车处理");
+            result.setDecisionReason("非白名单车辆，需岗亭人工放行");
             return result;
         }
 

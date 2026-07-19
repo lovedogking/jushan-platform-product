@@ -2,15 +2,14 @@ package com.jushan.system.service;
 
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
+import com.jushan.common.auth.TenantContext;
+import com.jushan.platform.modules.booth.dto.RecognitionEventCmd;
+import com.jushan.platform.modules.booth.service.RecognitionEventService;
 import com.jushan.system.dto.MockRecognitionRequest;
 import com.jushan.system.entity.Device;
 import com.jushan.system.entity.ParkingLane;
 import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.entity.RecognitionEventLog;
-import com.jushan.system.event.EventSource;
-import com.jushan.system.event.PlateStandardizer;
-import com.jushan.system.event.RecognitionEventPayload;
-import com.jushan.system.event.RecognitionEventPublisher;
 import com.jushan.system.mapper.DeviceMapper;
 import com.jushan.system.mapper.ParkingLaneMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
@@ -18,7 +17,6 @@ import com.jushan.system.mybatis.TenantIgnore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import java.util.UUID;
 
 /**
  * Mock/人工识别事件处理服务（T28）。
@@ -27,7 +25,7 @@ import java.util.UUID;
  * <ol>
  *   <li>校验请求参数（设备存在、启用、方向匹配）</li>
  *   <li>从可信设备记录推导 tenantId、parkingLotId、laneId</li>
- *   <li>构造标准 {@link RecognitionEventPayload} 并委托 {@link RecognitionEventPublisher} 发布</li>
+ *   <li>构造标准 {@link RecognitionEventCmd} 并委托 {@link RecognitionEventService} 处理</li>
  * </ol>
  * <p>
  * <strong>安全约束</strong>：
@@ -50,20 +48,20 @@ public class MockRecognitionService {
     private final DeviceMapper deviceMapper;
     private final ParkingLaneMapper laneMapper;
     private final ParkingLotMapper parkingLotMapper;
-    private final RecognitionEventPublisher eventPublisher;
+    private final RecognitionEventService recognitionEventService;
 
     public MockRecognitionService(DeviceMapper deviceMapper,
                                    ParkingLaneMapper laneMapper,
                                    ParkingLotMapper parkingLotMapper,
-                                   RecognitionEventPublisher eventPublisher) {
+                                   RecognitionEventService recognitionEventService) {
         this.deviceMapper = deviceMapper;
         this.laneMapper = laneMapper;
         this.parkingLotMapper = parkingLotMapper;
-        this.eventPublisher = eventPublisher;
+        this.recognitionEventService = recognitionEventService;
     }
 
     /**
-     * 处理 Mock/人工识别事件。
+     * 处理 Mock/人工识别事件（GAP-07: 移除 RabbitMQ 消费链路后直连 RecognitionEventService）。
      *
      * @param request Mock 触发请求
      * @return 持久化后的事件日志
@@ -71,7 +69,6 @@ public class MockRecognitionService {
     @TenantIgnore(reason = "Mock/人工识别事件：从可信设备记录推导租户信息，无需租户拦截")
     public RecognitionEventLog processMockEvent(MockRecognitionRequest request) {
         // 1. 查询设备（必须是 CAMERA 类型、已启用）
-        // Mock 接口无租户上下文，使用忽略租户拦截器的方法
         Device device = deviceMapper.selectByIdIgnoreTenant(request.getDeviceId());
         if (device == null) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "设备不存在: " + request.getDeviceId());
@@ -107,7 +104,6 @@ public class MockRecognitionService {
                 throw new BusinessException(CommonErrorCode.PARAM_ERROR,
                         "车道已停用: " + lane.getName());
             }
-            // 入场事件只能匹配入口方向；出场事件只能匹配出口方向
             String direction = request.getDirection();
             if (lane.getType() != null && lane.getType() != 3) {
                 String laneDirStr = lane.getType() == 1 ? "ENTRY" : "EXIT";
@@ -119,34 +115,40 @@ public class MockRecognitionService {
             }
         }
 
-        // 4. 标准化车牌号
-        String standardizedPlate = PlateStandardizer.normalize(request.getPlateNumber());
-        if (standardizedPlate == null || standardizedPlate.isEmpty()) {
-            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "车牌号标准化后为空");
+        // 4. GAP-07: 直连 RecognitionEventService.handleEvent()（移除 RabbitMQ 消费链路后）
+        RecognitionEventCmd cmd = new RecognitionEventCmd();
+        cmd.setPlateNumber(request.getPlateNumber());
+        cmd.setDirection(request.getDirection());
+        cmd.setLaneId(device.getLaneId());
+        cmd.setParkingLotId(parkingLot.getId());
+        cmd.setCaptureImage(request.getImagePath());
+
+        log.info("Mock 识别事件直连处理: plate={} direction={} parkingLot={}",
+                cmd.getPlateNumber(), cmd.getDirection(), parkingLot.getName());
+
+        // 设置租户上下文（Mock 无 JWT Token，需手动注入）
+        TenantContext.Snapshot previousContext = TenantContext.get();
+        try {
+            TenantContext.set(new TenantContext.Snapshot(
+                    parkingLot.getTenantId(),
+                    0L,
+                    "platform",
+                    null,
+                    null
+            ));
+            recognitionEventService.handleEvent(cmd);
+        } finally {
+            if (previousContext != null) {
+                TenantContext.set(previousContext);
+            } else {
+                TenantContext.clear();
+            }
         }
 
-        // 5. 构造标准事件载荷（tenantId 和 parkingLotId 从可信记录推导）
-        RecognitionEventPayload payload = RecognitionEventPayload.of(
-                UUID.randomUUID().toString(),
-                standardizedPlate,
-                request.getDirection(),
-                EventSource.MOCK)
-                .deviceId(device.getId())
-                .laneId(device.getLaneId())
-                .parkingLotId(parkingLot.getId())
-                .tenantId(parkingLot.getTenantId())
-                .confidence(request.getConfidence())
-                .imagePath(request.getImagePath())
-                .plateImagePath(request.getPlateImagePath())
-                .rawData("Mock trigger via T28 test entry");
-
-        // 6. 发布事件（持久化 + MQ）
-        RecognitionEventLog logEntry = eventPublisher.publish(payload);
-
-        log.info("Mock 识别事件处理完成: eventId={} plate={} standardized={} direction={} parkingLot={} tenant={}",
-                payload.getEventId(), request.getPlateNumber(), payload.getPlateNumber(),
-                payload.getDirection(), parkingLot.getName(), parkingLot.getTenantId());
-
+        // 返回日志占位（原 RecognitionEventLog 已不再由本服务持久化）
+        RecognitionEventLog logEntry = new RecognitionEventLog();
+        logEntry.setPlateNumber(request.getPlateNumber());
+        logEntry.setDirection(request.getDirection());
         return logEntry;
     }
 }

@@ -21,6 +21,19 @@
       </div>
     </div>
 
+    <!-- 常开/常关状态条（GB-04/05 — V1.4） -->
+    <div v-if="gateModeBanners.length > 0" class="gate-mode-banners">
+      <a-alert
+        v-for="banner in gateModeBanners"
+        :key="banner.laneId"
+        :type="banner.mode === 'ALWAYS_OPEN' ? 'success' : 'warning'"
+        :message="banner.label"
+        show-icon
+        banner
+        class="gate-mode-banner-item"
+      />
+    </div>
+
     <!-- 严重异常横幅 -->
     <a-alert
       v-if="store.criticalAlerts.length > 0"
@@ -137,7 +150,6 @@
                           <a-button
                             type="primary"
                             size="small"
-                            :disabled="lane.isOffline"
                             @click="handleManualOpenGate(lane.laneId)"
                           >
                             开闸
@@ -149,18 +161,18 @@
                             关闸
                           </a-button>
                           <a-button
-                            type="primary"
+                            :type="laneLockState[lane.laneId]?.open ? 'default' : 'primary'"
                             size="small"
-                            :disabled="lane.isOffline"
-                            @click="handleManualLockGate(lane.laneId)"
+                            @click="handleToggleLockOpen(lane.laneId)"
                           >
-                            常开
+                            {{ laneLockState[lane.laneId]?.open ? '取消常开' : '常开' }}
                           </a-button>
                           <a-button
+                            :type="laneLockState[lane.laneId]?.close ? 'default' : 'primary'"
                             size="small"
-                            @click="handleManualUnlockGate(lane.laneId)"
+                            @click="handleToggleLockClose(lane.laneId)"
                           >
-                            常关
+                            {{ laneLockState[lane.laneId]?.close ? '取消常关' : '常关' }}
                           </a-button>
                           <a-button
                             size="small"
@@ -428,6 +440,9 @@ let wsClient: MonitorWebSocketClient | null = null
 const manualReleaseOpen = ref(false)
 const manualReleaseLaneId = ref(0)
 
+/** 每个通道的锁定状态：{ [laneId]: { open: boolean, close: boolean } } */
+const laneLockState = ref<Record<number, { open: boolean; close: boolean }>>({})
+
 // 收费规则编辑
 const feeRuleEditOpen = ref(false)
 const feeRuleEditLaneId = ref(0)
@@ -530,11 +545,6 @@ async function loadLotOptions() {
 }
 
 function handleManualOpenGate(laneId: number) {
-  const laneCard = laneCards.value.find(lc => lc.laneId === laneId)
-  if (laneCard?.isOffline) {
-    message.warning('设备离线，无法操作')
-    return
-  }
   manualReleaseLaneId.value = laneId
   manualReleaseOpen.value = true
 }
@@ -554,33 +564,67 @@ async function handleManualCloseGate(laneId: number) {
   }
 }
 
-/** 常开（锁定道闸，保持开启） */
-async function handleManualLockGate(laneId: number) {
+/** 切换常开/取消常开（锁定/解锁开闸继电器） */
+async function handleToggleLockOpen(laneId: number) {
+  if (!laneLockState.value[laneId]) {
+    laneLockState.value[laneId] = { open: false, close: false }
+  }
+  const isLocked = laneLockState.value[laneId]!.open
+
   try {
-    const { manualLockGate } = await import('@/api/charge')
-    const result = await manualLockGate(laneId, '岗亭设置常开')
-    if (result.gateDeviceAck) {
-      message.success('常开成功（道闸已锁定）')
+    const { manualLockGate, manualUnlockGate } = await import('@/api/charge')
+    if (isLocked) {
+      const result = await manualUnlockGate(laneId, '岗亭取消常开')
+      if (result.gateDeviceAck) {
+        laneLockState.value[laneId]!.open = false
+        message.success('取消常开成功')
+      } else {
+        message.warning(result.gateResult || '取消常开失败')
+      }
     } else {
-      message.warning(result.gateResult || '常开失败')
+      const result = await manualLockGate(laneId, '岗亭设置常开')
+      if (result.gateDeviceAck) {
+        laneLockState.value[laneId]!.open = true
+        message.success('常开成功（道闸已锁定）')
+      } else {
+        message.warning(result.gateResult || '常开失败')
+      }
     }
   } catch (e: any) {
-    message.error(e?.message || '常开失败')
+    message.error(e?.message || (isLocked ? '取消常开失败' : '常开失败'))
   }
 }
 
-/** 取消常开（解除锁定，关闸恢复常规模式） */
-async function handleManualUnlockGate(laneId: number) {
+/** 切换常关/取消常关（锁定/解锁关闸继电器） */
+async function handleToggleLockClose(laneId: number) {
+  if (!laneLockState.value[laneId]) {
+    laneLockState.value[laneId] = { open: false, close: false }
+  }
+  const isLocked = laneLockState.value[laneId]!.close
+
   try {
-    const { manualUnlockGate } = await import('@/api/charge')
-    const result = await manualUnlockGate(laneId, '岗亭取消常开')
-    if (result.gateDeviceAck) {
-      message.success('取消常开成功（已关闸）')
+    if (isLocked) {
+      const { manualUnlockGate } = await import('@/api/charge')
+      const result = await manualUnlockGate(laneId, '岗亭取消常关')
+      if (result.gateDeviceAck) {
+        laneLockState.value[laneId]!.close = false
+        message.success('取消常关成功')
+      } else {
+        message.warning(result.gateResult || '取消常关失败')
+      }
     } else {
-      message.warning(result.gateResult || '取消常开失败')
+      // 先关闸，视为常关
+      const { manualCloseGate } = await import('@/api/charge')
+      const result = await manualCloseGate(laneId, '岗亭常关')
+      if (result.gateDeviceAck) {
+        laneLockState.value[laneId]!.close = true
+        message.success('常关成功')
+      } else {
+        message.warning(result.gateResult || '常关失败')
+      }
     }
   } catch (e: any) {
-    message.error(e?.message || '取消常开失败')
+    message.error(e?.message || (isLocked ? '取消常关失败' : '常关失败'))
   }
 }
 
@@ -669,6 +713,47 @@ const criticalAlertMessages = computed(() => {
   return store.criticalAlerts.map((a) => a.message).join('；')
 })
 
+// GB-04/05: 常开/常关状态条（V1.4）
+const gateModeBanners = computed(() => {
+  const banners: { laneId: number; mode: string; label: string }[] = []
+  for (const lane of store.lanes) {
+    const gateMode = (lane as any).gateMode
+    if (gateMode === 'ALWAYS_OPEN') {
+      banners.push({ laneId: lane.id, mode: 'ALWAYS_OPEN', label: `车道「${lane.name || `车道${lane.id}`}」处于常开模式 — 道闸已锁定，车辆可直接通行` })
+    } else if (gateMode === 'ALWAYS_CLOSE') {
+      banners.push({ laneId: lane.id, mode: 'ALWAYS_CLOSE', label: `车道「${lane.name || `车道${lane.id}`}」处于常关模式 — 白名单不会自动开闸，需人工放行` })
+    }
+  }
+  return banners
+})
+
+// GB-07: WebSocket 事件提示音（V1.4 — 使用 Web Audio API 生成提示音）
+let audioCtx: AudioContext | null = null
+function playAlertSound() {
+  try {
+    if (!audioCtx) audioCtx = new AudioContext()
+    const osc = audioCtx.createOscillator()
+    const gain = audioCtx.createGain()
+    osc.connect(gain); gain.connect(audioCtx.destination)
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(800, audioCtx.currentTime)
+    osc.frequency.setValueAtTime(1000, audioCtx.currentTime + 0.1)
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3)
+    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3)
+  } catch { /* 浏览器不支持或用户未交互 */ }
+}
+
+// GB-08: 设备离线判定（V1.4 口径：最后状态包距今超过 120 秒即判定离线）
+const DEVICE_OFFLINE_THRESHOLD_MS = 120_000
+const lastDeviceStatusTime = ref<Record<number, number>>({}) // deviceId -> last seen timestamp (ms)
+
+function isDeviceOfflineByTime(deviceId: number): boolean {
+  const lastSeen = lastDeviceStatusTime.value[deviceId]
+  if (!lastSeen) return false // 从未收到状态，暂不判定离线
+  return (Date.now() - lastSeen) > DEVICE_OFFLINE_THRESHOLD_MS
+}
+
 interface LaneCard {
   laneId: number
   laneName: string
@@ -698,13 +783,15 @@ const laneCards = computed((): LaneCard[] => {
         store.chargePanelVisible &&
         store.currentChargeInfo?.laneId === lane.id
 
+      // GB-08: 120 秒时间阈值判定离线（V1.4）
+      const timeOffline = lane.deviceId != null && isDeviceOfflineByTime(lane.deviceId)
       return {
         laneId: lane.id,
         laneName: lane.name || `车道 ${lane.id}`,
         direction: lane.direction,
         deviceId: lane.deviceId,
-        deviceOnline: !!device?.online && !device?.stale,
-        isOffline: !device || !device.online || device.stale,
+        deviceOnline: !!device?.online && !device?.stale && !timeOffline,
+        isOffline: !device || !device.online || device.stale || timeOffline,
         charging,
         latestEvent: latestEvent as RecognitionEventPayload | undefined,
         cameras: [],
@@ -792,6 +879,7 @@ function buildWsClient(lotId: number) {
       },
       onRecognitionEvent: (payload: RecognitionEventPayload) => {
         store.handleRecognitionEvent(payload)
+        playAlertSound() // GB-07: 新事件提示音（V1.4）
         message.info(`${payload.direction === 'ENTRY' ? '入场' : '出场'}识别: ${payload.plateNumber}`)
 
         if (payload.direction === 'EXIT') {
@@ -802,6 +890,10 @@ function buildWsClient(lotId: number) {
       },
       onDeviceStatus: (payload: DeviceStatus) => {
         store.handleDeviceStatus(payload)
+        // GB-08: 记录设备最后状态时间，用于 120 秒离线判定（V1.4）
+        if (payload.deviceId != null) {
+          lastDeviceStatusTime.value[payload.deviceId] = Date.now()
+        }
       },
       onAlert: (payload: any) => {
         if (payload.type === 'RECOGNITION_FAILED') {
@@ -936,6 +1028,18 @@ onUnmounted(() => {
   }
 }
 
+.gate-mode-banners {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.gate-mode-banner-item {
+  border-radius: 0;
+  margin: 0;
+}
+
 .critical-banner {
   flex-shrink: 0;
 }
@@ -1021,8 +1125,8 @@ onUnmounted(() => {
 
 .lane-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
 }
 
 .lane-card {
@@ -1048,11 +1152,14 @@ onUnmounted(() => {
     margin-bottom: 8px;
   }
 
-  .lane-actions {
-    margin-top: 8px;
-    text-align: right;
-  }
+	  .lane-actions {
+	    margin-top: 8px;
 
+	    :deep(.ant-space) {
+	      flex-wrap: wrap;
+	      justify-content: flex-end;
+	    }
+	  }
   .lane-event {
     text-align: center;
     padding: 8px 0;

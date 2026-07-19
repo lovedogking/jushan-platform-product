@@ -95,9 +95,10 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
         entity.setPlateNumber(standardizedPlate);
         entity.setPlateColor(cmd.getPlateColor());
         entity.setVehicleType(cmd.getVehicleType());
-        entity.setEntryTime(LocalDateTime.now());
+        entity.setEntryTime(cmd.getEntryTime() != null ? cmd.getEntryTime() : LocalDateTime.now());
         entity.setEntryImage(cmd.getEntryImage());
         entity.setEntryOperator(cmd.getEntryOperator());
+        entity.setEntryTrigger(cmd.getEntryTrigger());
         entity.setStatus(ParkingSession.STATUS_IN);
         entity.setTenantId(tenantId);
         entity.setCreatedAt(LocalDateTime.now());

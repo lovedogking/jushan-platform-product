@@ -262,6 +262,46 @@ public class BoothWebSocketPublisher {
     }
 
     /**
+     * 推送轻量识别事件（BR-08 去重场景：仅推送事件到岗亭显示，不创建会话）。
+     *
+     * @param parkingLotId 停车场 ID（可信）
+     * @param plateNumber  车牌号
+     * @param direction    方向（ENTRY/EXIT）
+     * @param laneId       车道 ID
+     * @param deviceSn     设备序列号
+     * @param imageUrl     抓拍图片 URL
+     * @param confidence   置信度
+     * @param eventTime    事件时间
+     */
+    public void sendLightweightRecognitionEvent(Long parkingLotId, String plateNumber,
+                                                 String direction, Long laneId,
+                                                 String deviceSn, String imageUrl,
+                                                 Integer confidence, String eventTime) {
+        if (parkingLotId == null) {
+            return;
+        }
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("plateNumber", plateNumber);
+            payload.put("direction", direction);
+            payload.put("laneId", laneId);
+            payload.put("deviceSn", deviceSn);
+            payload.put("imagePath", imageUrl);
+            payload.put("confidence", confidence);
+            payload.put("eventTime", eventTime != null ? eventTime : format(java.time.LocalDateTime.now()));
+            payload.put("source", "DEVICE_ACCESS");
+            payload.put("dedup", true);
+
+            send(String.format(TOPIC_EVENTS, parkingLotId), payload);
+            log.debug("轻量识别事件已推送到岗亭（BR-08 去重）: parkingLotId={}, plate={}, direction={}",
+                    parkingLotId, plateNumber, direction);
+        } catch (Exception e) {
+            log.warn("轻量识别事件 WebSocket 推送失败（不影响主业务）: plate={}, error={}",
+                    plateNumber, e.getMessage());
+        }
+    }
+
+    /**
      * 底层发送方法。
      */
     private void send(String destination, Object payload) {

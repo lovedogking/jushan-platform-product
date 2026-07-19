@@ -104,7 +104,7 @@ const activeTab = ref('basic')
 const createLotVisible = ref(false)
 const createLotLoading = ref(false)
 const createLotForm = reactive<ParkingLotCreateCmd & { contactName?: string; contactPhone?: string }>({
-  companyId: 0,
+  companyId: undefined,
   name: '',
   address: '',
   totalSpaces: undefined,

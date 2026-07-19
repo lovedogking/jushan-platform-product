@@ -70,9 +70,10 @@ public class DeviceController {
     @PostMapping("/{deviceId}/gate/lock")
     public CompletableFuture<Result<CommandResultDTO>> lockGate(
             @PathVariable String deviceId,
-            @Valid @RequestBody LockGateRequest req) {
+            @RequestBody(required = false) LockGateRequest req) {
         log.info("API: lockGate deviceId={}", deviceId);
-        return deviceService.lockGate(deviceId, req)
+        LockGateRequest body = req != null ? req : new LockGateRequest();
+        return deviceService.lockGate(deviceId, body)
                 .thenApply(result -> result.getSuccess() ? Result.ok(result) : Result.fail(500, result.getMessage()));
     }
 
@@ -82,9 +83,9 @@ public class DeviceController {
     @PostMapping("/{deviceId}/gate/unlock")
     public CompletableFuture<Result<CommandResultDTO>> unlockGate(
             @PathVariable String deviceId,
-            @Valid @RequestBody UnlockGateRequest req) {
+            @RequestBody(required = false) UnlockGateRequest req) {
         log.info("API: unlockGate deviceId={}", deviceId);
-        return deviceService.unlockGate(deviceId, req)
+        UnlockGateRequest body = req != null ? req : new UnlockGateRequest(); return deviceService.unlockGate(deviceId, body)
                 .thenApply(result -> result.getSuccess() ? Result.ok(result) : Result.fail(500, result.getMessage()));
     }
 

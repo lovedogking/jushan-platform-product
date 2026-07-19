@@ -3,6 +3,7 @@ package com.jushan.platform.modules.account.controller;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.jushan.common.R;
 import com.jushan.platform.infra.security.RequirePermission;
+import com.jushan.platform.infra.security.RequireRole;
 import com.jushan.platform.modules.account.dto.AdminAccountCreateCmd;
 import com.jushan.platform.modules.account.dto.AdminAccountUpdateCmd;
 import com.jushan.platform.modules.account.service.SysAdminAccountService;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/api/v1/admin-accounts")
+@RequireRole("platform") // AD-01: 仅超管可访问
 public class SysAdminAccountController {
 
     private static final Logger log = LoggerFactory.getLogger(SysAdminAccountController.class);

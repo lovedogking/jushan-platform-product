@@ -954,9 +954,42 @@ public class DeviceService {
     // ==================== 设备控制（T5: v0.4 开闸/关闸/显示屏/语音） ====================
 
     /**
+     * 查找车道对应的控闸设备（GATE 设备或具备开闸能力的 CAMERA）。
+     * <p>
+     * 查找优先级：GATE → CAMERA(含 OPEN_GATE capability) → 停车场级回退。
+     */
+    private Device resolveGateDevice(Long laneId) {
+        // 1. 优先查找绑定的 GATE 设备
+        Device gateDevice = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "GATE");
+        if (gateDevice != null) {
+            return gateDevice;
+        }
+
+        // 2. 回退到绑定车道的 CAMERA（具备开闸能力）
+        Device camera = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "CAMERA");
+        if (camera != null && camera.getCapabilities() != null
+                && camera.getCapabilities().contains("OPEN_GATE")) {
+            log.info("车道 {} 无 GATE 设备，使用 CAMERA 控闸: deviceId={}", laneId, camera.getId());
+            return camera;
+        }
+
+        // 3. 停车场级回退
+        ParkingLane lane = laneMapper.selectByIdIgnoreTenant(laneId);
+        if (lane != null && lane.getLotId() != null) {
+            Device fallback = deviceMapper.selectCameraWithOpenGateByLotIdIgnoreTenant(lane.getLotId());
+            if (fallback != null) {
+                log.info("车道 {} 使用停车场级回退: deviceId={}", laneId, fallback.getId());
+                return fallback;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * 按车道远程开闸（Phase 1 B2 运营端远程开闸）。
      * <p>
-     * 根据车道 ID 查找绑定的 GATE 设备，再委托 {@link #openGate(Long, String)} 执行开闸。
+     * 根据车道 ID 查找绑定的 GATE 设备或具备控闸能力的 CAMERA，再委托 {@link #openGate(Long, String)} 执行开闸。
      * <b>禁止自动重试</b>；网络错误或命令超时标记为 UNCERTAIN。
      *
      * @param laneId 车道 ID
@@ -978,15 +1011,15 @@ public class DeviceService {
         DataScope.validateTenantMatch(lane.getTenantId(), "车道");
         scopeResolver.validateAccess(lane.getLotId());
 
-        // 3. 查找绑定的 GATE 设备
-        Device gateDevice = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "GATE");
+        // 3. 查找控闸设备（GATE 或具备开闸能力的 CAMERA）
+        Device gateDevice = resolveGateDevice(laneId);
         if (gateDevice == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
                     "该车道未绑定道闸设备: laneId=" + laneId + " laneName=" + lane.getName());
         }
 
-        log.info("按车道远程开闸: laneId={}, laneName={}, gateDeviceId={}, reason={}",
-                laneId, lane.getName(), gateDevice.getId(), reason);
+        log.info("按车道远程开闸: laneId={}, laneName={}, deviceId={}, deviceType={}, reason={}",
+                laneId, lane.getName(), gateDevice.getId(), gateDevice.getDeviceType(), reason);
 
         // 4. 委托给设备开闸
         return openGate(gateDevice.getId(), reason);
@@ -1012,13 +1045,13 @@ public class DeviceService {
         DataScope.validateTenantMatch(lane.getTenantId(), "车道");
         scopeResolver.validateAccess(lane.getLotId());
 
-        Device gateDevice = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "GATE");
+        Device gateDevice = resolveGateDevice(laneId);
         if (gateDevice == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "该车道未绑定道闸设备: laneId=" + laneId + " laneName=" + lane.getName());
+                    "该车道未绑定道闸或控闸相机: laneId=" + laneId + " laneName=" + lane.getName());
         }
 
-        log.info("按车道常开（锁定道闸）: laneId={}, laneName={}, gateDeviceId={}, deviceSn={}, reason={}",
+        log.info("按车道常开（锁定道闸）: laneId={}, laneName={}, deviceId={}, deviceSn={}, reason={}",
                 laneId, lane.getName(), gateDevice.getId(), gateDevice.getDeviceSn(), reason);
 
         String commandId = UUID.randomUUID().toString();
@@ -1045,13 +1078,13 @@ public class DeviceService {
         DataScope.validateTenantMatch(lane.getTenantId(), "车道");
         scopeResolver.validateAccess(lane.getLotId());
 
-        Device gateDevice = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "GATE");
+        Device gateDevice = resolveGateDevice(laneId);
         if (gateDevice == null) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "该车道未绑定道闸设备: laneId=" + laneId + " laneName=" + lane.getName());
+                    "该车道未绑定道闸或控闸相机: laneId=" + laneId + " laneName=" + lane.getName());
         }
 
-        log.info("按车道取消常开（解除道闸锁定）: laneId={}, laneName={}, gateDeviceId={}, deviceSn={}, reason={}",
+        log.info("按车道取消常开（解除道闸锁定）: laneId={}, laneName={}, deviceId={}, deviceSn={}, reason={}",
                 laneId, lane.getName(), gateDevice.getId(), gateDevice.getDeviceSn(), reason);
 
         String commandId = UUID.randomUUID().toString();

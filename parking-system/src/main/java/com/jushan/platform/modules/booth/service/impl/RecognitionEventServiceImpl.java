@@ -8,6 +8,7 @@ import com.jushan.platform.modules.booth.service.RecognitionEventService;
 import com.jushan.platform.modules.booth.vo.RecognitionResultVO;
 import com.jushan.platform.modules.parking.dto.ParkingSessionEntryCmd;
 import com.jushan.platform.modules.parking.dto.ParkingSessionExitCmd;
+import com.jushan.platform.modules.parking.entity.ParkingSession;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import com.jushan.platform.modules.vehicle.service.VehicleTypeDecisionService;
 import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
@@ -89,8 +90,9 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         RecognitionResultVO result = new RecognitionResultVO();
         result.setPlateNumber(plateNumber);
 
-        // 1. 车辆类型判定
-        VehicleTypeDecisionVO decision = vehicleTypeDecisionService.decide(plateNumber);
+        // 1. 车辆类型判定（传入 parkingLotId 以命中白名单检查）
+        VehicleTypeDecisionVO decision = vehicleTypeDecisionService.decide(
+                plateNumber, cmd.getParkingLotId(), tenantId);
         result.setVehicleType(decision.getVehicleType());
 
         // 2. 方向处理
@@ -129,7 +131,6 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         }
 
         // 3. 若当前车道无匹配设备，回退到同一停车场的 CAMERA+OPEN_GATE 设备
-        //    （出口和入口共享同一相机 GPIO 控制道闸的场景）
         if (gateDevice == null) {
             ParkingLane lane = parkingLaneMapper.selectByIdIgnoreTenant(laneId);
             if (lane != null && lane.getLotId() != null) {
@@ -153,20 +154,42 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
             return result;
         }
 
-        // 3. 通过 DeviceService.openGate() 执行开闸（同时处理 GATE→DA 和 CAMERA+OPEN_GATE→GPIO）
+        // 4. 通过 DeviceService.openGate() 执行开闸
         try {
             result.setGateCommandSent(true);
             CommandResultDTO gateResult = deviceService.openGate(gateDevice.getId(), "人工开闸: " + reason,
                     isCharge ? plateNumber : null, isCharge ? feeCents : null);
             boolean success = gateResult.isSuccessful();
             result.setGateDeviceAck(success);
-            result.setGateOpened(null); // 一期无法确认闸杆实际状态
+            result.setGateOpened(null);
             if (success) {
                 result.setGateResult("人工开闸成功");
                 result.setResultMessage("人工开闸: " + reason);
                 result.setException(false);
                 log.info("人工开闸成功: laneId={}, operatorId={}, deviceId={}, deviceSn={}, reason={}",
                         laneId, operatorId, gateDevice.getId(), gateDevice.getDeviceSn(), reason);
+
+                // GAP-03: 人工开闸补写 parking_session（entry_trigger=manual_open）
+                try {
+                    ParkingLane lane = parkingLaneMapper.selectByIdIgnoreTenant(laneId);
+                    if (lane != null && plateNumber != null && !plateNumber.isEmpty()) {
+                        ParkingSessionEntryCmd entryCmd = new ParkingSessionEntryCmd();
+                        entryCmd.setParkingLotId(lane.getLotId());
+                        entryCmd.setLaneId(laneId);
+                        entryCmd.setPlateNumber(plateNumber.toUpperCase());
+                        entryCmd.setVehicleType("TEMP");
+                        entryCmd.setEntryOperator(operatorId);
+                        entryCmd.setEntryTrigger(ParkingSession.TRIGGER_MANUAL_OPEN);
+                        entryCmd.setRemark("岗亭人工放行: " + reason);
+                        parkingSessionService.entry(entryCmd);
+                        log.info("人工开闸已补写 parking_session: plate={}, laneId={}, operatorId={}",
+                                plateNumber, laneId, operatorId);
+                    }
+                } catch (Exception e) {
+                    // 补写失败不阻塞开闸结果
+                    log.warn("人工开闸补写 parking_session 失败: plate={}, laneId={}, error={}",
+                            plateNumber, laneId, e.getMessage());
+                }
             } else {
                 result.setGateResult("人工开闸失败: " + (gateResult.getMessage() != null ? gateResult.getMessage() : "设备返回异常"));
                 result.setResultMessage("人工开闸失败: " + reason);
@@ -187,7 +210,6 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                     laneId, operatorId, gateDevice.getId(), gateDevice.getDeviceSn(), e.getMessage());
         }
 
-        // 记录审计日志
         log.info("人工开闸审计: laneId={}, operatorId={}, reason={}, isCharge={}, feeCents={}, plateNumber={}, deviceId={}, deviceSn={}, "
                 + "gateCommandSent={}, gateDeviceAck={}, gateOpened={}",
                 laneId, operatorId, reason, isCharge, feeCents, plateNumber, gateDevice.getId(), gateDevice.getDeviceSn(),
@@ -287,12 +309,25 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
             CommandResultDTO gateResult = deviceService.lockGateByLane(laneId, "常开（锁定道闸）: " + reason);
             boolean success = gateResult.isSuccessful();
             result.setGateDeviceAck(success);
-            result.setGateOpened(true); // 常开状态下道闸保持开启
+            result.setGateOpened(true);
             if (success) {
                 result.setGateResult("常开成功（道闸已锁定）");
                 result.setResultMessage("常开: " + reason);
                 result.setException(false);
                 log.info("常开成功: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+
+                // GAP-01: lockGate 成功后同步落库 gate_mode = ALWAYS_OPEN
+                try {
+                    ParkingLane lane = parkingLaneMapper.selectByIdIgnoreTenant(laneId);
+                    if (lane != null && !ParkingLane.GATE_MODE_ALWAYS_OPEN.equals(lane.getGateMode())) {
+                        lane.setGateMode(ParkingLane.GATE_MODE_ALWAYS_OPEN);
+                        lane.setUpdatedAt(LocalDateTime.now());
+                        parkingLaneMapper.updateById(lane);
+                        log.info("常开成功，gate_mode 已更新为 ALWAYS_OPEN: laneId={}", laneId);
+                    }
+                } catch (Exception e) {
+                    log.warn("常开成功但 gate_mode 落库失败: laneId={}, error={}", laneId, e.getMessage());
+                }
             } else {
                 result.setGateResult("常开失败: " + (gateResult.getMessage() != null ? gateResult.getMessage() : "设备返回异常"));
                 result.setResultMessage("常开失败: " + reason);
@@ -328,12 +363,25 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
             CommandResultDTO gateResult = deviceService.unlockGateByLane(laneId, "取消常开（解除锁定）: " + reason);
             boolean success = gateResult.isSuccessful();
             result.setGateDeviceAck(success);
-            result.setGateOpened(false); // 解除常开后道闸关闭，恢复常规模式
+            result.setGateOpened(false);
             if (success) {
                 result.setGateResult("取消常开成功（道闸已解锁并关闸）");
                 result.setResultMessage("取消常开: " + reason);
                 result.setException(false);
                 log.info("取消常开成功: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+
+                // GAP-01: unlockGate 成功后同步落库 gate_mode = AUTO
+                try {
+                    ParkingLane lane = parkingLaneMapper.selectByIdIgnoreTenant(laneId);
+                    if (lane != null && !ParkingLane.GATE_MODE_AUTO.equals(lane.getGateMode())) {
+                        lane.setGateMode(ParkingLane.GATE_MODE_AUTO);
+                        lane.setUpdatedAt(LocalDateTime.now());
+                        parkingLaneMapper.updateById(lane);
+                        log.info("取消常开成功，gate_mode 已恢复为 AUTO: laneId={}", laneId);
+                    }
+                } catch (Exception e) {
+                    log.warn("取消常开成功但 gate_mode 落库失败: laneId={}, error={}", laneId, e.getMessage());
+                }
             } else {
                 result.setGateResult("取消常开失败: " + (gateResult.getMessage() != null ? gateResult.getMessage() : "设备返回异常"));
                 result.setResultMessage("取消常开失败: " + reason);
@@ -372,6 +420,17 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
             return result;
         }
 
+        // 确定入场触发方式（V1.4: 先检查 gate_mode，常开时使用 always_open_period）
+        ParkingLane lane = parkingLaneMapper.selectByIdIgnoreTenant(cmd.getLaneId());
+        String gateMode = (lane != null) ? lane.getGateMode() : ParkingLane.GATE_MODE_AUTO;
+
+        String entryTrigger;
+        if (ParkingLane.GATE_MODE_ALWAYS_OPEN.equals(gateMode)) {
+            entryTrigger = ParkingSession.TRIGGER_ALWAYS_OPEN_PERIOD;
+        } else {
+            entryTrigger = determineEntryTrigger(decision);
+        }
+
         // 创建入场记录
         ParkingSessionEntryCmd entryCmd = new ParkingSessionEntryCmd();
         entryCmd.setParkingLotId(cmd.getParkingLotId());
@@ -380,6 +439,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         entryCmd.setPlateColor(cmd.getPlateColor());
         entryCmd.setVehicleType(decision.getVehicleType());
         entryCmd.setEntryImage(cmd.getCaptureImage());
+        entryCmd.setEntryTrigger(entryTrigger);
 
         var sessionVO = parkingSessionService.entry(entryCmd);
         result.setSessionId(sessionVO.getId());
@@ -387,17 +447,48 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         result.setAllowPass(true);
         result.setFeeAmount(BigDecimal.ZERO);
 
-        // 调用 Device Access v0.4 真实开闸
-        // 开闸失败不得回滚入场记录（异常被捕获，不向外传播）
-        executeGateOpen(cmd.getParkingLotId(), cmd.getLaneId(), result, "ENTRY", cmd.getPlateNumber());
+        // GAP-01: 检查车道 gate_mode
+        // - ALWAYS_CLOSE: 白名单命中不下发开闸，事件照常推送，手动开闸仍可用
+        // - ALWAYS_OPEN: 白名单命中不下发开闸（闸已常开），entryTrigger 已设为 always_open_period
+        // - AUTO: 白名单命中自动开闸
+        if (ParkingLane.GATE_MODE_ALWAYS_CLOSE.equals(gateMode)) {
+            log.info("车道常关模式，白名单车辆不下发开闸: plate={}, laneId={}, gateMode={}",
+                    cmd.getPlateNumber(), cmd.getLaneId(), gateMode);
+            result.setGateCommandSent(false);
+            result.setGateDeviceAck(false);
+            result.setGateOpened(null);
+            result.setGateResult("车道常关模式，未自动开闸");
+        } else if (ParkingLane.GATE_MODE_ALWAYS_OPEN.equals(gateMode)) {
+            log.info("车道常开模式，闸已常开无需再次下发: plate={}, laneId={}",
+                    cmd.getPlateNumber(), cmd.getLaneId());
+            result.setGateCommandSent(false);
+            result.setGateDeviceAck(false);
+            result.setGateOpened(true);
+            result.setGateResult("车道常开模式");
+        } else {
+            // AUTO 模式：白名单命中自动开闸
+            executeGateOpen(cmd.getParkingLotId(), cmd.getLaneId(), result, "ENTRY", cmd.getPlateNumber());
+        }
 
         result.setResultMessage(decision.getDecisionReason() + "，在场记录已创建");
         result.setException(false);
 
-        log.info("入场处理完成: plate={}, sessionId={}, type={}, gateOpened={}",
-                cmd.getPlateNumber(), sessionVO.getId(), decision.getVehicleType(), result.getGateOpened());
+        log.info("入场处理完成: plate={}, sessionId={}, type={}, entryTrigger={}, gateMode={}, gateOpened={}",
+                cmd.getPlateNumber(), sessionVO.getId(), decision.getVehicleType(),
+                entryTrigger, gateMode, result.getGateOpened());
 
         return result;
+    }
+
+    /**
+     * 根据车辆类型判定结果确定入场触发方式（GAP-04）。
+     */
+    private String determineEntryTrigger(VehicleTypeDecisionVO decision) {
+        if ("WHITE".equals(decision.getVehicleType())) {
+            return ParkingSession.TRIGGER_WHITELIST_AUTO;
+        }
+        // 其他类型（月卡/固定车位）一期虽不启用但保留分支
+        return null;
     }
 
     private RecognitionResultVO handleExit(RecognitionEventCmd cmd, VehicleTypeDecisionVO decision,

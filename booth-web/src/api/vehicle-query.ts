@@ -56,3 +56,11 @@ export function getVehicleHistory(params: {
 }): Promise<PageResult<VehicleHistoryRecord>> {
   return request.get<PageResult<VehicleHistoryRecord>>('/v1/booth/vehicles/history', params)
 }
+
+/**
+ * 查询通行记录（支持车牌号筛选，复用 OP-04 / GB-06）。
+ * GET /api/v1/booth/vehicles/present
+ */
+export function getBoothVehicles(plateNumber?: string): Promise<PresentVehicle[]> {
+  return request.get<PresentVehicle[]>('/v1/booth/vehicles/present', { plateNumber })
+}
