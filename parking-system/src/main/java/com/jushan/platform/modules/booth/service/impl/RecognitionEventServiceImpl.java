@@ -175,6 +175,8 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                     if (lane != null && plateNumber != null && !plateNumber.isEmpty()) {
                         ParkingSessionEntryCmd entryCmd = new ParkingSessionEntryCmd();
                         entryCmd.setParkingLotId(lane.getLotId());
+                        // 岗亭/平台用户 tenantId 为 null，从车道继承租户，确保 session 落库
+                        entryCmd.setTenantId(lane.getTenantId());
                         entryCmd.setLaneId(laneId);
                         entryCmd.setPlateNumber(plateNumber.toUpperCase());
                         entryCmd.setVehicleType("TEMP");
@@ -596,8 +598,9 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         // 3. 统一通过 Device Access 开闸（Adapter 根据设备类型自动选择 gate_direct_open 或 gpio_out 协议）
         executeDaGateOpen(deviceSn, result, direction, plateNumber);
 
-        // 记录 UNCERTAIN 告警（gateOpened=null 时）
-        if (result.getGateOpened() == null && result.getGateCommandSent() == Boolean.TRUE) {
+        // 记录 UNCERTAIN 告警（gateOpened=null 且设备未确认时；成功不开误报告警）
+        if (result.getGateOpened() == null && result.getGateCommandSent() == Boolean.TRUE
+                && Boolean.FALSE.equals(result.getGateDeviceAck())) {
             Long tenantId = TenantContext.getTenantId();
             monitorAlertService.createGateAlert(tenantId, parkingLotId, laneId, deviceSn,
                     "DEVICE_UNCERTAIN",

@@ -1,6 +1,7 @@
 package com.jushan.system.task;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.jushan.common.auth.TenantContext;
 import com.jushan.system.client.DeviceAccessClient;
 import com.jushan.system.entity.Device;
 import com.jushan.system.entity.ParkingLane;
@@ -47,6 +48,21 @@ public class GateModeSyncRunner {
     public void onApplicationReady() {
         log.info("开始按 gate_mode 重新同步闸机状态...");
 
+        // 启动任务无登录上下文：注入平台用户快照，跳过租户行级拦截
+        TenantContext.Snapshot previous = TenantContext.get();
+        TenantContext.set(new TenantContext.Snapshot(null, 0L, TenantContext.USER_TYPE_PLATFORM, null, null));
+        try {
+            doSync();
+        } finally {
+            if (previous == null) {
+                TenantContext.clear();
+            } else {
+                TenantContext.set(previous);
+            }
+        }
+    }
+
+    private void doSync() {
         List<ParkingLane> lanes = parkingLaneMapper.selectList(
                 new LambdaQueryWrapper<ParkingLane>()
                         .ne(ParkingLane::getGateMode, ParkingLane.GATE_MODE_AUTO)

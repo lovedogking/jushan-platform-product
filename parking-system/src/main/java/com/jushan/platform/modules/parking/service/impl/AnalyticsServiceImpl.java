@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -50,8 +51,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         List<AnalyticsOverviewVO.TrendPoint> trend = buildTrend(range[0], range[1], cmd);
         vo.setTrendData(trend);
 
-        // 营收一期占位
-        vo.setRevenue(null);
+        // 营收汇总：实收 = 周期内已出场会话 paid_amount 汇总
+        // 固定车营收：一期白名单免费、无固定车收费/续费数据源，按实返回 0
+        BigDecimal totalPaid = sumPaidByExitTimeRange(range[0], range[1], cmd.getLotId());
+        BigDecimal fixedCarRevenue = BigDecimal.ZERO;
+        vo.setRevenue(new AnalyticsOverviewVO.RevenueStats(
+                totalPaid, fixedCarRevenue, totalPaid.subtract(fixedCarRevenue)));
 
         return vo;
     }
@@ -102,6 +107,21 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         qw.eq(ParkingSession::getStatus, "IN");
         if (lotId != null && lotId > 0) qw.eq(ParkingSession::getParkingLotId, lotId);
         return parkingSessionMapper.selectCount(qw);
+    }
+
+    /**
+     * 汇总统计周期内已出场（exit_time 落在范围内）会话的实收金额。
+     */
+    private BigDecimal sumPaidByExitTimeRange(LocalDateTime start, LocalDateTime end, Long lotId) {
+        LambdaQueryWrapper<ParkingSession> qw = new LambdaQueryWrapper<>();
+        qw.select(ParkingSession::getPaidAmount);
+        qw.between(ParkingSession::getExitTime, start, end);
+        qw.isNotNull(ParkingSession::getPaidAmount);
+        if (lotId != null && lotId > 0) qw.eq(ParkingSession::getParkingLotId, lotId);
+        return parkingSessionMapper.selectList(qw).stream()
+                .map(ParkingSession::getPaidAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private Map<String, Long> countByEntryTrigger(LocalDateTime start, LocalDateTime end, Long lotId) {

@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import type { ParkingSessionVO } from './monitor-types'
 
 /** 在场车辆 */
 export interface PresentVehicle {
@@ -29,7 +30,21 @@ export interface PageResult<T> {
 }
 
 /**
- * 查询在场车辆。
+ * 查询通行记录（支持车牌号、入场触发方式、状态筛选，复用 OP-04 / GB-06）。
+ * GET /api/v1/parking-sessions
+ */
+export function getParkingSessions(params: {
+  current?: number
+  size?: number
+  parkingLotId?: number
+  plateNumber?: string
+  status?: string
+}): Promise<PageResult<ParkingSessionVO>> {
+  return request.get<PageResult<ParkingSessionVO>>('/v1/parking-sessions', params)
+}
+
+/**
+ * 查询在场车辆（旧接口，保留兼容）。
  * GET /api/v1/booth/vehicles/present
  */
 export function getPresentVehicles(params: {

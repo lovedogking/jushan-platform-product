@@ -38,13 +38,13 @@
         <a-statistic title="当前在场" :value="data?.currentInCount ?? '-'" />
       </a-col>
       <a-col :span="4">
-        <a-statistic title="实收总额" value="即将上线" />
+        <a-statistic title="实收总额（元）" :value="formatAmount(data?.revenue?.totalPaid)" />
       </a-col>
       <a-col :span="4">
-        <a-statistic title="临停营收" value="即将上线" />
+        <a-statistic title="固定车营收（元）" :value="formatAmount(data?.revenue?.fixedCarRevenue)" />
       </a-col>
       <a-col :span="4">
-        <a-statistic title="固定车营收" value="即将上线" />
+        <a-statistic title="其他营收（元）" :value="formatAmount(data?.revenue?.otherRevenue)" />
       </a-col>
     </a-row>
 
@@ -72,6 +72,12 @@ import * as echarts from 'echarts'
 import { getAnalyticsOverview, getParkingLots, type AnalyticsOverviewVO, type ParkingLotVO } from '@/api/parking-manage'
 
 const data = ref<AnalyticsOverviewVO | null>(null)
+
+/** 金额格式化：千分位 + 2 位小数 */
+function formatAmount(v?: number | null): string {
+  if (v === null || v === undefined) return '-'
+  return v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 // 车场下拉
 const lotOptions = ref<{ value: number | string; label: string }[]>([])

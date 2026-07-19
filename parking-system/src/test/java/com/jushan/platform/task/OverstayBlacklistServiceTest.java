@@ -144,9 +144,9 @@ class OverstayBlacklistServiceTest {
     }
 
     @Test
-    @DisplayName("固定车（月租）超时停放：跳过，不拉黑")
+    @DisplayName("固定车（VIP）超时停放：跳过，不拉黑（MONTHLY 已改由 MonthlyPassExpiryJob 处理）")
     void shouldSkipFixedVehicle() {
-        ParkingSession session = inSession("京E66666", SysVehicle.TYPE_MONTHLY, NOW.minusHours(300));
+        ParkingSession session = inSession("京E66666", SysVehicle.TYPE_VIP, NOW.minusHours(300));
         when(sessionMapper.selectAllInSessions()).thenReturn(List.of(session));
         when(policyMapper.selectTimeoutHoursValue(10L, 1L)).thenReturn(null);
 

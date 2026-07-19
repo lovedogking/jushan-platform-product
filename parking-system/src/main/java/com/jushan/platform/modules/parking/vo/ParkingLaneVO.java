@@ -26,6 +26,7 @@ public class ParkingLaneVO {
     private Integer tideMode;
     private Integer cameraMode;
     private Integer version;
+    private String gateMode;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

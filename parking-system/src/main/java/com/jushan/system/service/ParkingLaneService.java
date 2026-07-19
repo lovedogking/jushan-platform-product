@@ -430,6 +430,8 @@ public class ParkingLaneService {
         vo.setStatus(lane.getStatus());
         vo.setTideMode(lane.getTideMode());
         vo.setCameraMode(lane.getCameraMode());
+        vo.setGateMode(lane.getGateMode());
+        vo.setVersion(lane.getVersion());
         vo.setVersion(lane.getVersion());
         vo.setCreatedAt(lane.getCreatedAt());
         vo.setUpdatedAt(lane.getUpdatedAt());

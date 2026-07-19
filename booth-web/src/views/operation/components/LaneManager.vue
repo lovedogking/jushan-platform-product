@@ -14,10 +14,10 @@
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'type'">
-          <a-tag>{{ record.typeLabel }}</a-tag>
+          <a-tag>{{ typeToLabel(record.type) }}</a-tag>
         </template>
         <template v-if="column.key === 'gateMode'">
-          <a-tag :color="gateModeColor(record.gateMode)">{{ record.gateModeLabel }}</a-tag>
+          <a-tag :color="gateModeColor(record.gateMode)">{{ gateModeToLabel(record.gateMode) }}</a-tag>
         </template>
         <template v-if="column.key === 'status'">
           <a-tag :color="record.status === 1 ? 'green' : 'red'">{{ record.status === 1 ? '启用' : '停用' }}</a-tag>
@@ -154,6 +154,16 @@ function getDefaultDeviceForm(direction: number) {
 function gateModeColor(mode: string) {
   const map: Record<string, string> = { AUTO: 'blue', ALWAYS_OPEN: 'green', ALWAYS_CLOSE: 'orange' }
   return map[mode] || 'default'
+}
+
+function gateModeToLabel(mode: string) {
+  const map: Record<string, string> = { AUTO: '自动', ALWAYS_OPEN: '常开', ALWAYS_CLOSE: '常关' }
+  return map[mode] || mode
+}
+
+function typeToLabel(type: number) {
+  const map: Record<number, string> = { 1: '入口', 2: '出口', 3: '双向' }
+  return map[type] || String(type)
 }
 
 const columns = [

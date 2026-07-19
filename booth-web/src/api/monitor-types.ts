@@ -17,6 +17,7 @@ export interface Lane {
   status: string
   deviceId?: number
   deviceName?: string
+  gateMode?: string
   /** 车道绑定的相机列表（支持多相机/主备） */
   cameras?: LaneCamera[]
 }
@@ -147,6 +148,8 @@ export interface ParkingSessionVO {
   feeCents: number
   paidAmount: number
   durationMinutes: number
+  entryTrigger?: string
+  entryOperator?: number
   createdAt: string
   updatedAt: string
 }

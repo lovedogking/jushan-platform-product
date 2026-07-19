@@ -538,12 +538,13 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
     }
 
     /**
-     * 转换为完整 VO（含角色）。
+     * 转换为完整 VO（含角色与已分配停车场）。
      */
     private AdminAccountVO toVOWithRoles(SysAdminAccount account) {
         AdminAccountVO vo = toVO(account);
         List<Long> roleIds = adminAccountRoleMapper.selectRoleIdsByAdminAccountId(account.getId());
         vo.setRoleIds(roleIds);
+        vo.setParkingLotIds(parkingLotMapper.selectParkingLotIdsByAccountId(account.getId()));
         return vo;
     }
 

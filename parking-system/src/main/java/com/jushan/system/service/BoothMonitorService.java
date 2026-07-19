@@ -215,6 +215,7 @@ public class BoothMonitorService {
                     vo.setCode(lane.getLaneNo());
                     vo.setDirection(ParkingLaneService.intToDirectionStr(lane.getType()));
                     vo.setStatus(ParkingLaneService.intToStatusStr(lane.getStatus()));
+                    vo.setGateMode(lane.getGateMode());
 
                     // 构建 cameras 数组
                     List<BoothLaneCameraVO> cameraVOs = new ArrayList<>();

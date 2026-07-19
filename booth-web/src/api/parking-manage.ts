@@ -9,6 +9,15 @@ export function getCompanyTree(): Promise<CompanyVO[]> {
   return request.get('/admin/companies/tree')
 }
 
+// ============ Tenant (超管创建车场时选择归属租户) ============
+export interface TenantVO {
+  id: number; name: string; status?: string
+}
+
+export function getTenants(params: { page: number; size: number }) {
+  return request.get<PageResult<TenantVO>>('/admin/tenants', params)
+}
+
 // ============ PageResult ============
 export interface PageResult<T> {
   records: T[]
@@ -35,9 +44,11 @@ export function getParkingLots(params: ParkingLotPageQuery) {
 
 export interface ParkingLotCreateCmd {
   companyId?: number
+  tenantId?: number
   name: string
   address?: string
   totalSpaces?: number
+  contactPhone?: string
 }
 
 export interface ParkingLotUpdateCmd {
@@ -65,7 +76,7 @@ export function updateParkingLotStatus(id: number, action: 'ENABLED' | 'DISABLED
 // ============ Parking Lane (SA-02) ============
 export interface ParkingLaneVO {
   id: number; name: string; laneNo: string; lotId: number; lotName: string
-  type: number; typeLabel: string; gateMode: string; gateModeLabel: string
+  type: number; typeLabel?: string; gateMode: string; gateModeLabel?: string
   status: number; createdAt: string
 }
 
@@ -233,13 +244,23 @@ export interface TrendPoint {
   exit: number
 }
 
+/** 营收汇总（单位：元） */
+export interface RevenueStats {
+  /** 实收总额：统计周期内已出场会话 paid_amount 汇总 */
+  totalPaid: number
+  /** 固定车营收：一期无固定车收费数据源，为 0 */
+  fixedCarRevenue: number
+  /** 其他营收 = totalPaid - fixedCarRevenue */
+  otherRevenue: number
+}
+
 export interface AnalyticsOverviewVO {
   entryCount: number
   exitCount: number
   currentInCount: number
   entryTriggerStats: Record<string, number>
   trendData: TrendPoint[]
-  revenue: any
+  revenue: RevenueStats | null
 }
 
 export interface AnalyticsQueryParams {

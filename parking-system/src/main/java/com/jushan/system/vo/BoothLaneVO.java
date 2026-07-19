@@ -20,6 +20,8 @@ public class BoothLaneVO {
     private String deviceName;
     /** 车道绑定的相机列表（任务包 3-5：支持多相机/主备场景） */
     private List<BoothLaneCameraVO> cameras;
+    /** 闸机模式：AUTO-自动, ALWAYS_OPEN-常开, ALWAYS_CLOSE-常关 */
+    private String gateMode;
 
     // ==================== getter / setter ====================
 
@@ -49,4 +51,7 @@ public class BoothLaneVO {
 
     public List<BoothLaneCameraVO> getCameras() { return cameras; }
     public void setCameras(List<BoothLaneCameraVO> cameras) { this.cameras = cameras; }
+
+    public String getGateMode() { return gateMode; }
+    public void setGateMode(String gateMode) { this.gateMode = gateMode; }
 }

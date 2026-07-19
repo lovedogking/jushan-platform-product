@@ -2,8 +2,8 @@
   <div class="login-container">
     <div class="login-card">
       <div class="login-heading">
-        <h2>岗亭端登录</h2>
-        <p>请输入岗亭工作人员账号密码进入实时监控面板。</p>
+        <h2>飓山智慧停车</h2>
+        <p>一套系统，平台管理 / 车场运营 / 岗亭工作</p>
       </div>
 
       <a-form :model="formState" layout="vertical" @finish="handleSubmit">
@@ -18,7 +18,7 @@
           </a-input-password>
         </a-form-item>
         <a-button type="primary" html-type="submit" size="large" block :loading="loading" class="login-button">
-          登录岗亭端
+          登 录
         </a-button>
       </a-form>
 
@@ -26,7 +26,7 @@
       <a-alert v-if="errorMsg" type="error" :message="errorMsg" show-icon class="login-error" />
 
       <div class="login-footer">
-        岗亭端为停车场现场工作人员使用，具备实时监控、人工放行、设备查看等能力。
+        统一登录入口，按账号角色进入平台管理区、车场运营区或岗亭工作区。
       </div>
     </div>
   </div>
@@ -88,7 +88,7 @@ async function handleSubmit() {
     let redirect = (route.query.redirect as string) || null
     if (!redirect) {
       if (roles.includes('platform')) redirect = '/admin/accounts'
-      else if (roles.includes('tenant')) redirect = '/operation/dashboard'
+      else if (roles.includes('tenant')) redirect = '/operation/analytics'
       else redirect = '/booth/monitor'
     }
     router.push(redirect)

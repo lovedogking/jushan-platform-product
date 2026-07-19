@@ -118,6 +118,8 @@ public class TenantService {
             // 收费规则
             buildPermission("fee:read", "menu", "company"),
             buildPermission("fee:write", "button", "company"),
+            // 费用减免（V1.5 租户管理员可操作岗亭工作区）
+            buildPermission("fee:reduce", "button", "company"),
             // 计费记录
             buildPermission("billing:read", "menu", "company"),
             buildPermission("billing:write", "button", "company"),

@@ -33,6 +33,8 @@ public class ParkingLaneVO {
     private Integer cameraMode;
     /** 乐观锁版本号 */
     private Integer version;
+    /** 闸机模式: AUTO/ALWAYS_OPEN/ALWAYS_CLOSE */
+    private String gateMode;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -73,6 +75,9 @@ public class ParkingLaneVO {
 
     public Integer getCameraMode() { return cameraMode; }
     public void setCameraMode(Integer cameraMode) { this.cameraMode = cameraMode; }
+
+    public String getGateMode() { return gateMode; }
+    public void setGateMode(String gateMode) { this.gateMode = gateMode; }
 
     public Integer getVersion() { return version; }
     public void setVersion(Integer version) { this.version = version; }

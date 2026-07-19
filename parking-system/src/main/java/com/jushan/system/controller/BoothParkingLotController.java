@@ -51,9 +51,11 @@ public class BoothParkingLotController {
         }
 
         // 通过 ParkingLotScopeResolver 获取授权的停车场 ID（支持跨租户）
+        // null 表示全量访问（平台用户/租户管理员），查询全部启用车场；
+        // 租户用户由租户行级拦截器自动限定本租户范围
         Set<Long> lotIds = scopeResolver.resolveAuthorizedIds();
 
-        if (lotIds == null || lotIds.isEmpty()) {
+        if (lotIds != null && lotIds.isEmpty()) {
             log.warn("岗亭用户无授权车场: userId={}", ctx.userId());
             return R.ok(Collections.emptyList());
         }
@@ -61,7 +63,7 @@ public class BoothParkingLotController {
         // 查询停车场信息，仅返回启用状态
         List<ParkingLot> lots = parkingLotMapper.selectList(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ParkingLot>()
-                        .in(ParkingLot::getId, lotIds)
+                        .in(lotIds != null, ParkingLot::getId, lotIds)
                         .eq(ParkingLot::getStatus, "ENABLED"));
 
         List<Map<String, Object>> result = lots.stream().map(lot -> {

@@ -143,6 +143,10 @@ public class ParkingLotService {
             if (TenantContext.isPlatformUser()) {
                 tenantId = TenantContext.getTenantId();
             }
+            // 平台用户可显式指定目标租户（超管创建车场时选择归属租户）
+            if (tenantId == null && TenantContext.isPlatformUser() && request.getTenantId() != null) {
+                tenantId = request.getTenantId();
+            }
             // 如果仍无租户，使用公司推导（兼容旧逻辑）
             if (tenantId == null && request.getCompanyId() != null) {
                 Company preCompany = companyMapper.selectById(request.getCompanyId());
@@ -171,6 +175,10 @@ public class ParkingLotService {
                 lot.setCompanyId(company.getId());
                 lot.setGroupId(company.getLevel() == 1 ? company.getId() : company.getParentId());
             }
+        }
+        if (lot.getCompanyId() == null) {
+            // parking_lot.company_id 为 NOT NULL 列，未绑定公司时置 0
+            lot.setCompanyId(0L);
         }
         lot.setName(request.getName().trim());
         lot.setAddress(defaultString(request.getAddress(), ""));

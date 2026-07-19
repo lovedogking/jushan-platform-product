@@ -160,20 +160,28 @@
                           >
                             关闸
                           </a-button>
-                          <a-button
-                            :type="laneLockState[lane.laneId]?.open ? 'default' : 'primary'"
-                            size="small"
-                            @click="handleToggleLockOpen(lane.laneId)"
+                          <a-popconfirm
+                            :title="laneLockState[lane.laneId]?.open ? '确定取消常开？道闸将恢复正常起落' : '确定设置常开？道闸将锁定保持抬杆状态'"
+                            @confirm="handleToggleLockOpen(lane.laneId)"
                           >
-                            {{ laneLockState[lane.laneId]?.open ? '取消常开' : '常开' }}
-                          </a-button>
-                          <a-button
-                            :type="laneLockState[lane.laneId]?.close ? 'default' : 'primary'"
-                            size="small"
-                            @click="handleToggleLockClose(lane.laneId)"
+                            <a-button
+                              :type="laneLockState[lane.laneId]?.open ? 'default' : 'primary'"
+                              size="small"
+                            >
+                              {{ laneLockState[lane.laneId]?.open ? '取消常开' : '常开' }}
+                            </a-button>
+                          </a-popconfirm>
+                          <a-popconfirm
+                            :title="laneLockState[lane.laneId]?.close ? '确定取消常关？道闸将恢复正常起落' : '确定设置常关？白名单车辆将不再自动开闸'"
+                            @confirm="handleToggleLockClose(lane.laneId)"
                           >
-                            {{ laneLockState[lane.laneId]?.close ? '取消常关' : '常关' }}
-                          </a-button>
+                            <a-button
+                              :type="laneLockState[lane.laneId]?.close ? 'default' : 'primary'"
+                              size="small"
+                            >
+                              {{ laneLockState[lane.laneId]?.close ? '取消常关' : '常关' }}
+                            </a-button>
+                          </a-popconfirm>
                           <a-button
                             size="small"
                             @click="handleEditFeeRule(lane.laneId)"
@@ -415,7 +423,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, onUnmounted, ref } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
 import { message, notification } from 'ant-design-vue'
 import { SyncOutlined, BellOutlined, ExclamationCircleOutlined, VideoCameraOutlined } from '@ant-design/icons-vue'
 import { useMonitorStore } from '@/stores/monitor'
@@ -442,6 +450,20 @@ const manualReleaseLaneId = ref(0)
 
 /** 每个通道的锁定状态：{ [laneId]: { open: boolean, close: boolean } } */
 const laneLockState = ref<Record<number, { open: boolean; close: boolean }>>({})
+
+// 从快照初始化 laneLockState（修复 gateMode 刷新后状态丢失）
+watch(() => store.lanes, (lanes) => {
+  for (const lane of lanes) {
+    const mode = lane.gateMode
+    if (mode === 'ALWAYS_OPEN') {
+      laneLockState.value[lane.id] = { open: true, close: false }
+    } else if (mode === 'ALWAYS_CLOSE') {
+      laneLockState.value[lane.id] = { open: false, close: true }
+    } else {
+      laneLockState.value[lane.id] = { open: false, close: false }
+    }
+  }
+}, { immediate: true, deep: true })
 
 // 收费规则编辑
 const feeRuleEditOpen = ref(false)

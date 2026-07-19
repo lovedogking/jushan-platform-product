@@ -287,7 +287,6 @@ class FixedSpaceServiceTest {
         when(bindingMapper.selectCount(any(QueryWrapper.class)))
                 .thenReturn(0L)
                 .thenReturn(1L);
-        when(parkingLotMapper.selectById(1L)).thenReturn(parkingLot);
 
         FixedSpaceCreateRequest request = new FixedSpaceCreateRequest();
         request.setParkingLotId(1L);

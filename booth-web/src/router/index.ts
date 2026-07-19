@@ -7,13 +7,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/login/index.vue'),
     meta: { title: '登录' },
   },
-  // 岗亭工作区（GB: 岗亭管理员）
+  // 岗亭工作区（V1.5 起三角色均可进入）
   {
     path: '/booth',
     name: 'BoothLayout',
-    component: () => import('@/layout/index.vue'),
+    component: () => import('@/layout/UnifiedLayout.vue'),
     redirect: '/booth/monitor',
-    meta: { title: '岗亭工作区', roles: ['booth'] },
+    meta: { title: '岗亭工作区', roles: ['platform', 'tenant', 'booth'] },
     children: [
       {
         path: 'monitor',
@@ -27,8 +27,8 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/operation',
     name: 'OperationLayout',
-    component: () => import('@/layout/OperationLayout.vue'),
-    redirect: '/operation/dashboard',
+    component: () => import('@/layout/UnifiedLayout.vue'),
+    redirect: '/operation/analytics',
     meta: { title: '车场运营区', roles: ['platform', 'tenant'] },
     children: [
       {
@@ -58,25 +58,25 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
-  // 平台管理区（AD/SA: 超管专属 — V1.4 车场/车道/设备管理也在此区域）
+  // 平台管理区（AD: 超管专属；SA-01 车场管理 V1.5 起租户管理员可查看/编辑）
   {
     path: '/admin',
     name: 'AdminLayout',
-    component: () => import('@/layout/AdminLayout.vue'),
+    component: () => import('@/layout/UnifiedLayout.vue'),
     redirect: '/admin/accounts',
-    meta: { title: '平台管理区', roles: ['platform'] },
+    meta: { title: '平台管理区', roles: ['platform', 'tenant'] },
     children: [
       {
         path: 'accounts',
         name: 'AdminAccounts',
         component: () => import('@/views/admin/Accounts.vue'),
-        meta: { title: '账号管理' },
+        meta: { title: '账号管理', roles: ['platform'] },
       },
       {
         path: 'parking',
         name: 'AdminParking',
         component: () => import('@/views/operation/ParkingManage.vue'),
-        meta: { title: '车场管理' },
+        meta: { title: '车场管理', roles: ['platform', 'tenant'] },
       },
     ],
   },
@@ -128,7 +128,7 @@ function checkRoleAccess(targetRoles?: string[]): boolean {
 function getDefaultRoute(): string {
   const roles = getUserRoles()
   if (roles.includes('platform')) return '/admin/accounts'
-  if (roles.includes('tenant')) return '/operation/dashboard'
+  if (roles.includes('tenant')) return '/operation/analytics'
   if (roles.includes('booth')) return '/booth/monitor'
   return '/login'
 }

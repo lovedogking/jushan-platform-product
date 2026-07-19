@@ -57,11 +57,9 @@ class DeviceWebhookControllerTest {
     @Test
     @DisplayName("正常车牌识别事件：返回 200，事件被处理")
     void shouldAcceptValidPlateRecognizedEvent() throws Exception {
-        DeviceWebhookEvent event = createValidEvent("京A12345", "ENTRY");
-
         mockMvc.perform(post("/api/v1/device-webhook/events")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(event)))
+                        .content(objectMapper.writeValueAsString(createEnvelope("京A12345", "ENTRY"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").value("success"));
@@ -91,13 +89,15 @@ class DeviceWebhookControllerTest {
     @Test
     @DisplayName("带车牌颜色和置信度的事件：返回 200")
     void shouldAcceptEventWithPlateColorAndConfidence() throws Exception {
-        DeviceWebhookEvent event = createValidEvent("沪C12345", "ENTRY");
-        event.setPlateColor("BLUE");
-        event.setConfidence(0.95);
+        java.util.Map<String, Object> envelope = createEnvelope("沪C12345", "ENTRY");
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> payload = (java.util.Map<String, Object>) envelope.get("payload");
+        payload.put("plateColor", "BLUE");
+        payload.put("confidence", 0.95);
 
         mockMvc.perform(post("/api/v1/device-webhook/events")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(event)))
+                        .content(objectMapper.writeValueAsString(envelope)))
                 .andExpect(status().isOk());
 
         ArgumentCaptor<DeviceWebhookEvent> captor = ArgumentCaptor.forClass(DeviceWebhookEvent.class);
@@ -254,6 +254,25 @@ class DeviceWebhookControllerTest {
     /**
      * 构建一个合法的测试事件。
      */
+    /**
+     * 构建 DA v0.4 信封格式事件（Controller 按嵌套 payload 解析）。
+     */
+    private java.util.Map<String, Object> createEnvelope(String plateNo, String direction) {
+        java.util.Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("plateNo", plateNo);
+        payload.put("plateColor", "BLUE");
+        payload.put("confidence", 98);
+        payload.put("direction", direction);
+        payload.put("imagePath", "http://device-access:8081/images/capture.jpg");
+        java.util.Map<String, Object> envelope = new java.util.HashMap<>();
+        envelope.put("eventId", "evt-001");
+        envelope.put("eventType", "PLATE_RECOGNIZED");
+        envelope.put("deviceSn", "SN-TEST-001");
+        envelope.put("occurredAt", "2026-07-15T10:30:00");
+        envelope.put("payload", payload);
+        return envelope;
+    }
+
     private DeviceWebhookEvent createValidEvent(String plateNumber, String direction) {
         DeviceWebhookEvent event = new DeviceWebhookEvent();
         event.setEventId("evt-001");

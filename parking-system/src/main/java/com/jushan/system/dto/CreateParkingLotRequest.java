@@ -1,7 +1,6 @@
 package com.jushan.system.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -12,9 +11,11 @@ import jakarta.validation.constraints.Size;
  */
 public class CreateParkingLotRequest {
 
-    /** 所属公司 ID */
-    @NotNull(message = "所属公司不能为空")
+    /** 所属公司 ID（可选，一期不强制绑定公司） */
     private Long companyId;
+
+    /** 目标租户 ID（可选，仅平台用户创建时生效；租户用户一律从登录会话推导，忽略该字段） */
+    private Long tenantId;
 
     /** 停车场名称 */
     @NotBlank(message = "停车场名称不能为空")
@@ -63,6 +64,9 @@ public class CreateParkingLotRequest {
 
     public Long getCompanyId() { return companyId; }
     public void setCompanyId(Long companyId) { this.companyId = companyId; }
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }

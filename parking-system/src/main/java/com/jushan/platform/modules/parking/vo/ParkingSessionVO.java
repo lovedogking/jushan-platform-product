@@ -59,6 +59,12 @@ public class ParkingSessionVO {
     /** 在场时长（分钟） */
     private Long durationMinutes;
 
+    /** 入场触发方式 */
+    private String entryTrigger;
+
+    /** 入场操作人ID */
+    private Long entryOperator;
+
     /** 创建时间 */
     private LocalDateTime createdAt;
 

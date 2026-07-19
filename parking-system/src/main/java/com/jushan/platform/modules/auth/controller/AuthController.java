@@ -136,15 +136,12 @@ public class AuthController {
                 .filter(p -> !p.isEmpty())
                 .collect(Collectors.joining(","));
 
-        // 加载角色编码
-        List<String> roleCodes = loadRoleCodes(account.getId());
-        log.info("加载角色编码结果: adminAccountId={}, roleCodes={}", account.getId(), roleCodes);
-        String rolesJson = roleCodes.isEmpty() ? null : "[" + roleCodes.stream()
-                .map(r -> "\"" + r + "\"")
-                .collect(Collectors.joining(",")) + "]";
+        // 加载角色编码（岗亭管理员确保包含前端路由角色 'booth'）
+        String userType = resolveUserType(account);
+        String rolesJson = buildRolesJson(account.getId(), userType);
+        log.info("加载角色编码结果: adminAccountId={}, rolesJson={}", account.getId(), rolesJson);
 
         // 生成 Token
-        String userType = resolveUserType(account);
         String token = JwtUtils.generateToken(account.getId(), account.getTenantId(), userType,
                 rolesJson, permissionsStr, jwtSecret, jwtExpiration);
         String refreshToken = JwtUtils.generateToken(account.getId(), account.getTenantId(), userType,
@@ -184,9 +181,10 @@ public class AuthController {
                 .filter(p -> !p.isEmpty())
                 .collect(Collectors.joining(","));
         String userType = resolveUserType(account);
+        String rolesJson = buildRolesJson(account.getId(), userType);
 
         String newToken = JwtUtils.generateToken(account.getId(), account.getTenantId(), userType,
-                null, permissionsStr, jwtSecret, jwtExpiration);
+                rolesJson, permissionsStr, jwtSecret, jwtExpiration);
 
         LoginResult result = new LoginResult();
         result.setToken(newToken);
@@ -266,6 +264,30 @@ public class AuthController {
             return USER_TYPE_PLATFORM;
         }
         return USER_TYPE_TENANT;
+    }
+
+    /**
+     * 构建 JWT roles 声明（JSON 数组字符串）。
+     * <p>
+     * 岗亭管理员（userType=booth）确保包含前端路由角色 {@code "booth"}——
+     * 前端路由守卫依赖该值，而 sys_role 中的角色编码（如 booth_operator）不含此值。
+     *
+     * @param adminAccountId 管理员账号 ID
+     * @param userType       用户类型
+     * @return roles JSON 字符串，无角色时为 null
+     */
+    private String buildRolesJson(Long adminAccountId, String userType) {
+        List<String> roleCodes = loadRoleCodes(adminAccountId);
+        if (USER_TYPE_BOOTH.equals(userType) && !roleCodes.contains(USER_TYPE_BOOTH)) {
+            roleCodes = new java.util.ArrayList<>(roleCodes);
+            roleCodes.add(USER_TYPE_BOOTH);
+        }
+        if (roleCodes.isEmpty()) {
+            return null;
+        }
+        return "[" + roleCodes.stream()
+                .map(r -> "\"" + r + "\"")
+                .collect(Collectors.joining(",")) + "]";
     }
 
     /**

@@ -3,7 +3,9 @@ package com.jushan.system.service;
 import com.jushan.common.BusinessException;
 import com.jushan.system.cache.VehicleListCacheStore;
 import com.jushan.system.dto.VehicleListCreateCmd;
+import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.entity.VehicleList;
+import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.VehicleListMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,11 +30,14 @@ class VehicleListServiceTest {
     @Mock
     private VehicleListCacheStore cacheStore;
 
+    @Mock
+    private ParkingLotMapper parkingLotMapper;
+
     private VehicleListService service;
 
     @BeforeEach
     void setUp() {
-        service = new VehicleListService(vehicleListMapper, cacheStore);
+        service = new VehicleListService(vehicleListMapper, cacheStore, parkingLotMapper);
     }
 
     @Test
@@ -107,6 +112,11 @@ class VehicleListServiceTest {
         when(vehicleListMapper.selectByLotAndPlateAndType(eq(4L), eq("京D22222"), eq(VehicleList.TYPE_WHITE)))
                 .thenReturn(null);
         when(vehicleListMapper.insert(any(VehicleList.class))).thenReturn(1);
+        
+        ParkingLot mockLot = new ParkingLot();
+        mockLot.setId(4L);
+        mockLot.setTenantId(1L);
+        when(parkingLotMapper.selectByIdIgnoreTenant(4L)).thenReturn(mockLot);
 
         VehicleList result = service.create(cmd);
 

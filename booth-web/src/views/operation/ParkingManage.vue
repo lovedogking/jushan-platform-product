@@ -34,7 +34,7 @@
               </a-list-item>
             </template>
           </a-list>
-          <a-button type="dashed" block @click="showCreateLotModal" style="margin-top: 8px">
+          <a-button v-if="isPlatform" type="dashed" block @click="showCreateLotModal" style="margin-top: 8px">
             <PlusOutlined /> 新增车场
           </a-button>
         </div>
@@ -62,6 +62,11 @@
     <!-- 新增车场弹窗 -->
     <a-modal v-model:open="createLotVisible" title="新增车场" @ok="handleCreateLot" :confirm-loading="createLotLoading">
       <a-form :model="createLotForm" layout="vertical">
+        <a-form-item label="所属租户" required>
+          <a-select v-model:value="createLotForm.tenantId" placeholder="请选择归属租户">
+            <a-select-option v-for="t in tenantOptions" :key="t.id" :value="t.id">{{ t.name }}</a-select-option>
+          </a-select>
+        </a-form-item>
         <a-form-item label="车场名称" required>
           <a-input v-model:value="createLotForm.name" placeholder="请输入车场名称" />
         </a-form-item>
@@ -83,16 +88,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, computed } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import {
-  getParkingLots, createParkingLot,
-  type ParkingLotVO, type ParkingLotCreateCmd
+  getParkingLots, createParkingLot, getTenants,
+  type ParkingLotVO, type ParkingLotCreateCmd, type TenantVO
 } from '@/api/parking-manage'
 import LotBasicInfo from './components/LotBasicInfo.vue'
 import LaneManager from './components/LaneManager.vue'
 import DeviceManager from './components/DeviceManager.vue'
+
+const ROLES_KEY = 'jushan_roles'
+
+function getUserRoles(): string[] {
+  try {
+    const raw = sessionStorage.getItem(ROLES_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+// 仅超管可新增车场；租户管理员只读/编辑（V1.5）
+const isPlatform = computed(() => getUserRoles().includes('platform'))
 
 const searchKeyword = ref('')
 const parkingLots = ref<ParkingLotVO[]>([])
@@ -103,8 +120,10 @@ const activeTab = ref('basic')
 // 新增车场
 const createLotVisible = ref(false)
 const createLotLoading = ref(false)
+const tenantOptions = ref<TenantVO[]>([])
 const createLotForm = reactive<ParkingLotCreateCmd & { contactName?: string; contactPhone?: string }>({
   companyId: undefined,
+  tenantId: undefined,
   name: '',
   address: '',
   totalSpaces: undefined,
@@ -128,15 +147,34 @@ function selectLot(lot: ParkingLotVO) {
 }
 
 function showCreateLotModal() {
+  createLotForm.tenantId = undefined
   createLotForm.name = ''
   createLotForm.address = ''
   createLotForm.totalSpaces = undefined
   createLotForm.contactName = ''
   createLotForm.contactPhone = ''
   createLotVisible.value = true
+  loadTenants()
+}
+
+async function loadTenants() {
+  try {
+    const res = await getTenants({ page: 1, size: 100 })
+    tenantOptions.value = res.records
+    // 仅一个租户时自动选中，减少操作
+    if (res.records.length === 1) {
+      createLotForm.tenantId = res.records[0].id
+    }
+  } catch {
+    // 错误已由拦截器提示
+  }
 }
 
 async function handleCreateLot() {
+  if (!createLotForm.tenantId) {
+    message.warning('请选择归属租户')
+    return
+  }
   if (!createLotForm.name.trim()) {
     message.warning('请输入车场名称')
     return
@@ -145,9 +183,11 @@ async function handleCreateLot() {
   try {
     await createParkingLot({
       companyId: createLotForm.companyId,
+      tenantId: createLotForm.tenantId,
       name: createLotForm.name,
       address: createLotForm.address,
       totalSpaces: createLotForm.totalSpaces,
+      contactPhone: createLotForm.contactPhone || undefined,
     })
     message.success('车场创建成功')
     createLotVisible.value = false

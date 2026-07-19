@@ -6,11 +6,15 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
+import com.jushan.common.auth.TenantContext;
 import com.jushan.system.cache.VehicleListCacheStore;
 import com.jushan.system.dto.VehicleListCreateCmd;
 import com.jushan.system.dto.VehicleListUpdateCmd;
 import com.jushan.system.dto.VehicleListPageQuery;
+import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.entity.VehicleList;
+import com.jushan.system.mapper.ParkingLotMapper;
+import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.VehicleListMapper;
 import com.jushan.system.vo.VehicleListDecisionVO;
 import com.jushan.system.vo.VehicleListVO;
@@ -34,6 +38,7 @@ public class VehicleListService extends ServiceImpl<VehicleListMapper, VehicleLi
 
     private final VehicleListMapper vehicleListMapper;
     private final VehicleListCacheStore cacheStore;
+    private final ParkingLotMapper parkingLotMapper;
 
     static final Map<String, String> TRIGGER_TYPE_LABEL_MAP = new LinkedHashMap<>();
     static final Map<String, String> LIST_TYPE_LABEL_MAP = new LinkedHashMap<>();
@@ -52,9 +57,10 @@ public class VehicleListService extends ServiceImpl<VehicleListMapper, VehicleLi
         STATUS_LABEL_MAP.put(VehicleList.STATUS_DISABLED, "已禁用");
     }
 
-    public VehicleListService(VehicleListMapper vehicleListMapper, VehicleListCacheStore cacheStore) {
+    public VehicleListService(VehicleListMapper vehicleListMapper, VehicleListCacheStore cacheStore, ParkingLotMapper parkingLotMapper) {
         this.vehicleListMapper = vehicleListMapper;
         this.cacheStore = cacheStore;
+        this.parkingLotMapper = parkingLotMapper;
         // 确保 baseMapper 指向同一实例，使 MyBatis-Plus 的 insert/update/delete 方法可被 Mockito 拦截
         this.baseMapper = vehicleListMapper;
     }
@@ -88,6 +94,9 @@ public class VehicleListService extends ServiceImpl<VehicleListMapper, VehicleLi
         }
 
         VehicleList entity = new VehicleList();
+        ParkingLot lot = parkingLotMapper.selectByIdIgnoreTenant(lotId);
+        Long tenantId = lot != null ? lot.getTenantId() : TenantContext.getTenantId();
+        entity.setTenantId(tenantId);
         entity.setPlateNumber(plate);
         entity.setListType(listType);
         entity.setParkingLotId(lotId);
@@ -170,7 +179,7 @@ public class VehicleListService extends ServiceImpl<VehicleListMapper, VehicleLi
                 .eq(query.getListType() != null && !query.getListType().isEmpty(),
                         VehicleList::getListType, query.getListType())
                 .eq(query.getPlateNumber() != null && !query.getPlateNumber().isEmpty(),
-                        VehicleList::getPlateNumber, query.getPlateNumber().toUpperCase())
+                        VehicleList::getPlateNumber, query.getPlateNumber() != null ? query.getPlateNumber().toUpperCase() : null)
                 .orderByDesc(VehicleList::getCreatedAt);
 
         IPage<VehicleList> entityPage = baseMapper.selectPage(page, wrapper);
@@ -188,6 +197,9 @@ public class VehicleListService extends ServiceImpl<VehicleListMapper, VehicleLi
     // ==================== 判定方法 ====================
 
     public boolean isWhitelisted(Long parkingLotId, String plateNumber) {
+        if (plateNumber == null || plateNumber.isBlank()) {
+            return false;
+        }
         String cached = cacheStore.get(parkingLotId, plateNumber);
         if (cached != null) {
             if (VehicleListCacheStore.NULL_MARKER.equals(cached)) return false;
@@ -203,10 +215,16 @@ public class VehicleListService extends ServiceImpl<VehicleListMapper, VehicleLi
     }
 
     public boolean isBlacklisted(Long parkingLotId, String plateNumber) {
+        if (plateNumber == null || plateNumber.isBlank()) {
+            return false;
+        }
         return resolveBlacklist(parkingLotId, plateNumber) != null;
     }
 
     public VehicleList resolveBlacklist(Long parkingLotId, String plateNumber) {
+        if (plateNumber == null || plateNumber.isBlank()) {
+            return null;
+        }
         String cached = cacheStore.get(parkingLotId, plateNumber);
         if (cached != null) {
             if (VehicleListCacheStore.NULL_MARKER.equals(cached)) return null;

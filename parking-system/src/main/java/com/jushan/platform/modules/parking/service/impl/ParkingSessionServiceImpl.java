@@ -12,8 +12,10 @@ import com.jushan.platform.modules.parking.entity.ParkingSession;
 import com.jushan.platform.modules.parking.mapper.ParkingSessionMapper;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import com.jushan.platform.modules.parking.vo.ParkingSessionVO;
+import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.entity.ParkingOrder;
 import com.jushan.system.entity.ParkingRecord;
+import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.ParkingOrderMapper;
 import com.jushan.system.mapper.ParkingRecordMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -43,13 +45,16 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
 
     private final ParkingRecordMapper parkingRecordMapper;
     private final ParkingOrderMapper parkingOrderMapper;
+    private final ParkingLotMapper parkingLotMapper;
     private final AtomicInteger sequence = new AtomicInteger(0);
     private volatile String lastSequenceDate = "";
 
     public ParkingSessionServiceImpl(ParkingRecordMapper parkingRecordMapper,
-                                     ParkingOrderMapper parkingOrderMapper) {
+                                     ParkingOrderMapper parkingOrderMapper,
+                                     ParkingLotMapper parkingLotMapper) {
         this.parkingRecordMapper = parkingRecordMapper;
         this.parkingOrderMapper = parkingOrderMapper;
+        this.parkingLotMapper = parkingLotMapper;
     }
 
     @Override
@@ -60,7 +65,17 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
         if (tenantId == null && cmd.getTenantId() != null) {
             tenantId = cmd.getTenantId();
         }
-        String standardizedPlate = cmd.getPlateNumber().toUpperCase();
+        // 平台管理员等无租户上下文场景，从停车场推导
+        if (tenantId == null && cmd.getParkingLotId() != null) {
+            ParkingLot lot = parkingLotMapper.selectByIdIgnoreTenant(cmd.getParkingLotId());
+            if (lot != null) {
+                tenantId = lot.getTenantId();
+            }
+        }
+        if (tenantId == null) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "租户ID不能为空");
+        }
+        String standardizedPlate = cmd.getPlateNumber() != null ? cmd.getPlateNumber().toUpperCase() : null;
 
         // 检查是否已有 ParkingRecord 的 PARKING 记录（由 EntryService 创建）
         List<ParkingRecord> activeRecords = parkingRecordMapper.selectActiveByPlate(
@@ -254,7 +269,10 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
         Long tenantId = TenantContext.getTenantId();
 
         ParkingSession entity = baseMapper.selectById(id);
-        if (entity == null || !tenantId.equals(entity.getTenantId())) {
+        if (entity == null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "在场记录不存在");
+        }
+        if (tenantId != null && !tenantId.equals(entity.getTenantId())) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND, "在场记录不存在");
         }
 
@@ -265,10 +283,12 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
     public IPage<ParkingSessionVO> pageList(IPage<ParkingSession> page, Long parkingLotId, String plateNumber, String status) {
         Long tenantId = TenantContext.getTenantId();
 
+        String normalizedPlate = (plateNumber != null && !plateNumber.isBlank()) ? plateNumber.toUpperCase() : null;
+
         LambdaQueryWrapper<ParkingSession> wrapper = new LambdaQueryWrapper<ParkingSession>()
-                .eq(ParkingSession::getTenantId, tenantId)
+                .eq(tenantId != null, ParkingSession::getTenantId, tenantId)
                 .eq(parkingLotId != null, ParkingSession::getParkingLotId, parkingLotId)
-                .like(plateNumber != null && !plateNumber.isEmpty(), ParkingSession::getPlateNumber, plateNumber.toUpperCase())
+                .like(normalizedPlate != null, ParkingSession::getPlateNumber, normalizedPlate)
                 .eq(status != null && !status.isEmpty(), ParkingSession::getStatus, status)
                 .isNull(ParkingSession::getDeletedAt)
                 .orderByDesc(ParkingSession::getEntryTime);
@@ -287,6 +307,9 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
     @Override
     public ParkingSessionVO getInByPlateNumber(String plateNumber) {
         Long tenantId = TenantContext.getTenantId();
+        if (plateNumber == null || plateNumber.isBlank()) {
+            return null;
+        }
         ParkingSession entity = baseMapper.selectInByPlateNumber(plateNumber.toUpperCase(), tenantId);
         return entity != null ? toVO(entity) : null;
     }
@@ -294,6 +317,9 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
     @Override
     public ParkingSessionVO getInByPlateAndLot(String plateNumber, Long parkingLotId) {
         Long tenantId = TenantContext.getTenantId();
+        if (plateNumber == null || plateNumber.isBlank()) {
+            return null;
+        }
         if (tenantId != null) {
             ParkingSession entity = baseMapper.selectInByPlateAndLot(plateNumber.toUpperCase(), parkingLotId, tenantId);
             return entity != null ? toVO(entity) : null;

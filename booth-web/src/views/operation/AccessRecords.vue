@@ -60,20 +60,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { getBoothVehicles } from '@/api/vehicle-query'
+import { ref, reactive, watch } from 'vue'
+import { getParkingSessions } from '@/api/vehicle-query'
+import type { ParkingSessionVO } from '@/api/monitor-types'
 
-interface SessionRecord {
-  id: number
-  plateNumber: string
-  vehicleType: string
-  entryTime: string
-  exitTime: string | null
-  status: string
-  entryTrigger: string | null
-  entryOperator: number | null
-  laneName: string
-  parkingLotName: string
+interface SessionRecord extends ParkingSessionVO {
+  laneName?: string
+  parkingLotName?: string
 }
 
 const loading = ref(false)
@@ -97,16 +90,21 @@ const columns = [
   { title: '出场时间', dataIndex: 'exitTime', key: 'exitTime' },
   { title: '触发方式', key: 'entryTrigger' },
   { title: '状态', key: 'status' },
-  { title: '通道', dataIndex: 'laneName', key: 'laneName' },
-  { title: '车场', dataIndex: 'parkingLotName', key: 'parkingLotName' },
+  { title: '通道ID', dataIndex: 'laneId', key: 'laneId' },
+  { title: '车场ID', dataIndex: 'parkingLotId', key: 'parkingLotId' },
 ]
 
 async function loadData() {
   loading.value = true
   try {
-    const result = await getBoothVehicles(filters.plateNumber || undefined)
-    records.value = (result as any).records || (result as any) || []
-    pagination.total = records.value.length
+    const result = await getParkingSessions({
+      current: pagination.current,
+      size: pagination.pageSize,
+      plateNumber: filters.plateNumber || undefined,
+      status: filters.status || undefined,
+    })
+    records.value = result.records || []
+    pagination.total = result.total || 0
   } catch {
     records.value = []
   } finally {

@@ -113,7 +113,7 @@ class RecognitionEventServiceImplTest {
         ParkingSessionVO sessionVO = sessionVO(1001L);
         Device gateDevice = gateDevice();
 
-        when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
+        when(vehicleTypeDecisionService.decide(eq(PLATE), any(), any())).thenReturn(decision);
         when(parkingSessionService.entry(any(ParkingSessionEntryCmd.class))).thenReturn(sessionVO);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
         when(deviceAccessClient.openGate(eq(DEVICE_SN), anyString())).thenReturn(commandResult(true, 200, "gate opened"));
@@ -144,7 +144,7 @@ class RecognitionEventServiceImplTest {
         ParkingSessionVO sessionVO = sessionVO(1002L);
         Device gateDevice = gateDevice();
 
-        when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
+        when(vehicleTypeDecisionService.decide(eq(PLATE), any(), any())).thenReturn(decision);
         when(parkingSessionService.entry(any(ParkingSessionEntryCmd.class))).thenReturn(sessionVO);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
         when(deviceAccessClient.openGate(eq(DEVICE_SN), anyString()))
@@ -175,7 +175,7 @@ class RecognitionEventServiceImplTest {
         ParkingSessionVO sessionVO = sessionVO(1003L);
         Device gateDevice = gateDevice();
 
-        when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
+        when(vehicleTypeDecisionService.decide(eq(PLATE), any(), any())).thenReturn(decision);
         when(parkingSessionService.entry(any(ParkingSessionEntryCmd.class))).thenReturn(sessionVO);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
         when(deviceAccessClient.openGate(eq(DEVICE_SN), anyString()))
@@ -206,7 +206,7 @@ class RecognitionEventServiceImplTest {
         VehicleTypeDecisionVO decision = allowEntryDecision();
         ParkingSessionVO sessionVO = sessionVO(1004L);
 
-        when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
+        when(vehicleTypeDecisionService.decide(eq(PLATE), any(), any())).thenReturn(decision);
         when(parkingSessionService.entry(any(ParkingSessionEntryCmd.class))).thenReturn(sessionVO);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.emptyList());
 
@@ -236,7 +236,7 @@ class RecognitionEventServiceImplTest {
         ParkingSessionVO outSession = sessionVO(2001L);
         Device gateDevice = gateDevice();
 
-        when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
+        when(vehicleTypeDecisionService.decide(eq(PLATE), any(), any())).thenReturn(decision);
         when(parkingSessionService.getInByPlateNumber(PLATE)).thenReturn(inSession);
         when(billingEngine.calculateFee(eq(PARKING_LOT_ID), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(500); // 5 元
@@ -270,7 +270,7 @@ class RecognitionEventServiceImplTest {
         ParkingSessionVO outSession = sessionVO(2002L);
         Device gateDevice = gateDevice();
 
-        when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
+        when(vehicleTypeDecisionService.decide(eq(PLATE), any(), any())).thenReturn(decision);
         when(parkingSessionService.getInByPlateNumber(PLATE)).thenReturn(inSession);
         when(billingEngine.calculateFee(eq(PARKING_LOT_ID), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(800);
@@ -304,7 +304,7 @@ class RecognitionEventServiceImplTest {
         ParkingSessionVO outSession = sessionVO(2003L);
         Device gateDevice = gateDevice();
 
-        when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
+        when(vehicleTypeDecisionService.decide(eq(PLATE), any(), any())).thenReturn(decision);
         when(parkingSessionService.getInByPlateNumber(PLATE)).thenReturn(inSession);
         when(billingEngine.calculateFee(eq(PARKING_LOT_ID), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(1000);
@@ -434,7 +434,7 @@ class RecognitionEventServiceImplTest {
         ParkingSessionVO sessionVO = sessionVO(3001L);
         Device gateDevice = gateDevice();
 
-        when(vehicleTypeDecisionService.decide(PLATE)).thenReturn(decision);
+        when(vehicleTypeDecisionService.decide(eq(PLATE), any(), any())).thenReturn(decision);
         when(parkingSessionService.entry(any(ParkingSessionEntryCmd.class))).thenReturn(sessionVO);
         when(deviceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(gateDevice));
         when(deviceAccessClient.openGate(eq(DEVICE_SN), anyString()))

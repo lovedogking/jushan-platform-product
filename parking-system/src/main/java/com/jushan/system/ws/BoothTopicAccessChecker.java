@@ -3,18 +3,23 @@ package com.jushan.system.ws;
 import com.jushan.common.BusinessException;
 import com.jushan.common.auth.TenantContext;
 import com.jushan.framework.ws.WsTopicAccessChecker;
+import com.jushan.platform.modules.account.entity.SysCustomRole;
+import com.jushan.platform.modules.account.mapper.SysAdminAccountRoleMapper;
+import com.jushan.platform.modules.account.mapper.SysCustomRoleMapper;
 import com.jushan.system.service.ParkingLotScopeResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.MessageDeliveryException;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * 岗亭监控 topic 访问检查器（P005）。
  *
  * 校验 {@code /topic/booth/{parkingLotId}/**} 订阅权限：
- *   仅允许租户用户订阅，平台用户禁止访问岗亭 topic
  *   通过 {@link ParkingLotScopeResolver} 校验停车场授权范围
+ *   （V1.5 起平台用户亦可订阅，平台用户为全量范围）
  *   parkingLotId 解析失败或无权访问时 fail-closed，断开连接
  *
  * @author Jushan Platform
@@ -29,9 +34,15 @@ public class BoothTopicAccessChecker implements WsTopicAccessChecker {
     private static final String BOOTH_TOPIC_PREFIX = "/topic/booth/";
 
     private final ParkingLotScopeResolver scopeResolver;
+    private final SysAdminAccountRoleMapper adminAccountRoleMapper;
+    private final SysCustomRoleMapper customRoleMapper;
 
-    public BoothTopicAccessChecker(ParkingLotScopeResolver scopeResolver) {
+    public BoothTopicAccessChecker(ParkingLotScopeResolver scopeResolver,
+                                   SysAdminAccountRoleMapper adminAccountRoleMapper,
+                                   SysCustomRoleMapper customRoleMapper) {
         this.scopeResolver = scopeResolver;
+        this.adminAccountRoleMapper = adminAccountRoleMapper;
+        this.customRoleMapper = customRoleMapper;
     }
 
     @Override
@@ -57,13 +68,8 @@ public class BoothTopicAccessChecker implements WsTopicAccessChecker {
                 throw new MessageDeliveryException("无法获取用户会话上下文");
             }
 
-            // 岗亭接口仅限租户用户
-            if (snapshot.isPlatformUser()) {
-                log.warn("WebSocket 平台用户尝试订阅岗亭 topic，拒绝: destination={}, loginId={}",
-                        destination, loginId);
-                throw new MessageDeliveryException("平台用户无权访问岗亭监控");
-            }
-
+            // V1.5：超管/租户管理员/岗亭管理员三角色均可订阅岗亭 topic，
+            // 数据范围统一由 ParkingLotScopeResolver 校验
             TenantContext.set(snapshot);
             scopeResolver.validateAccess(parkingLotId);
 
@@ -116,6 +122,46 @@ public class BoothTopicAccessChecker implements WsTopicAccessChecker {
                     ? TenantContext.USER_TYPE_TENANT
                     : TenantContext.USER_TYPE_PLATFORM;
         }
-        return new TenantContext.Snapshot(tenantId, loginId, userType, null, null);
+        // 租户用户必须带上角色编码：ParkingLotScopeResolver 依据 roles 判定
+        // customer_admin 全量访问，roles 缺失会导致租户管理员被误判为无授权
+        String rolesJson = null;
+        if (tenantId != null) {
+            rolesJson = loadRoleCodesJson(loginId);
+        }
+        return new TenantContext.Snapshot(tenantId, loginId, userType, rolesJson, null);
+    }
+
+    /**
+     * 加载账号的角色编码并序列化为 JSON 数组字符串（与 JWT roles 声明同格式）。
+     * 失败时返回 null（fail-closed，受限角色按授权表判定）。
+     */
+    private String loadRoleCodesJson(Long loginId) {
+        try {
+            List<Long> roleIds = adminAccountRoleMapper.selectRoleIdsByAdminAccountId(loginId);
+            if (roleIds == null || roleIds.isEmpty()) {
+                return null;
+            }
+            List<SysCustomRole> roles = customRoleMapper.selectBatchIds(roleIds);
+            if (roles == null || roles.isEmpty()) {
+                return null;
+            }
+            StringBuilder sb = new StringBuilder("[");
+            boolean first = true;
+            for (SysCustomRole role : roles) {
+                if (role == null || role.getRoleCode() == null || role.getRoleCode().isEmpty()) {
+                    continue;
+                }
+                if (!first) {
+                    sb.append(",");
+                }
+                sb.append("\"").append(role.getRoleCode()).append("\"");
+                first = false;
+            }
+            sb.append("]");
+            return sb.length() > 2 ? sb.toString() : null;
+        } catch (Exception e) {
+            log.warn("WebSocket 加载账号角色编码失败，按无角色处理: loginId={}, error={}", loginId, e.getMessage());
+            return null;
+        }
     }
 }
