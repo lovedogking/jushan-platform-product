@@ -58,7 +58,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import {
-  getDevices, createDevice, updateDevice, updateDeviceStatus, deleteDevice,
+  getDevices, createDevice, updateDevice, updateDeviceStatus,
   type DeviceVO
 } from '@/api/parking-manage'
 import DeviceFormFields, { type DeviceFormData } from './DeviceFormFields.vue'
