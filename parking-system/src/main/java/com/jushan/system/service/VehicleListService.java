@@ -174,12 +174,13 @@ public class VehicleListService extends ServiceImpl<VehicleListMapper, VehicleLi
 
     public IPage<VehicleListVO> pageList(VehicleListPageQuery query) {
         Page<VehicleList> page = new Page<>(query.getPage(), query.getSize());
+        String plate = query.getPlateNumber();
         LambdaQueryWrapper<VehicleList> wrapper = new LambdaQueryWrapper<VehicleList>()
                 .eq(query.getParkingLotId() != null, VehicleList::getParkingLotId, query.getParkingLotId())
                 .eq(query.getListType() != null && !query.getListType().isEmpty(),
                         VehicleList::getListType, query.getListType())
-                .eq(query.getPlateNumber() != null && !query.getPlateNumber().isEmpty(),
-                        VehicleList::getPlateNumber, query.getPlateNumber() != null ? query.getPlateNumber().toUpperCase() : null)
+                .eq(plate != null && !plate.isEmpty(),
+                        VehicleList::getPlateNumber, plate == null ? null : plate.toUpperCase())
                 .orderByDesc(VehicleList::getCreatedAt);
 
         IPage<VehicleList> entityPage = baseMapper.selectPage(page, wrapper);
