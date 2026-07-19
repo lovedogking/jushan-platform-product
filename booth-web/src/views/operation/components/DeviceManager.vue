@@ -35,18 +35,6 @@
     <!-- 新增/编辑设备弹窗 -->
     <a-modal v-model:open="modalVisible" :title="editing ? '编辑设备' : '新增设备'" @ok="handleSave" :confirm-loading="saving" width="640px">
       <a-form layout="vertical">
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item label="设备名称" required>
-              <a-input v-model:value="deviceForm.name" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="相机序列号" required>
-              <a-input v-model:value="deviceForm.deviceSn" />
-            </a-form-item>
-          </a-col>
-        </a-row>
         <DeviceFormFields v-model="deviceFormFields" />
       </a-form>
     </a-modal>
@@ -54,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import {
@@ -70,13 +58,6 @@ const loading = ref(false)
 const modalVisible = ref(false)
 const saving = ref(false)
 const editing = ref<DeviceVO | null>(null)
-
-const deviceForm = reactive({
-  name: '',
-  deviceSn: '',
-  vendorId: undefined as number | undefined,
-  modelId: undefined as number | undefined,
-})
 
 const deviceFormFields = ref<DeviceFormData>({
   name: '',
@@ -112,10 +93,6 @@ async function fetchDevices() {
 
 function showCreateModal() {
   editing.value = null
-  deviceForm.name = ''
-  deviceForm.deviceSn = ''
-  deviceForm.vendorId = undefined
-  deviceForm.modelId = undefined
   Object.assign(deviceFormFields.value, {
     name: '', deviceSn: '', vendorId: undefined, modelId: undefined,
     ipAddress: '', port: 80, subnetMask: '', gateway: '',
@@ -126,13 +103,24 @@ function showCreateModal() {
 
 function showEditModal(device: DeviceVO) {
   editing.value = device
-  deviceForm.name = device.name
-  deviceForm.deviceSn = device.deviceSn
+  Object.assign(deviceFormFields.value, {
+    name: device.name,
+    deviceSn: device.deviceSn,
+    vendorId: device.vendorId,
+    modelId: device.modelId,
+    ipAddress: device.ipAddress || '',
+    port: device.port || 80,
+    subnetMask: device.subnetMask || '',
+    gateway: device.gateway || '',
+    deviceType: device.deviceType || 'CAMERA',
+    recognitionDirection: 1,
+  })
   modalVisible.value = true
 }
 
 async function handleSave() {
-  if (!deviceForm.name.trim() || !deviceForm.deviceSn.trim()) {
+  const f = deviceFormFields.value
+  if (!f.name.trim() || !f.deviceSn.trim()) {
     message.warning('请填写必填项')
     return
   }
@@ -140,26 +128,26 @@ async function handleSave() {
   try {
     if (editing.value) {
       await updateDevice(editing.value.id, {
-        name: deviceForm.name,
-        ipAddress: deviceFormFields.value.ipAddress,
-        port: deviceFormFields.value.port,
-        subnetMask: deviceFormFields.value.subnetMask,
-        gateway: deviceFormFields.value.gateway,
+        name: f.name,
+        ipAddress: f.ipAddress,
+        port: f.port,
+        subnetMask: f.subnetMask,
+        gateway: f.gateway,
       })
       message.success('设备更新成功')
     } else {
       await createDevice({
         parkingLotId: props.lotId,
-        vendorId: deviceFormFields.value.vendorId || 0,
-        modelId: deviceFormFields.value.modelId || 0,
-        name: deviceForm.name,
-        code: deviceForm.deviceSn,
-        deviceSn: deviceForm.deviceSn,
+        vendorId: f.vendorId || 0,
+        modelId: f.modelId || 0,
+        name: f.name,
+        code: f.deviceSn,
+        deviceSn: f.deviceSn,
         deviceType: 'CAMERA',
-        ipAddress: deviceFormFields.value.ipAddress,
-        port: deviceFormFields.value.port,
-        subnetMask: deviceFormFields.value.subnetMask,
-        gateway: deviceFormFields.value.gateway,
+        ipAddress: f.ipAddress,
+        port: f.port,
+        subnetMask: f.subnetMask,
+        gateway: f.gateway,
       })
       message.success('设备创建成功')
     }

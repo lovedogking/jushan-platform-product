@@ -214,11 +214,11 @@
 
 | 菜单 | 路由 | platform | tenant | booth |
 | :--- | :--- | :---: | :---: | :---: |
-| 账号管理 | /admin/accounts | ✅ | — | — |
+| 运营数据 | /operation/analytics | ✅ | ✅ | — |
 | 车场管理 › 车场信息 | /admin/parking | ✅ | ✅ | — |
 | 车场管理 › 固定车管理 | /operation/vehicles | ✅ | ✅ | — |
+| 账号管理 | /admin/accounts | ✅ | — | — |
 | 记录查询 › 通行记录 | /operation/access-records | ✅ | ✅ | — |
-| 运营数据 | /operation/analytics | ✅ | ✅ | — |
 | 岗亭工作区 | /booth/monitor | ✅ | ✅ | ✅ |
 
 - /operation/dashboard（运营概览）不进菜单；路由保留注册

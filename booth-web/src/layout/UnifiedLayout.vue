@@ -91,7 +91,7 @@ interface MenuItem {
 
 /** 统一菜单结构（按角色过滤） */
 const MENUS: MenuItem[] = [
-  { key: 'accounts', title: '账号管理', icon: UserOutlined, path: '/admin/accounts', roles: ['platform'] },
+  { key: 'analytics', title: '运营数据', icon: BarChartOutlined, path: '/operation/analytics', roles: ['platform', 'tenant'] },
   {
     key: 'parking', title: '车场管理', icon: HomeOutlined, roles: ['platform', 'tenant'],
     children: [
@@ -99,13 +99,13 @@ const MENUS: MenuItem[] = [
       { title: '固定车管理', path: '/operation/vehicles', roles: ['platform', 'tenant'] },
     ],
   },
+  { key: 'accounts', title: '账号管理', icon: UserOutlined, path: '/admin/accounts', roles: ['platform'] },
   {
     key: 'records', title: '记录查询', icon: FileTextOutlined, roles: ['platform', 'tenant'],
     children: [
       { title: '通行记录', path: '/operation/access-records', roles: ['platform', 'tenant'] },
     ],
   },
-  { key: 'analytics', title: '运营数据', icon: BarChartOutlined, path: '/operation/analytics', roles: ['platform', 'tenant'] },
   { key: 'booth', title: '岗亭工作区', icon: MonitorOutlined, path: '/booth/monitor', roles: ['platform', 'tenant', 'booth'] },
 ]
 
