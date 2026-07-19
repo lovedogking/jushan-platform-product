@@ -288,7 +288,7 @@ function handleEdit(record: any) {
 
 function handleToggleStatus(record: any, targetStatus: number) {
   const row = record as AdminAccountVO
-  const actionText = targetStatus === 1 ? '禁用' : '启用'
+  const actionText = targetStatus === 1 ? '启用' : '禁用'
   Modal.confirm({
     title: `确认${actionText}`,
     content: `确定要${actionText}账号 "${row.username}" 吗？`,

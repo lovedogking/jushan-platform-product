@@ -332,7 +332,7 @@ function handleEdit(record: any) {
   isEditing.value = true
   editingId.value = record.id
   formModalTitle.value = '编辑通道'
-  formData.lotId = record.lotId
+  formData.lotId = record.parkingLotId || record.lotId
   formData.laneNo = record.laneNo
   formData.name = record.name
   formData.type = record.type || 1
@@ -348,7 +348,7 @@ function handleEdit(record: any) {
 }
 
 async function handleFormSubmit() {
-  if (!formData.lotId) {
+  if (!isEditing.value && !formData.lotId) {
     message.warning('请选择所属停车场')
     return
   }

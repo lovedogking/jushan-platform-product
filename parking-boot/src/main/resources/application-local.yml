@@ -81,9 +81,9 @@ logging:
   level:
     com.jushan: DEBUG
 
-# ---- Device Access Mock 适配器（本地开发启用） ----
+# ---- Device Access 真实适配器（已切换到真实 HTTP 调用） ----
 jushan:
   device-access:
     mock:
-      enabled: true
+      enabled: false
     whitelist-sync-api-key: "local-whitelist-sync-key-dev"

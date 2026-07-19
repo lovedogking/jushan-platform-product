@@ -169,8 +169,9 @@ public class DeviceService {
      */
     @Transactional
     public DeviceVO create(CreateDeviceRequest request) {
-        // 1. 校验停车场归属（租户隔离）
-        getParkingLotWithAuth(request.getParkingLotId());
+        // 1. 校验停车场归属并获取租户ID
+        ParkingLot lot = getParkingLotWithAuth(request.getParkingLotId());
+        Long tenantId = lot.getTenantId();
 
         // 2. 校验厂商存在且启用
         DeviceVendor vendor = getVendorEnabled(request.getVendorId());
@@ -211,6 +212,7 @@ public class DeviceService {
         }
 
         Device device = new Device();
+        device.setTenantId(tenantId);
         device.setParkingLotId(request.getParkingLotId());
         device.setVendorId(request.getVendorId());
         device.setModelId(request.getModelId());

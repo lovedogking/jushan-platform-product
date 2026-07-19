@@ -373,7 +373,7 @@ async function loadOptions() {
     getParkingLots({ current: 1, size: 100 }),
     getVendors(),
   ])
-  parkingLotOptions.value = lotsRes.records.filter(l => l.status === 1)
+  parkingLotOptions.value = lotsRes.records
   vendorOptions.value = vendorsRes
 }
 

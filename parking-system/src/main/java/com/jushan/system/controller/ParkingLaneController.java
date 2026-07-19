@@ -103,6 +103,19 @@ public class ParkingLaneController {
     }
 
     /**
+     * 删除车道（软删除）。
+     * <p>
+     * 权限：parking:write
+     */
+    @DeleteMapping("/{id}")
+    @RequirePermission("parking:write")
+    public R<Void> delete(@PathVariable Long id) {
+        laneService.delete(id);
+        log.info("删除车道成功: laneId={}", id);
+        return R.ok();
+    }
+
+    /**
      * 启用或停用车道。
      * <p>
      * 权限：parking:write

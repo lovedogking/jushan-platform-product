@@ -294,6 +294,7 @@ public class ParkingLaneService {
                 .eq(ParkingLane::getLotId, parkingLotId)
                 .eq(status != null, ParkingLane::getStatus, status)
                 .eq(type != null, ParkingLane::getType, type)
+                .isNull(ParkingLane::getDeletedAt)
                 .orderByDesc(ParkingLane::getCreatedAt);
 
         IPage<ParkingLane> lanePage = laneMapper.selectPage(new Page<>(page, size), wrapper);
@@ -354,6 +355,30 @@ public class ParkingLaneService {
 
         log.info("车道状态变更成功: laneId={}, {} -> {}, lotId={}",
                 laneId, beforeStatus, actionUpper, lane.getLotId());
+    }
+
+    // ==================== 删除车道 ====================
+
+    /**
+     * 软删除车道。
+     *
+     * @param laneId 车道 ID
+     */
+    @Transactional
+    public void delete(Long laneId) {
+        ParkingLane lane = getLaneWithAuth(laneId);
+
+        LambdaUpdateWrapper<ParkingLane> wrapper = new LambdaUpdateWrapper<ParkingLane>()
+                .set(ParkingLane::getDeletedAt, LocalDateTime.now())
+                .eq(ParkingLane::getId, laneId)
+                .isNull(ParkingLane::getDeletedAt);
+
+        boolean updated = laneMapper.update(null, wrapper) > 0;
+        if (!updated) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "车道已删除或不存在");
+        }
+
+        log.info("删除车道成功: laneId={}, lotId={}", laneId, lane.getLotId());
     }
 
     // ==================== 私有方法 ====================
