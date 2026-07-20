@@ -109,6 +109,8 @@ public class DeviceService {
     /** 默认值 */
     private static final String DEFAULT_DEVICE_TYPE = "CAMERA";
     private static final String DEFAULT_CAPABILITIES = "";
+    /** 一期臻识 C5 相机通过 GPIO 直接控闸，默认具备开闸能力 */
+    private static final String DEFAULT_CAMERA_CAPABILITIES = "OPEN_GATE";
 
     /** 识别方向 */
     public static final int DIRECTION_ENTRY = 1;
@@ -246,7 +248,8 @@ public class DeviceService {
             }
         }
         device.setStatus(STATUS_ENABLED);
-        device.setCapabilities(defaultString(request.getCapabilities(), DEFAULT_CAPABILITIES));
+        device.setCapabilities(defaultString(request.getCapabilities(),
+                "CAMERA".equals(deviceType) ? DEFAULT_CAMERA_CAPABILITIES : DEFAULT_CAPABILITIES));
         device.setDescription(defaultString(request.getDescription(), ""));
         device.setCreatedAt(LocalDateTime.now());
         device.setUpdatedAt(LocalDateTime.now());
@@ -511,6 +514,29 @@ public class DeviceService {
 
         log.info("设备状态变更成功: deviceId={}, {} -> {}, parkingLotId={}",
                 deviceId, beforeStatus, actionUpper, device.getParkingLotId());
+    }
+
+    // ==================== 物理删除 ====================
+
+    /**
+     * 物理删除设备（不保留停用状态）。
+     * <p>
+     * 删除前清除其他 GATE 设备对本设备的 executor 引用。
+     *
+     * @param deviceId 设备 ID
+     */
+    @Transactional
+    public void delete(Long deviceId) {
+        Device device = getDeviceWithAuth(deviceId);
+
+        LambdaUpdateWrapper<Device> clearExecutor = new LambdaUpdateWrapper<Device>()
+                .set(Device::getExecutorDeviceId, null)
+                .set(Device::getUpdatedAt, LocalDateTime.now())
+                .eq(Device::getExecutorDeviceId, deviceId);
+        deviceMapper.update(null, clearExecutor);
+
+        deviceMapper.deleteByIdIgnoreTenant(deviceId);
+        log.info("设备已物理删除: deviceId={}, parkingLotId={}", deviceId, device.getParkingLotId());
     }
 
     // ==================== 车道绑定（T21） ====================

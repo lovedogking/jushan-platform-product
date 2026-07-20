@@ -101,6 +101,8 @@ public class ParkingLotService {
      * 平台用户（super_admin、platform_operator）无租户绑定，返回 null。
      * 租户用户返回其 tenantId。
      */
+    private static final Long DEFAULT_TENANT_ID = 1L;
+
     private Long resolveTenantId() {
         if (TenantContext.isPlatformUser()) {
             return null;
@@ -155,8 +157,13 @@ public class ParkingLotService {
                 }
             }
             if (tenantId == null) {
-                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                        "无法确定租户，请检查登录状态");
+                if (TenantContext.isPlatformUser()) {
+                    // 超管未指定归属租户时默认挂到默认租户，支持先建车场后建租户管理员再绑定
+                    tenantId = DEFAULT_TENANT_ID;
+                } else {
+                    throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                            "无法确定租户，请检查登录状态");
+                }
             }
         } else {
             DataScope.requireCustomerAdmin();
@@ -183,6 +190,7 @@ public class ParkingLotService {
         lot.setName(request.getName().trim());
         lot.setAddress(defaultString(request.getAddress(), ""));
         lot.setContactPhone(defaultString(request.getContactPhone(), ""));
+        lot.setContactName(defaultString(request.getContactName(), ""));
         lot.setLongitude(parseBigDecimal(request.getLongitude()));
         lot.setLatitude(parseBigDecimal(request.getLatitude()));
 
@@ -250,6 +258,10 @@ public class ParkingLotService {
         }
         if (request.getContactPhone() != null) {
             wrapper.set(ParkingLot::getContactPhone, request.getContactPhone().trim());
+            hasUpdate = true;
+        }
+        if (request.getContactName() != null) {
+            wrapper.set(ParkingLot::getContactName, request.getContactName().trim());
             hasUpdate = true;
         }
         if (request.getLongitude() != null) {
@@ -448,7 +460,7 @@ public class ParkingLotService {
         }
 
         // 7. 写入状态审计日志
-        writeStatusLog(lotId, beforeStatus, action, request.getReason());
+        writeStatusLog(lotId, lot.getTenantId(), beforeStatus, action, request.getReason());
 
         log.info("停车场状态变更成功: parkingLotId={}, {} -> {}, reason={}",
                 lotId, beforeStatus, action, request.getReason());
@@ -514,7 +526,7 @@ public class ParkingLotService {
         }
 
         // 6. 写入容量审计日志
-        writeCapacityLog(lotId, fieldName, beforeValue, newValue, reason);
+        writeCapacityLog(lotId, lot.getTenantId(), fieldName, beforeValue, newValue, reason);
 
         log.info("停车场容量变更成功: parkingLotId={}, field={}, {} -> {}, reason={}",
                 lotId, fieldName, beforeValue, newValue, reason);
@@ -545,7 +557,7 @@ public class ParkingLotService {
     /**
      * 写入容量变更审计日志。
      */
-    private void writeCapacityLog(Long parkingLotId, String fieldName,
+    private void writeCapacityLog(Long parkingLotId, Long tenantId, String fieldName,
                                    int beforeValue, int afterValue, String reason) {
         Long operatorId;
         try {
@@ -556,6 +568,7 @@ public class ParkingLotService {
         }
 
         ParkingLotCapacityLog logEntry = new ParkingLotCapacityLog();
+        logEntry.setTenantId(tenantId);
         logEntry.setParkingLotId(parkingLotId);
         logEntry.setFieldName(fieldName);
         logEntry.setBeforeValue(beforeValue);
@@ -569,7 +582,7 @@ public class ParkingLotService {
     /**
      * 写入状态变更审计日志。
      */
-    private void writeStatusLog(Long parkingLotId, String beforeStatus,
+    private void writeStatusLog(Long parkingLotId, Long tenantId, String beforeStatus,
                                  String afterStatus, String reason) {
         Long operatorId;
         try {
@@ -580,6 +593,7 @@ public class ParkingLotService {
         }
 
         ParkingLotStatusLog logEntry = new ParkingLotStatusLog();
+        logEntry.setTenantId(tenantId);
         logEntry.setParkingLotId(parkingLotId);
         logEntry.setBeforeStatus(beforeStatus);
         logEntry.setAfterStatus(afterStatus);
@@ -623,6 +637,7 @@ public class ParkingLotService {
         vo.setName(lot.getName());
         vo.setAddress(lot.getAddress());
         vo.setContactPhone(lot.getContactPhone());
+        vo.setContactName(lot.getContactName());
         vo.setLongitude(lot.getLongitude());
         vo.setLatitude(lot.getLatitude());
         vo.setTotalSpaces(lot.getTotalSpaces());

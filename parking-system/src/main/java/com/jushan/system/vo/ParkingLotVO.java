@@ -19,6 +19,7 @@ public class ParkingLotVO {
     private String name;
     private String address;
     private String contactPhone;
+    private String contactName;
     private BigDecimal longitude;
     private BigDecimal latitude;
     private Integer totalSpaces;
@@ -60,6 +61,9 @@ public class ParkingLotVO {
 
     public String getContactPhone() { return contactPhone; }
     public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
+
+    public String getContactName() { return contactName; }
+    public void setContactName(String contactName) { this.contactName = contactName; }
 
     public BigDecimal getLongitude() { return longitude; }
     public void setLongitude(BigDecimal longitude) { this.longitude = longitude; }

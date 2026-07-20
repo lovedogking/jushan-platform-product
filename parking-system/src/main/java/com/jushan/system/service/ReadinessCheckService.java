@@ -53,6 +53,7 @@ public class ReadinessCheckService {
     private static final String STATUS_ENABLED = "ENABLED";
     private static final String DEVICE_TYPE_CAMERA = "CAMERA";
     private static final String DEVICE_TYPE_GATE = "GATE";
+    private static final String CAPABILITY_OPEN_GATE = "OPEN_GATE";
 
     // 检查分类
     private static final String CAT_LANE = "LANE";
@@ -195,9 +196,7 @@ public class ReadinessCheckService {
         boolean anyLaneReady = false;
         boolean anyHasCamera = false;
         boolean anyCameraEnabled = false;
-        boolean anyHasGate = false;
-        boolean anyGateEnabled = false;
-        boolean anyGateHasExecutor = false;
+        boolean anyGateReady = false;
 
         for (ParkingLane lane : lanes) {
             List<Device> laneDevices = devicesByLane.getOrDefault(lane.getId(), Collections.emptyList());
@@ -211,10 +210,14 @@ public class ReadinessCheckService {
 
             boolean hasCamera = !cameras.isEmpty();
             boolean cameraEnabled = hasCamera && cameras.stream().anyMatch(d -> STATUS_ENABLED.equals(d.getStatus()));
+            // 一期臻识 C5：相机通过 GPIO 直接控闸，具备 OPEN_GATE 能力的启用相机即满足控闸条件
+            boolean cameraGateCapable = cameras.stream().anyMatch(d -> STATUS_ENABLED.equals(d.getStatus())
+                    && d.getCapabilities() != null && d.getCapabilities().contains(CAPABILITY_OPEN_GATE));
             boolean hasGate = !gates.isEmpty();
             boolean gateEnabled = hasGate && gates.stream().anyMatch(d -> STATUS_ENABLED.equals(d.getStatus()));
             boolean gateHasExecutor = gateEnabled && gates.stream()
                     .anyMatch(d -> d.getExecutorDeviceId() != null);
+            boolean gateReady = cameraGateCapable || (hasGate && gateEnabled && gateHasExecutor);
 
             // 单条车道 WARNING
             if (!hasCamera) {
@@ -225,26 +228,26 @@ public class ReadinessCheckService {
                         dirLabel + "车道 '" + lane.getName() + "' 的相机已停用", lane.getName()));
             }
 
-            if (!hasGate) {
-                items.add(ReadinessItem.warning(dirCode + "_GATE_MISSING", CAT_DEVICE,
-                        dirLabel + "车道 '" + lane.getName() + "' 未绑定道闸", lane.getName()));
-            } else if (!gateEnabled) {
-                items.add(ReadinessItem.warning(dirCode + "_GATE_DISABLED", CAT_DEVICE,
-                        dirLabel + "车道 '" + lane.getName() + "' 的道闸已停用", lane.getName()));
-            } else if (!gateHasExecutor) {
-                items.add(ReadinessItem.warning(dirCode + "_GATE_NO_EXECUTOR", CAT_DEVICE,
-                        dirLabel + "车道 '" + lane.getName() + "' 的道闸未设置执行相机", lane.getName()));
+            if (!gateReady) {
+                if (!hasGate && !cameraGateCapable) {
+                    items.add(ReadinessItem.warning(dirCode + "_GATE_MISSING", CAT_DEVICE,
+                            dirLabel + "车道 '" + lane.getName() + "' 未绑定道闸，且相机不具备开闸能力", lane.getName()));
+                } else if (hasGate && !gateEnabled) {
+                    items.add(ReadinessItem.warning(dirCode + "_GATE_DISABLED", CAT_DEVICE,
+                            dirLabel + "车道 '" + lane.getName() + "' 的道闸已停用", lane.getName()));
+                } else if (hasGate && !gateHasExecutor) {
+                    items.add(ReadinessItem.warning(dirCode + "_GATE_NO_EXECUTOR", CAT_DEVICE,
+                            dirLabel + "车道 '" + lane.getName() + "' 的道闸未设置执行相机", lane.getName()));
+                }
             }
 
             // 汇总统计
             if (hasCamera) anyHasCamera = true;
             if (cameraEnabled) anyCameraEnabled = true;
-            if (hasGate) anyHasGate = true;
-            if (gateEnabled) anyGateEnabled = true;
-            if (gateHasExecutor) anyGateHasExecutor = true;
+            if (gateReady) anyGateReady = true;
 
-            // 车道完全就绪 = 有启用相机 + 有启用道闸 + 道闸有执行相机
-            boolean laneReady = hasCamera && cameraEnabled && hasGate && gateEnabled && gateHasExecutor;
+            // 车道完全就绪 = 有启用相机 + 控闸条件满足（启用相机具备开闸能力，或绑定了就绪的道闸）
+            boolean laneReady = hasCamera && cameraEnabled && gateReady;
             if (laneReady) {
                 anyLaneReady = true;
             }
@@ -263,15 +266,9 @@ public class ReadinessCheckService {
                     "所有" + dirLabel + "车道的相机均已停用"));
         }
 
-        if (!anyHasGate) {
+        if (!anyGateReady) {
             items.add(ReadinessItem.blocker(dirCode + "_GATE_MISSING", CAT_DEVICE,
-                    "所有" + dirLabel + "车道均未绑定道闸"));
-        } else if (!anyGateEnabled) {
-            items.add(ReadinessItem.blocker(dirCode + "_GATE_DISABLED", CAT_DEVICE,
-                    "所有" + dirLabel + "车道的道闸均已停用"));
-        } else if (!anyGateHasExecutor) {
-            items.add(ReadinessItem.blocker(dirCode + "_GATE_NO_EXECUTOR", CAT_DEVICE,
-                    "所有" + dirLabel + "车道的道闸均未设置执行相机"));
+                    "所有" + dirLabel + "车道均未绑定道闸，且相机不具备开闸能力"));
         }
     }
 

@@ -179,18 +179,8 @@ public class DeviceWebhookService {
             });
             // 如果 existing 不等于 now，说明窗口内已有记录（compute 返回了旧值）
             if (!existing.equals(now)) {
-                log.info("Webhook 同一车道同一车牌短时重复（BR-08），跳过会话创建但事件照常推送: plate={}, direction={}, laneId={}, eventId={}",
+                log.info("Webhook 同一车道同一车牌短时重复（BR-08），跳过: plate={}, direction={}, laneId={}, eventId={}",
                         normalizedPlate, event.getDirection(), trustedLaneId, event.getEventId());
-                // V1.4: BR-08 去重仅跳过会话创建，事件照常推送岗亭
-                wsPublisher.sendLightweightRecognitionEvent(
-                        trustedParkingLotId,
-                        normalizedPlate,
-                        event.getDirection(),
-                        trustedLaneId,
-                        event.getDeviceSn(),
-                        event.getImageUrl(),
-                        confidence,
-                        event.getCaptureTime() != null ? event.getCaptureTime().toString() : null);
                 return;
             }
         }

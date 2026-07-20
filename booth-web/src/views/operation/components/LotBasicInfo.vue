@@ -68,6 +68,8 @@ async function handleSave() {
       name: form.name,
       address: form.address,
       totalSpaces: form.totalSpaces,
+      contactName: form.contactName,
+      contactPhone: form.contactPhone,
     })
     message.success('保存成功')
     emit('updated', updated)

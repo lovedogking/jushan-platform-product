@@ -94,4 +94,17 @@ public interface ParkingSessionService extends IService<ParkingSession> {
      * @return 在场车辆数量
      */
     long countInByParkingLotIdIgnoreTenant(Long parkingLotId);
+
+    /**
+     * 查询指定车牌在指定停车场最近一条已出场记录（限定时间窗口内）。
+     * <p>
+     * 用于出场识别幂等：开闸放行后相机持续上报同一车辆，
+     * 若最近已成功出场则判定为重复识别。
+     *
+     * @param plateNumber    车牌号
+     * @param parkingLotId   停车场ID
+     * @param withinSeconds  时间窗口（秒），exitTime 在此窗口内才算重复
+     * @return 最近的已出场记录，无则返回 null
+     */
+    ParkingSessionVO getRecentOutByPlateAndLot(String plateNumber, Long parkingLotId, int withinSeconds);
 }

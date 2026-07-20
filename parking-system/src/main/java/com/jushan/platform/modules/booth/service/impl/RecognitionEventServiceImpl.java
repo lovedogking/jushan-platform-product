@@ -28,7 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 识别事件处理服务实现。
@@ -50,6 +52,18 @@ import java.util.UUID;
 @Slf4j
 @Service
 public class RecognitionEventServiceImpl implements RecognitionEventService {
+
+    /** 入场重复识别幂等窗口（秒）：BR-08 同一车道同一车牌 30 秒内去重 */
+    private static final int ENTRY_DEDUP_WINDOW_SECONDS = 30;
+
+    /** 出场重复识别幂等窗口（秒）：开闸放行后该窗口内的同车重复识别直接忽略 */
+    private static final int EXIT_DEDUP_WINDOW_SECONDS = 300;
+
+    /** 入场事件去重缓存（plate:laneId → 最近处理时间），窗口 30 秒 */
+    private final Map<String, LocalDateTime> recentEntryEvents = new ConcurrentHashMap<>();
+
+    /** 出场事件去重缓存（plate:laneId → 最近处理时间），窗口 30 秒 */
+    private final Map<String, LocalDateTime> recentExitEvents = new ConcurrentHashMap<>();
 
     private final VehicleTypeDecisionService vehicleTypeDecisionService;
     private final ParkingSessionService parkingSessionService;
@@ -414,6 +428,27 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
 
     private RecognitionResultVO handleEntry(RecognitionEventCmd cmd, VehicleTypeDecisionVO decision,
                                            RecognitionResultVO result, Long tenantId) {
+        // 入场幂等检查：同一车道同一车牌 30 秒内不重复处理
+        cleanupExpiredEntryEvents();
+        String entryDedupKey = cmd.getPlateNumber() + ":" + cmd.getLaneId();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime lastEntry = recentEntryEvents.compute(entryDedupKey, (k, v) -> {
+            if (v != null && v.plusSeconds(ENTRY_DEDUP_WINDOW_SECONDS).isAfter(now)) {
+                return v;
+            }
+            return now;
+        });
+        if (!lastEntry.equals(now)) {
+            log.info("入场重复识别幂等忽略: plate={}, laneId={}", cmd.getPlateNumber(), cmd.getLaneId());
+            result.setAllowPass(false);
+            result.setGateCommandSent(false);
+            result.setGateDeviceAck(false);
+            result.setGateOpened(null);
+            result.setResultMessage("重复识别，已忽略");
+            result.setException(false);
+            return result;
+        }
+
         // 检查是否允许入场
         if (!Boolean.TRUE.equals(decision.getAllowEntry())) {
             result.setAllowPass(false);
@@ -499,15 +534,67 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     }
 
     private RecognitionResultVO handleExit(RecognitionEventCmd cmd, VehicleTypeDecisionVO decision,
-                                           RecognitionResultVO result, Long tenantId) {
+                                            RecognitionResultVO result, Long tenantId) {
+        // 出场幂等检查：同一车道同一车牌 30 秒内不重复处理
+        cleanupExpiredExitEvents();
+        String exitDedupKey = cmd.getPlateNumber() + ":" + cmd.getLaneId();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime lastExit = recentExitEvents.compute(exitDedupKey, (k, v) -> {
+            if (v != null && v.plusSeconds(ENTRY_DEDUP_WINDOW_SECONDS).isAfter(now)) {
+                return v;
+            }
+            return now;
+        });
+        if (!lastExit.equals(now)) {
+            log.info("出场重复识别幂等忽略: plate={}, laneId={}", cmd.getPlateNumber(), cmd.getLaneId());
+            result.setAllowPass(false);
+            result.setGateCommandSent(false);
+            result.setGateDeviceAck(false);
+            result.setGateOpened(null);
+            result.setResultMessage("重复识别，已忽略");
+            result.setException(false);
+            return result;
+        }
+
         // 查询在场记录
         var sessionVO = parkingSessionService.getInByPlateNumber(cmd.getPlateNumber());
         if (sessionVO == null) {
+            // 出场幂等：开闸放行后相机持续上报同一车辆，最近已成功出场的重复识别直接忽略，
+            // 不重复开闸、不重复计费、不报异常
+            var recentOut = parkingSessionService.getRecentOutByPlateAndLot(
+                    cmd.getPlateNumber(), cmd.getParkingLotId(), EXIT_DEDUP_WINDOW_SECONDS);
+            if (recentOut != null) {
+                result.setAllowPass(false);
+                result.setGateCommandSent(false);
+                result.setGateDeviceAck(false);
+                result.setGateOpened(null);
+                result.setSessionId(recentOut.getId());
+                result.setResultMessage("重复出场识别，已幂等忽略");
+                result.setException(false);
+                log.info("重复出场识别，幂等忽略: plate={}, laneId={}, sessionId={}",
+                        cmd.getPlateNumber(), cmd.getLaneId(), recentOut.getId());
+                return result;
+            }
             result.setAllowPass(false);
             result.setException(true);
             result.setExceptionType("NO_ENTRY_RECORD");
             result.setResultMessage("未找到入场记录，无法出场");
             log.warn("出场异常: plate={}, 无入场记录", cmd.getPlateNumber());
+            return result;
+        }
+
+        // 一期：仅固定车白名单自动放行；非白名单不自动开闸、不计费，事件推送岗亭等待人工放行
+        if (!"WHITE".equals(decision.getVehicleType())) {
+            result.setAllowPass(false);
+            result.setGateCommandSent(false);
+            result.setGateDeviceAck(false);
+            result.setGateOpened(null);
+            result.setSessionId(sessionVO.getId());
+            result.setResultMessage("非白名单车辆，需岗亭人工放行");
+            result.setException(true);
+            result.setExceptionType("EXIT_DENIED");
+            log.warn("出场不自动放行: plate={}, type={}, laneId={}",
+                    cmd.getPlateNumber(), decision.getVehicleType(), cmd.getLaneId());
             return result;
         }
 
@@ -696,5 +783,21 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
             return camera;
         }
         return null;
+    }
+
+    /**
+     * 清理入场去重缓存中超过 1 分钟的旧记录。
+     */
+    private void cleanupExpiredEntryEvents() {
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(1);
+        recentEntryEvents.entrySet().removeIf(entry -> entry.getValue().isBefore(cutoff));
+    }
+
+    /**
+     * 清理出场去重缓存中超过 1 分钟的旧记录。
+     */
+    private void cleanupExpiredExitEvents() {
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(1);
+        recentExitEvents.entrySet().removeIf(entry -> entry.getValue().isBefore(cutoff));
     }
 }

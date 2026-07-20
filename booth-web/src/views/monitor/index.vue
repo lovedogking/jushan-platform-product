@@ -906,12 +906,7 @@ function buildWsClient(lotId: number) {
         store.handleRecognitionEvent(payload)
         playAlertSound() // GB-07: 新事件提示音（V1.4）
         message.info(`${payload.direction === 'ENTRY' ? '入场' : '出场'}识别: ${payload.plateNumber}`)
-
-        if (payload.direction === 'EXIT') {
-          store.showChargePanel(payload.plateNumber, payload.laneId).catch(() => {
-            // 查询失败时不阻塞，收费面板已显示（含错误提示）
-          })
-        }
+        // 一期仅白名单自动放行，出场不再自动弹收费面板；需要时可在事件菜单中手动打开
       },
       onDeviceStatus: (payload: DeviceStatus) => {
         store.handleDeviceStatus(payload)

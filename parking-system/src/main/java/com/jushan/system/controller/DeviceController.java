@@ -116,6 +116,19 @@ public class DeviceController {
     }
 
     /**
+     * 物理删除设备（不保留停用状态）。
+     * <p>
+     * 权限：device:manage
+     */
+    @DeleteMapping("/{id}")
+    @RequirePermission("device:manage")
+    public R<Void> delete(@PathVariable Long id) {
+        deviceService.delete(id);
+        log.info("设备删除成功: deviceId={}", id);
+        return R.ok();
+    }
+
+    /**
      * 启用或停用设备。
      * <p>
      * 权限：device:manage

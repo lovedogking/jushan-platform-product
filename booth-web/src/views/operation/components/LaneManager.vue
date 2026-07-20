@@ -94,12 +94,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import {
   getParkingLanes, createParkingLane, updateParkingLane, deleteParkingLane,
-  createDevice, type ParkingLaneVO
+  getDevices, createDevice, updateDevice, type ParkingLaneVO, type DeviceVO
 } from '@/api/parking-manage'
 import DeviceFormFields from './DeviceFormFields.vue'
 import type { DeviceFormData } from './DeviceFormFields.vue'
@@ -135,6 +135,9 @@ const laneForm = reactive({
 // 设备表单数据（使用 ref 兼容 DeviceFormFields 的 defineModel）
 const entryDeviceForm = ref<DeviceFormData>(getDefaultDeviceForm(1))
 const exitDeviceForm = ref<DeviceFormData>(getDefaultDeviceForm(2))
+// 编辑车道时已存在的相机设备（入口/出口）
+const existingEntryDevice = ref<DeviceVO | null>(null)
+const existingExitDevice = ref<DeviceVO | null>(null)
 
 function getDefaultDeviceForm(direction: number) {
   return {
@@ -196,7 +199,7 @@ function showCreateModal() {
   modalVisible.value = true
 }
 
-function showEditModal(lane: ParkingLaneVO) {
+async function showEditModal(lane: ParkingLaneVO) {
   editingLane.value = lane
   laneForm.name = lane.name
   laneForm.laneNo = lane.laneNo
@@ -204,12 +207,43 @@ function showEditModal(lane: ParkingLaneVO) {
   laneForm.gateMode = lane.gateMode
   deviceTab.value = lane.type === 2 ? 'exit' : 'entry'
   resetDeviceForms()
+  await loadLaneDevices(lane)
   modalVisible.value = true
+}
+
+async function loadLaneDevices(lane: ParkingLaneVO) {
+  try {
+    const res = await getDevices({ page: 1, size: 100, parkingLotId: props.lotId })
+    const laneDevices = res.records.filter(d => String(d.laneId) === String(lane.id))
+    existingEntryDevice.value = laneDevices.find(d => d.recognitionDirection === 1) || null
+    existingExitDevice.value = laneDevices.find(d => d.recognitionDirection === 2) || null
+    if (existingEntryDevice.value) entryDeviceForm.value = deviceToForm(existingEntryDevice.value, 1)
+    if (existingExitDevice.value) exitDeviceForm.value = deviceToForm(existingExitDevice.value, 2)
+  } catch {
+    // 错误已由拦截器提示
+  }
+}
+
+function deviceToForm(d: DeviceVO, direction: number): DeviceFormData {
+  return {
+    name: d.name || '',
+    deviceSn: d.deviceSn || '',
+    vendorId: d.vendorId,
+    modelId: d.modelId,
+    ipAddress: d.ipAddress || '',
+    port: d.port ?? 80,
+    subnetMask: d.subnetMask || '',
+    gateway: d.gateway || '',
+    deviceType: d.deviceType || 'CAMERA',
+    recognitionDirection: direction,
+  }
 }
 
 function resetDeviceForms() {
   entryDeviceForm.value = getDefaultDeviceForm(1)
   exitDeviceForm.value = getDefaultDeviceForm(2)
+  existingEntryDevice.value = null
+  existingExitDevice.value = null
 }
 
 function onDirectionChange() {
@@ -225,18 +259,16 @@ async function handleSave() {
     message.warning('请填写必填项')
     return
   }
-  // 新建车道时校验嵌套设备表单：完全空白则跳过创建设备，部分填写则四项必填
-  if (!editingLane.value) {
-    const tabs: Array<{ form: DeviceFormData; label: string }> = []
-    if (laneForm.type === 1 || laneForm.type === 3) tabs.push({ form: entryDeviceForm.value, label: '入口相机' })
-    if (laneForm.type === 2 || laneForm.type === 3) tabs.push({ form: exitDeviceForm.value, label: '出口相机' })
-    for (const { form, label } of tabs) {
-      const allEmpty = !form.deviceSn.trim() && !form.name.trim() && form.vendorId === undefined && form.modelId === undefined
-      if (allEmpty) continue
-      if (!form.name.trim() || !form.deviceSn.trim() || form.vendorId === undefined || form.modelId === undefined) {
-        message.warning(`${label}：设备名称、相机序列号、设备厂商、设备型号为必填项`)
-        return
-      }
+  // 校验嵌套设备表单：完全空白则跳过，部分填写则四项必填
+  const tabs: Array<{ form: DeviceFormData; label: string }> = []
+  if (laneForm.type === 1 || laneForm.type === 3) tabs.push({ form: entryDeviceForm.value, label: '入口相机' })
+  if (laneForm.type === 2 || laneForm.type === 3) tabs.push({ form: exitDeviceForm.value, label: '出口相机' })
+  for (const { form, label } of tabs) {
+    const allEmpty = !form.deviceSn.trim() && !form.name.trim() && form.vendorId === undefined && form.modelId === undefined
+    if (allEmpty) continue
+    if (!form.name.trim() || !form.deviceSn.trim() || form.vendorId === undefined || form.modelId === undefined) {
+      message.warning(`${label}：设备名称、相机序列号、设备厂商、设备型号为必填项`)
+      return
     }
   }
   saving.value = true
@@ -261,15 +293,21 @@ async function handleSave() {
       laneId = created.id
     }
 
-    // 仅新建车道时同时创建设备（编辑时不处理设备）
-    const isNew = !editingLane.value
-    if (isNew) {
+    // 同步相机设备：已存在则更新，未填写则跳过，否则新建
+    try {
       if (laneForm.type === 1 || laneForm.type === 3) {
-        await createDeviceForLane(entryDeviceForm.value, laneId, props.lotId)
+        await syncDeviceForLane(entryDeviceForm.value, existingEntryDevice.value, laneId, props.lotId)
       }
       if (laneForm.type === 2 || laneForm.type === 3) {
-        await createDeviceForLane(exitDeviceForm.value, laneId, props.lotId)
+        await syncDeviceForLane(exitDeviceForm.value, existingExitDevice.value, laneId, props.lotId)
       }
+    } catch (e) {
+      message.warning(editingLane.value
+        ? '车道已更新，但相机保存失败，请重新编辑该车道补存相机'
+        : '车道已创建，但相机保存失败，请编辑该车道补录相机')
+      modalVisible.value = false
+      await fetchLanes()
+      return
     }
 
     message.success(editingLane.value ? '车道更新成功' : '车道创建成功')
@@ -280,10 +318,9 @@ async function handleSave() {
   }
 }
 
-async function createDeviceForLane(form: DeviceFormData, laneId: number, lotId: number) {
+async function syncDeviceForLane(form: DeviceFormData, existing: DeviceVO | null, laneId: number, lotId: number) {
   if (!form.deviceSn.trim() && !form.name.trim() && form.vendorId === undefined && form.modelId === undefined) return
-  await createDevice({
-    parkingLotId: lotId,
+  const payload = {
     vendorId: form.vendorId!,
     modelId: form.modelId!,
     name: form.name,
@@ -296,7 +333,12 @@ async function createDeviceForLane(form: DeviceFormData, laneId: number, lotId: 
     port: form.port,
     subnetMask: form.subnetMask,
     gateway: form.gateway,
-  })
+  }
+  if (existing) {
+    await updateDevice(Number(existing.id), payload)
+  } else {
+    await createDevice({ parkingLotId: lotId, ...payload })
+  }
 }
 
 async function handleDelete(id: number) {
@@ -306,6 +348,7 @@ async function handleDelete(id: number) {
 }
 
 onMounted(() => fetchLanes())
+watch(() => props.lotId, () => fetchLanes())
 </script>
 
 <style lang="scss" scoped>

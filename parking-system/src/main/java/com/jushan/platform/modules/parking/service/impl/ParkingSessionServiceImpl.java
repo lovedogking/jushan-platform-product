@@ -370,6 +370,24 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
                         .isNull(ParkingSession::getDeletedAt));
     }
 
+    @Override
+    public ParkingSessionVO getRecentOutByPlateAndLot(String plateNumber, Long parkingLotId, int withinSeconds) {
+        if (plateNumber == null || plateNumber.isBlank() || parkingLotId == null) {
+            return null;
+        }
+        LocalDateTime threshold = LocalDateTime.now().minusSeconds(withinSeconds);
+        ParkingSession entity = baseMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ParkingSession>()
+                        .eq(ParkingSession::getPlateNumber, plateNumber.toUpperCase())
+                        .eq(ParkingSession::getParkingLotId, parkingLotId)
+                        .eq(ParkingSession::getStatus, ParkingSession.STATUS_OUT)
+                        .isNull(ParkingSession::getDeletedAt)
+                        .ge(ParkingSession::getExitTime, threshold)
+                        .orderByDesc(ParkingSession::getExitTime)
+                        .last("LIMIT 1"));
+        return entity != null ? toVO(entity) : null;
+    }
+
     private ParkingSessionVO toVO(ParkingSession entity) {
         ParkingSessionVO vo = new ParkingSessionVO();
         BeanUtils.copyProperties(entity, vo);

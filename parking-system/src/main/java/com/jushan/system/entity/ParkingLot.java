@@ -41,6 +41,9 @@ public class ParkingLot implements Serializable {
     /** 联系电话 */
     private String contactPhone;
 
+    /** 负责人姓名 */
+    private String contactName;
+
     /** 经度（预留） */
     private BigDecimal longitude;
 
@@ -126,6 +129,9 @@ public class ParkingLot implements Serializable {
 
     public String getContactPhone() { return contactPhone; }
     public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
+
+    public String getContactName() { return contactName; }
+    public void setContactName(String contactName) { this.contactName = contactName; }
 
     public BigDecimal getLongitude() { return longitude; }
     public void setLongitude(BigDecimal longitude) { this.longitude = longitude; }

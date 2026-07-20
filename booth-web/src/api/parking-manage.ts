@@ -48,6 +48,7 @@ export interface ParkingLotCreateCmd {
   name: string
   address?: string
   totalSpaces?: number
+  contactName?: string
   contactPhone?: string
 }
 
@@ -55,6 +56,8 @@ export interface ParkingLotUpdateCmd {
   name?: string
   address?: string
   totalSpaces?: number
+  contactName?: string
+  contactPhone?: string
 }
 
 export function createParkingLot(data: ParkingLotCreateCmd): Promise<ParkingLotVO> {
@@ -189,6 +192,10 @@ export function updateDevice(id: number, data: DeviceUpdateCmd): Promise<DeviceV
 
 export function updateDeviceStatus(id: number, action: 'ENABLED' | 'DISABLED'): Promise<void> {
   return request.post(`/admin/devices/${id}/status`, { action })
+}
+
+export function deleteDevice(id: number): Promise<void> {
+  return request.delete(`/admin/devices/${id}`)
 }
 
 export function bindDeviceLane(deviceId: number, laneId: number): Promise<DeviceVO> {

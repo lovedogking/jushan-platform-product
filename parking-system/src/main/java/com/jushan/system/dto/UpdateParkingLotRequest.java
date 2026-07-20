@@ -28,6 +28,10 @@ public class UpdateParkingLotRequest {
     @Size(max = 20, message = "联系电话最长20个字符")
     private String contactPhone;
 
+    /** 负责人姓名 */
+    @Size(max = 64, message = "负责人姓名最长64个字符")
+    private String contactName;
+
     /** 经度 */
     private String longitude;
 
@@ -71,6 +75,9 @@ public class UpdateParkingLotRequest {
 
     public String getContactPhone() { return contactPhone; }
     public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
+
+    public String getContactName() { return contactName; }
+    public void setContactName(String contactName) { this.contactName = contactName; }
 
     public String getLongitude() { return longitude; }
     public void setLongitude(String longitude) { this.longitude = longitude; }

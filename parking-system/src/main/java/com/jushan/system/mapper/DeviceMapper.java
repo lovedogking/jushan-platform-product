@@ -3,6 +3,7 @@ package com.jushan.system.mapper;
 import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.jushan.system.entity.Device;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -26,6 +27,15 @@ public interface DeviceMapper extends BaseMapper<Device> {
     @InterceptorIgnore(tenantLine = "true")
     @Select("SELECT * FROM device WHERE id = #{id}")
     Device selectByIdIgnoreTenant(@Param("id") Long id);
+
+    /**
+     * 按 ID 物理删除，忽略租户拦截器。
+     * <p>
+     * 归属校验由 Service 层 getDeviceWithAuth 完成后再调用。
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Delete("DELETE FROM device WHERE id = #{id}")
+    int deleteByIdIgnoreTenant(@Param("id") Long id);
 
     /**
      * 按设备序列号查询，忽略租户拦截器。

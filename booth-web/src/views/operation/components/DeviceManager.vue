@@ -50,11 +50,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import {
-  getDevices, createDevice, updateDevice, updateDeviceStatus,
+  getDevices, createDevice, updateDevice, updateDeviceStatus, deleteDevice,
   getParkingLanes, bindDeviceLane, unbindDeviceLane,
   type DeviceVO, type ParkingLaneVO
 } from '@/api/parking-manage'
@@ -191,9 +191,8 @@ async function handleSave() {
 }
 
 async function handleDelete(id: number) {
-  // 先禁用再提示（后端无 physical delete for device）
-  await updateDeviceStatus(id, 'DISABLED')
-  message.success('设备已停用')
+  await deleteDevice(id)
+  message.success('设备已删除')
   await fetchDevices()
 }
 
@@ -203,6 +202,10 @@ async function fetchLanes() {
 }
 
 onMounted(() => {
+  fetchDevices()
+  fetchLanes()
+})
+watch(() => props.lotId, () => {
   fetchDevices()
   fetchLanes()
 })
