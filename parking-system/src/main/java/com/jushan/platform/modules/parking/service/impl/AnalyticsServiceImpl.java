@@ -168,7 +168,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
         // 构建时段列表
         List<LocalDateTime> slots = new ArrayList<>();
-        LocalDateTime cursor = start.truncatedTo(unit);
+        LocalDateTime cursor = unit == ChronoUnit.MONTHS
+                ? start.toLocalDate().withDayOfMonth(1).atStartOfDay()
+                : start.truncatedTo(unit);
         while (!cursor.isAfter(end)) {
             slots.add(cursor);
             cursor = cursor.plus(1, unit);

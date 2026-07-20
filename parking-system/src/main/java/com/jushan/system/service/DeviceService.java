@@ -1088,7 +1088,14 @@ public class DeviceService {
                 laneId, lane.getName(), gateDevice.getId(), gateDevice.getDeviceSn(), reason);
 
         String commandId = UUID.randomUUID().toString();
-        return deviceAccessClient.unlockGate(gateDevice.getDeviceSn(), commandId);
+        CommandResultDTO result = deviceAccessClient.unlockGate(gateDevice.getDeviceSn(), commandId);
+        if (!result.isSuccessful() && Integer.valueOf(400).equals(result.getDeviceCode())) {
+            log.info("取消常开按幂等成功处理（设备返回400，IO未处于锁定状态，目标状态已达成）: laneId={}, deviceSn={}",
+                    laneId, gateDevice.getDeviceSn());
+            result.setSuccess(true);
+            result.setMessage("取消常开成功（设备未处于锁定状态，按幂等成功处理）");
+        }
+        return result;
     }
 
     /**

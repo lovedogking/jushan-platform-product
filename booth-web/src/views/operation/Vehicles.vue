@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div class="toolbar">
-      <h3>固定车管理 (OP-01)</h3>
+      <h3>固定车管理</h3>
       <a-space>
         <!-- platform：下拉选场；tenant 单场：锁定显示场名 -->
         <template v-if="isTenantOnly && lotOptions.length === 1">

@@ -26,7 +26,7 @@ export interface PageResult<T> {
   current: number
 }
 
-// ============ Parking Lot (SA-01) ============
+// ============ Parking Lot ============
 export interface ParkingLotVO {
   id: number; name: string; tenantId: number; tenantName: string
   address: string; totalSpaces: number; remainingSpaces: number
@@ -73,7 +73,7 @@ export function updateParkingLotStatus(id: number, action: 'ENABLED' | 'DISABLED
   return request.post(`/admin/parking-lots/${id}/status`, { action })
 }
 
-// ============ Parking Lane (SA-02) ============
+// ============ Parking Lane ============
 export interface ParkingLaneVO {
   id: number; name: string; laneNo: string; lotId: number; lotName: string
   type: number; typeLabel?: string; gateMode: string; gateModeLabel?: string
@@ -119,7 +119,7 @@ export function updateParkingLaneStatus(id: number, action: 'ENABLED' | 'DISABLE
   return request.post(`/admin/lanes/${id}/status`, { action })
 }
 
-// ============ Device (SA-03) ============
+// ============ Device ============
 export interface DeviceVO {
   id: number; name: string; deviceSn: string; deviceType: string; deviceVendor: string
   laneId: number | null; laneName: string | null; parkingLotId: number; parkingLotName: string
@@ -201,7 +201,7 @@ export function getDeviceModels(vendorId?: number): Promise<DeviceModel[]> {
   return request.get('/admin/devices/models', vendorId ? { vendorId } : {})
 }
 
-// ============ Vehicle List (OP-01) ============
+// ============ Vehicle List ============
 export interface VehicleListVO {
   id: number; plateNumber: string; listType: string; parkingLotId: number; parkingLotName: string
   triggerType: string | null; status: string; expireAt: string | null; createdAt: string

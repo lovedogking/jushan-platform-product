@@ -1,7 +1,7 @@
 <template>
   <div class="access-records-page">
     <div class="page-header">
-      <h3>通行记录 (OP-04 / GB-06)</h3>
+      <h3>通行记录</h3>
     </div>
 
     <a-card class="filter-bar">
