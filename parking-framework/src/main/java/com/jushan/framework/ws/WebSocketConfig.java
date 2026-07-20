@@ -64,10 +64,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // 原生 WebSocket 端点（@stomp/stompjs brokerURL 直连）
+        registry.addEndpoint(STOMP_ENDPOINT)
+                .setAllowedOrigins(ALLOWED_ORIGINS)
+                .addInterceptors(new WsAuthHandshakeInterceptor());
+        // SockJS 降级端点（对 WebSocket 不可用的浏览器）
         registry.addEndpoint(STOMP_ENDPOINT)
                 .setAllowedOrigins(ALLOWED_ORIGINS)
                 .addInterceptors(new WsAuthHandshakeInterceptor())
-                .withSockJS();   // 提供 SockJS 降级（对 WebSocket 不可用的浏览器）
+                .withSockJS();
     }
 
     // ==================== 消息代理 ====================

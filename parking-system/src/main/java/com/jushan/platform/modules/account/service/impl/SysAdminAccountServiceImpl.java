@@ -17,6 +17,9 @@ import com.jushan.platform.modules.account.mapper.SysAdminAccountRoleMapper;
 import com.jushan.platform.modules.account.service.SysAdminAccountService;
 import com.jushan.platform.modules.account.vo.AdminAccountVO;
 import com.jushan.platform.modules.account.vo.ResetPasswordVO;
+import com.jushan.system.entity.ParkingLot;
+import com.jushan.system.mapper.ParkingLotMapper;
+import com.jushan.system.service.TenantService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -70,16 +73,22 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
     private final SysAdminAccountMapper adminAccountMapper;
     private final SysAdminAccountRoleMapper adminAccountRoleMapper;
     private final SysAdminAccountParkingLotMapper parkingLotMapper;
+    private final ParkingLotMapper systemParkingLotMapper;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final TenantService tenantService;
 
     public SysAdminAccountServiceImpl(SysAdminAccountMapper adminAccountMapper,
                                       SysAdminAccountRoleMapper adminAccountRoleMapper,
                                       SysAdminAccountParkingLotMapper parkingLotMapper,
-                                      BCryptPasswordEncoder passwordEncoder) {
+                                      ParkingLotMapper systemParkingLotMapper,
+                                      BCryptPasswordEncoder passwordEncoder,
+                                      TenantService tenantService) {
         this.adminAccountMapper = adminAccountMapper;
         this.adminAccountRoleMapper = adminAccountRoleMapper;
         this.parkingLotMapper = parkingLotMapper;
+        this.systemParkingLotMapper = systemParkingLotMapper;
         this.passwordEncoder = passwordEncoder;
+        this.tenantService = tenantService;
     }
 
     @Override
@@ -91,7 +100,13 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
         Integer level = cmd.getLevel();
         Long companyId = cmd.getCompanyId();
         Long lotId = cmd.getLotId();
-        Long tenantId = resolveTargetTenantId(current, scope, cmd.getTenantId(), level);
+        Long cmdTenantId = cmd.getTenantId();
+        // 未显式指定租户时，从可管理停车场推导（V1.5：创建账号不再选择归属租户）
+        if (cmdTenantId == null && LEVEL_COMPANY == level
+                && cmd.getParkingLotIds() != null && !cmd.getParkingLotIds().isEmpty()) {
+            cmdTenantId = deriveTenantFromLots(cmd.getParkingLotIds());
+        }
+        Long tenantId = resolveTargetTenantId(current, scope, cmdTenantId, level);
 
         validateLevelBinding(level, companyId, lotId);
         validateCreateScope(scope, level, companyId, lotId);
@@ -127,14 +142,15 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
         account.setUpdatedAt(LocalDateTime.now());
 
         adminAccountMapper.insert(account);
-        saveAccountRoles(account.getId(), cmd.getRoleIds());
+        List<Long> roleIds = resolveRoleIdsWithDefault(cmd.getRoleIds(), level, tenantId);
+        saveAccountRoles(account.getId(), roleIds);
         saveAccountParkingLots(account.getId(), tenantId, cmd.getParkingLotIds());
 
         log.info("创建管理员账号成功: id={}, level={}, tenantId={}, operator={}",
                 account.getId(), level, tenantId, current.userId());
 
         AdminAccountVO vo = toVO(account);
-        vo.setRoleIds(cmd.getRoleIds());
+        vo.setRoleIds(roleIds);
         return vo;
     }
 
@@ -180,7 +196,7 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "账号更新失败，请刷新后重试");
         }
 
-        saveAccountRoles(id, cmd.getRoleIds());
+        saveAccountRoles(id, resolveRoleIdsWithDefault(cmd.getRoleIds(), level, account.getTenantId()));
         saveAccountParkingLots(id, account.getTenantId(), cmd.getParkingLotIds());
 
         log.info("编辑管理员账号成功: id={}, operator={}", id, current.userId());
@@ -347,6 +363,26 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
     }
 
     /**
+     * 从可管理停车场推导租户 ID（要求所有停车场同属一个租户）。
+     */
+    private Long deriveTenantFromLots(List<Long> parkingLotIds) {
+        Long tenantId = null;
+        for (Long lotId : parkingLotIds) {
+            ParkingLot lot = systemParkingLotMapper.selectByIdIgnoreTenant(lotId);
+            if (lot == null) {
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "停车场不存在: " + lotId);
+            }
+            if (tenantId == null) {
+                tenantId = lot.getTenantId();
+            } else if (!tenantId.equals(lot.getTenantId())) {
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR,
+                        "租户管理员的可管理停车场必须同属一个租户");
+            }
+        }
+        return tenantId;
+    }
+
+    /**
      * 确定目标账号的租户 ID。
      * 岗亭管理员（level=3）为跨租户设计，tenantId 为 null。
      */
@@ -378,11 +414,9 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
             return;
         }
         if (level == LEVEL_COMPANY) {
-            if (companyId == null) {
-                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "公司管理员必须绑定公司");
-            }
+            // 租户管理员：归属公司选填（V1.5），停车场通过 parkingLotIds 多对多分配
             if (lotId != null) {
-                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "公司管理员不能绑定停车场");
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "租户管理员不能绑定停车场");
             }
             return;
         }
@@ -459,6 +493,25 @@ public class SysAdminAccountServiceImpl implements SysAdminAccountService {
                 throw new BusinessException(CommonErrorCode.FORBIDDEN, "账号不属于本停车场");
             }
         }
+    }
+
+    /**
+     * 解析角色绑定：租户管理员（level=2）未显式指定角色时，自动绑定该租户的 customer_admin 默认角色，
+     * 避免账号无任何角色导致登录后 roles 为空、数据范围被误判为无授权。
+     */
+    private List<Long> resolveRoleIdsWithDefault(List<Long> roleIds, Integer level, Long tenantId) {
+        if (!CollectionUtils.isEmpty(roleIds)) {
+            return roleIds;
+        }
+        if (level != null && level == LEVEL_COMPANY && tenantId != null) {
+            Long defaultRoleId = tenantService.resolveCustomerAdminRoleId(tenantId);
+            if (defaultRoleId != null) {
+                log.info("租户管理员未指定角色，自动绑定 customer_admin: roleId={}, tenantId={}",
+                        defaultRoleId, tenantId);
+                return List.of(defaultRoleId);
+            }
+        }
+        return roleIds;
     }
 
     /**

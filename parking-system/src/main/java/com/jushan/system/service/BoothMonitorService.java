@@ -54,6 +54,7 @@ public class BoothMonitorService {
     private final MonitorAlertService alertService;
     private final ParkingLotScopeResolver scopeResolver;
     private final CameraFailoverService cameraFailoverService;
+    private final com.jushan.platform.modules.parking.service.ParkingSessionService parkingSessionService;
 
     public BoothMonitorService(ParkingLotMapper parkingLotMapper,
                                 ParkingLaneMapper laneMapper,
@@ -62,7 +63,8 @@ public class BoothMonitorService {
                                 DeviceService deviceService,
                                 MonitorAlertService alertService,
                                 ParkingLotScopeResolver scopeResolver,
-                                CameraFailoverService cameraFailoverService) {
+                                CameraFailoverService cameraFailoverService,
+                                com.jushan.platform.modules.parking.service.ParkingSessionService parkingSessionService) {
         this.parkingLotMapper = parkingLotMapper;
         this.laneMapper = laneMapper;
         this.deviceMapper = deviceMapper;
@@ -71,6 +73,7 @@ public class BoothMonitorService {
         this.alertService = alertService;
         this.scopeResolver = scopeResolver;
         this.cameraFailoverService = cameraFailoverService;
+        this.parkingSessionService = parkingSessionService;
     }
 
     /**
@@ -314,9 +317,12 @@ public class BoothMonitorService {
         vo.setId(lot.getId());
         vo.setTenantId(lot.getTenantId());
         vo.setName(lot.getName());
-        vo.setTotalSpaces(lot.getTotalSpaces());
-        vo.setCurrentVehicles(lot.getCurrentVehicles());
-        vo.setRemainingSpaces(lot.getRemainingSpaces());
+        int totalSpaces = lot.getTotalSpaces() != null ? lot.getTotalSpaces() : 0;
+        // 在场车辆以 parking_session 实时统计为准（parking_lot 计数列不随进出场更新）
+        int currentVehicles = (int) parkingSessionService.countInByParkingLotIdIgnoreTenant(lot.getId());
+        vo.setTotalSpaces(totalSpaces);
+        vo.setCurrentVehicles(currentVehicles);
+        vo.setRemainingSpaces(Math.max(0, totalSpaces - currentVehicles));
         vo.setStatus(lot.getStatus());
         return vo;
     }

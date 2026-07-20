@@ -58,25 +58,6 @@ export function manualOpenGate(
 }
 
 /**
- * 批量多通道开闸（Phase 2 D5）。
- * POST /api/v1/booth/recognition/manual-open-gate-batch
- */
-export function manualOpenGateBatch(data: {
-  deviceIds: number[]
-  reason: string
-  isCharge?: boolean
-  amount?: number
-}): Promise<{
-  success: { deviceId: number; success: boolean; message: string }[]
-  failed: { deviceId: number; success: boolean; message: string }[]
-  total: number
-  successCount: number
-  failedCount: number
-}> {
-  return request.post('/v1/booth/recognition/manual-open-gate-batch', data)
-}
-
-/**
  * 人工关闸。
  * POST /api/v1/booth/recognition/manual-close-gate
  */

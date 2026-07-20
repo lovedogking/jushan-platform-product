@@ -129,12 +129,24 @@ const historyColumns = [
 ]
 
 function vehicleTypeLabel(type: string): string {
-  const map: Record<string, string> = { TEMPORARY: '临时车', MONTHLY: '月卡', FIXED: '固定车位' }
+  const map: Record<string, string> = {
+    WHITE: '固定车',
+    TEMP: '临时车',
+    TEMPORARY: '临时车',
+    MONTHLY: '月卡',
+    FIXED: '固定车位',
+  }
   return map[type] || type || '未知'
 }
 
 function vehicleTypeColor(type: string): string {
-  const map: Record<string, string> = { TEMPORARY: 'default', MONTHLY: 'green', FIXED: 'blue' }
+  const map: Record<string, string> = {
+    WHITE: 'green',
+    TEMP: 'orange',
+    TEMPORARY: 'orange',
+    MONTHLY: 'green',
+    FIXED: 'blue',
+  }
   return map[type] || 'default'
 }
 

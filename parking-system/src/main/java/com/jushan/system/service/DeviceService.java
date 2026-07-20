@@ -222,6 +222,29 @@ public class DeviceService {
         device.setDeviceType(deviceType);
         device.setRecognitionDirection(validateDirection(request.getRecognitionDirection(), deviceType));
         device.setCameraRole(validateCameraRole(request.getCameraRole(), deviceType));
+        device.setIpAddress(request.getIpAddress());
+        device.setPort(request.getPort());
+        device.setSubnetMask(request.getSubnetMask());
+        device.setGateway(request.getGateway());
+
+        // 可选：创建时直接绑定车道（必须与设备同属一个停车场）
+        if (request.getLaneId() != null) {
+            ParkingLane lane = laneMapper.selectById(request.getLaneId());
+            if (lane == null) {
+                throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道不存在");
+            }
+            if (!request.getParkingLotId().equals(lane.getLotId())) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "设备与车道不属于同一停车场，不允许绑定");
+            }
+            if (lane.getStatus() == null || lane.getStatus() != 1) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的车道不能绑定设备");
+            }
+            device.setLaneId(request.getLaneId());
+            if ("CAMERA".equals(deviceType)) {
+                validateCameraLaneBinding(device, lane);
+            }
+        }
         device.setStatus(STATUS_ENABLED);
         device.setCapabilities(defaultString(request.getCapabilities(), DEFAULT_CAPABILITIES));
         device.setDescription(defaultString(request.getDescription(), ""));
@@ -241,7 +264,7 @@ public class DeviceService {
     /**
      * 更新设备基础信息（部分更新）。
      * <p>
-     * device_sn 不可通过此接口修改（SN 变更需走专门的审计流程）。
+     * 厂商/型号变更时校验启用状态及归属关系；SN 变更时校验同厂商内唯一。
      *
      * @param deviceId 设备 ID
      * @param request  更新请求（仅非 null 字段被更新）
@@ -275,6 +298,37 @@ public class DeviceService {
             wrapper.set(Device::getCode, newCode);
             hasUpdate = true;
         }
+
+        // 厂商/型号变更：合并新旧值校验启用状态及型号归属
+        Long newVendorId = request.getVendorId() != null ? request.getVendorId() : device.getVendorId();
+        Long newModelId = request.getModelId() != null ? request.getModelId() : device.getModelId();
+        if (!newVendorId.equals(device.getVendorId()) || !newModelId.equals(device.getModelId())) {
+            getVendorEnabled(newVendorId);
+            getModelEnabled(newModelId, newVendorId);
+            wrapper.set(Device::getVendorId, newVendorId);
+            wrapper.set(Device::getModelId, newModelId);
+            hasUpdate = true;
+        }
+
+        if (request.getDeviceSn() != null) {
+            String newSn = request.getDeviceSn().trim();
+            if (newSn.isEmpty()) {
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR, "设备序列号不能为空");
+            }
+            if (!newSn.equals(device.getDeviceSn()) || !newVendorId.equals(device.getVendorId())) {
+                Long snCount = deviceMapper.selectCount(
+                        new LambdaQueryWrapper<Device>()
+                                .eq(Device::getVendorId, newVendorId)
+                                .eq(Device::getDeviceSn, newSn)
+                                .ne(Device::getId, deviceId));
+                if (snCount > 0) {
+                    throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                            "设备序列号 '" + newSn + "' 在该厂商中已存在");
+                }
+            }
+            wrapper.set(Device::getDeviceSn, newSn);
+            hasUpdate = true;
+        }
         if (request.getDeviceType() != null) {
             String deviceType = request.getDeviceType().toUpperCase();
             if (!VALID_DEVICE_TYPES.contains(deviceType)) {
@@ -298,6 +352,22 @@ public class DeviceService {
         }
         if (request.getDescription() != null) {
             wrapper.set(Device::getDescription, request.getDescription().trim());
+            hasUpdate = true;
+        }
+        if (request.getIpAddress() != null) {
+            wrapper.set(Device::getIpAddress, request.getIpAddress());
+            hasUpdate = true;
+        }
+        if (request.getPort() != null) {
+            wrapper.set(Device::getPort, request.getPort());
+            hasUpdate = true;
+        }
+        if (request.getSubnetMask() != null) {
+            wrapper.set(Device::getSubnetMask, request.getSubnetMask());
+            hasUpdate = true;
+        }
+        if (request.getGateway() != null) {
+            wrapper.set(Device::getGateway, request.getGateway());
             hasUpdate = true;
         }
 
@@ -670,12 +740,12 @@ public class DeviceService {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "车道类型未设置，无法绑定相机");
         }
 
-        // 收集已绑定到此车道的所有 CAMERA 设备（排除自身）
+        // 收集已绑定到此车道的所有 CAMERA 设备（排除自身；新建设备 id 为 null 时不加排除条件）
         List<Device> existingCameras = deviceMapper.selectList(
                 new LambdaQueryWrapper<Device>()
                         .eq(Device::getLaneId, lane.getId())
                         .eq(Device::getDeviceType, "CAMERA")
-                        .ne(Device::getId, device.getId()));
+                        .ne(device.getId() != null, Device::getId, device.getId()));
 
         // 校验当前设备的识别方向必填（创建时未填则拦截）
         Integer direction = device.getRecognitionDirection();
@@ -1088,7 +1158,21 @@ public class DeviceService {
                 laneId, lane.getName(), gateDevice.getId(), gateDevice.getDeviceSn(), reason);
 
         String commandId = UUID.randomUUID().toString();
-        CommandResultDTO result = deviceAccessClient.unlockGate(gateDevice.getDeviceSn(), commandId);
+        CommandResultDTO result;
+        try {
+            result = deviceAccessClient.unlockGate(gateDevice.getDeviceSn(), commandId);
+        } catch (BusinessException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Device returned error code: 400")) {
+                log.info("取消常开按幂等成功处理（设备返回400，IO未处于锁定状态，目标状态已达成）: laneId={}, deviceSn={}",
+                        laneId, gateDevice.getDeviceSn());
+                result = new CommandResultDTO();
+                result.setSuccess(true);
+                result.setDeviceCode(400);
+                result.setMessage("取消常开成功（设备未处于锁定状态，按幂等成功处理）");
+            } else {
+                throw e;
+            }
+        }
         if (!result.isSuccessful() && Integer.valueOf(400).equals(result.getDeviceCode())) {
             log.info("取消常开按幂等成功处理（设备返回400，IO未处于锁定状态，目标状态已达成）: laneId={}, deviceSn={}",
                     laneId, gateDevice.getDeviceSn());

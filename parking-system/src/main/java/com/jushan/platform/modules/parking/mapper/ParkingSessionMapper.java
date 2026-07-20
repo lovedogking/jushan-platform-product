@@ -84,9 +84,10 @@ public interface ParkingSessionMapper extends BaseMapper<ParkingSession> {
      * @param parkingRecordId 关联停车记录ID
      * @return 影响行数
      */
-    @Update("UPDATE parking_session SET status = 'OUT', exit_time = #{exitTime}, exit_lane_id = #{exitLaneId}, exit_image = #{exitImage}, exit_operator = #{exitOperator}, fee_amount = #{feeAmount}, parking_record_id = #{parkingRecordId}, updated_at = NOW() WHERE id = #{id}")
+    @Update("UPDATE parking_session SET status = 'OUT', exit_time = #{exitTime}, exit_lane_id = #{exitLaneId}, exit_image = #{exitImage}, exit_operator = #{exitOperator}, fee_amount = #{feeAmount}, paid_amount = COALESCE(#{paidAmount}, paid_amount), parking_record_id = #{parkingRecordId}, updated_at = NOW() WHERE id = #{id}")
     int updateExitWithRecord(@Param("id") Long id, @Param("exitTime") java.time.LocalDateTime exitTime,
                              @Param("exitLaneId") Long exitLaneId, @Param("exitImage") String exitImage,
                              @Param("exitOperator") Long exitOperator, @Param("feeAmount") java.math.BigDecimal feeAmount,
+                             @Param("paidAmount") java.math.BigDecimal paidAmount,
                              @Param("parkingRecordId") Long parkingRecordId);
 }

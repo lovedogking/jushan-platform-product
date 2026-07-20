@@ -93,15 +93,31 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
             log.info("ParkingRecord 存在但 ParkingSession 不存在，补创建: plate={}", standardizedPlate);
         }
 
-        // 检查是否已有 ParkingSession 在场记录（重复入场策略）
+        // 检查是否已有 ParkingSession 在场记录（重复入场幂等处理）
         ParkingSession existingSession = baseMapper.selectInByPlateNumber(standardizedPlate, tenantId);
         if (existingSession != null) {
-            // 重复入场：将旧记录标记为异常，创建新记录
-            existingSession.setStatus(ParkingSession.STATUS_EXCEPTION);
-            existingSession.setRemark("重复入场，自动标记异常");
+            // 幂等：以最新识别为准，更新原在场记录的入场信息，不新建记录、不标记异常
+            // 适用场景：车牌在相机前停留导致的重复识别、系统重启/设备误触发后的补识别
+            existingSession.setParkingLotId(cmd.getParkingLotId());
+            existingSession.setLaneId(cmd.getLaneId());
+            existingSession.setEntryTime(cmd.getEntryTime() != null ? cmd.getEntryTime() : LocalDateTime.now());
+            if (cmd.getEntryImage() != null) {
+                existingSession.setEntryImage(cmd.getEntryImage());
+            }
+            if (cmd.getVehicleType() != null) {
+                existingSession.setVehicleType(cmd.getVehicleType());
+            }
+            if (cmd.getPlateColor() != null) {
+                existingSession.setPlateColor(cmd.getPlateColor());
+            }
+            if (cmd.getEntryTrigger() != null) {
+                existingSession.setEntryTrigger(cmd.getEntryTrigger());
+            }
             existingSession.setUpdatedAt(LocalDateTime.now());
             baseMapper.updateById(existingSession);
-            log.warn("车辆重复入场: plate={}, oldSessionId={}", standardizedPlate, existingSession.getId());
+            log.info("重复入场幂等处理（以最新识别为准）: plate={}, sessionId={}",
+                    standardizedPlate, existingSession.getId());
+            return toVO(existingSession);
         }
 
         ParkingSession entity = new ParkingSession();
@@ -114,6 +130,8 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
         entity.setEntryImage(cmd.getEntryImage());
         entity.setEntryOperator(cmd.getEntryOperator());
         entity.setEntryTrigger(cmd.getEntryTrigger());
+        entity.setFeeAmount(cmd.getFeeAmount());
+        entity.setPaidAmount(cmd.getPaidAmount());
         entity.setStatus(ParkingSession.STATUS_IN);
         entity.setTenantId(tenantId);
         entity.setCreatedAt(LocalDateTime.now());
@@ -158,6 +176,7 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
                 cmd.getExitImage(),
                 cmd.getExitOperator(),
                 cmd.getFeeAmount(),
+                cmd.getPaidAmount(),
                 cmd.getParkingRecordId()
         );
 
@@ -340,6 +359,15 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
     public long countInByParkingLotId(Long parkingLotId) {
         Long tenantId = TenantContext.getTenantId();
         return baseMapper.countInByParkingLotId(parkingLotId, tenantId);
+    }
+
+    @Override
+    public long countInByParkingLotIdIgnoreTenant(Long parkingLotId) {
+        return baseMapper.selectCount(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ParkingSession>()
+                        .eq(ParkingSession::getParkingLotId, parkingLotId)
+                        .eq(ParkingSession::getStatus, ParkingSession.STATUS_IN)
+                        .isNull(ParkingSession::getDeletedAt));
     }
 
     private ParkingSessionVO toVO(ParkingSession entity) {

@@ -45,6 +45,7 @@ public class TempPlateService {
     private final BillingEngine billingEngine;
     private final DeviceService deviceService;
     private final MockPaymentService mockPaymentService;
+    private final com.jushan.platform.modules.parking.service.ParkingSessionService parkingSessionService;
 
     public TempPlateService(ParkingRecordMapper recordMapper,
                              ParkingLotMapper parkingLotMapper,
@@ -53,7 +54,8 @@ public class TempPlateService {
                              ExitRecordMapper exitRecordMapper,
                              BillingEngine billingEngine,
                              DeviceService deviceService,
-                             MockPaymentService mockPaymentService) {
+                             MockPaymentService mockPaymentService,
+                             com.jushan.platform.modules.parking.service.ParkingSessionService parkingSessionService) {
         this.recordMapper = recordMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.orderMapper = orderMapper;
@@ -62,6 +64,7 @@ public class TempPlateService {
         this.billingEngine = billingEngine;
         this.deviceService = deviceService;
         this.mockPaymentService = mockPaymentService;
+        this.parkingSessionService = parkingSessionService;
     }
 
     // ==================== 手动入场 ====================
@@ -109,6 +112,22 @@ public class TempPlateService {
         record.setEntryTime(LocalDateTime.now());
         record.setEntryImagePath(null);
         recordMapper.insert(record);
+
+        // 4.5 同步创建 ParkingSession（人工补录，纳入在场统计与通行记录）
+        try {
+            com.jushan.platform.modules.parking.dto.ParkingSessionEntryCmd sessionCmd =
+                    new com.jushan.platform.modules.parking.dto.ParkingSessionEntryCmd();
+            sessionCmd.setTenantId(record.getTenantId());
+            sessionCmd.setParkingLotId(parkingLotId);
+            sessionCmd.setLaneId(laneId);
+            sessionCmd.setPlateNumber(tempPlate);
+            sessionCmd.setVehicleType("TEMP");
+            sessionCmd.setEntryOperator(boothUserId);
+            sessionCmd.setEntryTrigger("manual_entry");
+            parkingSessionService.entry(sessionCmd);
+        } catch (Exception e) {
+            log.warn("无牌车入场 ParkingSession 同步失败（不影响主业务）: plate={} error={}", tempPlate, e.getMessage());
+        }
 
         // 5. 创建预订单
         ParkingOrder preOrder = parkingOrderService.createPreOrder(record);
@@ -205,6 +224,24 @@ public class TempPlateService {
         record.setStatus(ParkingRecord.STATUS_COMPLETED);
         record.setExitTime(exitTime);
         recordMapper.updateById(record);
+
+        // 6.5 同步 ParkingSession 出场
+        try {
+            var sessionVO = parkingSessionService.getInByPlateAndLot(tempPlate, parkingLotId);
+            if (sessionVO != null) {
+                var sessionExitCmd = new com.jushan.platform.modules.parking.dto.ParkingSessionExitCmd();
+                sessionExitCmd.setSessionId(sessionVO.getId());
+                sessionExitCmd.setExitLaneId(laneId);
+                sessionExitCmd.setExitOperator(boothUserId);
+                sessionExitCmd.setFeeAmount(java.math.BigDecimal.valueOf(feeCents).movePointLeft(2));
+                sessionExitCmd.setPaidAmount(java.math.BigDecimal.valueOf(feeCents).movePointLeft(2));
+                sessionExitCmd.setOrderId(order.getId());
+                sessionExitCmd.setParkingRecordId(record.getId());
+                parkingSessionService.exit(sessionExitCmd);
+            }
+        } catch (Exception e) {
+            log.warn("无牌车出场 ParkingSession 同步失败（不影响主业务）: plate={} error={}", tempPlate, e.getMessage());
+        }
 
         // 7. 完成订单（PAID → COMPLETED）
         parkingOrderService.completeOrder(order.getId(), exitTime);

@@ -18,7 +18,6 @@ import type {
   SpaceUpdatePayload,
   RecognitionEventPayload,
   AlertPayload,
-  RemoteGateAlertPayload,
 } from '@/api/monitor-types'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
@@ -32,8 +31,6 @@ export const useMonitorStore = defineStore('monitor', () => {
   const recentEvents = ref<RecognitionEvent[]>([])
   const deviceStatuses = ref<DeviceStatus[]>([])
   const alerts = ref<MonitorAlert[]>([])
-  /** 远程开闸历史通知（Phase 1 B2） */
-  const remoteGateAlerts = ref<RemoteGateAlertPayload[]>([])
   const loading = ref(false)
   const error = ref('')
 
@@ -50,11 +47,6 @@ export const useMonitorStore = defineStore('monitor', () => {
     message: string
     gateOpened: boolean | null
   } | null>(null)
-
-  // ========== 交接班状态 ==========
-  const currentShift = ref<any>(null)
-  const shiftHistory = ref<any[]>([])
-  const shiftLoading = ref(false)
 
   // ========== getters ==========
   const criticalAlerts = computed(() => alerts.value.filter((a) => a.severity === 'CRITICAL'))
@@ -119,19 +111,6 @@ export const useMonitorStore = defineStore('monitor', () => {
   function handleAlert(payload: AlertPayload) {
     if (!alerts.value.some((a) => a.id === payload.id)) {
       alerts.value.unshift(payload)
-    }
-  }
-
-  function handleRemoteGateAlert(payload: RemoteGateAlertPayload) {
-    // 去重：相同操作人+时间不重复添加
-    const exists = remoteGateAlerts.value.some(
-      (a) => a.operatorName === payload.operatorName && a.operationTime === payload.operationTime
-    )
-    if (exists) return
-    remoteGateAlerts.value.unshift(payload)
-    // 最多保留 20 条历史
-    if (remoteGateAlerts.value.length > 20) {
-      remoteGateAlerts.value = remoteGateAlerts.value.slice(0, 20)
     }
   }
 
@@ -223,28 +202,6 @@ export const useMonitorStore = defineStore('monitor', () => {
 
   // ========== 交接班操作 ==========
 
-  async function loadCurrentShift() {
-    try {
-      const { getCurrentShift } = await import('@/api/shift')
-      currentShift.value = await getCurrentShift()
-    } catch {
-      currentShift.value = null
-    }
-  }
-
-  async function loadShiftHistory(parkingLotId: number) {
-    shiftLoading.value = true
-    try {
-      const { getShiftHistory } = await import('@/api/shift')
-      const result = await getShiftHistory({ parkingLotId, current: 1, size: 20 })
-      shiftHistory.value = result.records || []
-    } catch {
-      shiftHistory.value = []
-    } finally {
-      shiftLoading.value = false
-    }
-  }
-
   function reset() {
     currentLotId.value = null
     connectionStatus.value = 'disconnected'
@@ -253,15 +210,11 @@ export const useMonitorStore = defineStore('monitor', () => {
     recentEvents.value = []
     deviceStatuses.value = []
     alerts.value = []
-    remoteGateAlerts.value = []
     error.value = ''
     chargePanelVisible.value = false
     currentChargeInfo.value = null
     chargeLoading.value = false
     chargeResult.value = null
-    currentShift.value = null
-    shiftHistory.value = []
-    shiftLoading.value = false
   }
 
   return {
@@ -272,7 +225,6 @@ export const useMonitorStore = defineStore('monitor', () => {
     recentEvents,
     deviceStatuses,
     alerts,
-    remoteGateAlerts,
     loading,
     error,
     criticalAlerts,
@@ -284,7 +236,6 @@ export const useMonitorStore = defineStore('monitor', () => {
     handleRecognitionEvent,
     handleDeviceStatus,
     handleAlert,
-    handleRemoteGateAlert,
     ackAlert,
     refreshAllDevices,
     formatTime,
@@ -295,11 +246,6 @@ export const useMonitorStore = defineStore('monitor', () => {
     showChargePanel,
     hideChargePanel,
     setChargeResult,
-    currentShift,
-    shiftHistory,
-    shiftLoading,
-    loadCurrentShift,
-    loadShiftHistory,
     reset,
   }
 })

@@ -37,7 +37,7 @@ mybatis-plus:
 # MQTT / EMQX 配置 —— 第二步连接时使用
 device-access:
   mqtt:
-    broker-url: tcp://121.41.131.215:1883
+    broker-url: ${MQTT_BROKER_URL:tcp://121.41.131.215:18083}
     client-id: device-access-v0.1
     username: ${MQTT_USERNAME:}
     password: ${MQTT_PASSWORD:}

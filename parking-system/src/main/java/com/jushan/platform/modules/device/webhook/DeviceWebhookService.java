@@ -5,8 +5,10 @@ import com.jushan.platform.modules.booth.vo.RecognitionResultVO;
 import com.jushan.platform.modules.device.dto.DeviceWebhookEvent;
 import com.jushan.system.entity.Device;
 import com.jushan.system.entity.ParkingLane;
+import com.jushan.system.entity.RecognitionEventLog;
 import com.jushan.system.mapper.DeviceMapper;
 import com.jushan.system.mapper.ParkingLaneMapper;
+import com.jushan.system.mapper.RecognitionEventLogMapper;
 import com.jushan.system.ws.BoothWebSocketPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -69,17 +71,20 @@ public class DeviceWebhookService {
     private final DeviceWebhookEventHandler eventHandler;
     private final StringRedisTemplate stringRedisTemplate;
     private final BoothWebSocketPublisher wsPublisher;
+    private final RecognitionEventLogMapper eventLogMapper;
 
     public DeviceWebhookService(DeviceMapper deviceMapper,
                                 ParkingLaneMapper laneMapper,
                                 DeviceWebhookEventHandler eventHandler,
                                 ObjectProvider<StringRedisTemplate> redisTemplateProvider,
-                                BoothWebSocketPublisher wsPublisher) {
+                                BoothWebSocketPublisher wsPublisher,
+                                RecognitionEventLogMapper eventLogMapper) {
         this.deviceMapper = deviceMapper;
         this.laneMapper = laneMapper;
         this.eventHandler = eventHandler;
         this.stringRedisTemplate = redisTemplateProvider.getIfAvailable();
         this.wsPublisher = wsPublisher;
+        this.eventLogMapper = eventLogMapper;
     }
 
     /**
@@ -192,6 +197,7 @@ public class DeviceWebhookService {
 
         // 6. 设置租户上下文（Webhook 无 JWT Token，需手动注入）
         TenantContext.Snapshot previousContext = TenantContext.get();
+        RecognitionEventLog eventLog = null;
         try {
             TenantContext.set(new TenantContext.Snapshot(
                     trustedTenantId,
@@ -200,6 +206,10 @@ public class DeviceWebhookService {
                     null,         // roles
                     null          // permissions
             ));
+
+            // 6b. 持久化识别事件日志（GB-01：岗亭端最近识别事件数据源）
+            eventLog = persistEventLog(event, device, normalizedPlate,
+                    trustedTenantId, trustedParkingLotId, trustedLaneId, confidence);
 
             // 7. 委托事件处理器调用 RecognitionEventService
             RecognitionResultVO result = eventHandler.handlePlateRecognized(
@@ -215,12 +225,21 @@ public class DeviceWebhookService {
                     event.getCaptureTime()
             );
 
+            // 7b. 更新处理状态并推送岗亭（WebSocket 实时事件流）
+            if (eventLog != null) {
+                updateEventLogStatus(eventLog, "PROCESSED", null);
+                wsPublisher.sendRecognitionEvent(trustedParkingLotId, eventLog);
+            }
+
             // 8. 记录处理完成
             log.info("Webhook 事件处理完成: eventId={}, plate={}, allowPass={}, sessionId={}",
                     event.getEventId(), normalizedPlate, result.getAllowPass(), result.getSessionId());
 
         } catch (Exception e) {
             // 业务处理异常内部消化，不影响 HTTP 响应
+            if (eventLog != null) {
+                updateEventLogStatus(eventLog, "FAILED", e.getMessage());
+            }
             log.error("Webhook 事件处理异常: eventId={}, deviceSn={}, plate={}, error={}",
                     event.getEventId(), event.getDeviceSn(), normalizedPlate, e.getMessage(), e);
         } finally {
@@ -279,6 +298,81 @@ public class DeviceWebhookService {
         if (event.getDirection() == null || event.getDirection().isBlank()) {
             log.warn("Webhook 无法确定识别方向（相机无识别方向 + 车道为双向或无车道绑定）: eventId={}, deviceSn={}",
                     event.getEventId(), event.getDeviceSn());
+        }
+    }
+
+    /**
+     * 持久化识别事件日志（初始状态 RECEIVED）。
+     * <p>
+     * 岗亭端「最近识别事件」快照（BoothMonitorService）与 WebSocket 事件流的数据源。
+     * 持久化失败不影响主业务（返回 null，跳过后续推送）。
+     */
+    private RecognitionEventLog persistEventLog(DeviceWebhookEvent event, Device device,
+                                                String normalizedPlate, Long tenantId,
+                                                Long parkingLotId, Long laneId, Integer confidence) {
+        try {
+            RecognitionEventLog eventLog = new RecognitionEventLog();
+            eventLog.setEventId(event.getEventId() != null ? event.getEventId()
+                    : "evt_" + java.util.UUID.randomUUID());
+            eventLog.setVendorEventId(event.getEventId());
+            eventLog.setTenantId(tenantId);
+            eventLog.setParkingLotId(parkingLotId);
+            eventLog.setLaneId(laneId);
+            eventLog.setDeviceId(device.getId());
+            eventLog.setPlateNumber(normalizedPlate);
+            eventLog.setStandardizedPlate(normalizedPlate);
+            eventLog.setDirection(event.getDirection());
+            eventLog.setEventTime(parseCaptureTime(event.getCaptureTime()));
+            eventLog.setConfidence(confidence);
+            eventLog.setImagePath(event.getImageUrl());
+            eventLog.setSource("DEVICE_ACCESS");
+            eventLog.setStatus("RECEIVED");
+            eventLog.setTempPlateFlag(0);
+            eventLog.setCreatedAt(LocalDateTime.now());
+            eventLogMapper.insert(eventLog);
+            return eventLog;
+        } catch (Exception e) {
+            log.warn("识别事件日志持久化失败（不影响主业务）: eventId={}, plate={}, error={}",
+                    event.getEventId(), normalizedPlate, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 更新识别事件日志处理状态。
+     */
+    private void updateEventLogStatus(RecognitionEventLog eventLog, String status, String failureReason) {
+        try {
+            eventLog.setStatus(status);
+            if (failureReason != null) {
+                eventLog.setFailureReason(failureReason.length() > 255
+                        ? failureReason.substring(0, 255) : failureReason);
+            }
+            eventLogMapper.updateById(eventLog);
+        } catch (Exception e) {
+            log.warn("识别事件日志状态更新失败（忽略）: eventId={}, error={}",
+                    eventLog.getEventId(), e.getMessage());
+        }
+    }
+
+    /**
+     * 解析抓拍时间（ISO-8601 UTC 转本地时区，或 yyyy-MM-dd HH:mm:ss），失败回退当前时间。
+     */
+    private LocalDateTime parseCaptureTime(String captureTime) {
+        if (captureTime == null || captureTime.isBlank()) {
+            return LocalDateTime.now();
+        }
+        try {
+            return java.time.Instant.parse(captureTime)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDateTime();
+        } catch (Exception ignored) {
+            try {
+                return LocalDateTime.parse(captureTime,
+                        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            } catch (Exception e) {
+                return LocalDateTime.now();
+            }
         }
     }
 

@@ -84,4 +84,14 @@ public interface ParkingSessionService extends IService<ParkingSession> {
      * @return 在场车辆数量
      */
     long countInByParkingLotId(Long parkingLotId);
+
+    /**
+     * 统计指定停车场的在场车辆数量（忽略租户上下文）。
+     * <p>
+     * 用于 Webhook 入场/出场链路等无租户上下文场景下的车位数计算。
+     *
+     * @param parkingLotId 停车场ID
+     * @return 在场车辆数量
+     */
+    long countInByParkingLotIdIgnoreTenant(Long parkingLotId);
 }

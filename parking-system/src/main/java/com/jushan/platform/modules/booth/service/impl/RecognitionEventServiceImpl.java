@@ -182,6 +182,11 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                         entryCmd.setVehicleType("TEMP");
                         entryCmd.setEntryOperator(operatorId);
                         entryCmd.setEntryTrigger(ParkingSession.TRIGGER_MANUAL_OPEN);
+                        if (isCharge && feeCents != null && feeCents > 0) {
+                            java.math.BigDecimal fee = java.math.BigDecimal.valueOf(feeCents).movePointLeft(2);
+                            entryCmd.setFeeAmount(fee);
+                            entryCmd.setPaidAmount(fee);
+                        }
                         entryCmd.setRemark("岗亭人工放行: " + reason);
                         parkingSessionService.entry(entryCmd);
                         log.info("人工开闸已补写 parking_session: plate={}, laneId={}, operatorId={}",

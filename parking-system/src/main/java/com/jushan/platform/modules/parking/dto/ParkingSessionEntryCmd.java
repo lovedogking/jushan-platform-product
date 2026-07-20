@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -48,6 +49,12 @@ public class ParkingSessionEntryCmd {
 
     /** 入场触发方式：whitelist_auto/manual_open/always_open_period/manual_entry */
     private String entryTrigger;
+
+    /** 应收费用（元，入场即收费场景） */
+    private BigDecimal feeAmount;
+
+    /** 实收费用（元，入场即收费场景） */
+    private BigDecimal paidAmount;
 
     /** 备注 */
     @Size(max = 200, message = "备注最多200个字符")

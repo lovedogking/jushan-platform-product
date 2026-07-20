@@ -99,7 +99,6 @@ const MENUS: MenuItem[] = [
       { title: '固定车管理', path: '/operation/vehicles', roles: ['platform', 'tenant'] },
     ],
   },
-  { key: 'accounts', title: '账号管理', icon: UserOutlined, path: '/admin/accounts', roles: ['platform'] },
   {
     key: 'records', title: '记录查询', icon: FileTextOutlined, roles: ['platform', 'tenant'],
     children: [
@@ -107,6 +106,7 @@ const MENUS: MenuItem[] = [
     ],
   },
   { key: 'booth', title: '岗亭工作区', icon: MonitorOutlined, path: '/booth/monitor', roles: ['platform', 'tenant', 'booth'] },
+  { key: 'accounts', title: '账号管理', icon: UserOutlined, path: '/admin/accounts', roles: ['platform'] },
 ]
 
 const router = useRouter()

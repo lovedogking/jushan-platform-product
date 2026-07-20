@@ -19,7 +19,7 @@
         </a-tag>
       </a-descriptions-item>
       <a-descriptions-item label="状态">
-        <a-tag>{{ event?.status }}</a-tag>
+        <a-tag :color="statusColor">{{ statusLabel }}</a-tag>
       </a-descriptions-item>
     </a-descriptions>
 
@@ -72,6 +72,21 @@ const visible = computed({
 const correctedPlate = ref('')
 const submitting = ref(false)
 const readonly = computed(() => props.event?.correctedPlate != null)
+
+const STATUS_LABELS: Record<string, string> = {
+  RECEIVED: '已接收',
+  PROCESSING: '处理中',
+  PROCESSED: '已处理',
+  FAILED: '处理失败',
+}
+const STATUS_COLORS: Record<string, string> = {
+  RECEIVED: 'default',
+  PROCESSING: 'processing',
+  PROCESSED: 'success',
+  FAILED: 'error',
+}
+const statusLabel = computed(() => STATUS_LABELS[props.event?.status || ''] || props.event?.status || '—')
+const statusColor = computed(() => STATUS_COLORS[props.event?.status || ''] || 'default')
 
 watch(
   () => props.open,

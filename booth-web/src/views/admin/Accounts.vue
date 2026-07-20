@@ -47,8 +47,8 @@
         <a-form-item label="用户名" required>
           <a-input v-model:value="form.username" :disabled="isEdit" placeholder="登录用户名" />
         </a-form-item>
-        <a-form-item v-if="!isEdit" label="初始密码">
-          <a-input-password v-model:value="form.password" placeholder="留空则系统自动生成 8 位随机密码" />
+        <a-form-item v-if="!isEdit" label="初始密码" required>
+          <a-input-password v-model:value="form.password" placeholder="初始密码（至少 6 位）" />
         </a-form-item>
         <a-form-item label="姓名" required>
           <a-input v-model:value="form.realName" placeholder="真实姓名" />
@@ -65,26 +65,10 @@
             <a-radio :value="3">岗亭管理员</a-radio>
           </a-radio-group>
         </a-form-item>
-        <template v-if="form.level === 2">
-          <a-form-item label="归属租户" required>
-            <a-select v-model:value="form.tenantId" placeholder="选择租户" :options="tenantOptions"
-              :field-names="{ label: 'name', value: 'id' }" show-search option-filter-prop="label"
-              @change="onTenantChange" />
-          </a-form-item>
-          <a-form-item label="归属公司" required>
-            <a-select v-model:value="form.companyId" placeholder="选择公司" :options="filteredCompanyOptions"
-              :field-names="{ label: 'name', value: 'id' }" show-search option-filter-prop="label"
-              :disabled="!form.tenantId" />
-          </a-form-item>
-        </template>
-        <a-form-item label="归属停车场">
-          <a-select v-model:value="form.parkingLotIds" mode="multiple" placeholder="选择停车场（可留空，之后编辑补绑）"
-            :options="filteredLotOptions" :field-names="{ label: 'name', value: 'id' }"
+        <a-form-item label="可管理停车场" required>
+          <a-select v-model:value="form.parkingLotIds" mode="multiple" placeholder="选择可管理的停车场（必选）"
+            :options="lotOptions" :field-names="{ label: 'name', value: 'id' }"
             show-search option-filter-prop="label" />
-        </a-form-item>
-        <a-form-item label="绑定角色">
-          <a-select v-model:value="form.roleIds" mode="multiple" placeholder="选择角色"
-            :options="roleOptions" :field-names="{ label: 'roleName', value: 'id' }" />
         </a-form-item>
         <a-form-item v-if="form.level === 3">
           <a-checkbox v-model:checked="form.allowFeeReduction">允许费用减免</a-checkbox>
@@ -107,16 +91,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import {
   getAdminAccounts, getAdminAccount, createAdminAccount, updateAdminAccount,
-  deleteAdminAccount, resetPassword, getCustomRoles, getCompanies,
+  deleteAdminAccount, resetPassword,
   type AdminAccount, type AdminAccountCreateCmd, type AdminAccountUpdateCmd,
-  type CustomRoleVO, type CompanyOptionVO,
 } from '@/api/account'
-import { getTenants, getParkingLots, type TenantVO, type ParkingLotVO } from '@/api/parking-manage'
+import { getParkingLots, type ParkingLotVO } from '@/api/parking-manage'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -130,18 +113,12 @@ const editId = ref<string | null>(null)
 const pwdVisible = ref(false)
 const newPassword = ref('')
 
-const tenantOptions = ref<TenantVO[]>([])
 const lotOptions = ref<ParkingLotVO[]>([])
-const companyOptions = ref<CompanyOptionVO[]>([])
-const roleOptions = ref<CustomRoleVO[]>([])
 
 const form = reactive({
   username: '', password: '', realName: '', phone: '', email: '',
   level: 2 as number,
-  tenantId: undefined as number | undefined,
-  companyId: undefined as number | undefined,
   parkingLotIds: [] as number[],
-  roleIds: [] as number[],
   allowFeeReduction: false,
   status: 1,
 })
@@ -164,17 +141,15 @@ function fmtTime(t: string | null) {
   return t ? t.slice(0, 19).replace('T', ' ') : ''
 }
 
-/** 公司按选中租户过滤 */
-const filteredCompanyOptions = computed(() =>
-  companyOptions.value.filter(c => c.tenantId === form.tenantId))
-
-/** 车场过滤：租户管理员限本租户车场；岗亭管理员跨租户可见全部 */
-const filteredLotOptions = computed(() => {
-  if (form.level === 2 && form.tenantId) {
-    return lotOptions.value.filter(l => l.tenantId === form.tenantId)
+/** 加载表单下拉数据源 */
+async function loadOptions() {
+  try {
+    const res = await getParkingLots({ page: 1, size: 500 })
+    lotOptions.value = res.records
+  } catch {
+    message.warning('停车场列表加载失败，请刷新重试')
   }
-  return lotOptions.value
-})
+}
 
 async function fetchAccounts() {
   loading.value = true
@@ -190,22 +165,6 @@ async function fetchAccounts() {
   } finally { loading.value = false }
 }
 
-/** 加载表单下拉数据源 */
-async function loadOptions() {
-  const results = await Promise.allSettled([
-    getTenants({ page: 1, size: 200 }),
-    getParkingLots({ page: 1, size: 500 }),
-    getCompanies({ current: 1, size: 500 }),
-    getCustomRoles({ page: 1, size: 200 }),
-  ])
-  if (results[0].status === 'fulfilled') tenantOptions.value = results[0].value.records
-  if (results[1].status === 'fulfilled') lotOptions.value = results[1].value.records
-  if (results[2].status === 'fulfilled') companyOptions.value = results[2].value.records
-  if (results[3].status === 'fulfilled') roleOptions.value = results[3].value.records
-  const failed = results.findIndex(r => r.status === 'rejected')
-  if (failed >= 0) message.warning('部分下拉数据加载失败，请刷新重试')
-}
-
 function doSearch() { pagination.current = 1; fetchAccounts() }
 function onPageChange(pag: { current: number; pageSize: number }) {
   pagination.current = pag.current; pagination.pageSize = pag.pageSize; fetchAccounts()
@@ -213,8 +172,8 @@ function onPageChange(pag: { current: number; pageSize: number }) {
 
 function resetForm() {
   form.username = ''; form.password = ''; form.realName = ''; form.phone = ''; form.email = ''
-  form.level = 2; form.tenantId = undefined; form.companyId = undefined
-  form.parkingLotIds = []; form.roleIds = []
+  form.level = 2
+  form.parkingLotIds = []
   form.allowFeeReduction = false; form.status = 1
 }
 
@@ -232,14 +191,11 @@ async function openEdit(record: AdminAccount) {
   form.phone = record.phone || ''
   form.email = record.email || ''
   form.level = record.level
-  form.tenantId = record.tenantId ?? undefined
-  form.companyId = record.companyId ?? undefined
   form.status = record.status === 2 ? 1 : record.status
   form.allowFeeReduction = record.allowFeeReduction === 1
   modalVisible.value = true
   try {
     const detail = await getAdminAccount(record.id)
-    form.roleIds = detail.roleIds || []
     form.parkingLotIds = detail.parkingLotIds || []
   } catch (e: any) {
     message.error(e.message || '获取账号详情失败')
@@ -247,17 +203,12 @@ async function openEdit(record: AdminAccount) {
 }
 
 function onLevelChange() {
-  form.tenantId = undefined; form.companyId = undefined; form.parkingLotIds = []
-}
-
-function onTenantChange() {
-  form.companyId = undefined; form.parkingLotIds = []
+  form.parkingLotIds = []
 }
 
 async function handleSave() {
   if (!form.realName.trim()) { message.warning('请输入姓名'); return }
-  if (form.level === 2 && !form.tenantId) { message.warning('请选择归属租户'); return }
-  if (form.level === 2 && !form.companyId) { message.warning('请选择归属公司'); return }
+  if (form.parkingLotIds.length === 0) { message.warning('请选择可管理停车场'); return }
   saving.value = true
   try {
     if (isEdit.value && editId.value) {
@@ -266,9 +217,7 @@ async function handleSave() {
         phone: form.phone || undefined,
         email: form.email || undefined,
         level: form.level,
-        companyId: form.companyId ?? undefined,
         status: form.status,
-        roleIds: form.roleIds,
         parkingLotIds: form.parkingLotIds,
         allowFeeReduction: form.level === 3 && form.allowFeeReduction ? 1 : 0,
       }
@@ -276,17 +225,15 @@ async function handleSave() {
       message.success('已更新')
     } else {
       if (!form.username.trim()) { message.warning('请输入用户名'); saving.value = false; return }
-      if (form.password && form.password.length < 6) { message.warning('密码长度至少 6 位'); saving.value = false; return }
+      if (!form.password) { message.warning('请输入初始密码'); saving.value = false; return }
+      if (form.password.length < 6) { message.warning('密码长度至少 6 位'); saving.value = false; return }
       const cmd: AdminAccountCreateCmd = {
         username: form.username.trim(),
-        password: form.password || undefined,
+        password: form.password,
         realName: form.realName.trim(),
         phone: form.phone || undefined,
         email: form.email || undefined,
         level: form.level,
-        tenantId: form.level === 2 ? form.tenantId : undefined,
-        companyId: form.level === 2 ? form.companyId : undefined,
-        roleIds: form.roleIds,
         parkingLotIds: form.parkingLotIds,
         allowFeeReduction: form.level === 3 && form.allowFeeReduction ? 1 : 0,
       }

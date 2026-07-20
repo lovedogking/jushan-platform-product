@@ -14,6 +14,7 @@
           <a-select-option v-for="lot in lotOptions" :key="lot.id" :value="lot.id">{{ lot.name }}</a-select-option>
         </a-select>
         <a-input-search v-model:value="plateFilter" placeholder="搜索车牌" @search="fetchData" allow-clear style="width:160px" />
+        <a-button type="primary" @click="showAddModal"><template #icon><PlusOutlined /></template>添加车牌</a-button>
         <a-upload :before-upload="handleImport" accept=".xlsx" :show-upload-list="false">
           <a-button><template #icon><UploadOutlined /></template>Excel 导入</a-button>
         </a-upload>
@@ -30,6 +31,26 @@
       </template>
     </a-table>
 
+    <!-- 添加车牌弹窗 -->
+    <a-modal v-model:open="addVisible" title="添加车牌" :confirm-loading="addSaving" @ok="handleAdd">
+      <a-form layout="vertical">
+        <a-form-item label="车牌号" required>
+          <a-input v-model:value="addForm.plateNumber" placeholder="如 川A88888" :maxlength="8" />
+        </a-form-item>
+        <a-form-item label="生效车场" required>
+          <a-select v-model:value="addForm.parkingLotId" placeholder="选择车场">
+            <a-select-option v-for="lot in lotOptions" :key="lot.id" :value="lot.id">{{ lot.name }}</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="到期日期">
+          <a-date-picker v-model:value="addForm.endDate" style="width: 100%" placeholder="不填则长期有效" />
+        </a-form-item>
+        <a-form-item label="备注">
+          <a-input v-model:value="addForm.remark" placeholder="选填" :maxlength="255" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
     <a-modal v-model:visible="importVisible" title="导入结果" @ok="importVisible = false" cancel-button-props="{ style: { display: 'none' } }" width="600px">
       <a-descriptions bordered size="small" :column="3">
         <a-descriptions-item label="总数">{{ importResult.total }}</a-descriptions-item>
@@ -44,8 +65,9 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
-import { UploadOutlined } from '@ant-design/icons-vue'
-import { getVehicleList, deleteVehicle, importVehicles, getParkingLots, type VehicleListVO } from '@/api/parking-manage'
+import { UploadOutlined, PlusOutlined } from '@ant-design/icons-vue'
+import dayjs, { type Dayjs } from 'dayjs'
+import { getVehicleList, deleteVehicle, importVehicles, createVehicle, getParkingLots, type VehicleListVO } from '@/api/parking-manage'
 import { getBoothParkingLots } from '@/api/parking-lot'
 
 const ROLES_KEY = 'jushan_roles'
@@ -68,6 +90,47 @@ const pag = reactive({ current: 1, pageSize: 10, total: 0 })
 
 const importVisible = ref(false)
 const importResult = reactive<{ total: number; successCount: number; failCount: number; errors: any[] }>({ total: 0, successCount: 0, failCount: 0, errors: [] })
+
+// 添加车牌
+const addVisible = ref(false)
+const addSaving = ref(false)
+const addForm = reactive<{ plateNumber: string; parkingLotId: number | undefined; endDate: Dayjs | null; remark: string }>({
+  plateNumber: '',
+  parkingLotId: undefined,
+  endDate: null,
+  remark: '',
+})
+
+function showAddModal() {
+  addForm.plateNumber = ''
+  addForm.parkingLotId = selectedLotId.value
+  addForm.endDate = null
+  addForm.remark = ''
+  addVisible.value = true
+}
+
+async function handleAdd() {
+  const plate = addForm.plateNumber.trim().toUpperCase()
+  if (!plate) { message.warning('请输入车牌号'); return }
+  if (!addForm.parkingLotId) { message.warning('请选择生效车场'); return }
+  addSaving.value = true
+  try {
+    await createVehicle({
+      plateNumber: plate,
+      listType: 'WHITE',
+      parkingLotId: addForm.parkingLotId,
+      endDate: addForm.endDate ? dayjs(addForm.endDate).format('YYYY-MM-DD') : undefined,
+      remark: addForm.remark.trim() || undefined,
+    })
+    message.success('添加成功')
+    addVisible.value = false
+    fetchData()
+  } catch (e: any) {
+    message.error(e?.response?.data?.message || e.message || '添加失败')
+  } finally {
+    addSaving.value = false
+  }
+}
 
 const cols = [
   { title: '车牌号', dataIndex: 'plateNumber', key: 'plate' },

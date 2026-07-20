@@ -7,9 +7,6 @@
       <a-tab-pane key="vehicle" tab="车辆查询">
         <VehicleQuery :parking-lot-id="parkingLotId" />
       </a-tab-pane>
-      <a-tab-pane key="shift" tab="交接班">
-        <ShiftHandover :parking-lot-id="parkingLotId" />
-      </a-tab-pane>
     </a-tabs>
   </div>
 </template>
@@ -17,7 +14,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import VehicleQuery from './VehicleQuery.vue'
-import ShiftHandover from './ShiftHandover.vue'
 
 defineProps<{
   parkingLotId: number

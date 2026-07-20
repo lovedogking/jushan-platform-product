@@ -604,7 +604,7 @@ public class TenantService {
      * @param tenantId 租户 ID
      * @return 角色 ID，创建失败返回 null
      */
-    private Long resolveCustomerAdminRoleId(Long tenantId) {
+    public Long resolveCustomerAdminRoleId(Long tenantId) {
         // 先查找已有角色（忽略租户拦截，全局搜索）
         SysCustomRole existRole = customRoleMapper.selectByRoleCodeIgnoreTenant("customer_admin");
         if (existRole != null && tenantId.equals(existRole.getTenantId())) {

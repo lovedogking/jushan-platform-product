@@ -117,14 +117,28 @@ public class ParkingLotScopeResolver {
 
         List<String> roles = parseRoles(ctx.roles());
 
-        // 3. 客户管理员：本租户全部停车场
+        // 3. 租户用户存在 AD-01 分配记录（sys_admin_account_parking_lot）时，按分配范围过滤
+        Long userId = ctx.userId();
+        if (userId != null) {
+            List<SysAdminAccountParkingLot> accountAuths = accountParkingLotMapper.selectList(
+                    new LambdaQueryWrapper<SysAdminAccountParkingLot>()
+                            .eq(SysAdminAccountParkingLot::getAdminAccountId, userId));
+            Set<Long> assignedIds = accountAuths.stream()
+                    .map(SysAdminAccountParkingLot::getParkingLotId)
+                    .collect(Collectors.toSet());
+            if (!assignedIds.isEmpty()) {
+                log.debug("租户用户按 AD-01 分配范围访问: userId={}, lots={}", userId, assignedIds);
+                return filterToTenant(assignedIds, tenantId, userId);
+            }
+        }
+
+        // 4. 客户管理员：本租户全部停车场
         if (hasAnyRole(roles, FULL_TENANT_ACCESS_ROLES)) {
             log.debug("全量租户角色（{}），返回本租户全部停车场", roles);
             return null;
         }
 
-        // 4. 受限角色：从 employee_parking_lot 查询授权
-        Long userId = ctx.userId();
+        // 5. 受限角色：从 employee_parking_lot 查询授权
         if (userId == null) {
             log.warn("受限角色但 userId 为空，返回空集合: roles={}", roles);
             return Collections.emptySet();
@@ -138,26 +152,32 @@ public class ParkingLotScopeResolver {
                 .map(EmployeeParkingLot::getParkingLotId)
                 .collect(Collectors.toSet());
 
-        // 额外验证：授权的停车场必须属于本租户（防御性检查）
         if (!authorizedIds.isEmpty()) {
-            List<ParkingLot> validLots = parkingLotMapper.selectList(
-                    new LambdaQueryWrapper<ParkingLot>()
-                            .in(ParkingLot::getId, authorizedIds)
-                            .eq(ParkingLot::getTenantId, tenantId));
-            Set<Long> validIds = validLots.stream()
-                    .map(ParkingLot::getId)
-                    .collect(Collectors.toSet());
-
-            if (validIds.size() < authorizedIds.size()) {
-                log.warn("用户 {} 的授权中包含非本租户停车场（已过滤）: userId={}, tenantId={}",
-                        userId, userId, tenantId);
-            }
-            return validIds;
+            return filterToTenant(authorizedIds, tenantId, userId);
         }
 
         log.debug("用户 {} 无任何停车场授权: userId={}, tenantId={}, roles={}",
                 userId, userId, tenantId, roles);
         return Collections.emptySet();
+    }
+
+    /**
+     * 过滤授权集合，仅保留属于本租户的停车场（防御性检查）。
+     */
+    private Set<Long> filterToTenant(Set<Long> authorizedIds, Long tenantId, Long userId) {
+        List<ParkingLot> validLots = parkingLotMapper.selectList(
+                new LambdaQueryWrapper<ParkingLot>()
+                        .in(ParkingLot::getId, authorizedIds)
+                        .eq(ParkingLot::getTenantId, tenantId));
+        Set<Long> validIds = validLots.stream()
+                .map(ParkingLot::getId)
+                .collect(Collectors.toSet());
+
+        if (validIds.size() < authorizedIds.size()) {
+            log.warn("用户 {} 的授权中包含非本租户停车场（已过滤）: userId={}, tenantId={}",
+                    userId, userId, tenantId);
+        }
+        return validIds;
     }
 
     /**

@@ -7,8 +7,10 @@ import com.jushan.common.auth.TenantContext;
 import com.jushan.platform.infra.security.JwtUtils;
 import com.jushan.platform.infra.security.PermissionProvider;
 import com.jushan.platform.modules.account.entity.SysAdminAccount;
+import com.jushan.platform.modules.account.entity.SysCustomRole;
 import com.jushan.platform.modules.account.mapper.SysAdminAccountRoleMapper;
 import com.jushan.platform.modules.account.mapper.SysAdminAccountMapper;
+import com.jushan.platform.modules.account.mapper.SysCustomRoleMapper;
 import com.jushan.platform.modules.account.service.SysAdminAccountService;
 import com.jushan.system.mapper.SysRoleMapper;
 import com.jushan.platform.modules.auth.dto.LoginRequest;
@@ -74,6 +76,7 @@ public class AuthController {
     private final SysAdminAccountMapper adminAccountMapper;
     private final SysAdminAccountRoleMapper adminAccountRoleMapper;
     private final SysRoleMapper sysRoleMapper;
+    private final SysCustomRoleMapper customRoleMapper;
     private final SysAdminAccountService adminAccountService;
     private final BCryptPasswordEncoder passwordEncoder;
     private final PermissionProvider permissionProvider;
@@ -81,12 +84,14 @@ public class AuthController {
     public AuthController(SysAdminAccountMapper adminAccountMapper,
                           SysAdminAccountRoleMapper adminAccountRoleMapper,
                           SysRoleMapper sysRoleMapper,
+                          SysCustomRoleMapper customRoleMapper,
                           SysAdminAccountService adminAccountService,
                           BCryptPasswordEncoder passwordEncoder,
                           PermissionProvider permissionProvider) {
         this.adminAccountMapper = adminAccountMapper;
         this.adminAccountRoleMapper = adminAccountRoleMapper;
         this.sysRoleMapper = sysRoleMapper;
+        this.customRoleMapper = customRoleMapper;
         this.adminAccountService = adminAccountService;
         this.passwordEncoder = passwordEncoder;
         this.permissionProvider = permissionProvider;
@@ -302,11 +307,14 @@ public class AuthController {
             if (roleIds == null || roleIds.isEmpty()) {
                 return Collections.emptyList();
             }
-            // 通过 sys_role 表查询角色编码（使用 MyBatis-Plus 基础查询）
+            // 角色绑定指向 sys_custom_role（雪花 ID），优先查自定义角色表；查不到再兜底旧 sys_role 表
             return roleIds.stream()
                     .map(roleId -> {
                         try {
-                            // 使用 SysRoleMapper 查询角色编码
+                            SysCustomRole customRole = customRoleMapper.selectByIdIgnoreTenant(roleId);
+                            if (customRole != null) {
+                                return customRole.getRoleCode();
+                            }
                             com.jushan.system.entity.SysRole role = sysRoleMapper.selectById(roleId);
                             return role != null ? role.getCode() : null;
                         } catch (Exception ex) {

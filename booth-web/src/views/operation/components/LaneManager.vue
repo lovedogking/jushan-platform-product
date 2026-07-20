@@ -74,7 +74,7 @@
             key="entry"
             tab="入口相机"
           >
-            <DeviceFormFields v-model="entryDeviceForm" />
+            <DeviceFormFields v-model="entryDeviceForm" :show-recognition-direction="false" />
           </a-tab-pane>
           <!-- 出口相机（出口和双向都显示） -->
           <a-tab-pane
@@ -82,7 +82,7 @@
             key="exit"
             tab="出口相机"
           >
-            <DeviceFormFields v-model="exitDeviceForm" />
+            <DeviceFormFields v-model="exitDeviceForm" :show-recognition-direction="false" />
           </a-tab-pane>
         </a-tabs>
         <div v-else style="color: #999; text-align: center; padding: 20px;">
@@ -138,7 +138,7 @@ const exitDeviceForm = ref<DeviceFormData>(getDefaultDeviceForm(2))
 
 function getDefaultDeviceForm(direction: number) {
   return {
-    name: direction === 1 ? '入口相机' : '出口相机',
+    name: '',
     deviceSn: '',
     vendorId: undefined as number | undefined,
     modelId: undefined as number | undefined,
@@ -225,6 +225,20 @@ async function handleSave() {
     message.warning('请填写必填项')
     return
   }
+  // 新建车道时校验嵌套设备表单：完全空白则跳过创建设备，部分填写则四项必填
+  if (!editingLane.value) {
+    const tabs: Array<{ form: DeviceFormData; label: string }> = []
+    if (laneForm.type === 1 || laneForm.type === 3) tabs.push({ form: entryDeviceForm.value, label: '入口相机' })
+    if (laneForm.type === 2 || laneForm.type === 3) tabs.push({ form: exitDeviceForm.value, label: '出口相机' })
+    for (const { form, label } of tabs) {
+      const allEmpty = !form.deviceSn.trim() && !form.name.trim() && form.vendorId === undefined && form.modelId === undefined
+      if (allEmpty) continue
+      if (!form.name.trim() || !form.deviceSn.trim() || form.vendorId === undefined || form.modelId === undefined) {
+        message.warning(`${label}：设备名称、相机序列号、设备厂商、设备型号为必填项`)
+        return
+      }
+    }
+  }
   saving.value = true
   try {
     let laneId: number
@@ -266,17 +280,18 @@ async function handleSave() {
   }
 }
 
-async function createDeviceForLane(form: any, laneId: number, lotId: number) {
-  if (!form.deviceSn.trim() && !form.name.trim()) return
+async function createDeviceForLane(form: DeviceFormData, laneId: number, lotId: number) {
+  if (!form.deviceSn.trim() && !form.name.trim() && form.vendorId === undefined && form.modelId === undefined) return
   await createDevice({
     parkingLotId: lotId,
-    vendorId: form.vendorId || 0,
-    modelId: form.modelId || 0,
+    vendorId: form.vendorId!,
+    modelId: form.modelId!,
     name: form.name,
     code: form.deviceSn,
     deviceSn: form.deviceSn,
     deviceType: 'CAMERA',
     laneId,
+    recognitionDirection: form.recognitionDirection,
     ipAddress: form.ipAddress,
     port: form.port,
     subnetMask: form.subnetMask,

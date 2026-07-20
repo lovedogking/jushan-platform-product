@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Size;
 /**
  * 更新设备请求（T20）。
  * <p>
- * 仅非 null 字段被更新。device_sn 不可通过此接口修改（需走专门的 SN 变更审计流程）。
+ * 仅非 null 字段被更新。
  *
  * @author Jushan Platform
  * @since 1.0.0
@@ -19,6 +19,16 @@ public class UpdateDeviceRequest {
     /** 设备业务编码（停车场内唯一） */
     @Size(max = 64, message = "设备编码最长64个字符")
     private String code;
+
+    /** 设备厂商 ID */
+    private Long vendorId;
+
+    /** 设备型号 ID */
+    private Long modelId;
+
+    /** 厂商设备序列号（同厂商内唯一） */
+    @Size(max = 128, message = "设备序列号最长128个字符")
+    private String deviceSn;
 
     /** 设备类型 */
     private String deviceType;
@@ -56,6 +66,15 @@ public class UpdateDeviceRequest {
 
     public String getCode() { return code; }
     public void setCode(String code) { this.code = code; }
+
+    public Long getVendorId() { return vendorId; }
+    public void setVendorId(Long vendorId) { this.vendorId = vendorId; }
+
+    public Long getModelId() { return modelId; }
+    public void setModelId(Long modelId) { this.modelId = modelId; }
+
+    public String getDeviceSn() { return deviceSn; }
+    public void setDeviceSn(String deviceSn) { this.deviceSn = deviceSn; }
 
     public String getDeviceType() { return deviceType; }
     public void setDeviceType(String deviceType) { this.deviceType = deviceType; }

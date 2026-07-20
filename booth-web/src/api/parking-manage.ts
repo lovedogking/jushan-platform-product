@@ -129,6 +129,7 @@ export interface DeviceVO {
   port?: number
   subnetMask?: string
   gateway?: string
+  recognitionDirection?: number | null
 }
 
 export interface DevicePageQuery {
@@ -156,6 +157,7 @@ export interface DeviceCreateCmd {
   deviceSn: string
   deviceType: string
   laneId?: number | null
+  recognitionDirection?: number
   ipAddress?: string
   port?: number
   subnetMask?: string
@@ -165,8 +167,12 @@ export interface DeviceCreateCmd {
 export interface DeviceUpdateCmd {
   name?: string
   code?: string
+  vendorId?: number
+  modelId?: number
+  deviceSn?: string
   deviceType?: string
   laneId?: number | null
+  recognitionDirection?: number
   ipAddress?: string
   port?: number
   subnetMask?: string
@@ -217,6 +223,19 @@ export function getVehicleList(params: VehicleListPageQuery) {
 
 export function deleteVehicle(id: number) {
   return request.delete(`/v1/admin/vehicle-list/${id}`)
+}
+
+export interface VehicleCreateCmd {
+  plateNumber: string
+  listType: string
+  parkingLotId: number
+  startDate?: string
+  endDate?: string
+  remark?: string
+}
+
+export function createVehicle(data: VehicleCreateCmd): Promise<VehicleListVO> {
+  return request.post('/v1/admin/vehicle-list', data)
 }
 
 export function importVehicles(file: File, parkingLotId: number) {

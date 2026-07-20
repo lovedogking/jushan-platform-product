@@ -35,6 +35,14 @@
     <!-- 新增/编辑设备弹窗 -->
     <a-modal v-model:open="modalVisible" :title="editing ? '编辑设备' : '新增设备'" @ok="handleSave" :confirm-loading="saving" width="640px">
       <a-form layout="vertical">
+        <a-form-item label="绑定车道">
+          <a-select
+            v-model:value="bindLaneId"
+            :options="laneOptions"
+            placeholder="选择车道（可不绑定）"
+            allow-clear
+          />
+        </a-form-item>
         <DeviceFormFields v-model="deviceFormFields" />
       </a-form>
     </a-modal>
@@ -42,12 +50,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import {
   getDevices, createDevice, updateDevice, updateDeviceStatus,
-  type DeviceVO
+  getParkingLanes, bindDeviceLane, unbindDeviceLane,
+  type DeviceVO, type ParkingLaneVO
 } from '@/api/parking-manage'
 import DeviceFormFields, { type DeviceFormData } from './DeviceFormFields.vue'
 
@@ -58,6 +67,10 @@ const loading = ref(false)
 const modalVisible = ref(false)
 const saving = ref(false)
 const editing = ref<DeviceVO | null>(null)
+const bindLaneId = ref<number | undefined>(undefined)
+const lanes = ref<ParkingLaneVO[]>([])
+
+const laneOptions = computed(() => lanes.value.map(l => ({ value: l.id, label: l.name })))
 
 const deviceFormFields = ref<DeviceFormData>({
   name: '',
@@ -93,6 +106,7 @@ async function fetchDevices() {
 
 function showCreateModal() {
   editing.value = null
+  bindLaneId.value = undefined
   Object.assign(deviceFormFields.value, {
     name: '', deviceSn: '', vendorId: undefined, modelId: undefined,
     ipAddress: '', port: 80, subnetMask: '', gateway: '',
@@ -103,6 +117,7 @@ function showCreateModal() {
 
 function showEditModal(device: DeviceVO) {
   editing.value = device
+  bindLaneId.value = device.laneId ?? undefined
   Object.assign(deviceFormFields.value, {
     name: device.name,
     deviceSn: device.deviceSn,
@@ -113,37 +128,54 @@ function showEditModal(device: DeviceVO) {
     subnetMask: device.subnetMask || '',
     gateway: device.gateway || '',
     deviceType: device.deviceType || 'CAMERA',
-    recognitionDirection: 1,
+    recognitionDirection: device.recognitionDirection ?? 1,
   })
   modalVisible.value = true
 }
 
 async function handleSave() {
   const f = deviceFormFields.value
-  if (!f.name.trim() || !f.deviceSn.trim()) {
-    message.warning('请填写必填项')
+  if (!f.name.trim() || !f.deviceSn.trim() || f.vendorId === undefined || f.modelId === undefined) {
+    message.warning('请填写必填项：设备名称、相机序列号、设备厂商、设备型号')
     return
   }
   saving.value = true
   try {
     if (editing.value) {
-      await updateDevice(editing.value.id, {
+      const deviceId = editing.value.id
+      await updateDevice(deviceId, {
         name: f.name,
+        vendorId: f.vendorId,
+        modelId: f.modelId,
+        deviceSn: f.deviceSn,
+        recognitionDirection: f.recognitionDirection,
         ipAddress: f.ipAddress,
         port: f.port,
         subnetMask: f.subnetMask,
         gateway: f.gateway,
       })
+      // 车道绑定变更走独立接口（后端 update 不处理 laneId）
+      const oldLaneId = editing.value.laneId ?? null
+      const newLaneId = bindLaneId.value ?? null
+      if (oldLaneId !== newLaneId) {
+        if (newLaneId !== null) {
+          await bindDeviceLane(deviceId, newLaneId)
+        } else {
+          await unbindDeviceLane(deviceId)
+        }
+      }
       message.success('设备更新成功')
     } else {
       await createDevice({
         parkingLotId: props.lotId,
-        vendorId: f.vendorId || 0,
-        modelId: f.modelId || 0,
+        vendorId: f.vendorId!,
+        modelId: f.modelId!,
         name: f.name,
         code: f.deviceSn,
         deviceSn: f.deviceSn,
         deviceType: 'CAMERA',
+        laneId: bindLaneId.value ?? null,
+        recognitionDirection: f.recognitionDirection,
         ipAddress: f.ipAddress,
         port: f.port,
         subnetMask: f.subnetMask,
@@ -165,7 +197,15 @@ async function handleDelete(id: number) {
   await fetchDevices()
 }
 
-onMounted(() => fetchDevices())
+async function fetchLanes() {
+  const res = await getParkingLanes({ page: 1, size: 100, parkingLotId: props.lotId })
+  lanes.value = res.records
+}
+
+onMounted(() => {
+  fetchDevices()
+  fetchLanes()
+})
 </script>
 
 <style lang="scss" scoped>

@@ -8,15 +8,8 @@
       </div>
       <div class="header-right">
         <a-button @click="refreshDevices">刷新设备</a-button>
-        <a-button @click="openBatchRelease">批量开闸</a-button>
         <a-badge :count="unhandledRecognitionFailedCount" :overflow-count="99">
           <a-button @click="tempPlateDrawerOpen = true">无牌车处理</a-button>
-        </a-badge>
-        <a-badge :count="store.remoteGateAlerts.length" :overflow-count="99">
-          <a-button @click="historyDrawerOpen = true">
-            <template #icon><BellOutlined /></template>
-            历史通知
-          </a-button>
         </a-badge>
       </div>
     </div>
@@ -216,7 +209,7 @@
                                   <span class="event-plate-text">{{ item.correctedPlate || item.plateNumber || '-' }}</span>
                                   <a-tag size="small" color="orange">出</a-tag>
                                   <a-tag v-if="item.correctedPlate" size="small" color="purple">已校正</a-tag>
-                                  <a-tag size="small" :color="sourceColor(item.source)">{{ item.source }}</a-tag>
+                                  <a-tag size="small" :color="sourceColor(item.source)">{{ sourceLabel(item.source) }}</a-tag>
                                   <a-tag
                                     v-if="item.paymentStatus"
                                     size="small"
@@ -253,7 +246,7 @@
                                 <span class="event-plate-text">{{ item.correctedPlate || item.plateNumber || '-' }}</span>
                                 <a-tag size="small" color="blue">入</a-tag>
                                 <a-tag v-if="item.correctedPlate" size="small" color="purple">已校正</a-tag>
-                                <a-tag size="small" :color="sourceColor(item.source)">{{ item.source }}</a-tag>
+                                <a-tag size="small" :color="sourceColor(item.source)">{{ sourceLabel(item.source) }}</a-tag>
                               </div>
                               <div class="event-sub">
                                 <span>{{ item.laneName || '未知车道' }}</span>
@@ -311,16 +304,6 @@
       @success="handleManualReleaseResult"
     />
 
-    <!-- 批量开闸弹窗 -->
-    <ManualReleaseModal
-      v-model:open="batchReleaseOpen"
-      :lane-id="0"
-      plate-number=""
-      :batch="true"
-      :batch-lanes="batchLaneOptions"
-      @success="handleBatchReleaseResult"
-    />
-
     <!-- 收费规则编辑弹窗 -->
     <FeeRuleEditModal
       v-model:open="feeRuleEditOpen"
@@ -355,35 +338,6 @@
       </a-result>
     </a-modal>
 
-    <!-- 远程开闸历史通知抽屉 -->
-    <a-drawer
-      v-model:open="historyDrawerOpen"
-      title="远程开闸历史通知"
-      placement="right"
-      width="400px"
-    >
-      <template v-if="store.remoteGateAlerts.length > 0">
-        <a-list :data-source="store.remoteGateAlerts" size="small">
-          <template #renderItem="{ item }">
-            <a-list-item>
-              <a-list-item-meta>
-                <template #title>
-                  <span>{{ item.operatorName }} @ {{ item.laneName }}</span>
-                </template>
-                <template #description>
-                  <div>时间：{{ item.operationTime }}</div>
-                  <div>原因：{{ item.reason }}</div>
-                </template>
-              </a-list-item-meta>
-            </a-list-item>
-          </template>
-        </a-list>
-      </template>
-      <template v-else>
-        <a-empty description="暂无远程开闸记录" />
-      </template>
-    </a-drawer>
-
     <!-- 无牌车处理抽屉 -->
     <a-drawer
       v-model:open="tempPlateDrawerOpen"
@@ -392,6 +346,29 @@
       :width="400"
     >
       <div class="temp-plate-section">
+        <a-divider orientation="left" style="margin: 4px 0 12px">手动入场</a-divider>
+        <a-form layout="vertical">
+          <a-form-item label="临时车牌号">
+            <a-space style="width: 100%">
+              <a-input v-model:value="tempPlateEntryPlate" placeholder="留空自动生成" :maxlength="20" style="flex: 1" />
+              <a-button @click="handleSuggestTempPlate">建议</a-button>
+            </a-space>
+          </a-form-item>
+          <a-form-item label="入口车道">
+            <a-select v-model:value="tempPlateEntryLane" placeholder="选择入口车道" style="width: 100%">
+              <a-select-option v-for="lane in entryLanes" :key="lane.laneId" :value="lane.laneId">
+                {{ lane.laneName }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item>
+            <a-button type="primary" :loading="tempPlateEntering" block @click="handleTempPlateEntry">
+              入场并开闸
+            </a-button>
+          </a-form-item>
+        </a-form>
+
+        <a-divider orientation="left" style="margin: 4px 0 12px">匹配出场</a-divider>
         <a-form layout="vertical">
           <a-form-item label="临时车牌号">
             <a-input v-model:value="tempPlateSearch" placeholder="输入临时车牌号" :maxlength="20" />
@@ -425,13 +402,13 @@
 <script setup lang="ts">
 import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
 import { message, notification } from 'ant-design-vue'
-import { SyncOutlined, BellOutlined, ExclamationCircleOutlined, VideoCameraOutlined } from '@ant-design/icons-vue'
+import { SyncOutlined, ExclamationCircleOutlined, VideoCameraOutlined } from '@ant-design/icons-vue'
 import { useMonitorStore } from '@/stores/monitor'
 import { MonitorWebSocketClient, type ConnectionStatus } from '@/utils/websocket'
 import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPayload, RecognitionEvent, RemoteGateAlertPayload, LaneCamera } from '@/api/monitor-types'
 import ChargePanel from '@/components/ChargePanel.vue'
 import PlateCorrectionModal from '@/components/PlateCorrectionModal.vue'
-import ManualReleaseModal, { type BatchLaneOption } from '@/components/ManualReleaseModal.vue'
+import ManualReleaseModal from '@/components/ManualReleaseModal.vue'
 import FeeRuleEditModal from '@/components/FeeRuleEditModal.vue'
 import ParkingLotSidebar from './ParkingLotSidebar.vue'
 import MonitorTabs from './MonitorTabs.vue'
@@ -475,18 +452,14 @@ const remoteGateModalVisible = ref(false)
 const currentRemoteGateAlert = ref<RemoteGateAlertPayload | null>(null)
 let remoteGateDismissTimer: ReturnType<typeof setTimeout> | null = null
 
-// 远程开闸历史通知抽屉
-const historyDrawerOpen = ref(false)
-
-// 批量开闸
-const batchReleaseOpen = ref(false)
-const batchLaneOptions = ref<BatchLaneOption[]>([])
-
 // 无牌车处理
 const tempPlateDrawerOpen = ref(false)
 const tempPlateSearch = ref('')
 const tempPlateExitLane = ref<number | null>(null)
 const tempPlateExiting = ref(false)
+const tempPlateEntryPlate = ref('')
+const tempPlateEntryLane = ref<number | null>(null)
+const tempPlateEntering = ref(false)
 /** 识别失败未处理计数 */
 const unhandledRecognitionFailedCount = ref(0)
 
@@ -497,27 +470,6 @@ const correctionTarget = ref<RecognitionEvent | null>(null)
 // 车场列表（左侧栏）
 const sidebarLots = ref<{ id: number; name: string; status: string; currentVehicles?: number }[]>([])
 
-/** 打开批量开闸弹窗 */
-function openBatchRelease() {
-  batchLaneOptions.value = store.lanes.map((lane) => ({
-    id: lane.id,
-    name: lane.name || `车道 ${lane.id}`,
-    direction: lane.direction,
-    deviceId: lane.deviceId,
-    hasDevice: !!lane.deviceId,
-  }))
-  batchReleaseOpen.value = true
-}
-
-/** 批量开闸结果处理 */
-function handleBatchReleaseResult(result: { success: boolean; message: string; gateOpened: boolean | null }) {
-  if (result.success) {
-    message.success(result.message)
-  } else {
-    message.warning(result.message || '批量开闸部分失败')
-  }
-}
-
 /** 出口车道列表 */
 const exitLanes = computed(() => {
   return store.lanes
@@ -527,6 +479,48 @@ const exitLanes = computed(() => {
       laneName: l.name || `车道 ${l.id}`,
     }))
 })
+
+/** 入口车道列表 */
+const entryLanes = computed(() => {
+  return store.lanes
+    .filter((l: any) => l.direction === 'ENTRY' || l.direction === 'MIXED')
+    .map((l) => ({
+      laneId: l.id,
+      laneName: l.name || `车道 ${l.id}`,
+    }))
+})
+
+/** 建议临时车牌号 */
+async function handleSuggestTempPlate() {
+  if (!selectedLotId.value) { message.warning('请先选择停车场'); return }
+  try {
+    const res = await import('@/api/monitor').then(m => m.suggestTempPlate(selectedLotId.value!))
+    tempPlateEntryPlate.value = res.tempPlate
+  } catch (e: any) {
+    message.error(e?.response?.data?.message || '获取建议临牌失败')
+  }
+}
+
+/** 无牌车手动入场并开闸 */
+async function handleTempPlateEntry() {
+  if (!tempPlateEntryLane.value) { message.warning('请选择入口车道'); return }
+  if (!selectedLotId.value) { message.warning('请先选择停车场'); return }
+  tempPlateEntering.value = true
+  try {
+    const res = await import('@/api/monitor').then(m => m.manualTempPlateEntry({
+      parkingLotId: selectedLotId.value!,
+      laneId: tempPlateEntryLane.value!,
+      tempPlate: tempPlateEntryPlate.value.trim() || undefined,
+    }))
+    message.success(`无牌车入场成功，临牌：${res.tempPlate}`)
+    tempPlateEntryPlate.value = ''
+    tempPlateEntryLane.value = null
+  } catch (e: any) {
+    message.error(e?.response?.data?.message || '入场失败')
+  } finally {
+    tempPlateEntering.value = false
+  }
+}
 
 /** 无牌车匹配出场并计费 */
 async function handleTempPlateExit() {
@@ -851,6 +845,15 @@ function sourceColor(source?: string) {
   return 'default'
 }
 
+function sourceLabel(source?: string) {
+  const map: Record<string, string> = {
+    DEVICE_ACCESS: '设备识别',
+    MOCK: '模拟测试',
+    MANUAL: '手动操作',
+  }
+  return map[source || ''] || source || '未知'
+}
+
 /** 点击事件列表项：ENTRY 事件打开校正弹窗 */
 function handleEventClick(item: RecognitionEvent) {
   correctionTarget.value = item
@@ -949,7 +952,6 @@ function buildWsClient(lotId: number) {
         }
       },
       onRemoteGateAlert: (payload: RemoteGateAlertPayload) => {
-        store.handleRemoteGateAlert(payload)
         showRemoteGateAlert(payload)
       },
       onError: (error) => {

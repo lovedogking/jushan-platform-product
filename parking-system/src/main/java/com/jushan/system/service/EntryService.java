@@ -289,11 +289,13 @@ public class EntryService {
         try {
             ParkingLot updated = parkingLotMapper.selectById(parkingLotId);
             if (updated != null) {
+                int totalSpaces = updated.getTotalSpaces() != null ? updated.getTotalSpaces() : 0;
+                int currentVehicles = (int) parkingSessionService.countInByParkingLotIdIgnoreTenant(parkingLotId);
                 boothWebSocketPublisher.sendSpaceUpdate(
                         parkingLotId,
-                        updated.getRemainingSpaces(),
-                        updated.getCurrentVehicles(),
-                        updated.getTotalSpaces());
+                        Math.max(0, totalSpaces - currentVehicles),
+                        currentVehicles,
+                        totalSpaces);
             }
         } catch (Exception e) {
             log.warn("入场车位变化 WebSocket 推送失败（不影响主业务）: parkingLotId={}, error={}",

@@ -46,6 +46,9 @@ public class CreateDeviceRequest {
     /** 识别方向：1=入场, 2=出场（仅 CAMERA 使用，可选） */
     private Integer recognitionDirection;
 
+    /** 绑定车道 ID（可选，必须与设备同属一个停车场） */
+    private Long laneId;
+
     /** 主备角色：1=主相机, 2=备相机（仅 CAMERA 使用，可选） */
     private Integer cameraRole;
 
@@ -94,6 +97,9 @@ public class CreateDeviceRequest {
 
     public Integer getRecognitionDirection() { return recognitionDirection; }
     public void setRecognitionDirection(Integer recognitionDirection) { this.recognitionDirection = recognitionDirection; }
+
+    public Long getLaneId() { return laneId; }
+    public void setLaneId(Long laneId) { this.laneId = laneId; }
 
     public Integer getCameraRole() { return cameraRole; }
     public void setCameraRole(Integer cameraRole) { this.cameraRole = cameraRole; }

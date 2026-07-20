@@ -51,7 +51,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         List<AnalyticsOverviewVO.TrendPoint> trend = buildTrend(range[0], range[1], cmd);
         vo.setTrendData(trend);
 
-        // 营收汇总：实收 = 周期内已出场会话 paid_amount 汇总
+        // 营收汇总：实收 = 周期内出场会话 + 入场即收费未出场会话的 paid_amount 汇总
         // 固定车营收：一期白名单免费、无固定车收费/续费数据源，按实返回 0
         BigDecimal totalPaid = sumPaidByExitTimeRange(range[0], range[1], cmd.getLotId());
         BigDecimal fixedCarRevenue = BigDecimal.ZERO;
@@ -110,12 +110,17 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     /**
-     * 汇总统计周期内已出场（exit_time 落在范围内）会话的实收金额。
+     * 汇总统计周期内的实收金额。
+     * <p>
+     * 口径：周期内已出场会话的 paid_amount；加上入场即收费（人工放行带费）且尚未出场的会话
+     * （exit_time IS NULL 且 entry_time 在范围内），避免现金已收但车辆未出场时营收缺失。
      */
     private BigDecimal sumPaidByExitTimeRange(LocalDateTime start, LocalDateTime end, Long lotId) {
         LambdaQueryWrapper<ParkingSession> qw = new LambdaQueryWrapper<>();
         qw.select(ParkingSession::getPaidAmount);
-        qw.between(ParkingSession::getExitTime, start, end);
+        qw.and(w -> w.between(ParkingSession::getExitTime, start, end)
+                .or(ww -> ww.isNull(ParkingSession::getExitTime)
+                        .between(ParkingSession::getEntryTime, start, end)));
         qw.isNotNull(ParkingSession::getPaidAmount);
         if (lotId != null && lotId > 0) qw.eq(ParkingSession::getParkingLotId, lotId);
         return parkingSessionMapper.selectList(qw).stream()
