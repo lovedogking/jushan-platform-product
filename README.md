@@ -1,6 +1,6 @@
 # 飓山停车 SaaS 平台
 
-> 版本：v1.0 开发版 · 最后更新：2026-07-17
+> 版本：v1.4 · 最后更新：2026-07-20
 
 ## 项目概述
 
@@ -50,9 +50,8 @@ make package-device-access # 打包
 ### 前端
 
 ```bash
-make build-admin      # 运营端
-make build-booth      # 岗亭端
-make build-frontend   # 全部前端
+make build-booth      # 构建统一 Web 前端（运营端+岗亭端合一）
+make build-frontend   # 同 build-booth（别名）
 ```
 
 ### 全部
@@ -70,13 +69,12 @@ make clean
 | 文档 | 用途 |
 |------|------|
 | [AGENTS.md](AGENTS.md) | 权威需求基线（一期） |
-| [接口契约](docs/接口契约/) | Platform ↔ Device Access 跨项目约定 |
+| [接口文档](docs/接口文档/) | Platform ↔ Device Access 接口规范 |
 
 ### 平台侧
 
 | 文档 | 用途 |
 |------|------|
-| [开发计划](docs/开发计划/) | 任务拆分、DDL、API 设计 |
 | [部署运维](docs/部署运维/) | Docker Compose 部署与配置 |
 | [项目概述](docs/项目概述/) | 技术架构与项目介绍 |
 
@@ -113,7 +111,7 @@ feat/xxx   ← 功能分支 → 完成后合入 develop
 
 - 平台侧和 Device Access 是两套独立的 Maven 项目，各自编译、各自部署
 - 平台侧改 `parking-*/`，设备侧改 `device-access/`，互不干扰
-- 修改接口契约时，先更新 `docs/接口契约/` 再由双方评审
+- 修改接口规范时，先更新 `docs/接口文档/` 再由双方评审
 - 个人 AI 开发配置（CLAUDE.md / AGENTS.md 等）已加入 `.gitignore`，不上传仓库
 
 ## 技术栈

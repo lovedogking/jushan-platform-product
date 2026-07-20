@@ -1,4 +1,4 @@
-# AGENTS.md — 停车SaaS系统（一期 V1.3）
+# AGENTS.md — 停车SaaS系统（一期 V1.4）
 
 > **唯一需求基准**: 本文件 + 用户任务描述中的一期需求规格
 > **旧 V1.2 文档已废弃删除**，以本文档为准
@@ -163,6 +163,8 @@
 
 ## 六、GAP 差距项（逐项对照）
 
+> ✅ 以下 GAP 均已实现并验收通过，详见 `docs/一期交付报告_V1.4_20260719.md`
+
 ### GAP-01: lockGate/unlockGate 同步落库 gate_mode
 - lockGate/unlockGate 调用处同步更新 parking_lane.gate_mode
 - ALWAYS_CLOSE 新增逻辑：车道为 ALWAYS_CLOSE 时白名单命中不下发开闸，事件照常推送，手动开闸仍可用
@@ -257,7 +259,9 @@
 
 ---
 
-## 九、验收标准（AC-01 ~ AC-13）
+## 九、验收标准（AC-01 ~ AC-22）
+
+> ✅ 以下验收项全部通过，详见 `docs/一期交付报告_V1.4_20260719.md` 和 `docs/一期全量验收测试报告_20260719.md`
 
 | 编号 | 验收项 | 验证方式 |
 | :--- | :--- | :--- |
@@ -309,7 +313,6 @@
 | ParkingSessionService | `parking-system/.../` | 停车会话管理（parking_session 表） |
 | DeviceAccessClient | `parking-system/.../client/DeviceAccessClient.java` | 闸机 HTTP REST 客户端（openGate/closeGate/lockGate/unlockGate） |
 | BoothWebSocketPublisher | `parking-system/.../ws/BoothWebSocketPublisher.java` | STOMP 推送 /topic/booth/{lotId}/* |
-| RecognitionEventConsumer | `parking-system/.../event/RecognitionEventConsumer.java` | RabbitMQ 消费端（GAP-07 须删除） |
 | DeviceController | `device-access/.../api/DeviceController.java` | 适配器 REST API（/api/v1/devices/{id}/gate/*） |
 
 ### 通信
@@ -326,8 +329,8 @@
 ### 前端 booth-web
 - Vue 3 + Ant Design Vue 4 + Pinia + @stomp/stompjs 7
 - token 存 sessionStorage，路由守卫
-- 目前仅有 Monitor 单页 + VehicleQuery + ShiftHandover 三个 Tab
-- 已有常开/常关按钮 + ManualReleaseModal + ChargePanel
+- 目前包含 Monitor 单页（通行监控 + 车辆查询两子 Tab），无独立交接班页面
+- 已有常开/常关按钮 + ManualReleaseModal + ChargePanel + 常驻状态条 + 提示音
 - WebSocket 5 个 topic 已订阅
 
 ---
