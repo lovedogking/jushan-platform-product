@@ -12,8 +12,7 @@
 jushan-platform/
 │
 ├── parking-*/              ← 平台侧后端（Java 21, Spring Boot 3.5.16）
-├── admin-web/              ← 运营端前端（Vue 3 + Ant Design Vue）
-├── booth-web/              ← 岗亭端前端（Vue 3）
+├── booth-web/              ← 统一 Web 前端（Vue 3，运营端+岗亭端）
 ├── miniapp/                ← 车主小程序（微信原生）
 │
 ├── device-access/          ← 设备接入层（Java 17, Spring Boot 3.3.7）

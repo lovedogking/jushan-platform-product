@@ -4,8 +4,7 @@
 # 项目结构：
 #   ./                   平台侧（Java 21 + Spring Boot 3.5.16）
 #   device-access/       设备侧（Java 17 + Spring Boot 3.3.7）
-#   admin-web/           运营端前端（Vue 3）
-#   booth-web/           岗亭端前端（Vue 3）
+#   booth-web/           统一 Web 前端（Vue 3，运营端+岗亭端）
 #
 # 注意：平台侧和 Device Access 是两套独立的 Maven 项目，
 #      需要不同的 JDK 版本，各自独立编译。
@@ -14,7 +13,7 @@
 .PHONY: help \
         build-platform build-device-access build-all \
         test-platform test-device-access test-all \
-        build-admin build-booth build-frontend \
+        build-booth build-frontend \
         clean-platform clean-device-access clean clean-all \
         package-platform package-device-access
 
@@ -93,15 +92,11 @@ test-all: test-platform test-device-access
 # ============================================================================
 # 前端
 # ============================================================================
-build-admin:
-	@echo "=== 构建运营端 ==="
-	cd admin-web && pnpm install && pnpm build
-
 build-booth:
-	@echo "=== 构建岗亭端 ==="
+	@echo "=== 构建统一 Web 前端 ==="
 	cd booth-web && pnpm install && pnpm build
 
-build-frontend: build-admin build-booth
+build-frontend: build-booth
 
 # ============================================================================
 # 清理
