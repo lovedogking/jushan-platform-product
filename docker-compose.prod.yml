@@ -1,0 +1,235 @@
+# =============================================================================
+# 智慧停车 SaaS 平台 — Docker Compose 生产部署
+# =============================================================================
+# 包含：MySQL 8.4、Redis 7、RabbitMQ 3.12、Spring Boot 后端、Nginx
+#
+# 部署步骤：
+#   1. cp .env.production.example .env.production
+#   2. vim .env.production  → 填入真实值（密码、密钥等）
+#   3. 构建后端：
+#        mvn clean package -pl parking-boot -am -DskipTests
+#   4. 构建前端：
+#        cd booth-web && pnpm install && pnpm build && cd ..
+#   5. 启动：
+#        docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#   6. 查看状态：
+#        docker compose -f docker-compose.prod.yml ps
+#        docker compose -f docker-compose.prod.yml logs -f backend
+# =============================================================================
+
+name: jushan-platform-prod
+
+services:
+  # ===========================================================================
+  # MySQL 8.4 — 主数据库
+  # ===========================================================================
+  mysql:
+    image: mysql:8.4
+    container_name: jushan-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-jushan_platform}
+      MYSQL_USER: ${DB_USERNAME:-jushan}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - jushan-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # ports:  # 取消注释以允许宿主机直连（备份/调试用）
+    #   - "127.0.0.1:3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+      - --max-connections=200
+      # ---- 生产 MySQL 内存调优 ----
+      - --innodb_buffer_pool_size=${MYSQL_INNODB_BUFFER_POOL:-512M}
+      - --innodb_log_file_size=${MYSQL_INNODB_LOG_FILE_SIZE:-256M}
+      - --innodb_flush_log_at_trx_commit=${MYSQL_INNODB_FLUSH_LOG:-2}
+      - --innodb_flush_method=O_DIRECT
+      - --innodb_io_capacity=${MYSQL_INNODB_IO_CAPACITY:-200}
+      - --innodb_io_capacity_max=${MYSQL_INNODB_IO_CAPACITY_MAX:-2000}
+      - --table_open_cache=2000
+      - --table_definition_cache=2000
+      - --tmp_table_size=64M
+      - --max_heap_table_size=64M
+    logging:
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  # ===========================================================================
+  # Redis 7 — 缓存 & 会话存储
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: jushan-redis
+    restart: always
+    command:
+      - redis-server
+      - --appendonly yes
+      - --maxmemory ${REDIS_MAXMEMORY:-256mb}
+      - --maxmemory-policy allkeys-lru
+      - --requirepass ${REDIS_PASSWORD}
+      - --notify-keyspace-events Exg
+    volumes:
+      - redis-data:/data
+    networks:
+      - jushan-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # ===========================================================================
+  # RabbitMQ 3.12 — 消息队列
+  # ===========================================================================
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: jushan-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - jushan-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # ports:  # 管理后台，仅本地访问
+    #   - "127.0.0.1:15672:15672"
+    logging:
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # ===========================================================================
+  # Spring Boot 后端（从 Dockerfile 构建）
+  # ===========================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jushan-platform:${IMAGE_TAG:-latest}
+    container_name: jushan-backend
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: "8080"
+      # ---- 数据库 ----
+      DB_URL: jdbc:mysql://mysql:3306/${DB_NAME:-jushan_platform}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      DB_USERNAME: ${DB_USERNAME:-jushan}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_POOL_MAX: ${DB_POOL_MAX:-20}
+      DB_POOL_MIN: ${DB_POOL_MIN:-5}
+      # ---- Redis ----
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DATABASE: "0"
+      REDIS_POOL_MAX: ${REDIS_POOL_MAX:-8}
+      # ---- RabbitMQ ----
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      # ---- JWT（必填） ----
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}
+      # ---- Device Access ----
+      DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS: ${DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS:-127.0.0.1}
+      JUSHAN_DEVICE_ACCESS_BASE_URL: ${JUSHAN_DEVICE_ACCESS_BASE_URL:-http://127.0.0.1:8082}
+      JUSHAN_DEVICE_ACCESS_API_KEY: ${JUSHAN_DEVICE_ACCESS_API_KEY:-}
+      JUSHAN_WHITELIST_SYNC_API_KEY: ${JUSHAN_WHITELIST_SYNC_API_KEY:-}
+      # ---- 微信小程序 ----
+      WX_MINIAPP_APPID: ${WX_MINIAPP_APPID:-}
+      WX_MINIAPP_SECRET: ${WX_MINIAPP_SECRET:-}
+      # ---- JVM 调优（可覆盖 Dockerfile 默认值） ----
+      JAVA_OPTS: ${JAVA_OPTS:--Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200}
+    networks:
+      - jushan-net
+    # ports:  # 不暴露后端到公网，仅 Nginx 反向代理
+    #   - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/actuator/health/liveness"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    logging:
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # ===========================================================================
+  # Nginx — 反向代理 & 前端静态资源
+  # ===========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: jushan-nginx
+    restart: always
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      # - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d/production.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./booth-web/dist:/usr/share/nginx/html/booth:ro
+      # - ./certs:/etc/nginx/certs:ro  # HTTPS 证书目录
+    networks:
+      - jushan-net
+    depends_on:
+      - backend
+    logging:
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+# =============================================================================
+# 数据卷（持久化，即使 docker compose down 也不删除）
+# =============================================================================
+volumes:
+  mysql-data:
+    name: jushan-mysql-data
+  redis-data:
+    name: jushan-redis-data
+  rabbitmq-data:
+    name: jushan-rabbitmq-data
+
+# =============================================================================
+# 内部网络
+# =============================================================================
+networks:
+  jushan-net:
+    driver: bridge
+    name: jushan-net
