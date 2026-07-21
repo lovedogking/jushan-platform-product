@@ -79,6 +79,15 @@ public class MqttGatewayImpl implements MqttGateway {
     /** 信路通：所有设备对下行命令的回复 */
     private static final String TOPIC_XLT_REPLIES = "download/+/reply";
 
+    /** 芊熠：设备注册主题（固定，设备开机上报 subtopic/pubtopic） */
+    private static final String TOPIC_QY_REGISTER = "/serverAll";
+
+    /** 芊熠：车牌相机默认上行主题（实际以设备注册上报的 pubtopic 为准，见动态订阅） */
+    private static final String TOPIC_QY_UPLINK = "aiot/plate/+";
+
+    /** 动态订阅的 Topic 集合（如芊熠设备注册上报的 pubtopic），重连后一并重订 */
+    private final java.util.Set<String> dynamicSubscriptions = ConcurrentHashMap.newKeySet();
+
     // ──────────────────── 连接管理 ────────────────────
 
     @Override
@@ -235,6 +244,28 @@ public class MqttGatewayImpl implements MqttGateway {
         }
     }
 
+    @Override
+    public void subscribe(String topic) {
+        if (topic == null || topic.isBlank()) {
+            return;
+        }
+        if (!dynamicSubscriptions.add(topic)) {
+            return; // 已订阅过，幂等返回
+        }
+        if (!isConnected()) {
+            // 未连接时仅登记，connect()/重连后的 subscribeDefaultTopics 会一并订阅
+            log.info("Dynamic subscription registered (pending connect): {}", topic);
+            return;
+        }
+        try {
+            client.subscribe(topic, properties.getDefaultQos()).waitForCompletion();
+            log.info("Subscribed (dynamic): {}", topic);
+        } catch (MqttException e) {
+            dynamicSubscriptions.remove(topic);
+            throw new MqttConnectionException("Failed to subscribe topic " + topic + ": " + e.getMessage(), e);
+        }
+    }
+
     // ──────────────────── 内部方法 ────────────────────
 
     /**
@@ -275,6 +306,17 @@ public class MqttGatewayImpl implements MqttGateway {
 
         client.subscribe(TOPIC_XLT_REPLIES, properties.getDefaultQos()).waitForCompletion();
         log.info("Subscribed: {}", TOPIC_XLT_REPLIES);
+
+        client.subscribe(TOPIC_QY_REGISTER, properties.getDefaultQos()).waitForCompletion();
+        log.info("Subscribed: {}", TOPIC_QY_REGISTER);
+
+        client.subscribe(TOPIC_QY_UPLINK, properties.getDefaultQos()).waitForCompletion();
+        log.info("Subscribed: {}", TOPIC_QY_UPLINK);
+
+        for (String topic : dynamicSubscriptions) {
+            client.subscribe(topic, properties.getDefaultQos()).waitForCompletion();
+            log.info("Subscribed (dynamic): {}", topic);
+        }
     }
 
     /**

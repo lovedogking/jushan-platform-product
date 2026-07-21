@@ -166,6 +166,9 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}
+      # ---- 生产配置校验器（ProdConfigValidator）要求项 ----
+      SA_TOKEN_TOKEN_NAME: ${SA_TOKEN_TOKEN_NAME:-Authorization}
+      APP_INITIAL_ADMIN_PASSWORD: ${APP_INITIAL_ADMIN_PASSWORD}
       # ---- Device Access ----
       DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS: ${DEVICE_ACCESS_WEBHOOK_ALLOWED_IPS:-127.0.0.1}
       JUSHAN_DEVICE_ACCESS_BASE_URL: ${JUSHAN_DEVICE_ACCESS_BASE_URL:-http://127.0.0.1:8082}
@@ -178,6 +181,9 @@ services:
       JAVA_OPTS: ${JAVA_OPTS:--Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200}
     networks:
       - jushan-net
+    extra_hosts:
+      # 允许容器访问宿主机上运行的 Device Access 适配器（端口 8082）
+      - "host.docker.internal:host-gateway"
     # ports:  # 不暴露后端到公网，仅 Nginx 反向代理
     #   - "127.0.0.1:8080:8080"
     healthcheck:

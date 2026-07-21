@@ -152,4 +152,34 @@ cd device-access-frontend && npm run dev
 
 ---
 
+## 八、v0.5 芊熠相机接入（2026-07-21）
+
+依据《芊熠智能：MQTT通信协议-基线260401》（V4.23，`device-access/docs/`）新增第三品牌，功能对齐臻识。
+
+**协议要点（与臻识/信路通的关键差异）**：
+- 主题不固定：设备开机向固定主题 `/serverAll` 发 `camera_register`，上报 `subtopic`（下行）/`pubtopic`（上行）；默认上行 `aiot/plate/{sn}`，默认下行 `device/plate/{sn}`
+- 信封扁平 JSON `{cmd, msg_id, ...}`；应答 = 原 cmd + `_rsp`，**msg_id 原样回传是唯一关联字段**；成功标识 `status == "ok"`（字符串）
+- 识别上行 `result`（`plate_num` UTF-8 明文，无牌车为字符串 `"null"`），**平台必须回 `result_rsp`**；心跳 `mqtt_herat`（原文拼写错误，协议保留）30s；离线为遗嘱 `offline`
+- 命令映射：开/关闸 `iooutput`(action on/off, ionum=1)；常开 `barrierKeepOpen`(1=保持/0=取消，取消后需补发 iooutput off 落闸)；校时 `syncSysTime`(time_zone=4=GMT+8)；屏显 `rs485`(encode_type=base64) 透传 OLM-M1D 帧
+- 实测待验证：`barrierKeepOpen` 1/0 语义（文档表格与示例矛盾，按示例实现）；`syncSysTime.time_zone` 枚举方向（文档示例写 20 疑似笔误）
+
+**新增/改动文件**：
+| 文件 | 说明 |
+|------|------|
+| `adapter/qianyi/QianyiMessageHandler.java` | 新增。注册/心跳/识别解析、动态订阅、msg_id 应答关联、iooutput/barrierKeepOpen/syncSysTime/rs485 下发 |
+| `adapter/qianyi/QianyiCommandResult.java` | 新增。status 字符串结果 |
+| `api/QianyiDeviceCoordinator.java` | 新增。getBrand()=QIANYI；unlockGate 两步（取消常开+落闸）；peripheral/configDisplay/voice/enhanced 一期占位抛 UnsupportedOperationException |
+| `mqtt/MqttGateway(+Impl).java` | 新增 `subscribe(topic)` 动态订阅（重连自动重订）；默认订阅加 `/serverAll`、`aiot/plate/+` |
+| `api/BrandCommandDispatcher.java` | 别名加 芊熠/QIANYI → QIANYI |
+| `api/DeviceMonitorService.java` | 芊熠心跳超时 90s |
+| `schema.sql` / `migration-v0.5-qianyi.sql` | 产品种子 `('芊熠','QY-01',...)`，能力 `["DISPLAY_TEXT","DISPLAY_SAVE","TIME_SYNC","OPEN_GATE","CLOSE_GATE","LOCK_OPEN_GATE"]`；model 按实际设备改 |
+| `adapter/.../qianyi/QianyiMessageHandlerTest.java` | 16 用例全绿 |
+| `api/.../BrandCommandDispatcherTest.java` | 重写匹配异步接口 + 芊熠路由用例，10 用例全绿 |
+
+**平台侧（parking-system）零改动**：识别事件走既有 `PlateRecognizedData → PlateRecognizedEventDispatcher → Webhook` 品牌无关链路。
+
+**测试基线说明**：`device-access-api` 模块的 `DeviceControllerTest` 在 v0.4 同步改异步后未更新，HEAD 上即编译失败（存量问题，本次未动）；`OlmM1dProtocolTest` 有 2 个存量失败（playVoice 帧断言），均与本次改动无关。
+
+---
+
 *在新 Claude Code 窗口中，先阅读本文件，然后阅读 CLAUDE.md 和 docs/ARCHITECTURE.md，再开始工作。*

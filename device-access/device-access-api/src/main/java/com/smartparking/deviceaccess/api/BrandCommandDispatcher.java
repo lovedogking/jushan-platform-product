@@ -35,7 +35,9 @@ public class BrandCommandDispatcher {
     private static final Map<String, String> BRAND_ALIAS_MAP = Map.of(
             "臻识", "ZHENSHI",
             "ZHENSHI", "ZHENSHI",
-            "信路通", "XINLUTONG"
+            "信路通", "XINLUTONG",
+            "芊熠", "QIANYI",
+            "QIANYI", "QIANYI"
     );
 
     public BrandCommandDispatcher(List<DeviceCoordinator> coordinatorList) {

@@ -87,4 +87,15 @@ public interface MqttGateway {
      * @param json  原始 JSON 字符串
      */
     void publishRaw(String topic, String json);
+
+    /**
+     * 动态订阅一个 Topic。
+     * <p>
+     * 用于主题不固定、由设备注册时上报的品牌（如芊熠）。
+     * 订阅会被记录，连接断开后自动重连时会一并重新订阅。
+     * 幂等：重复订阅同一 Topic 不会产生影响。
+     *
+     * @param topic 目标 Topic（可为具体 Topic 或通配符）
+     */
+    void subscribe(String topic);
 }

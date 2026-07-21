@@ -23,6 +23,7 @@ import java.util.List;
  * <ul>
  *   <li>臻识 C5H：90 秒（3 次心跳间隔，每次 30 秒）</li>
  *   <li>信路通 XLT-01：270 秒（3 次心跳间隔，每次 90 秒）</li>
+ *   <li>芊熠相机：90 秒（3 次心跳间隔，每次 30 秒）</li>
  * </ul>
  * <p>
  * 避免误标记：
@@ -46,6 +47,9 @@ public class DeviceMonitorService {
 
     /** 信路通 XLT-01 心跳超时阈值：270 秒 */
     private static final long XINLUTONG_TIMEOUT_SECONDS = 270;
+
+    /** 芊熠相机心跳超时阈值：90 秒（3 次心跳间隔，每次 30 秒） */
+    private static final long QIANYI_TIMEOUT_SECONDS = 90;
 
     /** 新设备保护期：5 分钟 */
     private static final long NEW_DEVICE_GRACE_MINUTES = 5;
@@ -160,6 +164,7 @@ public class DeviceMonitorService {
         return switch (brand) {
             case "ZHENSHI", "臻识" -> ZHENSHI_TIMEOUT_SECONDS;
             case "信路通" -> XINLUTONG_TIMEOUT_SECONDS;
+            case "QIANYI", "芊熠" -> QIANYI_TIMEOUT_SECONDS;
             default -> ZHENSHI_TIMEOUT_SECONDS;
         };
     }
