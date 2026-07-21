@@ -553,6 +553,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
             result.setGateOpened(null);
             result.setResultMessage("重复识别，已忽略");
             result.setException(false);
+            result.setDuplicateIgnored(true);
             return result;
         }
 
@@ -571,6 +572,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                 result.setSessionId(recentOut.getId());
                 result.setResultMessage("重复出场识别，已幂等忽略");
                 result.setException(false);
+                result.setDuplicateIgnored(true);
                 log.info("重复出场识别，幂等忽略: plate={}, laneId={}, sessionId={}",
                         cmd.getPlateNumber(), cmd.getLaneId(), recentOut.getId());
                 return result;

@@ -1,7 +1,7 @@
 /**
  * 平台内部 WebSocket 实时推送基础设施。
  * <p>
- * 基于 STOMP over WebSocket，为管理后台（admin-web）和岗亭端（booth-web）提供：
+ * 基于 STOMP over WebSocket，为管理后台（admin-web）和岗亭端（frontend）提供：
  * <ul>
  *   <li>停车场实时事件推送（入场/出场/开闸结果）</li>
  *   <li>设备状态变更通知</li>

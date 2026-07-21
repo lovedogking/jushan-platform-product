@@ -55,4 +55,10 @@ public class RecognitionResultVO {
 
     /** 异常类型 */
     private String exceptionType;
+
+    /**
+     * 是否为重复识别幂等忽略。
+     * true 时调用方不应持久化/推送岗亭事件流（出场成功后相机持续上报同一车辆的场景）。
+     */
+    private Boolean duplicateIgnored;
 }

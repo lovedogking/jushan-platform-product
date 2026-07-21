@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 岗亭端认证控制器 — 桥接 Booth-web → Backend 认证路径。
+ * 岗亭端认证控制器 — 桥接 Frontend → Backend 认证路径。
  * <p>
- * booth-web vite 代理将 /api/auth/login 转发到 /auth/login，
+ * frontend vite 代理将 /api/auth/login 转发到 /auth/login，
  * 本控制器将请求转发给实际的 AuthController 并适配响应格式。
  *
  * @author Jushan Platform
@@ -34,8 +34,8 @@ public class BoothAuthController {
     }
 
     /**
-     * 登录 — 适配 booth-web 期望的响应格式。
-     * booth-web 期望：
+     * 登录 — 适配 frontend 期望的响应格式。
+     * frontend 期望：
      * {
      *   accessToken: string,
      *   tokenType: string,
@@ -75,7 +75,7 @@ public class BoothAuthController {
 
     @GetMapping("/session")
     public R<Map<String, Object>> session() {
-        // 返回适配 booth-web 格式的会话信息
+        // 返回适配 frontend 格式的会话信息
         R<LoginResult.UserInfo> original = authController.userinfo();
         LoginResult.UserInfo userInfo = original.getData();
         if (userInfo == null) {

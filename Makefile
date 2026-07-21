@@ -4,7 +4,7 @@
 # 项目结构：
 #   ./                   平台侧（Java 21 + Spring Boot 3.5.16）
 #   device-access/       设备侧（Java 17 + Spring Boot 3.3.7）
-#   booth-web/           统一 Web 前端（Vue 3，运营端+岗亭端）
+#   frontend/            统一 Web 前端（Vue 3，运营端+岗亭端）
 #
 # 注意：平台侧和 Device Access 是两套独立的 Maven 项目，
 #      需要不同的 JDK 版本，各自独立编译。
@@ -93,7 +93,7 @@ test-all: test-platform test-device-access
 # ============================================================================
 build-booth:
 	@echo "=== 构建统一 Web 前端 ==="
-	cd booth-web && pnpm install && pnpm build
+	cd frontend && pnpm install && pnpm build
 
 build-frontend: build-booth
 

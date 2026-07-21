@@ -50,7 +50,6 @@ hs_err_pid*
 
 # ====== 个人 AI 开发配置（不上传仓库）======
 CLAUDE.md
-AGENTS.md
 .qoder/
 .qoderignore
 .agents/

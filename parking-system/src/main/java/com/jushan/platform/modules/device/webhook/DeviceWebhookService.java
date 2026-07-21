@@ -216,9 +216,23 @@ public class DeviceWebhookService {
             );
 
             // 7b. 更新处理状态并推送岗亭（WebSocket 实时事件流）
+            //     重复出场识别已被幂等忽略（duplicateIgnored=true）时：
+            //     删除已持久化的事件日志、不推送岗亭，避免同一车辆出场成功后
+            //     相机持续上报导致岗亭端事件流被重复刷屏
             if (eventLog != null) {
-                updateEventLogStatus(eventLog, "PROCESSED", null);
-                wsPublisher.sendRecognitionEvent(trustedParkingLotId, eventLog);
+                if (Boolean.TRUE.equals(result.getDuplicateIgnored())) {
+                    try {
+                        eventLogMapper.deleteById(eventLog.getId());
+                    } catch (Exception e) {
+                        log.warn("重复出场事件日志删除失败（忽略）: eventId={}, error={}",
+                                eventLog.getEventId(), e.getMessage());
+                    }
+                    log.info("重复出场识别已幂等忽略，不推送岗亭: eventId={}, plate={}",
+                            event.getEventId(), normalizedPlate);
+                } else {
+                    updateEventLogStatus(eventLog, "PROCESSED", null);
+                    wsPublisher.sendRecognitionEvent(trustedParkingLotId, eventLog);
+                }
             }
 
             // 8. 记录处理完成

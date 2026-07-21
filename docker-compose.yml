@@ -130,7 +130,7 @@ services:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
       # 前端静态资源目录（生产构建产物，开发阶段可暂不挂载）
-      # - ./booth-web/dist:/usr/share/nginx/html/booth:ro
+      # - ./frontend/dist:/usr/share/nginx/html/booth:ro
     networks:
       - jushan-net
     extra_hosts:
