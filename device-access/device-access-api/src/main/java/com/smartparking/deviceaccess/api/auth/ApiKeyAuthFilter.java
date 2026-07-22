@@ -56,6 +56,9 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     }
 
     private boolean isExempt(String path) {
-        return path.startsWith("/actuator/health");
+        // 健康检查；芊熠相机抓拍图片上传（相机无 ApiKey，协议 §7.1.2）；本地开发图片静态访问
+        return path.startsWith("/actuator/health")
+                || path.equals("/api/v1/images/upload")
+                || path.startsWith("/images/");
     }
 }

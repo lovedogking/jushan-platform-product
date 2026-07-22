@@ -1,5 +1,6 @@
 package com.smartparking.deviceaccess.api.event;
 
+import com.smartparking.deviceaccess.api.image.ImageStorageService;
 import com.smartparking.deviceaccess.common.entity.Device;
 import com.smartparking.deviceaccess.common.entity.DeviceProduct;
 import com.smartparking.deviceaccess.common.event.PlateRecognizedData;
@@ -32,6 +33,9 @@ class PlateRecognizedEventDispatcherTest {
     @Mock
     private EventPublisher eventPublisher;
 
+    @Mock
+    private ImageStorageService imageStorageService;
+
     @InjectMocks
     private PlateRecognizedEventDispatcher dispatcher;
 
@@ -42,7 +46,7 @@ class PlateRecognizedEventDispatcherTest {
         when(deviceRegistry.findByDeviceId(sn)).thenReturn(null);
 
         dispatcher.onPlateRecognized(new PlateRecognizedData(
-                sn, "A12345", 98, 1, 2, "/img/full.jpg", 1234567890000L
+                sn, "A12345", 98, 1, 2, "/img/full.jpg", null, 1234567890000L
         ));
 
         verifyNoInteractions(eventPublisher);
@@ -69,7 +73,7 @@ class PlateRecognizedEventDispatcherTest {
         when(productRegistry.getById(1L)).thenReturn(product);
 
         dispatcher.onPlateRecognized(new PlateRecognizedData(
-                sn, "A12345", 98, 1, 2, "/img/full.jpg", 1234567890000L
+                sn, "A12345", 98, 1, 2, "/img/full.jpg", null, 1234567890000L
         ));
 
         ArgumentCaptor<DeviceEvent> captor = ArgumentCaptor.forClass(DeviceEvent.class);
@@ -94,6 +98,44 @@ class PlateRecognizedEventDispatcherTest {
     }
 
     @Test
+    @DisplayName("Should rewrite qianyi local paths to accessible URLs")
+    void shouldRewriteQianyiImageUrls() {
+        String sn = "qianyi-sn-001";
+
+        Device device = new Device();
+        device.setDeviceId(sn);
+        device.setProductId(2L);
+
+        DeviceProduct product = new DeviceProduct();
+        product.setId(2L);
+        product.setBrand("芊熠");
+
+        when(deviceRegistry.findByDeviceId(sn)).thenReturn(device);
+        when(productRegistry.getById(2L)).thenReturn(product);
+        when(imageStorageService.buildFullImageUrl(sn, 1562566751L))
+                .thenReturn("http://localhost:8082/images/20190708/qianyi-sn-001/1562566751.jpg");
+        when(imageStorageService.buildPlateImageUrl(sn, 1562566751L))
+                .thenReturn("http://localhost:8082/images/20190708/qianyi-sn-001/1562566751_plate.jpg");
+
+        dispatcher.onPlateRecognized(new PlateRecognizedData(
+                sn, "京A12345", 28, null, null,
+                "/picture/A000001/0001aa00000d/20190708/14/x.jpg",
+                "/picture/A000001/0001aa00000d/20190708/14/x_plate.jpg",
+                1562566751_000L
+        ));
+
+        ArgumentCaptor<DeviceEvent> captor = ArgumentCaptor.forClass(DeviceEvent.class);
+        verify(eventPublisher).publish(captor.capture());
+
+        DeviceEvent event = captor.getValue();
+        // 相机本地路径被替换为可访问 URL
+        assertThat(event.getPayload().get("imagePath"))
+                .isEqualTo("http://localhost:8082/images/20190708/qianyi-sn-001/1562566751.jpg");
+        assertThat(event.getPayload().get("plateImagePath"))
+                .isEqualTo("http://localhost:8082/images/20190708/qianyi-sn-001/1562566751_plate.jpg");
+    }
+
+    @Test
     @DisplayName("Should handle null product gracefully")
     void shouldHandleNullProduct() {
         String sn = "test-sn-002";
@@ -105,7 +147,7 @@ class PlateRecognizedEventDispatcherTest {
         when(deviceRegistry.findByDeviceId(sn)).thenReturn(device);
 
         dispatcher.onPlateRecognized(new PlateRecognizedData(
-                sn, "B67890", null, null, null, null, null
+                sn, "B67890", null, null, null, null, null, null
         ));
 
         ArgumentCaptor<DeviceEvent> captor = ArgumentCaptor.forClass(DeviceEvent.class);
@@ -129,7 +171,7 @@ class PlateRecognizedEventDispatcherTest {
 
         // should not throw
         dispatcher.onPlateRecognized(new PlateRecognizedData(
-                sn, "C99999", 50, null, null, null, null
+                sn, "C99999", 50, null, null, null, null, null
         ));
 
         verifyNoInteractions(eventPublisher);

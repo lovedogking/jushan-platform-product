@@ -130,9 +130,19 @@
                         </a-tag>
                       </div>
                       <div class="lane-event">
-                        <div v-if="lane.latestEvent" class="event-plate">
-                          {{ lane.latestEvent.plateNumber }}
-                        </div>
+                        <template v-if="lane.latestEvent">
+                          <img
+                            v-if="lane.latestEvent.imagePath"
+                            :src="lane.latestEvent.imagePath"
+                            class="lane-capture"
+                            alt="抓拍图"
+                            @error="handleCaptureError"
+                          />
+                          <div v-else class="lane-capture lane-capture-placeholder">无抓拍图</div>
+                          <div class="event-plate">
+                            {{ lane.latestEvent.plateNumber }}
+                          </div>
+                        </template>
                         <div v-else class="event-empty">暂无事件</div>
                         <div v-if="lane.latestEvent" class="event-time">
                           {{ store.formatTime(lane.latestEvent.eventTime) }}
@@ -181,6 +191,12 @@
                           >
                             修改收费
                           </a-button>
+                          <a-button
+                            size="small"
+                            @click="openMockCapture(lane)"
+                          >
+                            手动抓拍
+                          </a-button>
                         </a-space>
                       </div>
                     </a-card>
@@ -205,6 +221,16 @@
                           >
                             <a-dropdown :trigger="['click']">
                               <div class="event-row dropdown-trigger">
+                                <a-image
+                                  v-if="item.imagePath"
+                                  :src="item.imagePath"
+                                  :width="72"
+                                  :height="54"
+                                  class="event-thumb"
+                                  @click.stop
+                                />
+                                <div v-else class="event-thumb event-thumb-placeholder">无图</div>
+                                <div class="event-text">
                                 <div class="event-main">
                                   <span class="event-plate-text">{{ item.correctedPlate || item.plateNumber || '-' }}</span>
                                   <a-tag size="small" color="orange">出</a-tag>
@@ -225,6 +251,7 @@
                                 <div v-if="item.feeAmount != null && item.feeAmount > 0" class="event-fee">
                                   应收: ¥{{ item.feeAmount.toFixed(2) }}
                                 </div>
+                                </div>
                               </div>
                               <template #overlay>
                                 <a-menu @click="(e: any) => handleExitMenuClick(e, item)">
@@ -242,6 +269,16 @@
                             @click="handleEventClick(item)"
                           >
                             <div class="event-row">
+                              <a-image
+                                v-if="item.imagePath"
+                                :src="item.imagePath"
+                                :width="72"
+                                :height="54"
+                                class="event-thumb"
+                                @click.stop
+                              />
+                              <div v-else class="event-thumb event-thumb-placeholder">无图</div>
+                              <div class="event-text">
                               <div class="event-main">
                                 <span class="event-plate-text">{{ item.correctedPlate || item.plateNumber || '-' }}</span>
                                 <a-tag size="small" color="blue">入</a-tag>
@@ -254,6 +291,7 @@
                               </div>
                               <div v-if="item.feeAmount != null && item.feeAmount > 0" class="event-fee">
                                 应收: ¥{{ item.feeAmount.toFixed(2) }}
+                              </div>
                               </div>
                             </div>
                           </a-list-item>
@@ -310,6 +348,16 @@
       :lane-id="feeRuleEditLaneId"
       :fee-rule="currentFeeRule"
       @save="handleSaveFeeRule"
+    />
+
+    <!-- 手动抓拍（模拟识别）弹窗：仅 local/test 环境后端可用 -->
+    <MockCaptureModal
+      v-model:open="mockCaptureOpen"
+      :lane-id="mockCaptureLane?.laneId ?? null"
+      :lane-name="mockCaptureLane?.laneName"
+      :lane-direction="mockCaptureLane?.direction"
+      :device-id="mockCaptureLane?.deviceId"
+      :cameras="mockCaptureLane?.cameras"
     />
 
     <!-- 远程开闸弹窗 -->
@@ -410,6 +458,7 @@ import ChargePanel from '@/components/ChargePanel.vue'
 import PlateCorrectionModal from '@/components/PlateCorrectionModal.vue'
 import ManualReleaseModal from '@/components/ManualReleaseModal.vue'
 import FeeRuleEditModal from '@/components/FeeRuleEditModal.vue'
+import MockCaptureModal from './MockCaptureModal.vue'
 import ParkingLotSidebar from './ParkingLotSidebar.vue'
 import MonitorTabs from './MonitorTabs.vue'
 import { getBoothParkingLots, type BoothParkingLot } from '@/api/parking-lot'
@@ -446,6 +495,15 @@ watch(() => store.lanes, (lanes) => {
 const feeRuleEditOpen = ref(false)
 const feeRuleEditLaneId = ref(0)
 const currentFeeRule = ref<any>(null)
+
+// 手动抓拍（模拟识别，仅 local/test 环境可用）
+const mockCaptureOpen = ref(false)
+const mockCaptureLane = ref<LaneCard | null>(null)
+
+function openMockCapture(lane: LaneCard) {
+  mockCaptureLane.value = lane
+  mockCaptureOpen.value = true
+}
 
 // 远程开闸弹窗
 const remoteGateModalVisible = ref(false)
@@ -860,6 +918,23 @@ function handleEventClick(item: RecognitionEvent) {
   correctionModalOpen.value = true
 }
 
+/**
+ * 抓拍图加载失败容错：识别事件（MQTT）通常早于图片 HTTP 上传几百毫秒到达，
+ * 首次 404 时延迟 1.5s 重试一次；仍失败则隐藏图片（保留占位背景）。
+ */
+function handleCaptureError(e: Event) {
+  const el = e.target as HTMLImageElement
+  if (!el.dataset.retried) {
+    el.dataset.retried = '1'
+    setTimeout(() => {
+      const base = el.src.split('?')[0]
+      el.src = `${base}?_r=1`
+    }, 1500)
+  } else {
+    el.style.visibility = 'hidden'
+  }
+}
+
 /** EXIT 事件下拉菜单点击处理 */
 function handleExitMenuClick(e: { key: string }, item: RecognitionEvent) {
   if (e.key === 'charge') {
@@ -903,7 +978,8 @@ function buildWsClient(lotId: number) {
         store.handleSpaceUpdate(payload)
       },
       onRecognitionEvent: (payload: RecognitionEventPayload) => {
-        store.handleRecognitionEvent(payload)
+        const isNew = store.handleRecognitionEvent(payload)
+        if (!isNew) return // 重复事件不再提示音/弹窗
         playAlertSound() // GB-07: 新事件提示音（V1.4）
         message.info(`${payload.direction === 'ENTRY' ? '入场' : '出场'}识别: ${payload.plateNumber}`)
         // 一期仅白名单自动放行，出场不再自动弹收费面板；需要时可在事件菜单中手动打开
@@ -1185,6 +1261,24 @@ onUnmounted(() => {
     background: #f9fafb;
     border-radius: 6px;
 
+    .lane-capture {
+      width: 100%;
+      max-width: 220px;
+      height: 90px;
+      object-fit: cover;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      background: #e5e7eb;
+    }
+
+    .lane-capture-placeholder {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #9ca3af;
+      font-size: 12px;
+    }
+
     .event-plate {
       font-size: 20px;
       font-weight: 700;
@@ -1240,6 +1334,32 @@ onUnmounted(() => {
 
 .event-row {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.event-thumb {
+  flex-shrink: 0;
+  width: 72px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #e5e7eb;
+}
+
+.event-thumb-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+.event-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .dropdown-trigger {

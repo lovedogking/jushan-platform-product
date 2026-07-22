@@ -158,6 +158,7 @@ public class DeviceWebhookController {
 
             // 图片 URL
             event.setImageUrl(stringValue(payload, "imagePath"));
+            event.setPlateImageUrl(stringValue(payload, "plateImagePath"));
         }
 
         return event;

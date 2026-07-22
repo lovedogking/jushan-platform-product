@@ -1,5 +1,7 @@
 package com.smartparking.deviceaccess.api.event;
 
+import com.smartparking.deviceaccess.api.image.ImageStorageService;
+import com.smartparking.deviceaccess.api.image.RemoteImageDownloader;
 import com.smartparking.deviceaccess.common.entity.Device;
 import com.smartparking.deviceaccess.common.entity.DeviceProduct;
 import com.smartparking.deviceaccess.common.event.PlateRecognizedData;
@@ -44,6 +46,8 @@ public class PlateRecognizedEventDispatcher implements PlateRecognizedListener {
     private final DeviceRegistry deviceRegistry;
     private final DeviceProductRegistry productRegistry;
     private final EventPublisher eventPublisher;
+    private final ImageStorageService imageStorageService;
+    private final RemoteImageDownloader remoteImageDownloader;
 
     private static final DateTimeFormatter ISO_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
@@ -67,6 +71,36 @@ public class PlateRecognizedEventDispatcher implements PlateRecognizedListener {
             }
             String vendor = product != null ? product.getBrand() : "UNKNOWN";
 
+            // 2b. 图片 URL 化：芊熠相机「独立上传图片」（协议 §7.1.2）由相机 HTTP POST 到本平台，
+            //     result 上报的 full_pic_path 是相机本地路径，无法直接访问；
+            //     此处按关联键（sn + utc_ts）构造可访问 URL（nginx 反代到图片存储目录）。
+            //     臻识等品牌事件携带的是远程限时 URL（如 OSS 签名地址，约 1 小时过期），
+            //     立即下载转存本地并替换为本地 URL；失败则保留原地址（限时内仍可用）。
+            String imagePath = data.imagePath();
+            String plateImagePath = data.plateImagePath();
+            if (isQianyi(vendor) && data.occurredAtMillis() != null) {
+                long epochSeconds = data.occurredAtMillis() / 1000;
+                imagePath = imageStorageService.buildFullImageUrl(data.deviceSn(), epochSeconds);
+                plateImagePath = imageStorageService.buildPlateImageUrl(data.deviceSn(), epochSeconds);
+            } else {
+                long epochSeconds = data.occurredAtMillis() != null
+                        ? data.occurredAtMillis() / 1000 : Instant.now().getEpochSecond();
+                if (imagePath != null) {
+                    String local = remoteImageDownloader.downloadAndStore(
+                            data.deviceSn(), epochSeconds, imagePath, false);
+                    if (local != null) {
+                        imagePath = local;
+                    }
+                }
+                if (plateImagePath != null) {
+                    String localPlate = remoteImageDownloader.downloadAndStore(
+                            data.deviceSn(), epochSeconds, plateImagePath, true);
+                    if (localPlate != null) {
+                        plateImagePath = localPlate;
+                    }
+                }
+            }
+
             // 3. 构造 payload
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("plateNo", data.license());
@@ -79,8 +113,11 @@ public class PlateRecognizedEventDispatcher implements PlateRecognizedListener {
             if (data.direction() != null) {
                 payload.put("direction", data.direction());
             }
-            if (data.imagePath() != null) {
-                payload.put("imagePath", data.imagePath());
+            if (imagePath != null) {
+                payload.put("imagePath", imagePath);
+            }
+            if (plateImagePath != null) {
+                payload.put("plateImagePath", plateImagePath);
             }
 
             // 4. 构造事件信封
@@ -111,6 +148,13 @@ public class PlateRecognizedEventDispatcher implements PlateRecognizedListener {
             log.error("Failed to dispatch plate recognized event: sn={}, license={}",
                     data.deviceSn(), data.license(), e);
         }
+    }
+
+    /**
+     * 判断厂商是否芊熠（product.brand 可能为中文或英文标准值）。
+     */
+    private boolean isQianyi(String vendor) {
+        return "芊熠".equals(vendor) || "QIANYI".equalsIgnoreCase(vendor);
     }
 
     /**

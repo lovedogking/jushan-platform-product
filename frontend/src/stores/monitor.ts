@@ -86,7 +86,11 @@ export const useMonitorStore = defineStore('monitor', () => {
     }
   }
 
-  function handleRecognitionEvent(payload: RecognitionEventPayload) {
+  function handleRecognitionEvent(payload: RecognitionEventPayload): boolean {
+    // 同一 eventId 去重：WS 重连补发、重复投递时防止列表出现重复行
+    if (payload.eventId && recentEvents.value.some((e) => e.eventId === payload.eventId)) {
+      return false
+    }
     const lane = lanes.value.find((l) => l.id === payload.laneId)
     const event: RecognitionEvent = {
       ...payload,
@@ -97,6 +101,7 @@ export const useMonitorStore = defineStore('monitor', () => {
     if (recentEvents.value.length > 50) {
       recentEvents.value = recentEvents.value.slice(0, 50)
     }
+    return true
   }
 
   function handleDeviceStatus(payload: DeviceStatus) {

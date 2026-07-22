@@ -226,6 +226,7 @@ public class XinlutongMessageHandler implements MqttRawMessageListener {
                         null,
                         null,
                         null,
+                        null,
                         occurredAtMillis
                 );
                 plateListener.onPlateRecognized(data);

@@ -85,6 +85,12 @@ public class MqttGatewayImpl implements MqttGateway {
     /** 芊熠：车牌相机默认上行主题（实际以设备注册上报的 pubtopic 为准，见动态订阅） */
     private static final String TOPIC_QY_UPLINK = "aiot/plate/+";
 
+    /**
+     * 芊熠：qymqtt 协议相机自定义上行主题（/{产品标识}/{sn}/qymqttpost）。
+     * <p>静态订阅保证 DA 重启后、设备重新注册前心跳/识别结果不丢失。</p>
+     */
+    private static final String TOPIC_QY_UPLINK_QYMQTT = "/qymqtt/+/qymqttpost";
+
     /** 动态订阅的 Topic 集合（如芊熠设备注册上报的 pubtopic），重连后一并重订 */
     private final java.util.Set<String> dynamicSubscriptions = ConcurrentHashMap.newKeySet();
 
@@ -312,6 +318,9 @@ public class MqttGatewayImpl implements MqttGateway {
 
         client.subscribe(TOPIC_QY_UPLINK, properties.getDefaultQos()).waitForCompletion();
         log.info("Subscribed: {}", TOPIC_QY_UPLINK);
+
+        client.subscribe(TOPIC_QY_UPLINK_QYMQTT, properties.getDefaultQos()).waitForCompletion();
+        log.info("Subscribed: {}", TOPIC_QY_UPLINK_QYMQTT);
 
         for (String topic : dynamicSubscriptions) {
             client.subscribe(topic, properties.getDefaultQos()).waitForCompletion();

@@ -165,6 +165,15 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
         Map<String, Object> firstPlate = (plates != null && !plates.isEmpty())
                 ? plates.get(0) : null;
 
+        // 图片地址同样为 Base64 编码（解码后为可访问 URL，如 OSS 签名地址），
+        // 与 license/deviceName 一样需要解码，否则前端无法渲染
+        String rawImagePath = plateResult != null ? (String) plateResult.get("imagePath") : null;
+        String imagePath = (rawImagePath != null && !rawImagePath.isBlank())
+                ? decodeBase64(rawImagePath) : null;
+        String rawPlateImagePath = firstPlate != null ? (String) firstPlate.get("image_path") : null;
+        String plateImagePath = (rawPlateImagePath != null && !rawPlateImagePath.isBlank())
+                ? decodeBase64(rawPlateImagePath) : null;
+
         PlateRecognizedEvent event = PlateRecognizedEvent.builder()
                 .sn(message.getSn())
                 .eventTimestamp(message.getTimestamp())
@@ -182,8 +191,8 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
                 .isDanger(firstPlate != null ? (Integer) firstPlate.get("is_danger") : null)
                 .triggerType(plateResult != null ? (Integer) plateResult.get("triggerType") : null)
                 .isOffline(plateResult != null ? (Integer) plateResult.get("isoffline") : null)
-                .imagePath((String) plateResult.get("imagePath"))
-                .plateImagePath(firstPlate != null ? (String) firstPlate.get("image_path") : null)
+                .imagePath(imagePath)
+                .plateImagePath(plateImagePath)
                 .startTime(plateResult != null ? toLong(plateResult.get("start_time")) : null)
                 .build();
 
@@ -196,6 +205,14 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
         }
 
         // v0.4: 通过回调接口推送车牌识别事件到业务侧
+        // quick_ivs_result 是快速预览（无图片），约 100ms 后会有带图片的 ivs_result 到达；
+        // 两条都分发时，平台 BR-08 去重规则会把后到的那条（恰是带图片的）判为重复丢弃，
+        // 导致通行记录永远无图。因此 quick 事件只记录日志，不下发业务侧。
+        if (NAME_QUICK_IVS_RESULT.equals(name)) {
+            log.debug("quick_ivs_result 仅预览不下发（等待 ivs_result 携带图片）: sn={}, license={}",
+                    event.getSn(), event.getLicense());
+            return;
+        }
         if (plateListener != null) {
             try {
                 PlateRecognizedData data = new PlateRecognizedData(
@@ -205,6 +222,7 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
                         event.getDirection(),
                         event.getPlateColor(),
                         event.getImagePath(),
+                        event.getPlateImagePath(),   // 臻识通常无车牌特写图字段（为空时为 null）
                         event.getStartTime()
                 );
                 plateListener.onPlateRecognized(data);

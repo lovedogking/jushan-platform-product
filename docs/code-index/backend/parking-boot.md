@@ -2,7 +2,7 @@
 
 > **包路径**：`parking-boot/src/main/java/com/jushan/`
 > **职责**：Spring Boot 启动入口、组件扫描、MyBatis-Plus 分页装配、Flyway 迁移、Actuator 探针、多环境配置。
-> **最近更新**：2026-07-21
+> **最近更新**：2026-08-12
 
 ---
 

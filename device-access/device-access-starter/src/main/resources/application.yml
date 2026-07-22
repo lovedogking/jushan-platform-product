@@ -10,6 +10,11 @@ logging:
 spring:
   application:
     name: device-access
+  servlet:
+    multipart:
+      # 芊熠相机抓拍图片上传（全景图可达数 MB）
+      max-file-size: 10MB
+      max-request-size: 20MB
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai
@@ -66,3 +71,11 @@ device-access:
     keys:
       - ${API_KEY_1:test-api-key-001}
       - ${API_KEY_2:}
+
+  # 抓拍图片存储 — 芊熠相机独立上传（协议 §7.1.2，v0.6）
+  # storage-dir 生产环境需与 nginx 图片静态目录指向同一宿主目录；
+  # public-base-url 生产环境指向 nginx 反代入口（如 https://域名/images），本地开发直连 DA
+  image:
+    storage-dir: ${IMAGE_STORAGE_DIR:./data/images}
+    public-base-url: ${IMAGE_PUBLIC_BASE_URL:http://localhost:8082/images}
+    retention-days: ${IMAGE_RETENTION_DAYS:30}

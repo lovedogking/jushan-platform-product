@@ -16,11 +16,14 @@ import com.jushan.system.client.DeviceAccessClient;
 import com.jushan.system.client.dto.CommandResultDTO;
 import com.jushan.system.entity.Device;
 import com.jushan.system.mapper.DeviceMapper;
+import com.jushan.system.entity.ParkingLot;
+import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.service.BillingEngine;
 import com.jushan.system.entity.ParkingLane;
 import com.jushan.system.mapper.ParkingLaneMapper;
 import com.jushan.system.service.DeviceService;
 import com.jushan.system.service.MonitorAlertService;
+import com.jushan.system.ws.BoothWebSocketPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +76,8 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     private final MonitorAlertService monitorAlertService;
     private final DeviceService deviceService;
     private final ParkingLaneMapper parkingLaneMapper;
+    private final ParkingLotMapper parkingLotMapper;
+    private final BoothWebSocketPublisher boothWebSocketPublisher;
 
     public RecognitionEventServiceImpl(VehicleTypeDecisionService vehicleTypeDecisionService,
                                        ParkingSessionService parkingSessionService,
@@ -81,7 +86,9 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                                        DeviceAccessClient deviceAccessClient,
                                        MonitorAlertService monitorAlertService,
                                        DeviceService deviceService,
-                                       ParkingLaneMapper parkingLaneMapper) {
+                                       ParkingLaneMapper parkingLaneMapper,
+                                       ParkingLotMapper parkingLotMapper,
+                                       BoothWebSocketPublisher boothWebSocketPublisher) {
         this.vehicleTypeDecisionService = vehicleTypeDecisionService;
         this.parkingSessionService = parkingSessionService;
         this.billingEngine = billingEngine;
@@ -90,6 +97,8 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         this.monitorAlertService = monitorAlertService;
         this.deviceService = deviceService;
         this.parkingLaneMapper = parkingLaneMapper;
+        this.parkingLotMapper = parkingLotMapper;
+        this.boothWebSocketPublisher = boothWebSocketPublisher;
     }
 
     @Override
@@ -519,6 +528,9 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                 cmd.getPlateNumber(), sessionVO.getId(), decision.getVehicleType(),
                 entryTrigger, gateMode, result.getGateOpened());
 
+        // 推送车位变化到岗亭（与存量 EntryService 行为对齐）
+        pushSpaceUpdate(cmd.getParkingLotId());
+
         return result;
     }
 
@@ -644,7 +656,37 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         log.info("出场处理完成: plate={}, sessionId={}, fee={}, gateOpened={}",
                 cmd.getPlateNumber(), updatedSession.getId(), feeAmount, result.getGateOpened());
 
+        // 推送车位变化到岗亭（与存量 ExitService 行为对齐）
+        pushSpaceUpdate(cmd.getParkingLotId());
+
         return result;
+    }
+
+    // ==================== 车位变化推送 ====================
+
+    /**
+     * 推送车位变化到岗亭前端（与存量 EntryService/ExitService 行为对齐）。
+     * <p>
+     * Webhook 识别驱动的入场/出场同样改变在场车辆数，
+     * 不推送会导致岗亭「剩余车位/在场车辆」长期不刷新。
+     */
+    private void pushSpaceUpdate(Long parkingLotId) {
+        try {
+            ParkingLot lot = parkingLotMapper.selectById(parkingLotId);
+            if (lot == null) {
+                return;
+            }
+            int totalSpaces = lot.getTotalSpaces() != null ? lot.getTotalSpaces() : 0;
+            int currentVehicles = (int) parkingSessionService.countInByParkingLotIdIgnoreTenant(parkingLotId);
+            boothWebSocketPublisher.sendSpaceUpdate(
+                    parkingLotId,
+                    Math.max(0, totalSpaces - currentVehicles),
+                    currentVehicles,
+                    totalSpaces);
+        } catch (Exception e) {
+            log.warn("识别事件车位变化推送失败（不影响主业务）: parkingLotId={}, error={}",
+                    parkingLotId, e.getMessage());
+        }
     }
 
     // ==================== 开闸辅助方法 ====================

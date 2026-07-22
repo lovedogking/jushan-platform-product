@@ -22,6 +22,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.concurrent.CompletableFuture;
+
 import java.util.Collections;
 import java.util.List;
 
@@ -90,7 +92,7 @@ class DeviceControllerTest {
                     .deviceCode(200)
                     .message("Time synced")
                     .build();
-            when(deviceService.syncTime(TEST_DEVICE_ID)).thenReturn(result);
+            when(deviceService.syncTime(TEST_DEVICE_ID)).thenReturn(CompletableFuture.completedFuture(result));
 
             mockMvc.perform(post("/api/v1/devices/{deviceId}/time/sync", TEST_DEVICE_ID)
                             .contentType(MediaType.APPLICATION_JSON))
@@ -132,7 +134,7 @@ class DeviceControllerTest {
                     .success(false)
                     .message("Command failed: timeout")
                     .build();
-            when(deviceService.syncTime(TEST_DEVICE_ID)).thenReturn(result);
+            when(deviceService.syncTime(TEST_DEVICE_ID)).thenReturn(CompletableFuture.completedFuture(result));
 
             mockMvc.perform(post("/api/v1/devices/{deviceId}/time/sync", TEST_DEVICE_ID)
                             .contentType(MediaType.APPLICATION_JSON))
@@ -156,7 +158,7 @@ class DeviceControllerTest {
                     .deviceCode(0)
                     .message("Gate opened")
                     .build();
-            when(deviceService.openGate(TEST_DEVICE_ID)).thenReturn(result);
+            when(deviceService.openGate(TEST_DEVICE_ID)).thenReturn(CompletableFuture.completedFuture(result));
 
             mockMvc.perform(post("/api/v1/devices/{deviceId}/gate/open", TEST_DEVICE_ID)
                             .contentType(MediaType.APPLICATION_JSON))
@@ -185,7 +187,7 @@ class DeviceControllerTest {
                     .success(false)
                     .message("Device returned error: timeout")
                     .build();
-            when(deviceService.openGate(TEST_DEVICE_ID)).thenReturn(result);
+            when(deviceService.openGate(TEST_DEVICE_ID)).thenReturn(CompletableFuture.completedFuture(result));
 
             mockMvc.perform(post("/api/v1/devices/{deviceId}/gate/open", TEST_DEVICE_ID)
                             .contentType(MediaType.APPLICATION_JSON))
@@ -207,7 +209,7 @@ class DeviceControllerTest {
                     .deviceCode(0)
                     .message("Gate closed")
                     .build();
-            when(deviceService.closeGate(TEST_DEVICE_ID)).thenReturn(result);
+            when(deviceService.closeGate(TEST_DEVICE_ID)).thenReturn(CompletableFuture.completedFuture(result));
 
             mockMvc.perform(post("/api/v1/devices/{deviceId}/gate/close", TEST_DEVICE_ID)
                             .contentType(MediaType.APPLICATION_JSON))
@@ -638,7 +640,7 @@ class DeviceControllerTest {
                     .message("Display mode set to TWO_LINE").build();
 
             when(deviceService.controlPeripheral(eq(TEST_DEVICE_ID), any(PeripheralControlRequest.class)))
-                    .thenReturn(result);
+                    .thenReturn(CompletableFuture.completedFuture(result));
 
             PeripheralControlRequest req = new PeripheralControlRequest();
             req.setAction("SET_MODE");
@@ -669,7 +671,7 @@ class DeviceControllerTest {
             DisplayResult result = DisplayResult.builder()
                     .success(true).build();
             when(deviceService.displayText(eq(TEST_DEVICE_ID), any(DisplayTextRequest.class)))
-                    .thenReturn(result);
+                    .thenReturn(CompletableFuture.completedFuture(result));
 
             DisplayTextRequest req = new DisplayTextRequest();
             req.setContent("欢迎光临");
@@ -759,7 +761,7 @@ class DeviceControllerTest {
             DisplayResult result = DisplayResult.builder()
                     .success(true).build();
             when(deviceService.saveDisplay(eq(TEST_DEVICE_ID), any(DisplaySaveRequest.class)))
-                    .thenReturn(result);
+                    .thenReturn(CompletableFuture.completedFuture(result));
 
             DisplaySaveRequest req = new DisplaySaveRequest();
             req.setContent("欢迎光临\n请减速慢行");

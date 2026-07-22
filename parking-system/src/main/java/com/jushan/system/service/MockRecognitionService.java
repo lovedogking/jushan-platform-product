@@ -147,8 +147,12 @@ public class MockRecognitionService {
 
         // 返回日志占位（原 RecognitionEventLog 已不再由本服务持久化）
         RecognitionEventLog logEntry = new RecognitionEventLog();
+        logEntry.setId(0L); // 占位：Map.of 不允许 null 值，避免 Controller 组包 NPE
+        logEntry.setEventId("MOCK-" + java.util.UUID.randomUUID());
         logEntry.setPlateNumber(request.getPlateNumber());
         logEntry.setDirection(request.getDirection());
+        logEntry.setSource("MOCK");
+        logEntry.setEventTime(java.time.LocalDateTime.now());
         return logEntry;
     }
 }

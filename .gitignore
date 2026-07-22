@@ -34,9 +34,11 @@ application-local.yml
 *.jks
 *.keystore
 
-# ====== 日志 ======
+# ====== 运行时生成 ======
 logs/
 *.log
+data/
+uploads/
 
 # ====== OS ======
 .DS_Store
@@ -47,6 +49,9 @@ docker-compose.override.yml
 
 # ====== 测试输出 ======
 hs_err_pid*
+
+# ====== 根目录杂项 ======
+/package-lock.json
 
 # ====== 个人 AI 开发配置（不上传仓库）======
 CLAUDE.md

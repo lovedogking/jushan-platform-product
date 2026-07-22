@@ -211,6 +211,8 @@ services:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/conf.d/production.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend/dist:/usr/share/nginx/html/booth:ro
+      # 芊熠抓拍图片（与 device-access 共享宿主目录，device-access 写入、nginx 只读）
+      - ./data/device-images:/usr/share/nginx/device-images:ro
       # - ./certs:/etc/nginx/certs:ro  # HTTPS 证书目录
     networks:
       - jushan-net

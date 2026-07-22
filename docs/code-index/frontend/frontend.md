@@ -2,7 +2,7 @@
 
 > **路径**：`frontend/` （独立 `pnpm` 工作区）
 > **技术栈**：Vue 3.4 · TypeScript 5.4 · Vite 5.2 · Pinia 2.1 · ant-design-vue 4.1 · axios
-> **最近更新**：2026-07-21
+> **最近更新**：2026-08-12
 
 ---
 
@@ -14,6 +14,7 @@ frontend/src/
 │   ├── auth.ts         # 登录/退出/刷新 Token
 │   ├── charge.ts       # 收费（查在场/提交收费/开闸/关闸/减免/规则）
 │   ├── monitor.ts      # 监控（快照/异常提醒/设备状态/在场/历史）
+│   ├── mock.ts         # 模拟识别触发（手动抓拍测试，仅 local/test 后端可用）
 │   ├── parking-lot.ts  # 停车场查询
 │   ├── parking-manage.ts # 停车场管理
 │   ├── account.ts      # 账号管理
@@ -41,7 +42,7 @@ frontend/src/
 │   └── offline-queue.ts # 离线请求队列
 └── views/          # 页面
     ├── login/           # 登录页
-    ├── monitor/         # 监控页（4 个文件）
+    ├── monitor/         # 监控页（5 个文件）
     ├── operation/       # 运营（5 个文件）
     ├── admin/           # 管理
     └── error/           # 错误页
@@ -55,9 +56,11 @@ frontend/src/
 |---|---|
 | `api/charge.ts` | 核心收费 API：`getChargeInfo`(查在场)、`submitCharge`(收费出场)、`manualOpenGate`/`manualCloseGate`/`manualLockGate`/`manualUnlockGate`（道闸控制）、`getCurrentFeeRule`/`updateFeeRule`（规则调整）、`submitFeeReduction`（减免） |
 | `api/monitor.ts` | 监控 API：快照、设备状态刷新、异常提醒确认 |
+| `api/mock.ts` | 模拟识别 API：`triggerMockRecognition`（POST /api/v1/internal/mock/recognition-event，走真实识别管线，仅 local/test 环境后端注册） |
+| `views/monitor/MockCaptureModal.vue` | 手动抓拍弹窗（选相机/随机车牌/入出场方向/可选图片 URL；车道卡片「手动抓拍」按钮唤起；触发后保留弹窗并自动换随机车牌便于连续测试） |
 | `utils/request.ts` | axios 实例 + 请求/响应拦截（Token 注入、401 跳登录） |
 | `utils/websocket.ts` | STOMP over WebSocket（接收实时监控数据） |
 | `utils/offline-queue.ts` | 离线时缓存请求到 localStorage 并在恢复时重放 |
 | `stores/monitor.ts` | 中心化监控状态（设备列表、在场车辆、余位、异常） |
-| `views/monitor/` | 监控大屏主页面（实时设备/车位/事件/异常面板） |
+| `views/monitor/` | 监控大屏主页面（实时设备/车位/事件/异常面板；识别事件列表与车道卡片实时显示抓拍图，加载失败 1.5s 重试一次） |
 | `.env.development` / `.env.production` | 环境变量（API base URL / WebSocket） |

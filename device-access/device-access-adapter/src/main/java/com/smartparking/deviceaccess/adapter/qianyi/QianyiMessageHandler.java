@@ -63,11 +63,39 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
     /** 已注册设备的上行主题集合（pubtopic），用于 Topic 守卫 */
     private final Set<String> uplinkTopics = ConcurrentHashMap.newKeySet();
 
+    /** 设备最近一条 qymqtt 自定义上行主题，key = sn（小写），用于未重新注册时推导下行主题 */
+    private final Map<String, String> uplinkTopicBySn = new ConcurrentHashMap<>();
+
     /** 等待设备应答的 Future，key = msg_id */
     private final Map<String, CompletableFuture<Map<String, Object>>> pendingFutures = new ConcurrentHashMap<>();
 
     /** 最近识别的车牌号，key = sn */
     private final Map<String, String> lastPlateMap = new ConcurrentHashMap<>();
+
+    /** result 消息去重缓存（msg_id → 接收时间毫秒），防重叠订阅重复投递 */
+    private final Map<String, Long> recentResultMsgIds = new ConcurrentHashMap<>();
+
+    /** result 去重窗口（毫秒） */
+    private static final long RESULT_DUP_WINDOW_MS = 10_000;
+
+    /**
+     * 判断 result 消息是否为短时间内的重复投递。
+     */
+    private boolean isDuplicateDelivery(String msgId) {
+        if (msgId == null) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        Long seen = recentResultMsgIds.putIfAbsent(msgId, now);
+        if (seen != null && now - seen < RESULT_DUP_WINDOW_MS) {
+            return true;
+        }
+        // 顺带清理过期条目，避免无限增长
+        if (recentResultMsgIds.size() > 512) {
+            recentResultMsgIds.entrySet().removeIf(e -> now - e.getValue() > RESULT_DUP_WINDOW_MS);
+        }
+        return false;
+    }
 
     // ──────────────────── 协议常量 ────────────────────
 
@@ -79,6 +107,13 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
 
     /** 车牌相机默认下行主题模板（device/plate/{sn}），注册信息缺失时的兜底 */
     private static final String DEFAULT_SUBTOPIC_TEMPLATE = "device/plate/%s";
+
+    /** qymqtt 协议自定义上行主题前后缀（/{产品标识}/{sn}/qymqttpost） */
+    private static final String QYMQTT_UPLINK_PREFIX = "/qymqtt/";
+    private static final String QYMQTT_UPLINK_SUFFIX = "/qymqttpost";
+
+    /** qymqtt 协议自定义下行主题后缀（与上行同前缀，post→down） */
+    private static final String QYMQTT_DOWNLINK_SUFFIX = "/qymqttdown";
 
     // cmd 名称（注意：mqtt_herat 为原文拼写错误，协议保留不修正）
     private static final String CMD_CAMERA_REGISTER = "camera_register";
@@ -125,6 +160,15 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
         if (sn == null) {
             sn = extractSnFromTopic(topic);
         }
+        if (sn != null) {
+            // SN 统一小写规范化：相机按自身大小写上报（如 15ZK...），而注册表/REST 路径
+            // 均规范化为小写，统一后 subtopicMap / 心跳缓存 / pendingFutures 键才一致
+            sn = sn.toLowerCase();
+            // 记录 qymqtt 自定义上行主题：DA 重启后设备未重新注册时可按同前缀推导下行主题
+            if (isQymqttUplink(topic)) {
+                uplinkTopicBySn.put(sn, topic);
+            }
+        }
 
         if (cmd == null) {
             log.warn("Qianyi message without 'cmd' field. Topic: {}, keys: {}", topic, rawJson.keySet());
@@ -162,12 +206,19 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
     }
 
     /**
-     * Topic 守卫：注册主题、默认上行前缀、已注册设备的 pubtopic。
+     * Topic 守卫：注册主题、默认上行前缀、已注册设备的 pubtopic、
+     * qymqtt 协议自定义上行（/{产品标识}/{sn}/qymqttpost，静态订阅，注册前即可收）。
      */
     private boolean isQianyiTopic(String topic) {
         return TOPIC_REGISTER.equals(topic)
                 || topic.startsWith(DEFAULT_UPLINK_PREFIX)
-                || uplinkTopics.contains(topic);
+                || uplinkTopics.contains(topic)
+                || isQymqttUplink(topic);
+    }
+
+    /** qymqtt 协议自定义上行主题：/qymqtt/{sn}/qymqttpost */
+    private static boolean isQymqttUplink(String topic) {
+        return topic != null && topic.startsWith(QYMQTT_UPLINK_PREFIX) && topic.endsWith(QYMQTT_UPLINK_SUFFIX);
     }
 
     // ──────────────────── 上行消息处理 ────────────────────
@@ -236,6 +287,13 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
         // 先回应答，再解析上报
         sendResponse(sn, CMD_RESULT + "_rsp", msgId);
 
+        // 重复投递去重：静态通配订阅与设备动态 pubtopic 订阅重叠时，
+        // broker 会将同一消息投递两次，按 msg_id 在短窗口内幂等
+        if (isDuplicateDelivery(msgId)) {
+            log.debug("重复投递忽略: sn={}, msg_id={}", sn, msgId);
+            return;
+        }
+
         String plateNum = (String) rawJson.get("plate_num");
         if (NO_PLATE.equals(plateNum)) {
             plateNum = null;  // 无牌车
@@ -254,9 +312,10 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
                         sn,
                         plateNum,
                         toInteger(rawJson.get("confidence")),
-                        null,   // direction: 芊熠为 in/out 中文语义，PlateRecognizedData 为编号，不传
+                        null,   // direction: 芊熠为 in/out 语义，PlateRecognizedData 为编号，不传
                         null,   // plateColor: 芊熠为中文字符串枚举，PlateRecognizedData 为编号，不传
                         (String) rawJson.get("full_pic_path"),
+                        (String) rawJson.get("plate_pic_path"),
                         toEpochMillis(rawJson.get("utc_ts"))
                 );
                 plateListener.onPlateRecognized(data);
@@ -402,12 +461,21 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
     }
 
     /**
-     * 解析设备下行主题：优先注册上报的 subtopic，缺失时回退默认模板 device/plate/{sn}。
+     * 解析设备下行主题：优先注册上报的 subtopic；未注册时若已知其 qymqtt 上行主题，
+     * 按同前缀约定推导下行（post→down）；最后回退默认模板 device/plate/{sn}。
      */
     private String subtopicOf(String deviceSn) {
         String subtopic = subtopicMap.get(deviceSn);
         if (subtopic != null) {
             return subtopic;
+        }
+        String uplink = uplinkTopicBySn.get(deviceSn);
+        if (uplink != null && uplink.endsWith(QYMQTT_UPLINK_SUFFIX)) {
+            String derived = uplink.substring(0, uplink.length() - QYMQTT_UPLINK_SUFFIX.length())
+                    + QYMQTT_DOWNLINK_SUFFIX;
+            log.info("Qianyi subtopic derived from uplink (not re-registered since adapter start): sn={}, subtopic={}",
+                    deviceSn, derived);
+            return derived;
         }
         log.warn("Qianyi subtopic unknown (device not registered since adapter start), "
                 + "falling back to default template: sn={}", deviceSn);
@@ -538,10 +606,17 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
 
     /**
      * 从 Topic 中提取设备序列号（fallback，sn 通常从消息体获取）。
+     * <p>支持 aiot/plate/{sn} 与 /qymqtt/{sn}/qymqttpost 两种形态。</p>
      */
     private String extractSnFromTopic(String topic) {
         if (topic == null || topic.isEmpty()) {
             return null;
+        }
+        // /qymqtt/{sn}/qymqttpost → 去前导斜杠后 split：[, qymqtt, sn, qymqttpost]
+        if (isQymqttUplink(topic)) {
+            String stripped = topic.substring(QYMQTT_UPLINK_PREFIX.length());
+            int slash = stripped.indexOf('/');
+            return slash > 0 ? stripped.substring(0, slash) : null;
         }
         String[] parts = topic.split("/");
         // aiot/plate/{sn} → parts = [aiot, plate, sn]；取最后一段

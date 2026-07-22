@@ -40,6 +40,9 @@ public class DeviceWebhookEvent {
     /** 抓拍图片 URL */
     private String imageUrl;
 
+    /** 车牌特写图 URL */
+    private String plateImageUrl;
+
     /** 识别方向：ENTRY-入场, EXIT-出场 */
     private String direction;
 

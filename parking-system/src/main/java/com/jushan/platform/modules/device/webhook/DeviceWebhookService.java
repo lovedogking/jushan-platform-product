@@ -329,6 +329,7 @@ public class DeviceWebhookService {
             eventLog.setEventTime(parseCaptureTime(event.getCaptureTime()));
             eventLog.setConfidence(confidence);
             eventLog.setImagePath(event.getImageUrl());
+            eventLog.setPlateImagePath(event.getPlateImageUrl());
             eventLog.setSource("DEVICE_ACCESS");
             eventLog.setStatus("RECEIVED");
             eventLog.setTempPlateFlag(0);

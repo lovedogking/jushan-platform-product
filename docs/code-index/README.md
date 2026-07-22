@@ -60,7 +60,7 @@
 | parking-framework | 框架层通用能力 | 27 | `backend/parking-framework.md` | ✅ |
 | parking-infrastructure | 安全 / 日志 / MyBatis / Web | 19 | `backend/parking-infrastructure.md` | ✅ |
 | parking-boot | 启动与全局配置 | 8 | `backend/parking-boot.md` | ✅ |
-| device-access | 设备接入（adapter/api/mqtt/event/registry/starter） | 105 | `backend/device-access.md` | ✅ |
+| device-access | 设备接入（adapter/api/mqtt/event/registry/starter） | 109 | `backend/device-access.md` | ✅ |
 
 ### 前端
 

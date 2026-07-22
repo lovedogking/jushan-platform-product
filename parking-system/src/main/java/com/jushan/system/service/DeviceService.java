@@ -1759,8 +1759,16 @@ public class DeviceService {
         List<Thread> workers = new ArrayList<>();
         List<Exception> workerErrors = new java.util.concurrent.CopyOnWriteArrayList<>();
 
+        // 捕获请求线程的租户上下文快照并手动传入 worker 线程：
+        // TenantContext 是普通 ThreadLocal，不会传递到新建虚拟线程，
+        // 缺失时 DataScope fail-close 抛"未登录"，状态查询被跳过并误报设备离线。
+        TenantContext.Snapshot ctxSnapshot = TenantContext.get();
+
         for (Long deviceId : deviceIds) {
             Thread worker = Thread.ofVirtual().start(() -> {
+                if (ctxSnapshot != null) {
+                    TenantContext.set(ctxSnapshot);
+                }
                 try {
                     semaphore.acquire();
                     try {
@@ -1786,6 +1794,8 @@ public class DeviceService {
                         results.add(createErrorStatusVO(deviceId, "ERROR",
                                 e.getMessage() != null ? e.getMessage() : "unknown error"));
                     }
+                } finally {
+                    TenantContext.clear();
                 }
             });
             workers.add(worker);
@@ -1899,8 +1909,9 @@ public class DeviceService {
         vo.setLastErrorCode(errorCode);
         vo.setLastErrorMessage(errorMessage);
 
-        // 尝试读取设备基础信息
-        Device device = deviceMapper.selectById(deviceId);
+        // 尝试读取设备基础信息（忽略租户过滤：平台用户 tenantId 为 null 时，
+        // 租户拦截器会追加 tenant_id = NULL 导致查不到记录，告警文案会丢设备名）
+        Device device = deviceMapper.selectByIdIgnoreTenant(deviceId);
         if (device != null) {
             vo.setDeviceName(device.getName());
             vo.setDeviceCode(device.getCode());
