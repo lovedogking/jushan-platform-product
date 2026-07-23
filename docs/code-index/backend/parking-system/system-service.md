@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/system/service/`
 > **所属**：`parking-system` · `com.jushan.system`
 > **职责**：存量业务的所有 Service 层。注意区别于 `com.jushan.platform.modules.*` 的 Service。
-> **最近更新**：2026-07-21
+> **最近更新**：2026-07-23（DeviceService 新增 resolveGateDevice / validateCapabilitiesMatch / gate-capabilities 车道级方法）
 
 ---
 
@@ -17,7 +17,7 @@
 | `BoothMonitorService` | 岗亭监控服务 |
 | `CameraFailoverService` | 摄像头故障切换服务 |
 | `CompanyService` | 公司/集团管理 |
-| `DeviceService` | 设备台账管理 |
+| `DeviceService` | 设备台账管理 + **控闸设备解析（resolveGateDevice）** + **能力校验（validateCapabilitiesMatch）** + 开/关/常开/取消常开车道级方法 |
 | `DuplicateEntryHandler` | 重复入场处理器 |
 | `DuplicateEntryPolicy` | 重复入场策略 |
 | `EmployeeService` | 员工管理 |

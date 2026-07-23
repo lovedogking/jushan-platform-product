@@ -2,7 +2,7 @@
 
 > **包路径**：`parking-system/src/main/java/com/jushan/system/entity/` `mapper/`
 > **所属**：`parking-system` · `com.jushan.system`
-> **最近更新**：2026-07-21
+> **最近更新**：2026-07-23（ParkingLane 新增 gateDeviceId；DeviceModel 新增 capabilities）
 
 **说明**：50 Entity + 51 Mapper。由于 Mapper 多为 MyBatis-Plus BaseMapper 无自定义方法,此处只列出 Entity 及职责。
 
@@ -17,7 +17,7 @@
 | `BillingRule` / `BillingRuleVersion` / `BillingRuleSwitchLog` / `BillingRuleRecalcLog` | 收费规则（存量） |
 | `BindingPolicy` | 车辆绑定策略 |
 | `Company` | 公司/集团档案 |
-| `Device` / `DeviceCommandAudit` / `DeviceModel` / `DeviceVendor` / `DeviceStatusSnapshot` | 设备台账（T20/T24）+ 命令审计（P001） |
+| `Device` / `DeviceCommandAudit` / `DeviceModel` / `DeviceVendor` / `DeviceStatusSnapshot` | 设备台账（T20/T24）+ 命令审计（P001）；DeviceModel 含型号默认能力 capabilities；Device 含 recognitionDirection/cameraRole/capabilities(实例继承) |
 | `DuplicateEntryLog` | 异常重复入场（P003） |
 | `EmployeeParkingLot` | 员工-停车场关联 |
 | `ExceptionRecord` | 异常记录（Phase 2 D2） |
@@ -27,7 +27,7 @@
 | `MockPaymentConfig` / `MockPaymentRecord` | 模拟支付 |
 | `MonitorAlert` | 异常提醒 |
 | `MonthlyPass` / `OrderStatusLog` | 月卡 + 订单状态日志 |
-| `ParkingLane` / `ParkingLot` | 车道 + 停车场（与 parking 模块共享 DB 表） |
+| `ParkingLane` / `ParkingLot` | 车道 + 停车场（与 parking 模块共享 DB 表）；ParkingLane 含 gateDeviceId(唯一控闸设备)、gateMode |
 | `ParkingLotCapacityLog` / `ParkingLotStatusLog` | 容量/状态变更审计 |
 | `ParkingOrder` / `PayOrder` / `PayMerchantConfig` | 停车订单 + 支付流水 + P云配置 |
 | `ParkingRecord` / `ParkingRecordSyncLog` | 停车记录 + P云同步日志 |

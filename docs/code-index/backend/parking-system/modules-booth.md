@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/booth/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.booth`
 > **职责**：识别事件处理（入场/出场判定+开闸）、人工入场补录、费用减免、交接班管理、岗亭车辆查询。
-> **最近更新**：2026-07-24
+> **最近更新**：2026-07-23（手动开/关闸改用 DeviceService.resolveGateDevice 统一解析；新增 gate-capabilities 接口）
 
 ---
 
@@ -45,6 +45,7 @@
 | manualCloseGate | POST | `/manual-close-gate` | 人工关闸 | `laneId,reason` | `R<RecognitionResultVO>` |
 | manualLockGate | POST | `/manual-lock-gate` | 常开（锁定） | `laneId,reason` | `R<RecognitionResultVO>` |
 | manualUnlockGate | POST | `/manual-unlock-gate` | 取消常开 | `laneId,reason` | `R<RecognitionResultVO>` |
+| getGateCapabilities | GET | `/gate-capabilities` | 查询车道控闸设备能力集（按钮按能力渲染） | `laneId` | `R<List<String>>` |
 
 ### ShiftRecordController  `controller/ShiftRecordController.java`
 - **基础路径**：`/api/v1/shift-records` ｜ **权限**：`booth:*`
@@ -68,11 +69,11 @@
 | 方法 | 签名 | 功能 |
 |---|---|---|
 | handleEvent | `RecognitionResultVO handleEvent(RecognitionEventCmd)` | 识别→判定→余位→计费→开闸→日志 |
-| manualOpenGate | `RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason, boolean isCharge, Integer feeCents, String plateNumber, String entryImage)` | 人工开闸（含审计；优先使用前端传入 entryImage，否则回溯车道最近识别事件抓拍图；补写 parking_session 附 entryImage，并落库 MANUAL 识别事件 + WS 推送，车道卡片实时显示放行车辆与抓拍图）；接口另保留 6 参 default 兼容重载（entryImage=null） |
-| captureImage | `CaptureResultDTO captureImage(Long laneId)` | 选择车道主相机触发主动抓拍，委托 DeviceAccessClient → device-access `/api/v1/devices/{sn}/capture` |
-| manualCloseGate | `RecognitionResultVO manualCloseGate(Long laneId, Long operatorId, String reason)` | 人工关闸 |
-| manualLockGate | `RecognitionResultVO manualLockGate(Long laneId, Long operatorId, String reason)` | 常开锁定 |
-| manualUnlockGate | `RecognitionResultVO manualUnlockGate(Long laneId, Long operatorId, String reason)` | 取消常开 |
+| manualOpenGate | `RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason, boolean isCharge, Integer feeCents, String plateNumber, String entryImage)` | 人工开闸（设备解析委托 `DeviceService.resolveGateDevice(laneId)`；含审计/抓拍图/session补写/WS推送） |
+| captureImage | `CaptureResultDTO captureImage(Long laneId)` | 选择车道主相机触发主动抓拍 |
+| manualCloseGate | `RecognitionResultVO manualCloseGate(Long laneId, Long operatorId, String reason)` | 人工关闸（设备解析委托 `DeviceService.resolveGateDevice(laneId)`） |
+| manualLockGate | `RecognitionResultVO manualLockGate(Long laneId, Long operatorId, String reason)` | 常开锁定（委托 `DeviceService.lockGateByLane`） |
+| manualUnlockGate | `RecognitionResultVO manualUnlockGate(Long laneId, Long operatorId, String reason)` | 取消常开（委托 `DeviceService.unlockGateByLane`） |
 
 ### ShiftRecordService  `service/ShiftRecordService.java`
 继承 `IService<ShiftRecord>`。
@@ -114,5 +115,6 @@
 
 ## 五、跨模块依赖
 
-- `RecognitionEventService.handleEvent` → `VehicleTypeDecisionService.decide(...)`（车辆类型判定）→ `FeeCalculationService.calculateFeeCents(...)`（计费）→ `DeviceAccessClient.openGate(...)`（开闸）。
-- Device Webhook 链路：`DeviceWebhookService` 接收事件 → `DeviceWebhookEventHandler` 调用 `RecognitionEventService.handleEvent`。
+- `RecognitionEventService.handleEvent` → `VehicleTypeDecisionService.decide(...)`（车辆类型判定）→ `FeeCalculationService.calculateFeeCents(...)`（计费）→ `DeviceService.resolveGateDevice(laneId)`（控闸设备解析，4级优先级：gate_device_id→GATE→CAMERA+OPEN_GATE→报错）→ `DeviceAccessClient.openGate(...)`（开闸）。
+- 手动开闸/关闸/自动开闸均统一走 `DeviceService.resolveGateDevice(laneId)`，停车场级回退已删除。
+- 前端按钮按 `GET /api/v1/booth/recognition/gate-capabilities?laneId=` 返回的能力列表动态渲染（Q3=只开闸，C5H=开/关/常开）。
