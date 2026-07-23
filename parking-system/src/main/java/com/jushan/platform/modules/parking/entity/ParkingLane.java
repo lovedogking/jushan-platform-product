@@ -54,6 +54,9 @@ public class ParkingLane extends BaseEntity {
     /** 闸机模式：AUTO-自动, ALWAYS_OPEN-常开, ALWAYS_CLOSE-常关 */
     private String gateMode;
 
+    /** 唯一控闸设备ID，指向 device.id；NULL=待补录 */
+    private Long gateDeviceId;
+
     /** 乐观锁版本号 */
     private Integer version;
 

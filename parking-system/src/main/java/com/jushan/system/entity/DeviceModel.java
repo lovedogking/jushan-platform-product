@@ -36,6 +36,9 @@ public class DeviceModel implements Serializable {
     /** 状态：ENABLED-启用, DISABLED-停用 */
     private String status;
 
+    /** 型号默认能力，逗号分隔（如 OPEN_GATE,CLOSE_GATE,CAPTURE,KEEP_OPEN） */
+    private String capabilities;
+
     /** 备注 */
     private String description;
 
@@ -62,6 +65,9 @@ public class DeviceModel implements Serializable {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getCapabilities() { return capabilities; }
+    public void setCapabilities(String capabilities) { this.capabilities = capabilities; }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }

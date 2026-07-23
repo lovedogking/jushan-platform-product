@@ -1,5 +1,6 @@
 package com.jushan.platform.modules.booth.controller;
 
+import com.jushan.common.BusinessException;
 import com.jushan.common.R;
 import com.jushan.platform.infra.security.RequirePermission;
 import com.jushan.platform.infra.security.RequireRole;
@@ -8,9 +9,11 @@ import com.jushan.platform.modules.booth.service.RecognitionEventService;
 import com.jushan.platform.modules.booth.vo.RecognitionResultVO;
 import com.jushan.system.client.dto.CaptureResultDTO;
 import com.jushan.system.client.dto.CommandResultDTO;
+import com.jushan.system.entity.Device;
 import com.jushan.system.service.DeviceService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -94,6 +97,37 @@ public class RecognitionEventController {
         CaptureResultDTO result = recognitionEventService.captureImage(laneId);
         log.info("手动抓拍: laneId={}, success={}, imageUrl={}", laneId, result.isSuccessful(), result.getImageUrl());
         return R.ok(result);
+    }
+
+    /**
+     * 查询车道控闸设备的能力集（前端按钮按能力动态渲染）。
+     * <p>
+     * 解析该车道的控闸设备后，返回其 capabilities 列表，前端据此决定展示哪些按钮（开闸/关闸/常开/取消常开）。
+     * 若车道未配置控闸设备，返回空列表。
+     *
+     * @param laneId 车道 ID
+     * @return 能力列表（如 ["OPEN_GATE","CLOSE_GATE","CAPTURE"]）
+     */
+    @GetMapping("/gate-capabilities")
+    @RequirePermission("booth:operate")
+    public R<List<String>> getGateCapabilities(@RequestParam Long laneId) {
+        try {
+            Device gateDevice = deviceService.resolveGateDevice(laneId);
+            String caps = gateDevice.getCapabilities();
+            if (caps == null || caps.isBlank()) {
+                return R.ok(List.of());
+            }
+            List<String> capList = java.util.Arrays.stream(caps.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(java.util.stream.Collectors.toList());
+            log.info("查询车道控闸设备能力: laneId={}, deviceId={}, capabilities={}",
+                    laneId, gateDevice.getId(), capList);
+            return R.ok(capList);
+        } catch (BusinessException e) {
+            log.info("车道未找到控闸设备（返回空能力）: laneId={}, error={}", laneId, e.getMessage());
+            return R.ok(List.of());
+        }
     }
 
     /**

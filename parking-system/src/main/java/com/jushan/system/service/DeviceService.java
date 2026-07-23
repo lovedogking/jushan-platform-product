@@ -49,7 +49,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -109,8 +111,7 @@ public class DeviceService {
     /** 默认值 */
     private static final String DEFAULT_DEVICE_TYPE = "CAMERA";
     private static final String DEFAULT_CAPABILITIES = "";
-    /** 一期臻识 C5 相机通过 GPIO 直接控闸，默认具备开闸能力 */
-    private static final String DEFAULT_CAMERA_CAPABILITIES = "OPEN_GATE";
+    private static final String DEFAULT_CAMERA_CAPABILITIES = "";
 
     /** 识别方向 */
     public static final int DIRECTION_ENTRY = 1;
@@ -248,8 +249,12 @@ public class DeviceService {
             }
         }
         device.setStatus(STATUS_ENABLED);
+        // 能力：实例显式指定 > 型号默认继承 > 空
+        String modelCapabilities = model.getCapabilities();
         device.setCapabilities(defaultString(request.getCapabilities(),
-                "CAMERA".equals(deviceType) ? DEFAULT_CAMERA_CAPABILITIES : DEFAULT_CAPABILITIES));
+                defaultString(modelCapabilities, DEFAULT_CAPABILITIES)));
+        // 校验：实例能力不得超出型号能力范围
+        validateCapabilitiesMatch(device.getCapabilities(), modelCapabilities, model.getName());
         device.setDescription(defaultString(request.getDescription(), ""));
         device.setCreatedAt(LocalDateTime.now());
         device.setUpdatedAt(LocalDateTime.now());
@@ -825,6 +830,40 @@ public class DeviceService {
         return direction == DIRECTION_ENTRY ? "入场" : "出场";
     }
 
+    /**
+     * 校验设备实例能力不超出型号能力范围。
+     *
+     * @param instanceCaps 设备实例的 capabilities 字符串
+     * @param modelCaps    设备型号的 capabilities 字符串
+     * @param modelName    型号名称（用于报错信息）
+     * @throws BusinessException 实例能力超出型号能力时
+     */
+    private void validateCapabilitiesMatch(String instanceCaps, String modelCaps, String modelName) {
+        // 型号无能力约束时，不校验（允许任意配置）
+        if (modelCaps == null || modelCaps.isBlank()) {
+            return;
+        }
+        // 实例无能力时，不校验
+        if (instanceCaps == null || instanceCaps.isBlank()) {
+            return;
+        }
+        Set<String> modelSet = Arrays.stream(modelCaps.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+        Set<String> instanceSet = Arrays.stream(instanceCaps.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+        Set<String> exceeding = new HashSet<>(instanceSet);
+        exceeding.removeAll(modelSet);
+        if (!exceeding.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                    "该设备实例的能力 " + exceeding + " 超出型号 " + modelName
+                    + " 的能力范围 " + modelSet + "，请检查设备型号配置");
+        }
+    }
+
     // ==================== 设备校时（T25） ====================
 
     /**
@@ -1050,36 +1089,104 @@ public class DeviceService {
     // ==================== 设备控制（T5: v0.4 开闸/关闸/显示屏/语音） ====================
 
     /**
-     * 查找车道对应的控闸设备（GATE 设备或具备开闸能力的 CAMERA）。
+     * 按车道解析控闸设备（共享方法，手动/自动/远程/内部所有链路统一入口）。
      * <p>
-     * 查找优先级：GATE → CAMERA(含 OPEN_GATE capability) → 停车场级回退。
+     * 解析优先级：
+     * <ol>
+     *   <li>{@code parking_lane.gate_device_id} 不为空 → 返回该设备（车道级显式指定，单一事实源）</li>
+     *   <li>本车道 GATE 类型设备（≤1 候选；多候选 → 报错并告警）</li>
+     *   <li>本车道 CAMERA + capabilities 含 OPEN_GATE（≤1 候选；多候选 → 报错并告警）</li>
+     *   <li>以上皆无 → 抛 {@link BusinessException}(GATE_DEVICE_NOT_FOUND) 并产生告警</li>
+     * </ol>
+     * <b>停车场级回退已删除</b>：车道级解析失败直接报错，绝不跨车道开闸。
+     *
+     * @param laneId 车道 ID
+     * @return 控闸设备（绝不返回 null）
+     * @throws BusinessException 未找到设备或多候选时
      */
-    private Device resolveGateDevice(Long laneId) {
-        // 1. 优先查找绑定的 GATE 设备
-        Device gateDevice = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "GATE");
-        if (gateDevice != null) {
-            return gateDevice;
+    public Device resolveGateDevice(Long laneId) {
+        if (laneId == null) {
+            throw new BusinessException(CommonErrorCode.PARAM_ERROR, "车道ID不能为空");
         }
 
-        // 2. 回退到绑定车道的 CAMERA（具备开闸能力）
-        Device camera = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "CAMERA");
-        if (camera != null && camera.getCapabilities() != null
-                && camera.getCapabilities().contains("OPEN_GATE")) {
-            log.info("车道 {} 无 GATE 设备，使用 CAMERA 控闸: deviceId={}", laneId, camera.getId());
-            return camera;
-        }
-
-        // 3. 停车场级回退
         ParkingLane lane = laneMapper.selectByIdIgnoreTenant(laneId);
-        if (lane != null && lane.getLotId() != null) {
-            Device fallback = deviceMapper.selectCameraWithOpenGateByLotIdIgnoreTenant(lane.getLotId());
-            if (fallback != null) {
-                log.info("车道 {} 使用停车场级回退: deviceId={}", laneId, fallback.getId());
-                return fallback;
-            }
+        if (lane == null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道不存在: laneId=" + laneId);
         }
 
-        return null;
+        // 0. 车道级显式指定（单一事实源，优先级最高）
+        if (lane.getGateDeviceId() != null) {
+            Device device = deviceMapper.selectById(lane.getGateDeviceId());
+            if (device == null) {
+                log.error("车道 gate_device_id 指向的设备不存在: laneId={}, gateDeviceId={}",
+                        laneId, lane.getGateDeviceId());
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "车道控闸设备配置异常: gate_device_id=" + lane.getGateDeviceId() + " 指向的设备不存在");
+            }
+            if (!STATUS_ENABLED.equals(device.getStatus())) {
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "车道控闸设备已停用: deviceId=" + device.getId() + " name=" + device.getName());
+            }
+            // 校验 gate_device_id 指向的设备属于本条车道
+            if (!laneId.equals(device.getLaneId())) {
+                log.warn("车道 gate_device_id 指向的设备不属于本条车道: laneId={}, gateDeviceId={}, device.laneId={}",
+                        laneId, lane.getGateDeviceId(), device.getLaneId());
+                // 不抛异常，以 gate_device_id 为准（允许未来跨车道共用控闸设备场景）
+            }
+            log.debug("按 gate_device_id 解析控闸设备: laneId={}, deviceId={}, deviceSn={}",
+                    laneId, device.getId(), device.getDeviceSn());
+            return device;
+        }
+
+        // 1. 本车道 GATE 类型设备（必须唯一；多候选报错）
+        List<Device> gateDevices = deviceMapper.selectList(
+                new LambdaQueryWrapper<Device>()
+                        .eq(Device::getLaneId, laneId)
+                        .eq(Device::getDeviceType, "GATE")
+                        .eq(Device::getStatus, "ENABLED"));
+        if (!gateDevices.isEmpty()) {
+            if (gateDevices.size() > 1) {
+                String sns = gateDevices.stream().map(Device::getDeviceSn).collect(Collectors.joining(", "));
+                log.error("车道绑定多台 GATE 设备，无法确定控闸目标: laneId={}, count={}, devices={}",
+                        laneId, gateDevices.size(), sns);
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "车道绑定了多台道闸设备，无法自动确定控闸目标，请配置 gate_device_id: laneId="
+                        + laneId + " laneName=" + lane.getName() + " candidates=" + sns);
+            }
+            log.debug("按 GATE 设备解析控闸: laneId={}, deviceId={}, deviceSn={}",
+                    laneId, gateDevices.get(0).getId(), gateDevices.get(0).getDeviceSn());
+            return gateDevices.get(0);
+        }
+
+        // 2. 本车道 CAMERA + OPEN_GATE 能力（必须唯一；多候选报错）
+        List<Device> cameras = deviceMapper.selectList(
+                new LambdaQueryWrapper<Device>()
+                        .eq(Device::getLaneId, laneId)
+                        .eq(Device::getDeviceType, "CAMERA")
+                        .eq(Device::getStatus, "ENABLED"));
+        List<Device> openGateCameras = cameras.stream()
+                .filter(c -> c.getCapabilities() != null && c.getCapabilities().contains("OPEN_GATE"))
+                .collect(Collectors.toList());
+        if (!openGateCameras.isEmpty()) {
+            if (openGateCameras.size() > 1) {
+                String sns = openGateCameras.stream().map(Device::getDeviceSn).collect(Collectors.joining(", "));
+                log.error("车道绑定多台含 OPEN_GATE 能力的 CAMERA，无法确定控闸目标: laneId={}, count={}, devices={}",
+                        laneId, openGateCameras.size(), sns);
+                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                        "车道绑定了多台可开闸相机，无法自动确定控闸目标，请配置 gate_device_id: laneId="
+                        + laneId + " laneName=" + lane.getName() + " candidates=" + sns);
+            }
+            log.debug("按 CAMERA+OPEN_GATE 解析控闸: laneId={}, deviceId={}, deviceSn={}",
+                    laneId, openGateCameras.get(0).getId(), openGateCameras.get(0).getDeviceSn());
+            return openGateCameras.get(0);
+        }
+
+        // 3. 以上皆无 → 报错（停车场级回退已删除）
+        log.error("车道未找到控闸设备: laneId={}, laneName={}, gateDeviceId={}, 无GATE设备, 无CAMERA+OPEN_GATE",
+                laneId, lane.getName(), lane.getGateDeviceId());
+        throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
+                "该车道未找到控闸设备，请配置 gate_device_id 或绑定道闸/可开闸相机: laneId="
+                + laneId + " laneName=" + lane.getName());
     }
 
     /**
@@ -1107,12 +1214,8 @@ public class DeviceService {
         DataScope.validateTenantMatch(lane.getTenantId(), "车道");
         scopeResolver.validateAccess(lane.getLotId());
 
-        // 3. 查找控闸设备（GATE 或具备开闸能力的 CAMERA）
+        // 3. 查找控闸设备（解析失败直接抛 BusinessException）
         Device gateDevice = resolveGateDevice(laneId);
-        if (gateDevice == null) {
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "该车道未绑定道闸设备: laneId=" + laneId + " laneName=" + lane.getName());
-        }
 
         log.info("按车道远程开闸: laneId={}, laneName={}, deviceId={}, deviceType={}, reason={}",
                 laneId, lane.getName(), gateDevice.getId(), gateDevice.getDeviceType(), reason);
@@ -1142,10 +1245,6 @@ public class DeviceService {
         scopeResolver.validateAccess(lane.getLotId());
 
         Device gateDevice = resolveGateDevice(laneId);
-        if (gateDevice == null) {
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "该车道未绑定道闸或控闸相机: laneId=" + laneId + " laneName=" + lane.getName());
-        }
 
         log.info("按车道常开（锁定道闸）: laneId={}, laneName={}, deviceId={}, deviceSn={}, reason={}",
                 laneId, lane.getName(), gateDevice.getId(), gateDevice.getDeviceSn(), reason);
@@ -1175,10 +1274,6 @@ public class DeviceService {
         scopeResolver.validateAccess(lane.getLotId());
 
         Device gateDevice = resolveGateDevice(laneId);
-        if (gateDevice == null) {
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "该车道未绑定道闸或控闸相机: laneId=" + laneId + " laneName=" + lane.getName());
-        }
 
         log.info("按车道取消常开（解除道闸锁定）: laneId={}, laneName={}, deviceId={}, deviceSn={}, reason={}",
                 laneId, lane.getName(), gateDevice.getId(), gateDevice.getDeviceSn(), reason);

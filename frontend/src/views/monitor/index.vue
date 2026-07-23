@@ -151,6 +151,7 @@
                       <div class="lane-actions">
                         <a-space>
                           <a-button
+                            v-if="hasGateCapability(lane.laneId, 'OPEN_GATE')"
                             type="primary"
                             size="small"
                             @click="handleManualOpenGate(lane)"
@@ -158,12 +159,14 @@
                             开闸
                           </a-button>
                           <a-button
+                            v-if="hasGateCapability(lane.laneId, 'CLOSE_GATE')"
                             size="small"
                             @click="handleManualCloseGate(lane.laneId)"
                           >
                             关闸
                           </a-button>
                           <a-popconfirm
+                            v-if="hasGateCapability(lane.laneId, 'KEEP_OPEN')"
                             :title="laneLockState[lane.laneId]?.open ? '确定取消常开？道闸将恢复正常起落' : '确定设置常开？道闸将锁定保持抬杆状态'"
                             @confirm="handleToggleLockOpen(lane.laneId)"
                           >
@@ -175,6 +178,7 @@
                             </a-button>
                           </a-popconfirm>
                           <a-popconfirm
+                            v-if="hasGateCapability(lane.laneId, 'KEEP_OPEN')"
                             :title="laneLockState[lane.laneId]?.close ? '确定取消常关？道闸将恢复正常起落' : '确定设置常关？白名单车辆将不再自动开闸'"
                             @confirm="handleToggleLockClose(lane.laneId)"
                           >
@@ -461,6 +465,9 @@ const manualReleasePlate = ref('')
 /** 每个通道的锁定状态：{ [laneId]: { open: boolean, close: boolean } } */
 const laneLockState = ref<Record<number, { open: boolean; close: boolean }>>({})
 
+/** 车道控闸能力：laneId → capabilities[]，前端按钮按此动态渲染 */
+const gateCapabilities = ref<Record<number, string[]>>({})
+
 // 从快照初始化 laneLockState（修复 gateMode 刷新后状态丢失）
 watch(() => store.lanes, (lanes) => {
   for (const lane of lanes) {
@@ -591,6 +598,26 @@ async function loadLotOptions() {
   } catch {
     // 静默失败
   }
+}
+
+/** 刷新所有车道控闸能力（按钮按能力动态渲染） */
+async function refreshGateCapabilities() {
+  const { getGateCapabilities } = await import('@/api/charge')
+  const caps: Record<number, string[]> = {}
+  for (const lane of store.lanes) {
+    try {
+      caps[lane.id] = await getGateCapabilities(lane.id)
+    } catch {
+      caps[lane.id] = [] // 接口异常兜底：不展示任何闸控按钮
+    }
+  }
+  gateCapabilities.value = caps
+}
+
+/** 判断车道控闸设备是否具备指定能力 */
+function hasGateCapability(laneId: number, capability: string): boolean {
+  const caps = gateCapabilities.value[laneId]
+  return caps != null && caps.includes(capability)
 }
 
 function handleManualOpenGate(lane: LaneCard) {
@@ -1027,6 +1054,7 @@ async function handleLotSelect(lotId: number) {
   // 加载新快照
   try {
     await store.loadSnapshot(lotId)
+    await refreshGateCapabilities()
     buildWsClient(lotId)
   } catch (e: any) {
     message.error(e?.message || '车场切换失败')
@@ -1040,6 +1068,7 @@ async function refreshDevices() {
   }
   try {
     await store.refreshAllDevices()
+    await refreshGateCapabilities()
     message.success('设备状态已刷新')
   } catch (e: any) {
     message.error(e?.message || '刷新失败')

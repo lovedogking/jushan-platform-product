@@ -144,3 +144,11 @@ export function captureImage(laneId: number): Promise<CaptureImageResult> {
     { params: { laneId } },
   )
 }
+
+/**
+ * 查询车道控闸设备的能力集（前端按钮按能力动态渲染）。
+ * GET /api/v1/booth/recognition/gate-capabilities
+ */
+export function getGateCapabilities(laneId: number): Promise<string[]> {
+  return request.get<string[]>('/v1/booth/recognition/gate-capabilities', { laneId })
+}

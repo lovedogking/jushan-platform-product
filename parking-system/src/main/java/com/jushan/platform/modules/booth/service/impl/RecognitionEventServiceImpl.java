@@ -150,43 +150,23 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         RecognitionResultVO result = new RecognitionResultVO();
         result.setAllowPass(true);
 
-        // 1. 先查找 GATE 设备（忽略租户拦截器，岗亭端 super_admin 可能无租户上下文）
-        Device gateDevice = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "GATE");
-
-        // 2. 若无 GATE 设备，查找带 OPEN_GATE 能力的 CAMERA 设备（如臻识 C5H GPIO 控制）
-        if (gateDevice == null) {
-            Device camera = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "CAMERA");
-            if (camera != null && camera.getCapabilities() != null
-                    && camera.getCapabilities().contains("OPEN_GATE")) {
-                gateDevice = camera;
-            }
-        }
-
-        // 3. 若当前车道无匹配设备，回退到同一停车场的 CAMERA+OPEN_GATE 设备
-        if (gateDevice == null) {
-            ParkingLane lane = parkingLaneMapper.selectByIdIgnoreTenant(laneId);
-            if (lane != null && lane.getLotId() != null) {
-                gateDevice = deviceMapper.selectCameraWithOpenGateByLotIdIgnoreTenant(lane.getLotId());
-                if (gateDevice != null) {
-                    log.info("人工开闸使用停车场级回退: laneId={}, parkingLotId={}, fallbackDeviceId={}, deviceSn={}",
-                            laneId, lane.getLotId(), gateDevice.getId(), gateDevice.getDeviceSn());
-                }
-            }
-        }
-
-        if (gateDevice == null) {
+        // 1. 按车道解析控闸设备（统一方法，解析失败直接抛 BusinessException）
+        Device gateDevice;
+        try {
+            gateDevice = deviceService.resolveGateDevice(laneId);
+        } catch (BusinessException e) {
             result.setGateCommandSent(false);
             result.setGateDeviceAck(false);
             result.setGateOpened(null);
-            result.setGateResult("未找到车道对应的 GATE 或 CAMERA 设备，无法开闸");
+            result.setGateResult(e.getMessage());
             result.setResultMessage("人工开闸失败: " + reason);
             result.setException(true);
             result.setExceptionType("GATE_DEVICE_NOT_FOUND");
-            log.warn("人工开闸失败: 车道无可控设备, laneId={}, operatorId={}", laneId, operatorId);
+            log.warn("人工开闸失败: {}, laneId={}, operatorId={}", e.getMessage(), laneId, operatorId);
             return result;
         }
 
-        // 4. 通过 DeviceService.openGate() 执行开闸
+        // 2. 通过 DeviceService.openGate() 执行开闸
         try {
             result.setGateCommandSent(true);
             CommandResultDTO gateResult = deviceService.openGate(gateDevice.getId(), "人工开闸: " + reason,
@@ -413,35 +393,19 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         RecognitionResultVO result = new RecognitionResultVO();
         result.setAllowPass(true);
 
-        // 与开闸共享同一设备查找逻辑
-        Device gateDevice = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "GATE");
-        if (gateDevice == null) {
-            Device camera = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "CAMERA");
-            if (camera != null && camera.getCapabilities() != null
-                    && camera.getCapabilities().contains("OPEN_GATE")) {
-                gateDevice = camera;
-            }
-        }
-        if (gateDevice == null) {
-            ParkingLane lane = parkingLaneMapper.selectByIdIgnoreTenant(laneId);
-            if (lane != null && lane.getLotId() != null) {
-                gateDevice = deviceMapper.selectCameraWithOpenGateByLotIdIgnoreTenant(lane.getLotId());
-                if (gateDevice != null) {
-                    log.info("人工关闸使用停车场级回退: laneId={}, parkingLotId={}, fallbackDeviceId={}, deviceSn={}",
-                            laneId, lane.getLotId(), gateDevice.getId(), gateDevice.getDeviceSn());
-                }
-            }
-        }
-
-        if (gateDevice == null) {
+        // 按车道解析控闸设备（统一方法，解析失败直接抛 BusinessException）
+        Device gateDevice;
+        try {
+            gateDevice = deviceService.resolveGateDevice(laneId);
+        } catch (BusinessException e) {
             result.setGateCommandSent(false);
             result.setGateDeviceAck(false);
             result.setGateOpened(null);
-            result.setGateResult("未找到车道对应的 GATE 或 CAMERA 设备，无法关闸");
+            result.setGateResult(e.getMessage());
             result.setResultMessage("人工关闸失败: " + reason);
             result.setException(true);
             result.setExceptionType("GATE_DEVICE_NOT_FOUND");
-            log.warn("人工关闸失败: 车道无可控设备, laneId={}, operatorId={}", laneId, operatorId);
+            log.warn("人工关闸失败: {}, laneId={}, operatorId={}", e.getMessage(), laneId, operatorId);
             return result;
         }
 
@@ -866,24 +830,20 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
      */
     private void executeGateOpen(Long parkingLotId, Long laneId, RecognitionResultVO result,
                                   String direction, String plateNumber) {
-        // 1. 先查找 GATE 设备
-        Device gateDevice = findGateDevice(laneId);
-
-        // 2. 若无 GATE 设备，查找带 OPEN_GATE 能力的 CAMERA 设备（如臻识 C5H GPIO 控制）
-        if (gateDevice == null) {
-            gateDevice = findCameraWithGateCapability(laneId);
-        }
-
-        if (gateDevice == null) {
+        // 按车道解析控闸设备（统一方法，解析失败抛 BusinessException）
+        Device gateDevice;
+        try {
+            gateDevice = deviceService.resolveGateDevice(laneId);
+        } catch (BusinessException e) {
             result.setGateCommandSent(false);
             result.setGateDeviceAck(false);
             result.setGateOpened(null);
-            result.setGateResult("未找到车道对应的 GATE 或 CAMERA 设备");
-            log.warn("{}开闸跳过: 车道无可控设备, laneId={}, plate={}", direction, laneId, plateNumber);
+            result.setGateResult(e.getMessage());
+            log.warn("{}开闸跳过: {}", direction, e.getMessage());
             Long tenantId = TenantContext.getTenantId();
             monitorAlertService.createGateAlert(tenantId, parkingLotId, laneId, null,
                     "DEVICE_CONFIG_MISSING",
-                    "开闸跳过: 车道无可控设备, laneId=" + laneId + ", plate=" + plateNumber);
+                    e.getMessage() + ", plate=" + plateNumber);
             return;
         }
 
@@ -934,57 +894,6 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
             log.error("{}开闸异常（UNCERTAIN）: plate={}, deviceSn={}, commandId={}, error={}",
                     direction, plateNumber, deviceSn, commandId, e.getMessage());
         }
-    }
-
-    /**
-     * 查找车道绑定的已启用 GATE 设备。
-     * <p>
-     * 通过 MyBatis-Plus 租户拦截器自动过滤租户数据，
-     * deviceSn 从平台设备台账可信记录读取。
-     *
-     * @param laneId 车道 ID
-     * @return GATE 设备实体，未找到返回 null
-     */
-    private Device findGateDevice(Long laneId) {
-        if (laneId == null) {
-            return null;
-        }
-        List<Device> devices = deviceMapper.selectList(
-                new LambdaQueryWrapper<Device>()
-                        .eq(Device::getLaneId, laneId)
-                        .eq(Device::getDeviceType, "GATE")
-                        .eq(Device::getStatus, "ENABLED")
-                        .last("LIMIT 1"));
-        return devices.isEmpty() ? null : devices.get(0);
-    }
-
-    /**
-     * 查找车道绑定的具有 OPEN_GATE 能力的 CAMERA 设备。
-     * <p>
-     * 臻识 C5H 等相机通过 GPIO 直接控制道闸，设备能力中需包含 OPEN_GATE。
-     *
-     * @param laneId 车道 ID
-     * @return CAMERA 设备实体，未找到返回 null
-     */
-    private Device findCameraWithGateCapability(Long laneId) {
-        if (laneId == null) {
-            return null;
-        }
-        List<Device> devices = deviceMapper.selectList(
-                new LambdaQueryWrapper<Device>()
-                        .eq(Device::getLaneId, laneId)
-                        .eq(Device::getDeviceType, "CAMERA")
-                        .eq(Device::getStatus, "ENABLED")
-                        .last("LIMIT 1"));
-        if (devices.isEmpty()) {
-            return null;
-        }
-        Device camera = devices.get(0);
-        // 检查 capabilities 是否包含 OPEN_GATE
-        if (camera.getCapabilities() != null && camera.getCapabilities().contains("OPEN_GATE")) {
-            return camera;
-        }
-        return null;
     }
 
     /**

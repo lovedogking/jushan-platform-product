@@ -64,6 +64,9 @@ public class ParkingLane implements Serializable {
     /** 闸机模式：AUTO-自动, ALWAYS_OPEN-常开, ALWAYS_CLOSE-常关 */
     private String gateMode;
 
+    /** 唯一控闸设备ID，指向 device.id（GATE 设备或接线控闸的 CAMERA）；NULL=待补录 */
+    private Long gateDeviceId;
+
     /** 乐观锁版本号 */
     private Integer version;
 
@@ -119,6 +122,9 @@ public class ParkingLane implements Serializable {
 
     public String getGateMode() { return gateMode; }
     public void setGateMode(String gateMode) { this.gateMode = gateMode; }
+
+    public Long getGateDeviceId() { return gateDeviceId; }
+    public void setGateDeviceId(Long gateDeviceId) { this.gateDeviceId = gateDeviceId; }
 
     public Integer getVersion() { return version; }
     public void setVersion(Integer version) { this.version = version; }
