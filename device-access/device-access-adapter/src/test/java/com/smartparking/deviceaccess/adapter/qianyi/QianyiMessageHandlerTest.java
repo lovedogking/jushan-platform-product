@@ -229,9 +229,9 @@ class QianyiMessageHandlerTest {
     // ──────────────────── 下行命令与应答关联测试 ────────────────────
 
     @Test
-    @DisplayName("Should build iooutput command and correlate reply by msg_id")
-    void shouldSendIoOutputAndCorrelateReply() throws Exception {
-        CompletableFuture<Map<String, Object>> future = handler.sendIoOutput(TEST_SN, "on", 10);
+    @DisplayName("Should build open gate iooutput command and correlate reply by msg_id")
+    void shouldSendOpenGateAndCorrelateReply() throws Exception {
+        CompletableFuture<Map<String, Object>> future = handler.sendOpenGate(TEST_SN, 10);
 
         // 校验下行 JSON 字段
         ArgumentCaptor<String> topicCaptor = ArgumentCaptor.forClass(String.class);
@@ -240,7 +240,7 @@ class QianyiMessageHandlerTest {
         assertThat(topicCaptor.getValue()).isEqualTo(TEST_SUBTOPIC); // 未注册 → 默认模板
         Map<String, Object> cmd = objectMapper.readValue(jsonCaptor.getValue(), Map.class);
         assertThat(cmd.get("cmd")).isEqualTo("iooutput");
-        assertThat(cmd.get("ionum")).isEqualTo(1);
+        assertThat(cmd.get("ionum")).isEqualTo(0);
         assertThat(cmd.get("action")).isEqualTo("on");
         assertThat(cmd.get("utc_ts")).isNotNull();
         String msgId = (String) cmd.get("msg_id");
@@ -299,7 +299,7 @@ class QianyiMessageHandlerTest {
         register.put("pubtopic", TEST_PUBTOPIC);
         handler.onRawMessage("/serverAll", register);
 
-        handler.sendIoOutput(TEST_SN, "off", 10);
+        handler.sendCloseGate(TEST_SN, 10);
 
         ArgumentCaptor<String> topicCaptor = ArgumentCaptor.forClass(String.class);
         verify(mqttGateway, atLeastOnce()).publishRaw(topicCaptor.capture(), anyString());

@@ -126,8 +126,10 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
     /** 无牌车 plate_num 取值（协议规定为字符串 "null"，非 JSON null） */
     private static final String NO_PLATE = "null";
 
-    /** 开/关闸固定的继电器编号 */
-    private static final int GATE_IONUM = 1;
+    /** 开闸继电器编号（ionum=0，实测有效） */
+    private static final int GATE_OPEN_IONUM = 0;
+    /** 关闸继电器编号（ionum=2，继电器响但需确认接线） */
+    private static final int GATE_CLOSE_IONUM = 2;
 
     /** syncSysTime 时区枚举：0=GMT+12 … 24=GMT-12，GMT+8 = 4（文档示例写 20 疑似笔误，实测验证） */
     private static final int TIME_ZONE_GMT8 = 4;
@@ -338,16 +340,28 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
     // ──────────────────── 下行命令 ────────────────────
 
     /**
-     * 下发继电器控制（开/关闸，脉冲触发）。
+     * 下发开闸命令（脉冲触发）。
      * <p>
-     * {@code {"cmd":"iooutput","msg_id":"...","ionum":1,"action":"on|off","utc_ts":秒}}
-     *
-     * @param action "on" 开闸，"off" 关闸
+     * {@code {"cmd":"iooutput","msg_id":"...","ionum":0,"action":"on","utc_ts":秒}}
+     * 参照臻识 IO0 开闸。
      */
-    public CompletableFuture<Map<String, Object>> sendIoOutput(String deviceSn, String action, long timeoutSeconds) {
+    public CompletableFuture<Map<String, Object>> sendOpenGate(String deviceSn, long timeoutSeconds) {
         Map<String, Object> fields = new LinkedHashMap<>();
-        fields.put("ionum", GATE_IONUM);
-        fields.put("action", action);
+        fields.put("ionum", GATE_OPEN_IONUM);
+        fields.put("action", "on");
+        fields.put("utc_ts", Instant.now().getEpochSecond());
+        return sendCommand(deviceSn, "iooutput", fields, timeoutSeconds);
+    }
+
+    /**
+     * 下发关闸命令（脉冲触发）。
+     * <p>
+     * {@code {"cmd":"iooutput","msg_id":"...","ionum":2,"action":"on","utc_ts":秒}}
+     */
+    public CompletableFuture<Map<String, Object>> sendCloseGate(String deviceSn, long timeoutSeconds) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("ionum", GATE_CLOSE_IONUM);
+        fields.put("action", "on");
         fields.put("utc_ts", Instant.now().getEpochSecond());
         return sendCommand(deviceSn, "iooutput", fields, timeoutSeconds);
     }
@@ -357,7 +371,7 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
      * <p>
      * {@code {"cmd":"barrierKeepOpen","msg_id":"...","isKeepOpen":1|0}}
      * 1=保持常开，0=取消常开（文档表格与示例矛盾，以示例及 7.2.15 节为准，实测验证）。
-     * 取消常开后如需落闸，需另行下发 iooutput off。
+     * 取消常开后如需落闸，需另行下发 sendCloseGate。
      */
     public CompletableFuture<Map<String, Object>> sendBarrierKeepOpen(String deviceSn, int isKeepOpen,
                                                                        long timeoutSeconds) {

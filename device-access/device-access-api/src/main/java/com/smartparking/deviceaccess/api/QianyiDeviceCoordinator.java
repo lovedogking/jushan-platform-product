@@ -36,7 +36,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>
  * 协议命令映射（《芊熠智能：MQTT通信协议-基线260401》）：
  * <ul>
- *   <li>开/关闸 → iooutput（action on/off，脉冲触发）</li>
+ *   <li>开闸 → iooutput ionum=0 action=on；关闸 → iooutput ionum=1 action=on（脉冲触发）</li>
  *   <li>常开 → barrierKeepOpen isKeepOpen=1；取消常开 → isKeepOpen=0 + 补发 iooutput off 落闸</li>
  *   <li>校时 → syncSysTime</li>
  *   <li>屏显 → rs485 透传 OLM-M1D 帧</li>
@@ -112,7 +112,7 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
     /**
      * 开闸命令。
      * <p>
-     * iooutput: ionum=1, action=on（脉冲触发，脉宽由设备 set_Interval 配置）。
+     * iooutput: ionum=0, action=on（脉冲触发，参照臻识 IO0 开闸）。
      */
     public CompletableFuture<CommandResultDTO> openGate(String deviceId) {
         Device device = deviceRegistry.getByDeviceId(deviceId);
@@ -125,7 +125,7 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
 
         ensureMqttConnected();
 
-        return handler.sendIoOutput(device.getDeviceId(), "on", DEFAULT_TIMEOUT_SECONDS)
+        return handler.sendOpenGate(device.getDeviceId(), DEFAULT_TIMEOUT_SECONDS)
                 .thenApply(reply -> {
                     QianyiCommandResult result = handler.parseCommandResult(reply);
                     boolean success = result.isSuccess();
@@ -152,7 +152,7 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
     /**
      * 关闸命令。
      * <p>
-     * iooutput: ionum=1, action=off。
+     * iooutput: ionum=2, action=on（脉冲触发，关闸继电器）。
      */
     public CompletableFuture<CommandResultDTO> closeGate(String deviceId) {
         Device device = deviceRegistry.getByDeviceId(deviceId);
@@ -165,7 +165,7 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
 
         ensureMqttConnected();
 
-        return handler.sendIoOutput(device.getDeviceId(), "off", DEFAULT_TIMEOUT_SECONDS)
+        return handler.sendCloseGate(device.getDeviceId(), DEFAULT_TIMEOUT_SECONDS)
                 .thenApply(reply -> {
                     QianyiCommandResult result = handler.parseCommandResult(reply);
                     boolean success = result.isSuccess();
@@ -277,8 +277,8 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
                     }
 
                     // 取消常开成功 → best-effort 落闸
-                    log.info("[Gate] Coordinator: unlockGate keep-open cancelled, closing barrier via iooutput(off)  deviceId={}", deviceId);
-                    return handler.sendIoOutput(device.getDeviceId(), "off", DEFAULT_TIMEOUT_SECONDS)
+                    log.info("[Gate] Coordinator: unlockGate keep-open cancelled, closing barrier via sendCloseGate  deviceId={}", deviceId);
+                    return handler.sendCloseGate(device.getDeviceId(), DEFAULT_TIMEOUT_SECONDS)
                             .handle((closeReply, closeError) -> {
                                 String msg = "Gate unlocked";
                                 if (closeError != null) {

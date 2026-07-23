@@ -123,7 +123,7 @@ device-access:
     # IP 白名单（逗号分隔），默认空表示不启用 IP 过滤
     # 生产环境必须配置为 Device Access 服务的具体 IP 地址
     # 禁止使用 *（全放行），仅测试可按需启用
-    allowed-ips: ""
+    allowed-ips: "127.0.0.1"
     # 签名校验（HMAC-SHA256），默认启用。仅 dev 环境可关闭用于调试
     signature-enabled: true
     # 时间戳容忍偏差（秒），默认 300 秒（5 分钟）
