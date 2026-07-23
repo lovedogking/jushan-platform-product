@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/system/controller/`
 > **所属**：`parking-system` · `com.jushan.system`
 > **职责**：运营后台岗亭端、微信端、P云对接的全部 REST 接口入口。
-> **最近更新**：2026-07-21
+> **最近更新**：2026-07-23（新增 gate-capabilities 接口；新增 resolveGateDevice 方法）
 
 **说明**：此为扁平 Controller 集合索引，按功能域分组。系统内存在部分与 `com.jushan.platform.modules.*` 同名功能（如计费规则、车辆类型），以 `com.jushan.platform.modules.*` 的新实现为准。
 
