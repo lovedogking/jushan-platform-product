@@ -2,7 +2,7 @@
 
 > **路径**：`frontend/` （独立 `pnpm` 工作区）
 > **技术栈**：Vue 3.4 · TypeScript 5.4 · Vite 5.2 · Pinia 2.1 · ant-design-vue 4.1 · axios
-> **最近更新**：2026-08-12
+> **最近更新**：2026-07-24
 
 ---
 
@@ -14,7 +14,6 @@ frontend/src/
 │   ├── auth.ts         # 登录/退出/刷新 Token
 │   ├── charge.ts       # 收费（查在场/提交收费/开闸/关闸/减免/规则）
 │   ├── monitor.ts      # 监控（快照/异常提醒/设备状态/在场/历史）
-│   ├── mock.ts         # 模拟识别触发（手动抓拍测试，仅 local/test 后端可用）
 │   ├── parking-lot.ts  # 停车场查询
 │   ├── parking-manage.ts # 停车场管理
 │   ├── account.ts      # 账号管理
@@ -54,13 +53,14 @@ frontend/src/
 
 | 文件 | 职责 |
 |---|---|
-| `api/charge.ts` | 核心收费 API：`getChargeInfo`(查在场)、`submitCharge`(收费出场)、`manualOpenGate`/`manualCloseGate`/`manualLockGate`/`manualUnlockGate`（道闸控制）、`getCurrentFeeRule`/`updateFeeRule`（规则调整）、`submitFeeReduction`（减免） |
+| `api/charge.ts` | 核心收费 API：`getChargeInfo`(查在场)、`submitCharge`(收费出场)、`manualOpenGate`/`manualCloseGate`/`manualLockGate`/`manualUnlockGate`（道闸控制，manualOpenGate 支持传入 entryImage）、`captureImage`（手动抓拍）、`getCurrentFeeRule`/`updateFeeRule`（规则调整）、`submitFeeReduction`（减免） |
 | `api/monitor.ts` | 监控 API：快照、设备状态刷新、异常提醒确认 |
-| `api/mock.ts` | 模拟识别 API：`triggerMockRecognition`（POST /api/v1/internal/mock/recognition-event，走真实识别管线，仅 local/test 环境后端注册） |
-| `views/monitor/MockCaptureModal.vue` | 手动抓拍弹窗（选相机/随机车牌/入出场方向/可选图片 URL；车道卡片「手动抓拍」按钮唤起；触发后保留弹窗并自动换随机车牌便于连续测试） |
+| `api/vehicle-query.ts` | 车辆查询 API：在场车辆、历史通行记录（含入场抓拍图 entryImage）、通行记录分页 |
+| `components/ManualReleaseModal.vue` | 人工放行弹窗（放行车辆可编辑、是否计费、放行原因必填；新增「抓拍」按钮调用 captureImage 并预览；确认后调 manualOpenGate，携带 entryImage） |
 | `utils/request.ts` | axios 实例 + 请求/响应拦截（Token 注入、401 跳登录） |
 | `utils/websocket.ts` | STOMP over WebSocket（接收实时监控数据） |
 | `utils/offline-queue.ts` | 离线时缓存请求到 localStorage 并在恢复时重放 |
 | `stores/monitor.ts` | 中心化监控状态（设备列表、在场车辆、余位、异常） |
-| `views/monitor/` | 监控大屏主页面（实时设备/车位/事件/异常面板；识别事件列表与车道卡片实时显示抓拍图，加载失败 1.5s 重试一次） |
+| `views/monitor/` | 监控大屏主页面（实时设备/车位/事件/异常面板；识别事件列表与车道卡片实时显示抓拍图，加载失败 1.5s 重试一次；车道卡片「开闸」弹人工放行并预填最近识别车牌，开闸成功后由后端 WS 推送放行事件+抓拍图实时上卡） |
+| `views/operation/AccessRecords.vue` | 运营端通行记录页（分页/筛选，含入场抓拍图列） |
 | `.env.development` / `.env.production` | 环境变量（API base URL / WebSocket） |

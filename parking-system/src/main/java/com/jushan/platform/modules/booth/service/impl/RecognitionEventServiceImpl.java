@@ -15,7 +15,9 @@ import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
 import com.jushan.system.client.DeviceAccessClient;
 import com.jushan.system.client.dto.CommandResultDTO;
 import com.jushan.system.entity.Device;
+import com.jushan.system.entity.RecognitionEventLog;
 import com.jushan.system.mapper.DeviceMapper;
+import com.jushan.system.mapper.RecognitionEventLogMapper;
 import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.service.BillingEngine;
@@ -68,6 +70,9 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     /** 出场事件去重缓存（plate:laneId → 最近处理时间），窗口 30 秒 */
     private final Map<String, LocalDateTime> recentExitEvents = new ConcurrentHashMap<>();
 
+    /** 人工开闸抓拍图回溯窗口（分钟）：取该车道该窗口内最近一次识别事件的抓拍图 */
+    private static final int MANUAL_OPEN_CAPTURE_WINDOW_MINUTES = 10;
+
     private final VehicleTypeDecisionService vehicleTypeDecisionService;
     private final ParkingSessionService parkingSessionService;
     private final BillingEngine billingEngine;
@@ -78,6 +83,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     private final ParkingLaneMapper parkingLaneMapper;
     private final ParkingLotMapper parkingLotMapper;
     private final BoothWebSocketPublisher boothWebSocketPublisher;
+    private final RecognitionEventLogMapper recognitionEventLogMapper;
 
     public RecognitionEventServiceImpl(VehicleTypeDecisionService vehicleTypeDecisionService,
                                        ParkingSessionService parkingSessionService,
@@ -88,7 +94,8 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                                        DeviceService deviceService,
                                        ParkingLaneMapper parkingLaneMapper,
                                        ParkingLotMapper parkingLotMapper,
-                                       BoothWebSocketPublisher boothWebSocketPublisher) {
+                                       BoothWebSocketPublisher boothWebSocketPublisher,
+                                       RecognitionEventLogMapper recognitionEventLogMapper) {
         this.vehicleTypeDecisionService = vehicleTypeDecisionService;
         this.parkingSessionService = parkingSessionService;
         this.billingEngine = billingEngine;
@@ -99,6 +106,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         this.parkingLaneMapper = parkingLaneMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.boothWebSocketPublisher = boothWebSocketPublisher;
+        this.recognitionEventLogMapper = recognitionEventLogMapper;
     }
 
     @Override
@@ -134,9 +142,10 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
 
     @Override
     public RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason,
-                                              boolean isCharge, Integer feeCents, String plateNumber) {
-        log.info("人工开闸请求: laneId={}, operatorId={}, reason={}, isCharge={}, feeCents={}, plateNumber={}",
-                laneId, operatorId, reason, isCharge, feeCents, plateNumber);
+                                              boolean isCharge, Integer feeCents, String plateNumber,
+                                              String entryImage) {
+        log.info("人工开闸请求: laneId={}, operatorId={}, reason={}, isCharge={}, feeCents={}, plateNumber={}, hasEntryImage={}",
+                laneId, operatorId, reason, isCharge, feeCents, plateNumber, entryImage != null);
 
         RecognitionResultVO result = new RecognitionResultVO();
         result.setAllowPass(true);
@@ -192,9 +201,29 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                 log.info("人工开闸成功: laneId={}, operatorId={}, deviceId={}, deviceSn={}, reason={}",
                         laneId, operatorId, gateDevice.getId(), gateDevice.getDeviceSn(), reason);
 
-                // GAP-03: 人工开闸补写 parking_session（entry_trigger=manual_open）
+                ParkingLane lane = null;
                 try {
-                    ParkingLane lane = parkingLaneMapper.selectByIdIgnoreTenant(laneId);
+                    lane = parkingLaneMapper.selectByIdIgnoreTenant(laneId);
+                } catch (Exception e) {
+                    log.warn("人工开闸查询车道失败（不影响开闸结果）: laneId={}, error={}", laneId, e.getMessage());
+                }
+
+                // 开闸抓拍：优先使用前端传入的抓拍图，否则取该车道最近识别事件的抓拍图
+                RecognitionEventLog captureEvent = null;
+                if (lane != null) {
+                    if (entryImage != null && !entryImage.isBlank()) {
+                        captureEvent = new RecognitionEventLog();
+                        captureEvent.setImagePath(entryImage);
+                        captureEvent.setPlateImagePath(entryImage);
+                        captureEvent.setDeviceId(gateDevice.getId());
+                        captureEvent.setEventTime(LocalDateTime.now());
+                    } else {
+                        captureEvent = findLatestCaptureEvent(lane, plateNumber);
+                    }
+                }
+
+                // GAP-03: 人工开闸补写 parking_session（entry_trigger=manual_open，附抓拍图）
+                try {
                     if (lane != null && plateNumber != null && !plateNumber.isEmpty()) {
                         ParkingSessionEntryCmd entryCmd = new ParkingSessionEntryCmd();
                         entryCmd.setParkingLotId(lane.getLotId());
@@ -205,6 +234,9 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                         entryCmd.setVehicleType("TEMP");
                         entryCmd.setEntryOperator(operatorId);
                         entryCmd.setEntryTrigger(ParkingSession.TRIGGER_MANUAL_OPEN);
+                        if (captureEvent != null) {
+                            entryCmd.setEntryImage(captureEvent.getImagePath());
+                        }
                         if (isCharge && feeCents != null && feeCents > 0) {
                             java.math.BigDecimal fee = java.math.BigDecimal.valueOf(feeCents).movePointLeft(2);
                             entryCmd.setFeeAmount(fee);
@@ -219,6 +251,11 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                     // 补写失败不阻塞开闸结果
                     log.warn("人工开闸补写 parking_session 失败: plate={}, laneId={}, error={}",
                             plateNumber, laneId, e.getMessage());
+                }
+
+                // 开闸事件落库 + WebSocket 推送：岗亭车道卡片实时显示本次放行车辆与抓拍图
+                if (lane != null) {
+                    persistAndPushManualOpenEvent(lane, captureEvent, plateNumber);
                 }
             } else {
                 result.setGateResult("人工开闸失败: " + (gateResult.getMessage() != null ? gateResult.getMessage() : "设备返回异常"));
@@ -246,6 +283,127 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                 result.getGateCommandSent(), result.getGateDeviceAck(), result.getGateOpened());
 
         return result;
+    }
+
+    /**
+     * 查找人工开闸的抓拍图来源：该车道 {@link #MANUAL_OPEN_CAPTURE_WINDOW_MINUTES} 分钟内
+     * 最近一次带抓拍图的识别事件。
+     * <p>
+     * 平台无「主动命令相机抓拍」的下行能力，相机只在识别到车牌时上报图片，
+     * 因此取开闸前车道最近的识别事件图作为本次放行的抓拍图。
+     * 优先匹配放行车辆车牌（纠正后车牌也纳入匹配），无匹配时回退到车道最近带图事件。
+     *
+     * @param lane        车道（用于 laneId 与租户上下文）
+     * @param plateNumber 放行车辆车牌（可为空）
+     * @return 最近的带图识别事件；无则返回 null
+     */
+    private RecognitionEventLog findLatestCaptureEvent(ParkingLane lane, String plateNumber) {
+        TenantContext.Snapshot previousContext = TenantContext.get();
+        try {
+            TenantContext.set(new TenantContext.Snapshot(
+                    lane.getTenantId(), 0L, "platform", null, null));
+            LocalDateTime threshold = LocalDateTime.now().minusMinutes(MANUAL_OPEN_CAPTURE_WINDOW_MINUTES);
+            if (plateNumber != null && !plateNumber.isEmpty()) {
+                String plate = plateNumber.toUpperCase();
+                RecognitionEventLog matched = selectLatestCaptureEvent(lane.getId(), plate, threshold);
+                if (matched != null) {
+                    return matched;
+                }
+            }
+            return selectLatestCaptureEvent(lane.getId(), null, threshold);
+        } catch (Exception e) {
+            log.warn("人工开闸抓拍图查询失败（忽略）: laneId={}, error={}", lane.getId(), e.getMessage());
+            return null;
+        } finally {
+            restoreTenantContext(previousContext);
+        }
+    }
+
+    /**
+     * 查询车道最近一条带抓拍图的识别事件（plate 为空时不限车牌，同时匹配纠正后车牌）。
+     */
+    private RecognitionEventLog selectLatestCaptureEvent(Long laneId, String plate, LocalDateTime threshold) {
+        LambdaQueryWrapper<RecognitionEventLog> wrapper = new LambdaQueryWrapper<RecognitionEventLog>()
+                .eq(RecognitionEventLog::getLaneId, laneId)
+                .isNotNull(RecognitionEventLog::getImagePath)
+                .ne(RecognitionEventLog::getImagePath, "")
+                .ge(RecognitionEventLog::getEventTime, threshold)
+                .orderByDesc(RecognitionEventLog::getEventTime)
+                .last("LIMIT 1");
+        if (plate != null) {
+            wrapper.and(w -> w.eq(RecognitionEventLog::getPlateNumber, plate)
+                    .or().eq(RecognitionEventLog::getCorrectedPlate, plate));
+        }
+        List<RecognitionEventLog> list = recognitionEventLogMapper.selectList(wrapper);
+        return list.isEmpty() ? null : list.get(0);
+    }
+
+    /**
+     * 人工开闸事件落库（source=MANUAL）并推送 WebSocket。
+     * <p>
+     * 岗亭端「最近识别事件」快照与 WS 事件流的数据源即 recognition_event_log，
+     * 落库 + 推送后车道卡片立即显示本次放行车辆与抓拍图。
+     * 任何失败均不阻塞开闸结果。
+     */
+    private void persistAndPushManualOpenEvent(ParkingLane lane, RecognitionEventLog captureEvent,
+                                               String plateNumber) {
+        TenantContext.Snapshot previousContext = TenantContext.get();
+        try {
+            TenantContext.set(new TenantContext.Snapshot(
+                    lane.getTenantId(), 0L, "platform", null, null));
+
+            RecognitionEventLog eventLog = new RecognitionEventLog();
+            eventLog.setEventId("MANUAL-" + UUID.randomUUID());
+            eventLog.setTenantId(lane.getTenantId());
+            eventLog.setParkingLotId(lane.getLotId());
+            eventLog.setLaneId(lane.getId());
+            eventLog.setDeviceId(captureEvent != null ? captureEvent.getDeviceId() : null);
+            String plate = (plateNumber != null && !plateNumber.isEmpty()) ? plateNumber.toUpperCase() : null;
+            eventLog.setPlateNumber(plate);
+            eventLog.setStandardizedPlate(plate);
+            eventLog.setDirection(resolveManualOpenDirection(lane, captureEvent));
+            eventLog.setEventTime(LocalDateTime.now());
+            if (captureEvent != null) {
+                eventLog.setImagePath(captureEvent.getImagePath());
+                eventLog.setPlateImagePath(captureEvent.getPlateImagePath());
+                eventLog.setConfidence(captureEvent.getConfidence());
+            }
+            eventLog.setSource("MANUAL");
+            eventLog.setStatus("PROCESSED");
+            eventLog.setTempPlateFlag(0);
+            eventLog.setCreatedAt(LocalDateTime.now());
+            recognitionEventLogMapper.insert(eventLog);
+
+            boothWebSocketPublisher.sendRecognitionEvent(lane.getLotId(), eventLog);
+            log.info("人工开闸事件已落库并推送: laneId={}, plate={}, hasImage={}",
+                    lane.getId(), plate, captureEvent != null);
+        } catch (Exception e) {
+            log.warn("人工开闸事件落库/推送失败（不影响开闸结果）: laneId={}, error={}",
+                    lane.getId(), e.getMessage());
+        } finally {
+            restoreTenantContext(previousContext);
+        }
+    }
+
+    /**
+     * 推导人工开闸事件方向：按车道类型（1=入口 2=出口），混合车道沿用抓拍事件方向。
+     */
+    private String resolveManualOpenDirection(ParkingLane lane, RecognitionEventLog captureEvent) {
+        if (lane.getType() != null && lane.getType() != 3) {
+            return lane.getType() == 1 ? "ENTRY" : "EXIT";
+        }
+        return captureEvent != null ? captureEvent.getDirection() : null;
+    }
+
+    /**
+     * 恢复之前的租户上下文（参照 DeviceWebhookService 的模式）。
+     */
+    private void restoreTenantContext(TenantContext.Snapshot previousContext) {
+        if (previousContext != null) {
+            TenantContext.set(previousContext);
+        } else {
+            TenantContext.clear();
+        }
     }
 
     @Override
@@ -843,5 +1001,39 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     private void cleanupExpiredExitEvents() {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(1);
         recentExitEvents.entrySet().removeIf(entry -> entry.getValue().isBefore(cutoff));
+    }
+
+    @Override
+    public com.jushan.system.client.dto.CaptureResultDTO captureImage(Long laneId) {
+        log.info("主动抓拍请求: laneId={}", laneId);
+
+        ParkingLane lane = null;
+        try {
+            lane = parkingLaneMapper.selectByIdIgnoreTenant(laneId);
+        } catch (Exception e) {
+            log.warn("主动抓拍查询车道失败: laneId={}, error={}", laneId, e.getMessage());
+        }
+        if (lane == null) {
+            throw new BusinessException(com.jushan.common.CommonErrorCode.PARAM_ERROR,
+                    "车道不存在: laneId=" + laneId);
+        }
+
+        // 优先选择车道主相机；若无主相机则取任意在线相机
+        Device camera = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "CAMERA");
+        if (camera == null) {
+            throw new BusinessException(com.jushan.common.CommonErrorCode.PARAM_ERROR,
+                    "车道未绑定相机: laneId=" + laneId);
+        }
+
+        String deviceSn = camera.getDeviceSn();
+        if (deviceSn == null || deviceSn.isBlank()) {
+            throw new BusinessException(com.jushan.common.CommonErrorCode.PARAM_ERROR,
+                    "相机设备序列号为空: deviceId=" + camera.getId());
+        }
+
+        com.jushan.system.client.dto.CaptureResultDTO result = deviceAccessClient.captureImage(deviceSn);
+        log.info("主动抓拍完成: laneId={}, deviceSn={}, success={}, imageUrl={}",
+                laneId, deviceSn, result.isSuccessful(), result.getImageUrl());
+        return result;
     }
 }

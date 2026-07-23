@@ -72,6 +72,7 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
 
     // ==================== v0.4 路径 ====================
 
+    private static final String CAPTURE_PATH = "/api/v1/devices/{deviceSn}/capture";
     private static final String OPEN_GATE_PATH = "/api/v1/devices/{deviceSn}/gate/open";
     private static final String CLOSE_GATE_PATH = "/api/v1/devices/{deviceSn}/gate/close";
     private static final String LOCK_GATE_PATH = "/api/v1/devices/{deviceSn}/gate/lock";
@@ -447,6 +448,30 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
         recordSuccess("voiceControl");
         log.info("语音播报成功: deviceSn={}, success={}", deviceSn,
                 response.getData() != null ? response.getData().getSuccess() : null);
+        return response.getData();
+    }
+
+    @Override
+    public CaptureResultDTO captureImage(String deviceSn) {
+        log.debug("主动抓拍: deviceSn={}", deviceSn);
+
+        checkCircuitBreaker("captureImage");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        DeviceAccessResponse<CaptureResultDTO> response;
+
+        try {
+            response = execute(
+                    CAPTURE_PATH, HttpMethod.POST, deviceSn,
+                    new ParameterizedTypeReference<DeviceAccessResponse<CaptureResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "captureImage")
+                    .register(meterRegistry));
+        }
+
+        recordSuccess("captureImage");
+        log.info("主动抓拍成功: deviceSn={}", deviceSn);
         return response.getData();
     }
 

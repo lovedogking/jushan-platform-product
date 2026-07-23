@@ -7,6 +7,11 @@ spring:
   sql:
     init:
       mode: never
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    clean-disabled: true
 
 mybatis-plus:
   configuration:

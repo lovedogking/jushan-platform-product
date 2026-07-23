@@ -3,6 +3,7 @@ package com.smartparking.deviceaccess.api;
 import com.smartparking.deviceaccess.adapter.qianyi.QianyiCommandResult;
 import com.smartparking.deviceaccess.adapter.qianyi.QianyiMessageHandler;
 import com.smartparking.deviceaccess.adapter.support.display.OlmM1dProtocol;
+import com.smartparking.deviceaccess.api.dto.CaptureResultDTO;
 import com.smartparking.deviceaccess.api.dto.CommandResultDTO;
 import com.smartparking.deviceaccess.api.dto.DisplayConfigRequest;
 import com.smartparking.deviceaccess.api.dto.DisplayResult;
@@ -12,6 +13,7 @@ import com.smartparking.deviceaccess.api.dto.PeripheralControlResult;
 import com.smartparking.deviceaccess.api.dto.UnlockGateRequest;
 import com.smartparking.deviceaccess.api.dto.VoiceControlRequest;
 import com.smartparking.deviceaccess.api.dto.VoiceControlResult;
+import com.smartparking.deviceaccess.api.image.ImageStorageService;
 import com.smartparking.deviceaccess.common.entity.Device;
 import com.smartparking.deviceaccess.common.entity.DeviceCommandLog;
 import com.smartparking.deviceaccess.common.entity.DeviceProduct;
@@ -54,6 +56,7 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
     private final MqttGateway mqttGateway;
     private final QianyiMessageHandler handler;
     private final DeviceCommandLogService commandLogService;
+    private final ImageStorageService imageStorageService;
 
     private static final long DEFAULT_TIMEOUT_SECONDS = 10;
 
@@ -443,6 +446,68 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
                 "Qianyi camera does not support enhanced display yet.");
     }
 
+    /**
+     * 主动抓拍。
+     * <p>
+     * 优先使用通用 {@code snapshot} 命令获取全景图；失败或无图时回退到
+     * 车牌相机专用 {@code tarkphoto} 命令获取车牌特写图。
+     * 图片保存到本地存储后返回可访问 URL。
+     */
+    @Override
+    public CompletableFuture<CaptureResultDTO> capture(String deviceId) {
+        Device device = deviceRegistry.getByDeviceId(deviceId);
+        DeviceProduct product = productRegistry.getById(device.getProductId());
+        DeviceCommandLog cmdLog = commandLogService.recordRequest(
+                deviceId, product.getBrand(), "CAPTURE",
+                handler.getLastPlate(device.getDeviceId()),
+                device.getPlatformDeviceId(), device.getTenantId(),
+                device.getParkingLotId(), device.getLaneId());
+
+        ensureMqttConnected();
+
+        long startMs = System.currentTimeMillis();
+        log.info("[Capture] Coordinator: capture  deviceId={}", deviceId);
+
+        return trySnapshot(device)
+                .thenCompose(snapshotResult -> {
+                    if (snapshotResult != null && snapshotResult.isSuccess()) {
+                        long elapsed = System.currentTimeMillis() - startMs;
+                        log.info("[Capture] Coordinator: snapshot ok  deviceId={}  imageUrl={}  elapsedMs={}",
+                                deviceId, snapshotResult.getImageUrl(), elapsed);
+                        commandLogService.recordResponse(cmdLog.getId(), true, null, "snapshot ok");
+                        return CompletableFuture.completedFuture(snapshotResult);
+                    }
+                    String reason = snapshotResult != null ? snapshotResult.getMessage() : "null";
+                    log.info("[Capture] Coordinator: snapshot failed/empty, trying tarkphoto  deviceId={}  reason={}",
+                            deviceId, reason);
+                    return tryTarkphoto(device);
+                })
+                .thenCompose(tarkphotoResult -> {
+                    if (tarkphotoResult != null && tarkphotoResult.isSuccess()) {
+                        long elapsed = System.currentTimeMillis() - startMs;
+                        log.info("[Capture] Coordinator: tarkphoto ok  deviceId={}  imageUrl={}  elapsedMs={}",
+                                deviceId, tarkphotoResult.getImageUrl(), elapsed);
+                        commandLogService.recordResponse(cmdLog.getId(), true, null, "tarkphoto ok");
+                        return CompletableFuture.completedFuture(tarkphotoResult);
+                    }
+                    String reason = tarkphotoResult != null ? tarkphotoResult.getMessage() : "null";
+                    String msg = "snapshot failed, tarkphoto also failed: " + reason;
+                    log.warn("[Capture] Coordinator: capture failed  deviceId={}  reason={}", deviceId, msg);
+                    commandLogService.recordResponse(cmdLog.getId(), false, null, msg);
+                    return CompletableFuture.completedFuture(
+                            CaptureResultDTO.builder().success(false).message(msg).build());
+                })
+                .exceptionally(e -> {
+                    log.error("[Capture] Coordinator: capture FAILED  deviceId={}", deviceId, e);
+                    commandLogService.recordResponse(cmdLog.getId(), false, null,
+                            "Command failed: " + e.getMessage());
+                    return CaptureResultDTO.builder()
+                            .success(false)
+                            .message("Command failed: " + e.getMessage())
+                            .build();
+                });
+    }
+
     // ═══════════════════════════════════════════
     // 内部方法
     // ═══════════════════════════════════════════
@@ -471,5 +536,91 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
                 device.getLaneId(),
                 success,
                 success ? ("OPEN_GATE".equals(command) ? "Gate opened" : "Gate closed") : "Command failed");
+    }
+
+    /**
+     * 尝试 {@code snapshot} 通用抓拍命令。
+     *
+     * @param device 设备
+     * @return 抓拍结果；失败时 success=false
+     */
+    private CompletableFuture<CaptureResultDTO> trySnapshot(Device device) {
+        String deviceSn = device.getDeviceId();
+        return handler.sendSnapshot(deviceSn, DEFAULT_TIMEOUT_SECONDS)
+                .thenApply(reply -> {
+                    String picture = (String) reply.get("picture");
+                    if (picture != null && !picture.isBlank()) {
+                        return saveBase64Image(deviceSn, picture, "snapshot");
+                    }
+                    return CaptureResultDTO.builder()
+                            .success(false)
+                            .message("snapshot response no picture")
+                            .build();
+                })
+                .exceptionally(e -> {
+                    log.warn("[Capture] Coordinator: snapshot error  deviceId={}  error={}",
+                            deviceSn, e.getMessage());
+                    return CaptureResultDTO.builder()
+                            .success(false)
+                            .message("snapshot error: " + e.getMessage())
+                            .build();
+                });
+    }
+
+    /**
+     * 尝试 {@code tarkphoto} 车牌相机抓拍命令。
+     *
+     * @param device 设备
+     * @return 抓拍结果；失败时 success=false
+     */
+    private CompletableFuture<CaptureResultDTO> tryTarkphoto(Device device) {
+        String deviceSn = device.getDeviceId();
+        return handler.sendTarkphoto(deviceSn, DEFAULT_TIMEOUT_SECONDS)
+                .thenApply(reply -> {
+                    String platePic = (String) reply.get("plate_pic");
+                    if (platePic != null && !platePic.isBlank()) {
+                        return saveBase64Image(deviceSn, platePic, "tarkphoto");
+                    }
+                    return CaptureResultDTO.builder()
+                            .success(false)
+                            .message("tarkphoto response no plate_pic")
+                            .build();
+                })
+                .exceptionally(e -> {
+                    log.warn("[Capture] Coordinator: tarkphoto error  deviceId={}  error={}",
+                            deviceSn, e.getMessage());
+                    return CaptureResultDTO.builder()
+                            .success(false)
+                            .message("tarkphoto error: " + e.getMessage())
+                            .build();
+                });
+    }
+
+    /**
+     * 将 Base64 图片数据保存到本地存储并构造对外 URL。
+     *
+     * @param deviceSn  设备序列号
+     * @param base64    Base64 编码图片
+     * @param sourceCmd 来源命令（snapshot / tarkphoto）
+     * @return 抓拍结果
+     */
+    private CaptureResultDTO saveBase64Image(String deviceSn, String base64, String sourceCmd) {
+        try {
+            long epochSeconds = java.time.Instant.now().getEpochSecond();
+            byte[] bytes = java.util.Base64.getDecoder().decode(base64);
+            imageStorageService.saveBytes(deviceSn, epochSeconds, bytes, null);
+            String imageUrl = imageStorageService.buildFullImageUrl(deviceSn, epochSeconds);
+            return CaptureResultDTO.builder()
+                    .success(true)
+                    .imageUrl(imageUrl)
+                    .message(sourceCmd + " ok")
+                    .build();
+        } catch (Exception e) {
+            log.error("[Capture] Coordinator: save image failed  deviceSn={}  sourceCmd={}", deviceSn, sourceCmd, e);
+            return CaptureResultDTO.builder()
+                    .success(false)
+                    .message("save image failed: " + e.getMessage())
+                    .build();
+        }
     }
 }

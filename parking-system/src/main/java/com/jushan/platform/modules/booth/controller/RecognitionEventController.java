@@ -6,6 +6,7 @@ import com.jushan.platform.infra.security.RequireRole;
 import com.jushan.platform.modules.booth.dto.RecognitionEventCmd;
 import com.jushan.platform.modules.booth.service.RecognitionEventService;
 import com.jushan.platform.modules.booth.vo.RecognitionResultVO;
+import com.jushan.system.client.dto.CaptureResultDTO;
 import com.jushan.system.client.dto.CommandResultDTO;
 import com.jushan.system.service.DeviceService;
 import jakarta.validation.Valid;
@@ -69,12 +70,29 @@ public class RecognitionEventController {
             @RequestParam String reason,
             @RequestParam(defaultValue = "false") boolean isCharge,
             @RequestParam(defaultValue = "0") Integer feeCents,
-            @RequestParam(required = false) String plateNumber) {
+            @RequestParam(required = false) String plateNumber,
+            @RequestParam(required = false) String entryImage) {
         Long operatorId = com.jushan.common.auth.TenantContext.getUserId();
         RecognitionResultVO result = recognitionEventService.manualOpenGate(
-                laneId, operatorId, reason, isCharge, feeCents, plateNumber);
-        log.info("人工开闸: laneId={}, operatorId={}, reason={}, isCharge={}, feeCents={}, plateNumber={}",
-                laneId, operatorId, reason, isCharge, feeCents, plateNumber);
+                laneId, operatorId, reason, isCharge, feeCents, plateNumber, entryImage);
+        log.info("人工开闸: laneId={}, operatorId={}, reason={}, isCharge={}, feeCents={}, plateNumber={}, entryImage={}",
+                laneId, operatorId, reason, isCharge, feeCents, plateNumber, entryImage);
+        return R.ok(result);
+    }
+
+    /**
+     * 手动抓拍指定车道相机。
+     * <p>
+     * 选择车道主相机（或唯一相机）触发抓拍，返回图片 URL。
+     *
+     * @param laneId 通道 ID
+     * @return 抓拍结果（含图片 URL）
+     */
+    @PostMapping("/manual-capture")
+    @RequirePermission("booth:operate")
+    public R<CaptureResultDTO> manualCapture(@RequestParam Long laneId) {
+        CaptureResultDTO result = recognitionEventService.captureImage(laneId);
+        log.info("手动抓拍: laneId={}, success={}, imageUrl={}", laneId, result.isSuccessful(), result.getImageUrl());
         return R.ok(result);
     }
 

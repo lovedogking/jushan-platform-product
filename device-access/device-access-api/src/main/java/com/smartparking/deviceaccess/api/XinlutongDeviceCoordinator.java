@@ -3,6 +3,7 @@ package com.smartparking.deviceaccess.api;
 import com.smartparking.deviceaccess.adapter.support.display.OlmM1dProtocol;
 import com.smartparking.deviceaccess.adapter.xinlutong.XinlutongCommandResult;
 import com.smartparking.deviceaccess.adapter.xinlutong.XinlutongMessageHandler;
+import com.smartparking.deviceaccess.api.dto.CaptureResultDTO;
 import com.smartparking.deviceaccess.api.dto.CommandResultDTO;
 import com.smartparking.deviceaccess.api.dto.DisplayConfigRequest;
 import com.smartparking.deviceaccess.api.dto.DisplayResult;
@@ -541,6 +542,16 @@ public class XinlutongDeviceCoordinator implements DeviceCoordinator {
 
     // 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?    // 鍐呴儴鏂规硶
     // 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+    /**
+     * 主动抓拍（v0.7 暂不支持）。
+     */
+    @Override
+    public CompletableFuture<CaptureResultDTO> capture(String deviceId) {
+        log.warn("{} capture not implemented. deviceId={}", getBrand(), deviceId);
+        throw new UnsupportedOperationException(
+                getBrand() + " camera does not support capture yet.");
+    }
+
     private void ensureMqttConnected() {
         if (!mqttGateway.isConnected()) {
             throw new MqttConnectionException("MQTT is not connected, cannot send command");

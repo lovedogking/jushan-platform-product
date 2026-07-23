@@ -192,4 +192,17 @@ public interface DeviceAccessClient {
      * @throws com.jushan.common.BusinessException DA 返回错误或网络异常
      */
     VoiceResultDTO voiceControl(String deviceSn, VoiceControlRequest request);
+
+    /**
+     * 主动抓拍。
+     * <p>
+     * 对应 {@code POST /api/v1/devices/{deviceSn}/capture}。
+     * 触发相机立即抓拍一张图片，保存到存储后返回可访问 URL。
+     *
+     * @param deviceSn 设备厂商序列号（来自平台可信设备记录，非前端传入）
+     * @return 抓拍结果
+     * @throws com.jushan.common.BusinessException DA 返回错误或网络异常
+     * @since v0.7
+     */
+    CaptureResultDTO captureImage(String deviceSn);
 }

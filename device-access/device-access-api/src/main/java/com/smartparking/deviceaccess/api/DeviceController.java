@@ -1,5 +1,6 @@
 package com.smartparking.deviceaccess.api;
 
+import com.smartparking.deviceaccess.api.dto.CaptureResultDTO;
 import com.smartparking.deviceaccess.api.dto.*;
 import com.smartparking.deviceaccess.common.dto.Result;
 import jakarta.validation.Valid;
@@ -354,4 +355,22 @@ public class DeviceController {
                         : Result.fail(500, result.getErrorMessage()));
     }
 
+
+    /**
+     * 主动抓拍。
+     * <p>
+     * 触发相机立即抓拍一张图片，保存到存储后返回可访问 URL。
+     *
+     * @param deviceId 设备 ID（注册时的 deviceId）
+     * @return 抓拍结果（含图片 URL）
+     * @since v0.7
+     */
+    @PostMapping("/{deviceId}/capture")
+    public CompletableFuture<Result<CaptureResultDTO>> capture(@PathVariable String deviceId) {
+        log.info("API: capture deviceId={}", deviceId);
+        return deviceService.capture(deviceId)
+                .thenApply(result -> result.isSuccess()
+                        ? Result.ok(result)
+                        : Result.fail(500, result.getMessage()));
+    }
 }

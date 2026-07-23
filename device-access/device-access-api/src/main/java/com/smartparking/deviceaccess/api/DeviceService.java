@@ -291,6 +291,21 @@ public class DeviceService {
                 req.getFont(), req.getColor(), req.getVoiceId(), req.getVoiceVariable());
     }
 
+    /**
+     * 主动抓拍。
+     * <p>
+     * 触发相机立即抓拍一张图片，保存到存储后返回可访问 URL。
+     *
+     * @param deviceId 设备 ID（注册时的 deviceId）
+     * @return 抓拍结果（含图片 URL）
+     * @since v0.7
+     */
+    public CompletableFuture<CaptureResultDTO> capture(String deviceId) {
+        DeviceWithProduct dp = getDeviceWithProduct(deviceId);
+        requireCapability(deviceId, dp.product(), DeviceCapability.CAPTURE);
+        return brandDispatcher.capture(deviceId, dp.product());
+    }
+
     // ═══════════════════════════════════════════
     // 内部方法
     // ═══════════════════════════════════════════

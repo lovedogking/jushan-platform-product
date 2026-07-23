@@ -162,4 +162,13 @@ public class MockDeviceAccessClient implements DeviceAccessClient {
         dto.setMessage(MOCK_PREFIX + "语音播报成功");
         return dto;
     }
+
+    @Override
+    public CaptureResultDTO captureImage(String deviceSn) {
+        log.info("[MOCK] 主动抓拍: deviceSn={}", deviceSn);
+        CaptureResultDTO dto = new CaptureResultDTO();
+        dto.setSuccess(true);
+        dto.setMessage(MOCK_PREFIX + "抓拍成功");
+        return dto;
+    }
 }

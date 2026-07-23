@@ -125,6 +125,7 @@ public class BoothVehicleController {
         map.put("entryTime", format(vo.getEntryTime()));
         map.put("exitTime", format(vo.getExitTime()));
         map.put("feeAmount", vo.getFeeAmount());
+        map.put("entryImage", vo.getEntryImage());
         String paymentStatus = null;
         if (vo.getExitTime() != null) {
             paymentStatus = vo.getPaidAmount() != null && vo.getPaidAmount().compareTo(BigDecimal.ZERO) > 0

@@ -48,7 +48,7 @@
 | service | 业务服务 | 46 | `backend/parking-system/system-service.md` | ✅ |
 | entity + mapper | 实体与数据访问 | 101 | `backend/parking-system/system-entity-mapper.md` | ✅ |
 | dto + vo | 请求/响应对象 | 88 | `backend/parking-system/system-dto-vo.md` | ✅ |
-| 其它 | cache/client/config/event/task/ws/job | 33 | `backend/parking-system/system-misc.md` | ✅ |
+| 其它 | cache/client/config/event/task/ws/job | 37 | `backend/parking-system/system-misc.md` | ✅ |
 
 > 两套包结构的关系与选型说明见 `backend/parking-system/_overview.md`（✅）。
 
@@ -60,7 +60,7 @@
 | parking-framework | 框架层通用能力 | 27 | `backend/parking-framework.md` | ✅ |
 | parking-infrastructure | 安全 / 日志 / MyBatis / Web | 19 | `backend/parking-infrastructure.md` | ✅ |
 | parking-boot | 启动与全局配置 | 8 | `backend/parking-boot.md` | ✅ |
-| device-access | 设备接入（adapter/api/mqtt/event/registry/starter） | 109 | `backend/device-access.md` | ✅ |
+| device-access | 设备接入（adapter/api/mqtt/event/registry/starter） | 111 | `backend/device-access.md` | ✅ |
 
 ### 前端
 

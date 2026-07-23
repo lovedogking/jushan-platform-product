@@ -1,6 +1,7 @@
 package com.smartparking.deviceaccess.api;
 
 import com.smartparking.deviceaccess.adapter.support.display.OlmM1dProtocol;
+import com.smartparking.deviceaccess.api.dto.CaptureResultDTO;
 import com.smartparking.deviceaccess.api.dto.CommandResultDTO;
 import com.smartparking.deviceaccess.api.dto.DisplayConfigRequest;
 import com.smartparking.deviceaccess.api.dto.DisplayResult;
@@ -95,6 +96,17 @@ public interface DeviceCoordinator {
     CompletableFuture<DisplayResult> displayTextEnhanced(String deviceId, String content, DisplayDirection direction,
                                                            OlmM1dProtocol.FontType font, List<int[]> color,
                                                            Integer voiceId, String voiceVariable);
+
+    /**
+     * 主动抓拍。
+     * <p>
+     * 触发相机立即抓拍一张图片，上传至存储并返回可访问 URL。
+     *
+     * @param deviceId 设备 ID（注册时的 deviceId）
+     * @return 抓拍结果（含图片 URL）
+     * @since v0.7
+     */
+    CompletableFuture<CaptureResultDTO> capture(String deviceId);
 
     // ═══════════════════════════════════════════
     // 同步查询

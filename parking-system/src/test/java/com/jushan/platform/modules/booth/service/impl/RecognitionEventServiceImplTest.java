@@ -79,6 +79,15 @@ class RecognitionEventServiceImplTest {
     @Mock
     private ParkingLaneMapper parkingLaneMapper;
 
+    @Mock
+    private com.jushan.system.mapper.ParkingLotMapper parkingLotMapper;
+
+    @Mock
+    private com.jushan.system.ws.BoothWebSocketPublisher boothWebSocketPublisher;
+
+    @Mock
+    private com.jushan.system.mapper.RecognitionEventLogMapper recognitionEventLogMapper;
+
     private RecognitionEventServiceImpl service;
 
     private static final Long TENANT_ID = 1L;
@@ -92,7 +101,8 @@ class RecognitionEventServiceImplTest {
         service = new RecognitionEventServiceImpl(
                 vehicleTypeDecisionService, parkingSessionService, billingEngine,
                 deviceMapper, deviceAccessClient, monitorAlertService,
-                deviceService, parkingLaneMapper);
+                deviceService, parkingLaneMapper, parkingLotMapper,
+                boothWebSocketPublisher, recognitionEventLogMapper);
         // 设置租户上下文
         TenantContext.set(new TenantContext.Snapshot(TENANT_ID, 1L, "tenant", null, null));
     }
@@ -480,10 +490,11 @@ class RecognitionEventServiceImplTest {
 
     private VehicleTypeDecisionVO allowExitDecision(boolean needCharge) {
         VehicleTypeDecisionVO vo = new VehicleTypeDecisionVO();
-        vo.setVehicleType("TEMP");
+        // 一期仅白名单车辆出场自动放行（非白名单由岗亭人工放行，见 handleExit）
+        vo.setVehicleType("WHITE");
         vo.setAllowEntry(true);
         vo.setNeedCharge(needCharge);
-        vo.setDecisionReason("临时车辆，允许出场");
+        vo.setDecisionReason("白名单车辆，自动放行");
         return vo;
     }
 

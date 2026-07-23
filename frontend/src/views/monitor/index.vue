@@ -153,7 +153,7 @@
                           <a-button
                             type="primary"
                             size="small"
-                            @click="handleManualOpenGate(lane.laneId)"
+                            @click="handleManualOpenGate(lane)"
                           >
                             开闸
                           </a-button>
@@ -190,12 +190,6 @@
                             @click="handleEditFeeRule(lane.laneId)"
                           >
                             修改收费
-                          </a-button>
-                          <a-button
-                            size="small"
-                            @click="openMockCapture(lane)"
-                          >
-                            手动抓拍
                           </a-button>
                         </a-space>
                       </div>
@@ -338,7 +332,7 @@
     <ManualReleaseModal
       v-model:open="manualReleaseOpen"
       :lane-id="manualReleaseLaneId"
-      plate-number=""
+      :plate-number="manualReleasePlate"
       @success="handleManualReleaseResult"
     />
 
@@ -348,16 +342,6 @@
       :lane-id="feeRuleEditLaneId"
       :fee-rule="currentFeeRule"
       @save="handleSaveFeeRule"
-    />
-
-    <!-- 手动抓拍（模拟识别）弹窗：仅 local/test 环境后端可用 -->
-    <MockCaptureModal
-      v-model:open="mockCaptureOpen"
-      :lane-id="mockCaptureLane?.laneId ?? null"
-      :lane-name="mockCaptureLane?.laneName"
-      :lane-direction="mockCaptureLane?.direction"
-      :device-id="mockCaptureLane?.deviceId"
-      :cameras="mockCaptureLane?.cameras"
     />
 
     <!-- 远程开闸弹窗 -->
@@ -458,7 +442,6 @@ import ChargePanel from '@/components/ChargePanel.vue'
 import PlateCorrectionModal from '@/components/PlateCorrectionModal.vue'
 import ManualReleaseModal from '@/components/ManualReleaseModal.vue'
 import FeeRuleEditModal from '@/components/FeeRuleEditModal.vue'
-import MockCaptureModal from './MockCaptureModal.vue'
 import ParkingLotSidebar from './ParkingLotSidebar.vue'
 import MonitorTabs from './MonitorTabs.vue'
 import { getBoothParkingLots, type BoothParkingLot } from '@/api/parking-lot'
@@ -473,6 +456,7 @@ let wsClient: MonitorWebSocketClient | null = null
 // 人工放行
 const manualReleaseOpen = ref(false)
 const manualReleaseLaneId = ref(0)
+const manualReleasePlate = ref('')
 
 /** 每个通道的锁定状态：{ [laneId]: { open: boolean, close: boolean } } */
 const laneLockState = ref<Record<number, { open: boolean; close: boolean }>>({})
@@ -495,15 +479,6 @@ watch(() => store.lanes, (lanes) => {
 const feeRuleEditOpen = ref(false)
 const feeRuleEditLaneId = ref(0)
 const currentFeeRule = ref<any>(null)
-
-// 手动抓拍（模拟识别，仅 local/test 环境可用）
-const mockCaptureOpen = ref(false)
-const mockCaptureLane = ref<LaneCard | null>(null)
-
-function openMockCapture(lane: LaneCard) {
-  mockCaptureLane.value = lane
-  mockCaptureOpen.value = true
-}
 
 // 远程开闸弹窗
 const remoteGateModalVisible = ref(false)
@@ -618,8 +593,10 @@ async function loadLotOptions() {
   }
 }
 
-function handleManualOpenGate(laneId: number) {
-  manualReleaseLaneId.value = laneId
+function handleManualOpenGate(lane: LaneCard) {
+  manualReleaseLaneId.value = lane.laneId
+  // 预填该车道最近识别事件的车牌（可在弹窗中编辑）
+  manualReleasePlate.value = lane.latestEvent?.correctedPlate || lane.latestEvent?.plateNumber || ''
   manualReleaseOpen.value = true
 }
 

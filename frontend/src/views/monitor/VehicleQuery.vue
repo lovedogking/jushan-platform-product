@@ -61,6 +61,16 @@
       @change="handleHistoryPageChange"
         >
           <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'entryImage'">
+              <a-image
+                v-if="record.entryImage"
+                :src="record.entryImage"
+                :width="64"
+                :height="48"
+                style="object-fit: cover; border-radius: 4px"
+              />
+              <span v-else>-</span>
+            </template>
             <template v-if="column.key === 'feeAmount'">
               {{ record.feeAmount != null ? `¥${record.feeAmount.toFixed(2)}` : '-' }}
             </template>
@@ -121,6 +131,7 @@ const historyPagination = ref({ current: 1, pageSize: 10, total: 0 })
 
 const historyColumns = [
   { title: '车牌号', dataIndex: 'plateNumber', key: 'plateNumber', width: 140 },
+  { title: '抓拍图', key: 'entryImage', width: 90 },
   { title: '入场时间', key: 'entryTime', width: 170 },
   { title: '出场时间', key: 'exitTime', width: 170 },
   { title: '费用', key: 'feeAmount', width: 100 },

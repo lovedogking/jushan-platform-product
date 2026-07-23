@@ -41,6 +41,16 @@
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'entryImage'">
+            <a-image
+              v-if="record.entryImage"
+              :src="record.entryImage"
+              :width="72"
+              :height="54"
+              style="object-fit: cover; border-radius: 4px"
+            />
+            <span v-else>-</span>
+          </template>
           <template v-if="column.key === 'entryTrigger'">
             <a-tag v-if="record.entryTrigger === 'whitelist_auto'" color="green">白名单自动</a-tag>
             <a-tag v-else-if="record.entryTrigger === 'manual_open'" color="blue">人工放行</a-tag>
@@ -86,6 +96,7 @@ const pagination = reactive({
 
 const columns = [
   { title: '车牌号', dataIndex: 'plateNumber', key: 'plateNumber' },
+  { title: '入场抓拍', key: 'entryImage', width: 110 },
   { title: '入场时间', dataIndex: 'entryTime', key: 'entryTime' },
   { title: '出场时间', dataIndex: 'exitTime', key: 'exitTime' },
   { title: '触发方式', key: 'entryTrigger' },

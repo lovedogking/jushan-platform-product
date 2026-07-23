@@ -251,6 +251,14 @@ export interface LaneCamera {
   isActive: boolean
 }
 
+/** 手动抓拍结果 */
+export interface CaptureImageResult {
+  success: boolean
+  imageUrl?: string
+  plateImageUrl?: string
+  message?: string
+}
+
 /** 人工放行原因 */
 export type ReleaseReason = 'DEVICE_FAULT' | 'VIP_VEHICLE' | 'EMERGENCY' | 'OTHER'
 

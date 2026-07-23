@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/booth/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.booth`
 > **职责**：识别事件处理（入场/出场判定+开闸）、人工入场补录、费用减免、交接班管理、岗亭车辆查询。
-> **最近更新**：2026-07-21
+> **最近更新**：2026-07-24
 
 ---
 
@@ -30,7 +30,7 @@
 | 方法 | HTTP | 路径 | 说明 | 入参 | 返回 |
 |---|---|---|---|---|---|
 | presentVehicles | GET | `/present` | 在场车辆（含计费） | `parkingLotId,...` | `R<Map>` |
-| historyRecords | GET | `/history` | 历史通行记录 | `parkingLotId,plateNumber,...` | `R<Map>` |
+| historyRecords | GET | `/history` | 历史通行记录（含入场抓拍图 entryImage） | `parkingLotId,plateNumber,...` | `R<Map>` |
 
 ### RecognitionEventController  `controller/RecognitionEventController.java`
 - **基础路径**：`/api/v1/booth/recognition` ｜ **权限**：`booth:operate`
@@ -39,7 +39,8 @@
 | 方法 | HTTP | 路径 | 说明 | 入参 | 返回 |
 |---|---|---|---|---|---|
 | handleEvent | POST | `/handle` | 处理识别事件 | `RecognitionEventCmd` | `R<RecognitionResultVO>` |
-| manualOpenGate | POST | `/manual-open-gate` | 人工开闸 | `laneId,reason,isCharge,feeCents,plateNumber` | `R<RecognitionResultVO>` |
+| manualOpenGate | POST | `/manual-open-gate` | 人工开闸（可选传抓拍图 entryImage） | `laneId,reason,isCharge,feeCents,plateNumber,entryImage` | `R<RecognitionResultVO>` |
+| manualCapture | POST | `/manual-capture` | 手动抓拍指定车道相机 | `laneId` | `R<CaptureResultDTO>` |
 | manualOpenGateBatch | POST | `/manual-open-gate-batch` | 批量开闸 | `Map body` | `R<Map>` |
 | manualCloseGate | POST | `/manual-close-gate` | 人工关闸 | `laneId,reason` | `R<RecognitionResultVO>` |
 | manualLockGate | POST | `/manual-lock-gate` | 常开（锁定） | `laneId,reason` | `R<RecognitionResultVO>` |
@@ -67,7 +68,8 @@
 | 方法 | 签名 | 功能 |
 |---|---|---|
 | handleEvent | `RecognitionResultVO handleEvent(RecognitionEventCmd)` | 识别→判定→余位→计费→开闸→日志 |
-| manualOpenGate | `RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason, boolean isCharge, Integer feeCents, String plateNumber)` | 人工开闸（含审计） |
+| manualOpenGate | `RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason, boolean isCharge, Integer feeCents, String plateNumber, String entryImage)` | 人工开闸（含审计；优先使用前端传入 entryImage，否则回溯车道最近识别事件抓拍图；补写 parking_session 附 entryImage，并落库 MANUAL 识别事件 + WS 推送，车道卡片实时显示放行车辆与抓拍图）；接口另保留 6 参 default 兼容重载（entryImage=null） |
+| captureImage | `CaptureResultDTO captureImage(Long laneId)` | 选择车道主相机触发主动抓拍，委托 DeviceAccessClient → device-access `/api/v1/devices/{sn}/capture` |
 | manualCloseGate | `RecognitionResultVO manualCloseGate(Long laneId, Long operatorId, String reason)` | 人工关闸 |
 | manualLockGate | `RecognitionResultVO manualLockGate(Long laneId, Long operatorId, String reason)` | 常开锁定 |
 | manualUnlockGate | `RecognitionResultVO manualUnlockGate(Long laneId, Long operatorId, String reason)` | 取消常开 |

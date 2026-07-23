@@ -636,6 +636,16 @@ public class ZhenshiDeviceCoordinator implements DeviceCoordinator {
                 });
     }
 
+    /**
+     * 主动抓拍（v0.7 暂不支持）。
+     */
+    @Override
+    public CompletableFuture<CaptureResultDTO> capture(String deviceId) {
+        log.warn("{} capture not implemented. deviceId={}", getBrand(), deviceId);
+        throw new UnsupportedOperationException(
+                getBrand() + " camera does not support capture yet.");
+    }
+
     // ═══════════════════════════════════════════
     // 内部方法
     // ═══════════════════════════════════════════

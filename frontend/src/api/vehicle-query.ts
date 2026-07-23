@@ -20,6 +20,8 @@ export interface VehicleHistoryRecord {
   feeAmount: number | null
   paymentStatus: string | null
   laneName: string
+  /** 入场抓拍图 URL（人工放行时为开闸抓拍图） */
+  entryImage?: string | null
 }
 
 export interface PageResult<T> {

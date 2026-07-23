@@ -40,10 +40,33 @@ public interface RecognitionEventService {
      * @param isCharge    是否计费（true=计费开闸，false=免费放行）
      * @param feeCents    计费金额（分），isCharge=true 时有效
      * @param plateNumber 车牌号（可选，用于审计记录）
+     * @param entryImage  入场抓拍图 URL（可选，由前端手动抓拍提供）
      * @return 开闸结果（含三层状态：gateCommandSent / gateDeviceAck / gateOpened）
      */
     RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason,
-                                       boolean isCharge, Integer feeCents, String plateNumber);
+                                       boolean isCharge, Integer feeCents, String plateNumber,
+                                       String entryImage);
+
+    /**
+     * 人工开闸（向后兼容，不带抓拍图）。
+     * <p>
+     * 委托到 {@link #manualOpenGate(Long, Long, String, boolean, Integer, String, String)}，
+     * entryImage 传 null。
+     */
+    default RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason,
+                                               boolean isCharge, Integer feeCents, String plateNumber) {
+        return manualOpenGate(laneId, operatorId, reason, isCharge, feeCents, plateNumber, null);
+    }
+
+    /**
+     * 主动抓拍指定车道的相机。
+     * <p>
+     * 选择车道主相机（或唯一相机）触发抓拍，返回图片 URL。
+     *
+     * @param laneId 通道 ID
+     * @return 抓拍结果（含图片 URL）
+     */
+    com.jushan.system.client.dto.CaptureResultDTO captureImage(Long laneId);
 
     /**
      * 人工关闸。

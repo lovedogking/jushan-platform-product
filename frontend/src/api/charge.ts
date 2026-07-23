@@ -1,5 +1,5 @@
 import request from '@/utils/request'
-import type { ChargeInfo, GateOpenResult, ParkingSessionVO, FeeRule } from './monitor-types'
+import type { ChargeInfo, GateOpenResult, ParkingSessionVO, FeeRule, CaptureImageResult } from './monitor-types'
 
 /**
  * 查询待收费信息（按车牌查询在场记录）。
@@ -36,11 +36,11 @@ export function submitCharge(data: {
   })
 }
 
-/** 人工开闸（扩展版，支持计费参数）。 */
+/** 人工开闸（扩展版，支持计费参数、抓拍图）。 */
 export function manualOpenGate(
   laneId: number,
   reason: string,
-  options?: { isCharge?: boolean; feeCents?: number; plateNumber?: string },
+  options?: { isCharge?: boolean; feeCents?: number; plateNumber?: string; entryImage?: string },
 ): Promise<GateOpenResult> {
   return request.post<GateOpenResult>(
     '/v1/booth/recognition/manual-open-gate',
@@ -52,6 +52,7 @@ export function manualOpenGate(
         isCharge: options?.isCharge ?? false,
         feeCents: options?.feeCents ?? 0,
         plateNumber: options?.plateNumber ?? undefined,
+        entryImage: options?.entryImage ?? undefined,
       },
     },
   )
@@ -130,4 +131,16 @@ export interface FeeReductionResult {
 /** 提交费用减免。POST /api/v1/booth/charge/fee-reduction */
 export function submitFeeReduction(data: FeeReductionRequest): Promise<FeeReductionResult> {
   return request.post<FeeReductionResult>('/v1/booth/charge/fee-reduction', data)
+}
+
+/**
+ * 手动抓拍指定车道相机。
+ * POST /api/v1/booth/recognition/manual-capture
+ */
+export function captureImage(laneId: number): Promise<CaptureImageResult> {
+  return request.post<CaptureImageResult>(
+    '/v1/booth/recognition/manual-capture',
+    undefined,
+    { params: { laneId } },
+  )
 }

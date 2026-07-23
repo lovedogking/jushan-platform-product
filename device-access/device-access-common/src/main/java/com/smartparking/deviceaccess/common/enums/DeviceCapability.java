@@ -42,5 +42,8 @@ public enum DeviceCapability {
     DISPLAY_ENHANCED,
 
     /** 锁定开闸（继电器强制吸合，保持道闸开启） */
-    LOCK_OPEN_GATE
+    LOCK_OPEN_GATE,
+
+    /** 主动抓拍 */
+    CAPTURE
 }

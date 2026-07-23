@@ -120,6 +120,8 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
     private static final String CMD_HEARTBEAT = "mqtt_herat";
     private static final String CMD_OFFLINE = "offline";
     private static final String CMD_RESULT = "result";
+    private static final String CMD_TARKPHOTO = "tarkphoto";
+    private static final String CMD_SNAPSHOT = "snapshot";
 
     private static final String STATUS_OK = "ok";
 
@@ -409,6 +411,36 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
         fields.put("encode_type", "base64");
         fields.put("rs485ch1_data", ch1Data);
         return sendCommand(deviceSn, "rs485", fields, timeoutSeconds);
+    }
+
+    /**
+     * 下发抓拍图片命令（车牌相机专用）。
+     * <p>
+     * 协议 §7：{@code {"cmd":"tarkphoto","msg_id":"...","utc_ts":秒级时间戳}}
+     * 应答 {@code tarkphoto_rsp} 含 {@code plate_pic}（BASE64 编码车牌图）。
+     *
+     * @param deviceSn     设备序列号
+     * @param timeoutSeconds 超时秒数
+     * @return 设备应答 Future
+     */
+    public CompletableFuture<Map<String, Object>> sendTarkphoto(String deviceSn, long timeoutSeconds) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("utc_ts", Instant.now().getEpochSecond());
+        return sendCommand(deviceSn, CMD_TARKPHOTO, fields, timeoutSeconds);
+    }
+
+    /**
+     * 下发通用抓拍图片命令。
+     * <p>
+     * 协议 §5.2.6：{@code {"cmd":"snapshot","msg_id":"..."}}
+     * 应答 {@code snapshot_rsp} 含 {@code picture}（BASE64 编码 JPG）。
+     *
+     * @param deviceSn     设备序列号
+     * @param timeoutSeconds 超时秒数
+     * @return 设备应答 Future
+     */
+    public CompletableFuture<Map<String, Object>> sendSnapshot(String deviceSn, long timeoutSeconds) {
+        return sendCommand(deviceSn, CMD_SNAPSHOT, null, timeoutSeconds);
     }
 
     /**

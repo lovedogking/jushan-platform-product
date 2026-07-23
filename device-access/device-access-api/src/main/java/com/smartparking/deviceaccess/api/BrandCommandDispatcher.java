@@ -155,4 +155,13 @@ public class BrandCommandDispatcher {
         return getCoordinator(product).displayTextEnhanced(
                 deviceId, content, direction, font, color, voiceId, voiceVariable);
     }
+
+    /**
+     * 主动抓拍分派。
+     *
+     * @since v0.7
+     */
+    public CompletableFuture<CaptureResultDTO> capture(String deviceId, DeviceProduct product) {
+        return getCoordinator(product).capture(deviceId);
+    }
 }
