@@ -136,8 +136,8 @@ services:
       EMQX_DASHBOARD__DEFAULT_PASSWORD: ${EMQX_ADMIN_PASSWORD}
       TZ: Asia/Shanghai
     ports:
-      # MQTT TCP（宿主机 device-access 连接）
-      - "127.0.0.1:1883:1883"
+      # MQTT TCP（设备连接，公网可达）
+      - "1883:1883"
       # Dashboard（仅内网）
       - "127.0.0.1:18083:18083"
     volumes:
