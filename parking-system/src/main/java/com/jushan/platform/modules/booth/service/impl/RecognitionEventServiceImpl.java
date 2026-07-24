@@ -121,6 +121,16 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         RecognitionResultVO result = new RecognitionResultVO();
         result.setPlateNumber(plateNumber);
 
+        // 0. laneId 守卫：设备台账未绑定车道时拒绝处理，避免 NPE
+        if (cmd.getLaneId() == null) {
+            result.setAllowPass(false);
+            result.setException(true);
+            result.setExceptionType("NO_LANE_BINDING");
+            result.setResultMessage("设备未绑定车道，无法处理识别事件");
+            log.warn("识别事件 laneId 为 null，已拒绝: plate={}, deviceSn={}", plateNumber, cmd.getDeviceSn());
+            return result;
+        }
+
         // 1. 车辆类型判定（传入 parkingLotId 以命中白名单检查）
         VehicleTypeDecisionVO decision = vehicleTypeDecisionService.decide(
                 plateNumber, cmd.getParkingLotId(), tenantId);
@@ -745,7 +755,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         String exitDedupKey = cmd.getPlateNumber() + ":" + cmd.getLaneId();
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime lastExit = recentExitEvents.compute(exitDedupKey, (k, v) -> {
-            if (v != null && v.plusSeconds(ENTRY_DEDUP_WINDOW_SECONDS).isAfter(now)) {
+            if (v != null && v.plusSeconds(EXIT_DEDUP_WINDOW_SECONDS).isAfter(now)) {
                 return v;
             }
             return now;

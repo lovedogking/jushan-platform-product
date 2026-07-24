@@ -105,6 +105,7 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
                 result.setTriggerType(black.getTriggerType());
                 result.setTriggerTypeLabel(resolveTriggerTypeLabel(black.getTriggerType()));
 
+                // TODO: triggerMode 应从车场配置读取，当前硬编码为 DENY_ENTRY
                 String triggerMode = resolveTriggerMode(parkingLotId);
                 switch (triggerMode) {
                     case "DENY_ENTRY":
