@@ -10,10 +10,10 @@ Jushan Platform 停车管理平台，采用「多模块单体后端 + 独立设�
 
 | 模块 | 说明 |
 |---|---|
-| `parking-system` | 核心业务后端（主力，537 类）。内含两套包：`com.jushan.platform.modules.*`（标准分层新业务）与 `com.jushan.system.*`（较早的扁平业务实现） |
-| `parking-common` | 通用基类与响应封装：`R`、`BaseEntity`、`BusinessException`、`TenantContext` 等 |
+| `parking-system` | 核心业务后端（主力）。`com.jushan.platform.modules.*`（标准分层）为全部活跃模块，`com.jushan.system.*` 已清空（仅剩 `entity/Company.java`）。新代码**禁止**在 `system.*` 下新增类 |
+| `parking-common` | 通用基类与响应封装：`R`、`BaseEntity`、`BusinessException`、`TenantContext`、`TenantIgnore` 等 |
 | `parking-framework` | 框架层（Web/异常/拦截等通用能力） |
-| `parking-infrastructure` | 基础设施：安全、日志、MyBatis、Web 配置 |
+| `parking-infrastructure` | 基础设施：安全、日志、MyBatis（租户拦截/字段填充）、Web 配置 |
 | `parking-boot` | 应用启动与全局配置 |
 | `device-access` | 设备接入服务（独立多模块 Maven：adapter/api/common/event/mqtt/registry/starter） |
 | `frontend` | 岗亭端前端（Vue3 + TS + Vite） |
@@ -29,8 +29,9 @@ Jushan Platform 停车管理平台，采用「多模块单体后端 + 独立设�
 - **REST 风格**：路径统一前缀 `/api/v1/...`；接口权限用 `@RequirePermission("模块:动作")`（如 `fee:write`、`parking:read`）。
 - **多租户**：业务查询经 `TenantContext` 解析租户；平台用户（super_admin / platform_operator）无租户绑定（`tenantId == null`），可跨租户访问。
 - **金额**：一律以**整数分**存储与传递，禁止浮点数。
-- **Service 分层**：存在两种写法——① 接口 + `impl/` 实现；② 直接继承 MyBatis-Plus `ServiceImpl<Mapper, Entity>` 的具体类。改代码时先看清目标属于哪种。
+- **Service 分层**：标准写法为**接口 + `impl/` 实现**（参照 `modules/device/service/` 下 DeviceManagementService 等 5 个接口）。旧写法（直接继承 MyBatis-Plus `ServiceImpl<Mapper, Entity>`）仅存在于待迁移的遗留模块。新 Service **必须**先定义接口再写实现。
 - **前端 API**：封装在 `frontend/src/api/*.ts`，每个函数用 JSDoc 标注 HTTP 方法与后端路径。
+- **Entity 约定**：① 同一张 DB 表只允许一个 Entity 类映射（禁止 system 和 modules 各写一个）；② 继承 `BaseEntity` 时必须覆盖 `@TableId(type = IdType.AUTO)`（DB 实际使用自增主键，BaseEntity 默认的 ASSIGN_ID 是错误的）；③ 字段类型必须与 DB 列类型一致（如 `status` 是 `VARCHAR` 就不能用 `Integer`）。
 
 ---
 

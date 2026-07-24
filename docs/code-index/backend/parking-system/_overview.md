@@ -1,18 +1,27 @@
-# parking-system 两套包结构说明
+# parking-system 包结构（重构后）
 
-`parking-system` 内含两套共存的后端实现包，共享同一物理库：
+> **最近更新**：2026-07-24（全量迁移完成：Entity/Controller/Service/DTO/VO/MyBatis）
 
-| 包 | 定位 | 分层风格 | 状态 |
-|---|---|---|---|
-| `com.jushan.platform.modules.*` | **新业务模块**（一期到三期主力） | 标准分层：`controller/` `service/` `service/impl/` `entity/` `dto/` `vo/` `mapper/` | ✅ 活跃 |
-| `com.jushan.system.*` | **较早的扁平业务实现** | 扁平拆分：所有 Controller 统一放 `system/controller/`、Service 放 `system/service/` … 按类型而非业务领域汇集 | ⚠️ 存量，部分功能逐步迁移中 |
+`parking-system` 内含两套包，但重构后仅 `modules.*` 活跃：
 
-**索引方式差异**：
-- `modules.*` 每个业务模块一个独立索引文件（如 `modules-parking.md`）。
-- `com.jushan.system.*` 因按层扁平汇集，按**分层维度**拆分索引：controller / service / entity+mapper / dto+vo / misc。
+| 包 | 定位 | 状态 |
+|---|---|---|
+| `com.jushan.platform.modules.*` | **主力业务模块** | ✅ 100%（Entity/Controller/Service/DTO/VO 全部在此） |
+| `com.jushan.system.*` | **已清空** | ⚠️ 仅剩 `entity/Company.java`（独立表，与 `modules.company.entity.SysCompany` 不同表） |
 
-**常见"入口在哪"**：
-- 通道/车场管理 → `com.jushan.system.ParkingLaneController` / `ParkingLotController`（但 Entity/DTO/Mapper 在 `parking` 模块）。
-- 停车订单/欠费/月卡 → `com.jushan.system`。
-- 微信用户/计费规则/设备台账/系统参数 → `com.jushan.system`。
-- 新业务（停车会话、车辆档案、账户角色、访客预约等） → `com.jushan.platform.modules.*`。
+**迁移完成统计（2026-07-24）**：
+
+| 层 | 原始数量 | 迁移后剩余 |
+|---|---|---|
+| Entity（`system/entity`） | 50 | 1（Company） |
+| Controller（`system/controller`） | 44 | 0 |
+| Service（`system/service`） | 46 | 0 |
+| DTO（`system/dto`） | 48 | 0 |
+| VO（`system/vo`） | 40 | 0 |
+| MyBatis（`system/mybatis`） | 3 | 0 |
+
+**13 个业务模块**：
+`account` `auth` `booth` `common` `company` `department` `device` `log` `miniapp` `parking` `tenant` `vehicle` + 跨切面 `common/aspect`
+
+**索引方式**：
+每个模块一个独立索引文件（如 `modules-parking.md`）。

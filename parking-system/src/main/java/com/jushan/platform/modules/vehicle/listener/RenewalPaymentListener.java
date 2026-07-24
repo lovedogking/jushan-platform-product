@@ -1,8 +1,8 @@
 package com.jushan.platform.modules.vehicle.listener;
 
 import com.jushan.platform.modules.vehicle.service.VehicleRenewalService;
-import com.jushan.system.entity.ParkingOrder;
-import com.jushan.system.event.PaymentSuccessEvent;
+import com.jushan.platform.modules.parking.entity.ParkingOrder;
+import com.jushan.platform.modules.parking.event.PaymentSuccessEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;

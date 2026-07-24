@@ -12,20 +12,20 @@ import com.jushan.platform.modules.parking.entity.ParkingSession;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import com.jushan.platform.modules.vehicle.service.VehicleTypeDecisionService;
 import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
-import com.jushan.system.client.DeviceAccessClient;
-import com.jushan.system.client.dto.CommandResultDTO;
-import com.jushan.system.entity.Device;
-import com.jushan.system.entity.RecognitionEventLog;
-import com.jushan.system.mapper.DeviceMapper;
-import com.jushan.system.mapper.RecognitionEventLogMapper;
-import com.jushan.system.entity.ParkingLot;
-import com.jushan.system.mapper.ParkingLotMapper;
-import com.jushan.system.service.BillingEngine;
-import com.jushan.system.entity.ParkingLane;
-import com.jushan.system.mapper.ParkingLaneMapper;
-import com.jushan.system.service.DeviceService;
-import com.jushan.system.service.MonitorAlertService;
-import com.jushan.system.ws.BoothWebSocketPublisher;
+import com.jushan.platform.modules.device.client.DeviceAccessClient;
+import com.jushan.platform.modules.device.client.dto.CommandResultDTO;
+import com.jushan.platform.modules.device.entity.Device;
+import com.jushan.platform.modules.booth.entity.RecognitionEventLog;
+import com.jushan.platform.modules.device.mapper.DeviceMapper;
+import com.jushan.platform.modules.booth.mapper.RecognitionEventLogMapper;
+import com.jushan.platform.modules.parking.entity.ParkingLot;
+import com.jushan.platform.modules.parking.mapper.ParkingLotMapper;
+import com.jushan.platform.modules.parking.service.BillingEngine;
+import com.jushan.platform.modules.parking.entity.ParkingLane;
+import com.jushan.platform.modules.parking.mapper.ParkingLaneMapper;
+import com.jushan.platform.modules.device.service.DeviceService;
+import com.jushan.platform.modules.device.service.MonitorAlertService;
+import com.jushan.platform.modules.booth.ws.BoothWebSocketPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -913,7 +913,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     }
 
     @Override
-    public com.jushan.system.client.dto.CaptureResultDTO captureImage(Long laneId) {
+    public com.jushan.platform.modules.device.client.dto.CaptureResultDTO captureImage(Long laneId) {
         log.info("主动抓拍请求: laneId={}", laneId);
 
         ParkingLane lane = null;
@@ -940,7 +940,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                     "相机设备序列号为空: deviceId=" + camera.getId());
         }
 
-        com.jushan.system.client.dto.CaptureResultDTO result = deviceAccessClient.captureImage(deviceSn);
+        com.jushan.platform.modules.device.client.dto.CaptureResultDTO result = deviceAccessClient.captureImage(deviceSn);
         log.info("主动抓拍完成: laneId={}, deviceSn={}, success={}, imageUrl={}",
                 laneId, deviceSn, result.isSuccessful(), result.getImageUrl());
         return result;

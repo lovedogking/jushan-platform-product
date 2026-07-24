@@ -1,7 +1,7 @@
 # 索引：com.jushan.system 其它（cache/client/config/event/task/ws/job）
 
 > **所属**：`parking-system` · `com.jushan.system`
-> **最近更新**：2026-07-24
+> **最近更新**：2026-07-24（system/mybatis 已删除；TenantIgnore → parking-common，TenantMetaObjectHandler → parking-infrastructure，TenantIgnoreAspect → modules/common/aspect）
 
 ---
 
@@ -18,6 +18,6 @@
 | `event`（4） | `RecognitionEventPayload` | 识别事件载荷（Spring Event） |
 | | 其余 | PaymentSuccessEvent / EventSource / PlateStandardizer |
 | `job`（1） | — | 定时任务 |
-| `mybatis`（3） | — | MyBatis 配置/拦截器 |
+| `mybatis`（0） | — | ~~MyBatis 配置/拦截器~~ 已迁出（见 parking-infrastructure/parking-common） |
 | `task`（5） | — | 异步任务调度 |
 | `ws`（2） | `BoothWebSocketPublisher` / `BoothTopicAccessChecker` | 岗亭 WS 实时推送 / 主题订阅鉴权 |

@@ -3,12 +3,12 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/parking/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.parking`
 > **职责**：停车会话（入/出场）、收费规则、费用计算、通行策略、车位管控策略、通道权限、数据分析。
-> **最近更新**：2026-07-21
+> **最近更新**：2026-07-24（ParkingLot/ParkingLane 双 Entity 合并；7 个 Controller + 2 个 Service + 11 个 DTO/VO 从 system.* 迁入；删 modules 重复 Mapper，统一到 system/mapper）
 
 **说明**：
 - 本模块下表格路径均相对上述**包路径**（如 `controller/FeeRuleController.java`）。
 - **状态标记**：`FeeRuleController`、`FeeCalculationController`、`ParkingZoneController` 标注 `@Tag("二期计费体系候选(冻结)")`，属**冻结**能力，改动前先确认是否在启用范围。
-- **通道 / 车场档案**：本模块含 `ParkingLane` / `ParkingLot` 的实体、DTO、VO、Mapper，但**无对应 Controller/Service**——其管理入口在 `com.jushan.system`（`ParkingLaneController` / `ParkingLotController`），本模块仅供计费与区域服务复用。
+- **通道 / 车场档案**：`ParkingLane` / `ParkingLot` 的 Entity/DTO/Mapper/**Controller 全在本模块**——已于 2026-07-24 完成两套 Entity 合并（消重复映射 + 修 ID 策略 bug），旧 `system/entity/ParkingLot.java` / `ParkingLane.java` 标 `@Deprecated`。
 
 ---
 
@@ -217,6 +217,12 @@
 |---|---|---|
 | getOverview | `AnalyticsOverviewVO getOverview(AnalyticsQueryCmd cmd)` | 概览统计（按 period / 日期范围） |
 
+### ParkingLotService  `service/ParkingLotService.java`（从 system.* 迁入）
+- **类型**：具体类（`@Service`） ｜ **功能**：车场 CRUD + 容量/状态审计 + 停用策略。
+
+### ParkingLaneService  `service/ParkingLaneService.java`（从 system.* 迁入）
+- **类型**：具体类（`@Service`） ｜ **功能**：通道 CRUD + 潮汐模式 + 相机配置。
+
 ---
 
 ## 三、领域对象（Entity / DTO / VO）
@@ -277,9 +283,27 @@
 
 ---
 
-## 五、跨模块依赖与备注
+## 五、从 system.* 迁入的 Controller（2026-07-24）
+
+> 以下 Controller 原属 `com.jushan.system.controller`，已迁入本模块。旧文件标 `@Deprecated`。
+
+| Controller | 基础路径 | 职责 | 接口数 |
+|---|---|---|---|
+| `ParkingLotController` | `/api/v1/admin/parking-lots` | 车场 CRUD + 容量/状态审计 | 8 |
+| `ParkingLaneController` | `/api/v1/admin/parking-lanes` | 通道 CRUD + 潮汐模式 | 6 |
+| `ParkingLotParamController` | `/api/v1/admin/parking-lot-params` | 车场级参数配置 | 3 |
+| `ParkingOrderController` | `/api/v1/admin/parking-orders` | 停车订单/欠费/退款管理 | 6 |
+| `ParkingRecordAdminController` | `/api/v1/admin/parking-records` | 停车记录管理 | 5 |
+| `ExceptionRecordAdminController` | `/api/v1/admin/exception-records` | 异常记录管理 | 3 |
+| `ManualGateRecordAdminController` | `/api/v1/admin/manual-gate-records` | 人工开闸记录 | 3 |
+
+> 详细接口清单见 `system-controller.md`（待迁移至本文件）
+
+---
+
+## 六、跨模块依赖与备注
 
 - **计费链路**：出场（`ParkingSessionServiceImpl.exit`）→ `FeeCalculationService.calculateFeeCents` → `FeeRuleMapper.selectByLotIdAndZoneId` 取生效规则。改计费算法优先看 `FeeCalculationService`。
-- **通道/车场管理入口**：`ParkingLane` / `ParkingLot` 的增删改查在 `com.jushan.system`（`ParkingLaneController` / `ParkingLotController`），见 `system-controller.md`（⏳）。
+- **通道/车场管理入口**：`ParkingLane` / `ParkingLot` 的 Entity/DTO/Mapper/Controller 现已全部在本模块。旧 `system/controller/ParkingLaneController.java` / `ParkingLotController.java` 已标 `@Deprecated`。
 - **Webhook 入口**：设备识别经 `com.jushan.platform.modules.device.webhook.DeviceWebhookController` 触发入/出场，走 `*IgnoreTenant` 系列查询（无租户上下文）。
 - **冻结能力**：`fee-rules` / `fee` / `parking-zones` 为二期候选（冻结），当前是否启用以运营配置为准。

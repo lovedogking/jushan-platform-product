@@ -1,6 +1,7 @@
 package com.jushan.system.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.jushan.common.BaseEntity;
 
 import java.time.LocalDateTime;
 

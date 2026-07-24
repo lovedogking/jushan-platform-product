@@ -12,7 +12,7 @@ import com.jushan.platform.modules.account.mapper.SysAdminAccountRoleMapper;
 import com.jushan.platform.modules.account.mapper.SysAdminAccountMapper;
 import com.jushan.platform.modules.account.mapper.SysCustomRoleMapper;
 import com.jushan.platform.modules.account.service.SysAdminAccountService;
-import com.jushan.system.mapper.SysRoleMapper;
+import com.jushan.platform.modules.account.mapper.SysRoleMapper;
 import com.jushan.platform.modules.auth.dto.LoginRequest;
 import com.jushan.platform.modules.auth.vo.LoginResult;
 import io.jsonwebtoken.Claims;
@@ -315,7 +315,7 @@ public class AuthController {
                             if (customRole != null) {
                                 return customRole.getRoleCode();
                             }
-                            com.jushan.system.entity.SysRole role = sysRoleMapper.selectById(roleId);
+                            com.jushan.platform.modules.account.entity.SysRole role = sysRoleMapper.selectById(roleId);
                             return role != null ? role.getCode() : null;
                         } catch (Exception ex) {
                             log.warn("查询角色编码失败: roleId={}", roleId, ex);

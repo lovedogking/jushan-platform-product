@@ -66,7 +66,7 @@ public interface RecognitionEventService {
      * @param laneId 通道 ID
      * @return 抓拍结果（含图片 URL）
      */
-    com.jushan.system.client.dto.CaptureResultDTO captureImage(Long laneId);
+    com.jushan.platform.modules.device.client.dto.CaptureResultDTO captureImage(Long laneId);
 
     /**
      * 人工关闸。

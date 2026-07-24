@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.jushan.common.BusinessException;
 import com.jushan.framework.redis.CacheNames;
 import com.jushan.system.dto.SystemParamUpdateRequest;
-import com.jushan.system.entity.SysConfig;
+^import com.jushan.platform.modules.common.entity.SysConfig;
 import com.jushan.system.mapper.SysConfigMapper;
 import com.jushan.system.vo.SystemParamVO;
 import org.junit.jupiter.api.BeforeEach;

@@ -25,8 +25,8 @@ public class WebhookSecurityConfig {
 
     @Bean
     public FilterRegistrationBean<WebhookVerificationFilter> webhookVerificationFilterRegistration(
-            com.jushan.system.mapper.DeviceMapper deviceMapper,
-            com.jushan.system.mapper.WebhookSecretMapper webhookSecretMapper,
+            com.jushan.platform.modules.device.mapper.DeviceMapper deviceMapper,
+            com.jushan.platform.modules.device.mapper.WebhookSecretMapper webhookSecretMapper,
             ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
 
         FilterRegistrationBean<WebhookVerificationFilter> registration = new FilterRegistrationBean<>();

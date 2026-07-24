@@ -6,7 +6,7 @@ import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleMultiPlateMapper;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleWalletMapper;
 import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
-import com.jushan.system.entity.MonthlyPass;
+^import com.jushan.platform.modules.miniapp.entity.MonthlyPass;
 import com.jushan.system.mapper.MonthlyPassMapper;
 import com.jushan.system.service.FixedSpaceService;
 import com.jushan.system.service.VehicleListService;

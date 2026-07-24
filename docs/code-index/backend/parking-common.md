@@ -2,7 +2,7 @@
 
 > **包路径**：`parking-common/src/main/java/com/jushan/common/`
 > **依赖**：无 Spring 容器依赖，纯 Java 类库。
-> **最近更新**：2026-07-21
+> **最近更新**：2026-07-24（新增 TenantIgnore 跨租户查询注解）
 
 ---
 
@@ -14,7 +14,7 @@
 | `BusinessException` | `BusinessException.java` | 业务异常（RuntimeException 子类，携带 ErrorCode） |
 | `BaseEntity` | `BaseEntity.java` | 实体基类（id/tenantId/createdAt/updatedAt/deletedAt 软删除） |
 | `TenantContext` | `auth/TenantContext.java` | 租户上下文 ThreadLocal（requireTenantId / isPlatformUser） |
-| `TenantIgnoreHolder` | `mybatis/TenantIgnoreHolder.java` | MyBatis TenantIgnore 标记持有者 |
+| `TenantIgnore` | `mybatis/TenantIgnore.java` | 跨租户查询注解（仅平台用户可用，含审计 reason + audit 开关），配合 `TenantIgnoreHolder` + `TenantIgnoreAspect` |
 | `package-info` | `package-info.java` | 包说明 |
 
 > 本项目所有 Controller 统一返回 `R<T>`，Service 层抛 `BusinessException`，全局异常处理器将其转为 `R.fail`。

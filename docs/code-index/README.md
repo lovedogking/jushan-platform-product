@@ -35,7 +35,7 @@
 | booth | 岗亭：识别事件、人工入场、减免、交班 | 20 | `backend/parking-system/modules-booth.md` | ✅ |
 | company | 企业/租户主体管理 | 9 | `backend/parking-system/modules-company.md` | ✅ |
 | department | 部门管理 | 9 | `backend/parking-system/modules-department.md` | ✅ |
-| device | 设备 Webhook 接入 | 7 | `backend/parking-system/modules-device.md` | ✅ |
+| device | 设备管理（台账/厂商/车道绑定/控闸/命令/状态/Webhook） | 28 | `backend/parking-system/modules-device.md` | ✅ |
 | auth | 登录鉴权、改密 | 4 | `backend/parking-system/modules-auth.md` | ✅ |
 | log | 业务日志 | 3 | `backend/parking-system/modules-log.md` | ✅ |
 | tenant | 租户 | 1 | `backend/parking-system/modules-tenant.md` | ✅ |
@@ -44,11 +44,11 @@
 
 | 分层 | 内容 | 类数 | 索引 | 状态 |
 |---|---|---|---|---|
-| controller | 44 个后台/岗亭/小程序 Controller | 44 | `backend/parking-system/system-controller.md` | ✅ |
+| controller | 3 个（Archive/Audit/PyunVip，其余 41 个已迁入 modules） | 3 | `backend/parking-system/system-controller.md` | ✅ |
 | service | 业务服务 | 46 | `backend/parking-system/system-service.md` | ✅ |
 | entity + mapper | 实体与数据访问 | 101 | `backend/parking-system/system-entity-mapper.md` | ✅ |
 | dto + vo | 请求/响应对象 | 88 | `backend/parking-system/system-dto-vo.md` | ✅ |
-| 其它 | cache/client/config/event/task/ws/job | 37 | `backend/parking-system/system-misc.md` | ✅ |
+| 其它 | cache/client/config/event/task/ws/job（mybatis 已迁出） | 34 | `backend/parking-system/system-misc.md` | ✅ |
 
 > 两套包结构的关系与选型说明见 `backend/parking-system/_overview.md`（✅）。
 

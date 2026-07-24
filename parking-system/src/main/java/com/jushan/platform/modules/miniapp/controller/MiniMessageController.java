@@ -7,7 +7,7 @@ import com.jushan.common.R;
 import com.jushan.platform.infra.security.RequirePermission;
 import com.jushan.platform.modules.miniapp.entity.MiniMessage;
 import com.jushan.platform.modules.miniapp.mapper.MiniMessageMapper;
-import com.jushan.system.service.WxUserService;
+import com.jushan.platform.modules.miniapp.service.WxUserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;

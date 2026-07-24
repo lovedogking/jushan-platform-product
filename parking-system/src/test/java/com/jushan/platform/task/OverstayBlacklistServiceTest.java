@@ -5,7 +5,7 @@ import com.jushan.platform.modules.parking.mapper.AccessPolicyMapper;
 import com.jushan.platform.modules.parking.mapper.ParkingSessionMapper;
 import com.jushan.platform.modules.vehicle.entity.SysVehicle;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
-import com.jushan.system.entity.SysAuditLog;
+^import com.jushan.platform.modules.log.entity.SysAuditLog;
 import com.jushan.system.mapper.SysAuditLogMapper;
 import com.jushan.system.service.MonitorAlertService;
 import org.junit.jupiter.api.BeforeEach;

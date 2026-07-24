@@ -2,8 +2,8 @@ package com.jushan.platform.modules.vehicle.service.impl;
 
 import com.jushan.common.auth.TenantContext;
 import com.jushan.platform.modules.vehicle.entity.SysVehicle;
-import com.jushan.system.entity.MonthlyPass;
-import com.jushan.system.mapper.MonthlyPassMapper;
+import com.jushan.platform.modules.miniapp.entity.MonthlyPass;
+import com.jushan.platform.modules.miniapp.mapper.MonthlyPassMapper;
 import com.jushan.platform.modules.vehicle.entity.SysVehicleMultiPlate;
 import com.jushan.platform.modules.vehicle.entity.SysVehicleWallet;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
@@ -11,9 +11,9 @@ import com.jushan.platform.modules.vehicle.mapper.SysVehicleMultiPlateMapper;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleWalletMapper;
 import com.jushan.platform.modules.vehicle.service.VehicleTypeDecisionService;
 import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
-import com.jushan.system.entity.VehicleList;
-import com.jushan.system.service.FixedSpaceService;
-import com.jushan.system.service.VehicleListService;
+import com.jushan.platform.modules.vehicle.entity.VehicleList;
+import com.jushan.platform.modules.miniapp.service.FixedSpaceService;
+import com.jushan.platform.modules.vehicle.service.VehicleListService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

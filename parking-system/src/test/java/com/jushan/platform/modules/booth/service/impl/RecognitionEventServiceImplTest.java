@@ -14,7 +14,7 @@ import com.jushan.platform.modules.vehicle.service.VehicleTypeDecisionService;
 import com.jushan.platform.modules.vehicle.vo.VehicleTypeDecisionVO;
 import com.jushan.system.client.DeviceAccessClient;
 import com.jushan.system.client.dto.CommandResultDTO;
-import com.jushan.system.entity.Device;
+^import com.jushan.platform.modules.device.entity.Device;
 import com.jushan.system.mapper.DeviceMapper;
 import com.jushan.system.mapper.ParkingLaneMapper;
 import com.jushan.system.service.BillingEngine;

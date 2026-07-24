@@ -1,10 +1,10 @@
 package com.jushan.system.service;
 
 import com.jushan.system.dto.WhitelistSyncResponse;
-import com.jushan.system.entity.FixedSpaceBinding;
-import com.jushan.system.entity.MonthlyPass;
-import com.jushan.system.entity.Vehicle;
-import com.jushan.system.entity.VehicleList;
+^import com.jushan.platform.modules.miniapp.entity.FixedSpaceBinding;
+^import com.jushan.platform.modules.miniapp.entity.MonthlyPass;
+^import com.jushan.platform.modules.vehicle.entity.Vehicle;
+^import com.jushan.platform.modules.vehicle.entity.VehicleList;
 import com.jushan.system.mapper.FixedSpaceBindingMapper;
 import com.jushan.system.mapper.MonthlyPassMapper;
 import com.jushan.system.mapper.VehicleListMapper;

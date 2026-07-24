@@ -41,6 +41,12 @@ public class CompanyTreeVO {
     /** 联系电话 */
     private String contactPhone;
 
+    /** 状态：1-正常, 2-暂停, 3-注销 */
+    private Integer status;
+
+    /** 树路径编码，如 /1/12/123/ */
+    private String path;
+
     /** 详细地址 */
     private String address;
 

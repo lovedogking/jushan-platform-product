@@ -2,9 +2,9 @@ package com.jushan.system.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.jushan.system.constant.ParamKeys;
-import com.jushan.system.entity.MockPaymentConfig;
-import com.jushan.system.entity.MockPaymentRecord;
-import com.jushan.system.entity.ParkingOrder;
+^import com.jushan.platform.modules.miniapp.entity.MockPaymentConfig;
+^import com.jushan.platform.modules.miniapp.entity.MockPaymentRecord;
+^import com.jushan.platform.modules.parking.entity.ParkingOrder;
 import com.jushan.system.mapper.MockPaymentConfigMapper;
 import com.jushan.system.mapper.MockPaymentRecordMapper;
 import com.jushan.system.mapper.ParkingOrderMapper;
