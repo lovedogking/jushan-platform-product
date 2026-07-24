@@ -194,6 +194,8 @@ services:
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
       RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      # Device Access webhook 签名密钥
+      WEBHOOK_SECRET_KEY: ${WEBHOOK_SECRET_KEY}
       # ---- JWT（必填） ----
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}

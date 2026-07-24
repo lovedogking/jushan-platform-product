@@ -28,7 +28,6 @@ dist/
 .env
 .env.local
 .env.*.local
-.env.production
 application-local.yml
 *.pem
 *.p12
