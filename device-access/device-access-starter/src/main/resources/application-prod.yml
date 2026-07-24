@@ -1,0 +1,58 @@
+# =============================================================================
+# Device Access — 生产配置
+# =============================================================================
+# 在宿主机上以 prod profile 启动：
+#   java -jar device-access-starter.jar --spring.profiles.active=prod
+# =============================================================================
+
+spring:
+  datasource:
+    # Docker MySQL 暴露在 127.0.0.1:3306，库名 device_access
+    url: jdbc:mysql://127.0.0.1:3306/device_access?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:jushan}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+    out-of-order: false
+    clean-disabled: true
+
+logging:
+  level:
+    root: WARN
+    com.smartparking.deviceaccess: INFO
+    com.smartparking.deviceaccess.mqtt: INFO
+
+# ---- MQTT / EMQX ----
+device-access:
+  mqtt:
+    broker-url: ${MQTT_BROKER_URL:tcp://127.0.0.1:1883}
+    client-id: device-access-prod-v1
+    username: ${MQTT_USERNAME:}
+    password: ${MQTT_PASSWORD:}
+    reconnect-interval-seconds: 10
+    connection-timeout-seconds: 30
+    keep-alive-interval-seconds: 60
+    default-qos: 1
+
+  webhook:
+    url: ${WEBHOOK_URL:http://127.0.0.1:8080/api/v1/device-webhook/events}
+    timeout-seconds: 5
+    retry-count: 3
+    retry-interval-seconds: 5
+    secret-key: ${WEBHOOK_SECRET_KEY:}
+
+  auth:
+    keys:
+      - ${API_KEY_1:test-api-key-001}
+      - ${API_KEY_2:}
+
+  image:
+    storage-dir: /opt/jushan/data/device-images
+    public-base-url: http://120.26.3.4/images
+    retention-days: 30

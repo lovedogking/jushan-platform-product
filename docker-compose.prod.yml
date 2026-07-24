@@ -44,8 +44,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    # ports:  # 取消注释以允许宿主机直连（备份/调试用）
-    #   - "127.0.0.1:3306:3306"
+    ports:  # 允许宿主机上的 device-access 连接 MySQL
+      - "127.0.0.1:3306:3306"
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -119,6 +119,38 @@ services:
       start_period: 30s
     # ports:  # 管理后台，仅本地访问
     #   - "127.0.0.1:15672:15672"
+    logging:
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # ===========================================================================
+  # EMQX 5 — MQTT Broker（设备通信）
+  # ===========================================================================
+  emqx:
+    image: emqx/emqx:5.8.5
+    container_name: jushan-emqx
+    restart: always
+    environment:
+      EMQX_DASHBOARD__DEFAULT_USERNAME: ${EMQX_ADMIN_USERNAME:-admin}
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: ${EMQX_ADMIN_PASSWORD}
+      TZ: Asia/Shanghai
+    ports:
+      # MQTT TCP（宿主机 device-access 连接）
+      - "127.0.0.1:1883:1883"
+      # Dashboard（仅内网）
+      - "127.0.0.1:18083:18083"
+    volumes:
+      - emqx-data:/opt/emqx/data
+      - emqx-log:/opt/emqx/log
+    networks:
+      - jushan-net
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     logging:
       options:
         max-size: "50m"
@@ -218,6 +250,9 @@ services:
       - jushan-net
     depends_on:
       - backend
+    extra_hosts:
+      # 允许 nginx 容器访问宿主机的 device-access（图片上传反代）
+      - "host.docker.internal:host-gateway"
     logging:
       options:
         max-size: "50m"
@@ -233,6 +268,10 @@ volumes:
     name: jushan-redis-data
   rabbitmq-data:
     name: jushan-rabbitmq-data
+  emqx-data:
+    name: jushan-emqx-data
+  emqx-log:
+    name: jushan-emqx-log
 
 # =============================================================================
 # 内部网络

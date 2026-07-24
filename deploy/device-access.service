@@ -1,0 +1,34 @@
+[Unit]
+Description=Jushan Device Access Service
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/jushan/device-access
+EnvironmentFile=/opt/jushan/.env.production
+
+# JVM: 1G heap, G1 GC, OOM dump
+Environment=JAVA_OPTS=-Xms512m -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/opt/jushan/logs/
+
+ExecStart=/usr/bin/java ${JAVA_OPTS} -jar /opt/jushan/device-access/device-access-starter.jar --spring.profiles.active=prod
+ExecStop=/bin/kill -15 $MAINPID
+Restart=always
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# 日志
+StandardOutput=append:/opt/jushan/logs/device-access.log
+StandardError=append:/opt/jushan/logs/device-access-error.log
+
+# 安全加固
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/jushan/data /opt/jushan/logs
+
+[Install]
+WantedBy=multi-user.target
