@@ -31,12 +31,12 @@ VALUES (1, 1, 1, 1, 'A1', '入口-1', 1, 1, 0, 1, 0, NOW(), NOW()),
 ON DUPLICATE KEY UPDATE lane_no = VALUES(lane_no);
 
 -- 5. 设备（必须填充 vendor_id, model_id, code, capabilities, description）
--- 臻识 vendor_id=1（Flyway 种子数据已插入），C5H model_id=1
+-- 臻识 vendor_id=1（Flyway 种子数据已插入），C5 model_id=1
 INSERT INTO device (id, tenant_id, parking_lot_id, lane_id, vendor_id, model_id, name, code, device_sn, device_type, status, capabilities, description, created_at, updated_at)
 VALUES
-(1, 1, 1, 1, 1, 1, '入口相机', 'CAM-1', '917e2298-8ddf3e46', 'CAMERA', 'ENABLED', 'RECOGNIZE,CAPTURE', '臻识 C5H 入口相机', NOW(), NOW()),
+(1, 1, 1, 1, 1, 1, '入口相机', 'CAM-1', '917e2298-8ddf3e46', 'CAMERA', 'ENABLED', 'RECOGNIZE,CAPTURE', '臻识 C5 入口相机', NOW(), NOW()),
 (2, 1, 1, 1, 1, 1, '入口道闸', 'GATE-1', 'GATE-001', 'GATE', 'ENABLED', 'GATE_OPEN,GATE_CLOSE', '入口道闸', NOW(), NOW()),
-(3, 1, 1, 2, 1, 1, '出口相机', 'CAM-2', '917e2298-8ddf3e47', 'CAMERA', 'ENABLED', 'RECOGNIZE,CAPTURE', '臻识 C5H 出口相机', NOW(), NOW()),
+(3, 1, 1, 2, 1, 1, '出口相机', 'CAM-2', '917e2298-8ddf3e47', 'CAMERA', 'ENABLED', 'RECOGNIZE,CAPTURE', '臻识 C5 出口相机', NOW(), NOW()),
 (4, 1, 1, 2, 1, 1, '出口道闸', 'GATE-2', 'GATE-002', 'GATE', 'ENABLED', 'GATE_OPEN,GATE_CLOSE', '出口道闸', NOW(), NOW())
 ON DUPLICATE KEY UPDATE updated_at = NOW();
 

@@ -1304,6 +1304,62 @@ public class DeviceService {
     }
 
     /**
+     * 按车道常关（锁定道闸关闭，继电器强制保持关闭）。
+     * <p>
+     * 与 {@link #lockGateByLane(Long, String)} 对称：常关成功后，
+     * 道闸将持续保持关闭状态，白名单车辆也不会自动开闸。
+     * 取消常关复用 {@link #unlockGateByLane(Long, String)}（恢复到 AUTO）。
+     *
+     * @param laneId 车道 ID
+     * @param reason 操作原因
+     * @return 命令执行结果
+     * @since v1.5
+     */
+    @Transactional
+    public CommandResultDTO lockCloseGateByLane(Long laneId, String reason) {
+        ParkingLane lane = laneMapper.selectByIdIgnoreTenant(laneId);
+        if (lane == null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道不存在: laneId=" + laneId);
+        }
+        if (lane.getDeletedAt() != null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "车道已被删除: laneId=" + laneId);
+        }
+
+        DataScope.validateTenantMatch(lane.getTenantId(), "车道");
+        scopeResolver.validateAccess(lane.getLotId());
+
+        Device gateDevice = resolveGateDevice(laneId);
+
+        log.info("按车道常关（锁定道闸关闭）: laneId={}, laneName={}, deviceId={}, deviceSn={}, reason={}",
+                laneId, lane.getName(), gateDevice.getId(), gateDevice.getDeviceSn(), reason);
+
+        String commandId = UUID.randomUUID().toString();
+        String deviceSn = gateDevice.getDeviceSn();
+
+        // Step 1: 先关闸（落杆），确保道闸物理关闭
+        log.info("常关步骤1-关闸: laneId={}, deviceSn={}, commandId={}-close", laneId, deviceSn, commandId);
+        try {
+            CommandResultDTO closeResult = deviceAccessClient.closeGate(deviceSn, commandId + "-close");
+            if (closeResult.isSuccessful()) {
+                log.info("常关步骤1-关闸成功: laneId={}, deviceSn={}", laneId, deviceSn);
+            } else {
+                // 关闸返回失败，闸可能已经处于关闭状态（设备不幂等），继续尝试 lockCloseGate
+                log.warn("常关步骤1-关闸返回失败，闸可能已处于关闭状态，继续尝试锁定: laneId={}, deviceSn={}, result={}",
+                        laneId, deviceSn, closeResult);
+            }
+        } catch (Exception e) {
+            // 关闸抛出异常（如网络错误、设备离线），继续尝试 lockCloseGate——闸本身可能就是关着的
+            // 如果 lockCloseGate 也失败，由第二步返回真正的错误
+            log.warn("常关步骤1-关闸异常，继续尝试锁定: laneId={}, deviceSn={}, error={}",
+                    laneId, deviceSn, e.getMessage());
+        }
+
+        // Step 2: 锁定常关（道闸保持关闭状态）
+        log.info("常关步骤2-锁定: laneId={}, deviceSn={}, commandId={}", laneId, deviceSn, commandId);
+        return deviceAccessClient.lockCloseGate(deviceSn, commandId);
+    }
+
+    /**
      * 开闸（调用 DA v0.4）。
      * <p>
      * 支持 GATE 类型设备和具备开闸能力的 CAMERA 设备。

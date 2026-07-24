@@ -99,4 +99,32 @@ public interface RecognitionEventService {
      * @return 操作结果
      */
     RecognitionResultVO manualUnlockGate(Long laneId, Long operatorId, String reason);
+
+    /**
+     * 常关（锁定道闸关闭，继电器强制保持关闭）。
+     * <p>
+     * 与 {@link #manualLockGate} 对称：常关成功后，道闸将持续保持关闭状态，
+     * 白名单车辆也不会自动开闸。取消常关复用 {@link #manualUnlockGate}（恢复到 AUTO）。
+     *
+     * @param laneId     通道ID
+     * @param operatorId 操作人ID
+     * @param reason     常关原因
+     * @return 操作结果
+     * @since v1.5
+     */
+    RecognitionResultVO manualLockCloseGate(Long laneId, Long operatorId, String reason);
+
+    /**
+     * 取消常关（解除道闸关闭锁定，恢复常规模式）。
+     * <p>
+     * 底层与 {@link #manualUnlockGate} 一样调用 unlockGate 命令（设备只认 unlock），
+     * 但通过独立端点区分审计语义：操作员是"取消常关"而非"取消常开"。
+     *
+     * @param laneId     通道ID
+     * @param operatorId 操作人ID
+     * @param reason     取消原因
+     * @return 操作结果
+     * @since v1.5
+     */
+    RecognitionResultVO manualUnlockCloseGate(Long laneId, Long operatorId, String reason);
 }

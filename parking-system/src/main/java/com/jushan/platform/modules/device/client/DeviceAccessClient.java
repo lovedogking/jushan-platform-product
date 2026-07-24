@@ -156,6 +156,30 @@ public interface DeviceAccessClient {
     CommandResultDTO unlockGate(String deviceSn, String commandId);
 
     /**
+     * 锁定道闸常关（继电器强制保持关闭）。
+     * <p>
+     * 对应 {@code POST /api/v1/devices/{deviceSn}/gate/lock-close}。
+     * 写操作，<strong>不携带 commandId</strong>。如需幂等重试请使用 {@link #lockCloseGate(String, String)}。
+     *
+     * @param deviceSn 设备厂商序列号（来自平台可信设备记录，非前端传入）
+     * @return 命令执行结果
+     * @throws com.jushan.common.BusinessException DA 返回错误或网络异常
+     * @since v1.5
+     */
+    CommandResultDTO lockCloseGate(String deviceSn);
+
+    /**
+     * 锁定道闸常关（携带 commandId 幂等标记）。
+     *
+     * @param deviceSn  设备厂商序列号
+     * @param commandId 幂等命令 ID（UUID），跨重试保持一致
+     * @return 命令执行结果
+     * @throws com.jushan.common.BusinessException DA 返回错误或重试耗尽
+     * @since v1.5
+     */
+    CommandResultDTO lockCloseGate(String deviceSn, String commandId);
+
+    /**
      * 显示屏实时文字。
      * <p>
      * 对应 {@code POST /api/v1/devices/{deviceSn}/display/text}。

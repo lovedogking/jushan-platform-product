@@ -10,6 +10,8 @@ import com.jushan.platform.modules.booth.vo.RecognitionResultVO;
 import com.jushan.platform.modules.device.client.dto.CaptureResultDTO;
 import com.jushan.platform.modules.device.client.dto.CommandResultDTO;
 import com.jushan.platform.modules.device.entity.Device;
+import com.jushan.platform.modules.device.entity.DeviceModel;
+import com.jushan.platform.modules.device.mapper.DeviceModelMapper;
 import com.jushan.platform.modules.device.service.DeviceService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -41,11 +43,14 @@ public class RecognitionEventController {
 
     private final RecognitionEventService recognitionEventService;
     private final DeviceService deviceService;
+    private final DeviceModelMapper deviceModelMapper;
 
     public RecognitionEventController(RecognitionEventService recognitionEventService,
-                                       DeviceService deviceService) {
+                                       DeviceService deviceService,
+                                       DeviceModelMapper deviceModelMapper) {
         this.recognitionEventService = recognitionEventService;
         this.deviceService = deviceService;
+        this.deviceModelMapper = deviceModelMapper;
     }
 
     /**
@@ -113,7 +118,16 @@ public class RecognitionEventController {
     public R<List<String>> getGateCapabilities(@RequestParam Long laneId) {
         try {
             Device gateDevice = deviceService.resolveGateDevice(laneId);
+            // 优先读 Device.capabilities，为空则 fallback 到 DeviceModel.capabilities
             String caps = gateDevice.getCapabilities();
+            if (caps == null || caps.isBlank()) {
+                DeviceModel model = deviceModelMapper.selectById(gateDevice.getModelId());
+                if (model != null && model.getCapabilities() != null && !model.getCapabilities().isBlank()) {
+                    caps = model.getCapabilities();
+                    log.debug("Device.capabilities 为空，fallback 到 DeviceModel.capabilities: deviceId={}, modelId={}, caps={}",
+                            gateDevice.getId(), model.getId(), caps);
+                }
+            }
             if (caps == null || caps.isBlank()) {
                 return R.ok(List.of());
             }
@@ -235,6 +249,38 @@ public class RecognitionEventController {
         Long operatorId = com.jushan.common.auth.TenantContext.getUserId();
         RecognitionResultVO result = recognitionEventService.manualUnlockGate(laneId, operatorId, reason);
         log.info("取消常开（解除道闸锁定）: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+        return R.ok(result);
+    }
+
+    /**
+     * 常关（锁定道闸关闭，白名单车辆也不会自动开闸）。
+     *
+     * @since v1.5
+     */
+    @PostMapping("/manual-lock-close-gate")
+    @RequirePermission("booth:operate")
+    public R<RecognitionResultVO> manualLockCloseGate(
+            @RequestParam Long laneId,
+            @RequestParam String reason) {
+        Long operatorId = com.jushan.common.auth.TenantContext.getUserId();
+        RecognitionResultVO result = recognitionEventService.manualLockCloseGate(laneId, operatorId, reason);
+        log.info("常关（锁定道闸关闭）: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+        return R.ok(result);
+    }
+
+    /**
+     * 取消常关（解除道闸关闭锁定，恢复常规模式）。
+     *
+     * @since v1.5
+     */
+    @PostMapping("/manual-unlock-close-gate")
+    @RequirePermission("booth:operate")
+    public R<RecognitionResultVO> manualUnlockCloseGate(
+            @RequestParam Long laneId,
+            @RequestParam String reason) {
+        Long operatorId = com.jushan.common.auth.TenantContext.getUserId();
+        RecognitionResultVO result = recognitionEventService.manualUnlockCloseGate(laneId, operatorId, reason);
+        log.info("取消常关（解除道闸关闭锁定）: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
         return R.ok(result);
     }
 }

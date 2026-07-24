@@ -91,6 +91,19 @@ public class DeviceController {
     }
 
     /**
+     * 锁定道闸关闭（继电器强制低电平保持关闭）。
+     */
+    @PostMapping("/{deviceId}/gate/lock-close")
+    public CompletableFuture<Result<CommandResultDTO>> lockCloseGate(
+            @PathVariable String deviceId,
+            @RequestBody(required = false) LockGateRequest req) {
+        log.info("API: lockCloseGate deviceId={}", deviceId);
+        LockGateRequest body = req != null ? req : new LockGateRequest();
+        return deviceService.lockCloseGate(deviceId, body)
+                .thenApply(result -> result.getSuccess() ? Result.ok(result) : Result.fail(500, result.getMessage()));
+    }
+
+    /**
      * 查询设备状态。
      */
     @GetMapping("/{deviceId}/status")

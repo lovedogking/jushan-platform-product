@@ -76,13 +76,13 @@ CREATE TABLE device
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='平台设备台账';
 
 -- -----------------------------------------------------------------------------
--- 4. 种子数据：臻识 C5H（当前唯一真机确认的厂商/型号）
+-- 4. 种子数据：臻识 C5（当前唯一真机确认的厂商/型号）
 -- -----------------------------------------------------------------------------
 INSERT INTO device_vendor (name, code, status, description) VALUES
 ('臻识', 'ZHENSHI', 'ENABLED', '臻识科技，当前已确认真机厂商'),
 ('信路通', 'XINLUTONG', 'ENABLED', '信路通，具体型号待联调确认（PENDING_DEVICE_VERIFICATION）');
 
--- 获取臻识 vendor_id 并插入 C5H 型号
+-- 获取臻识 vendor_id 并插入 C5 型号
 INSERT INTO device_model (vendor_id, name, code, device_type, status, description)
-SELECT v.id, 'C5H', 'C5H', 'CAMERA', 'ENABLED', '臻识 C5H 车牌识别相机，当前唯一真机确认型号'
+SELECT v.id, 'C5', 'C5', 'CAMERA', 'ENABLED', '臻识 C5 车牌识别相机，当前唯一真机确认型号'
 FROM device_vendor v WHERE v.code = 'ZHENSHI';

@@ -47,7 +47,7 @@ public class DeviceWebhookService {
     /**
      * 基于（车牌+方向）的去重缓存，窗口 5 秒。
      * <p>
-     * 臻识 C5H 每次识别会同时发两条 MQTT 消息（quick_ivs_result + ivs_result），
+     * 臻识 C5 每次识别会同时发两条 MQTT 消息（quick_ivs_result + ivs_result），
      * DA 会为两者分别生成不同 eventId 并推送 Webhook。
      * 此缓存按（车牌+方向）在 5 秒窗口内去重，避免同一辆车创建多条 ParkingSession。
      */
@@ -141,7 +141,7 @@ public class DeviceWebhookService {
         }
 
         // 3. 方向判定：优先按相机 recognition_direction，兜底车道类型推断
-        //    臻识 C5H direction=4 等场景由兜底逻辑处理
+        //    臻识 C5 direction=4 等场景由兜底逻辑处理
         determineDirection(event, device, trustedLaneId);
 
         // 4. 车牌标准化
@@ -164,7 +164,7 @@ public class DeviceWebhookService {
         }
 
         // 5b. 车牌级去重（BR-08）：同一车道同一车牌同一方向在 30 秒窗口内去重
-        //     臻识 C5H 每次识别发两条 MQTT（quick_ivs_result + ivs_result），
+        //     臻识 C5 每次识别发两条 MQTT（quick_ivs_result + ivs_result），
         //     DA 为两者分别生成不同 eventId 但车牌相同，两事件可能几乎同时到达。
         //     使用 ConcurrentHashMap.compute 原子操作避免竞态条件。
         //     方向在步骤 3 中已从车道绑定推断，此时有效。

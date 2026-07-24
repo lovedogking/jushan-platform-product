@@ -138,6 +138,26 @@ public class MockDeviceAccessClient implements DeviceAccessClient {
     }
 
     @Override
+    public CommandResultDTO lockCloseGate(String deviceSn) {
+        log.info("[MOCK] 常关（锁定道闸关闭）: deviceSn={}", deviceSn);
+        CommandResultDTO dto = new CommandResultDTO();
+        dto.setSuccess(true);
+        dto.setDeviceCode(200);
+        dto.setMessage(MOCK_PREFIX + "常关成功（道闸已锁定关闭）");
+        return dto;
+    }
+
+    @Override
+    public CommandResultDTO lockCloseGate(String deviceSn, String commandId) {
+        log.info("[MOCK] 常关（锁定道闸关闭，幂等）: deviceSn={}, commandId={}", deviceSn, commandId);
+        CommandResultDTO dto = new CommandResultDTO();
+        dto.setSuccess(true);
+        dto.setDeviceCode(200);
+        dto.setMessage(MOCK_PREFIX + "常关成功 (commandId=" + commandId + ")");
+        return dto;
+    }
+
+    @Override
     public DisplayResultDTO displayText(String deviceSn, DisplayTextRequest request) {
         log.info("[MOCK] 显示屏文字: deviceSn={}", deviceSn);
         DisplayResultDTO dto = new DisplayResultDTO();

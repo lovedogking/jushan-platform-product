@@ -314,6 +314,54 @@ public class ZhenshiDeviceCoordinator implements DeviceCoordinator {
     }
 
     /**
+     * 锁定道闸关闭（继电器强制低电平保持关闭）。
+     * <p>
+     * 使用 set_io_lock_status: ioout=0 (IO0), status=2 (低电平锁定)。
+     * 与 lockGate（status=1 高电平锁定开闸）对称。
+     */
+    public CompletableFuture<CommandResultDTO> lockCloseGate(String deviceId, LockGateRequest req) {
+        Device device = deviceRegistry.getByDeviceId(deviceId);
+        if (!productRegistry.hasCapability(device.getProductId(), DeviceCapability.LOCK_CLOSE_GATE)) {
+            throw new UnsupportedOperationException(
+                    "Device " + deviceId + " does not support LOCK_CLOSE_GATE");
+        }
+        DeviceProduct product = productRegistry.getById(device.getProductId());
+        DeviceCommandLog cmdLog = commandLogService.recordRequest(
+                deviceId, product.getBrand(), "LOCK_CLOSE_GATE",
+                handler.getLastPlate(device.getDeviceId()),
+                device.getPlatformDeviceId(), device.getTenantId(),
+                device.getParkingLotId(), device.getLaneId());
+
+        ensureMqttConnected();
+
+        int io = 0; // IO0 = 开闸继电器（低电平锁定=关闸方向）
+        log.info("[Gate] Coordinator: lockCloseGate  deviceId={}  io={}", deviceId, io);
+
+        return handler.sendLockCloseGate(device.getDeviceId(), io, DEFAULT_TIMEOUT_SECONDS)
+                .thenApply(reply -> {
+                    boolean success = reply.getCode() != null && reply.getCode() == 200;
+                    String msg = success ? "Gate locked close" : "Device returned error code: " + reply.getCode();
+                    logGateResult(device, "LOCK_CLOSE_GATE", success, reply.getCode());
+                    commandLogService.recordResponse(cmdLog.getId(), success, reply.getCode(), msg);
+                    return CommandResultDTO.builder()
+                            .success(success)
+                            .deviceCode(reply.getCode())
+                            .message(msg)
+                            .build();
+                })
+                .exceptionally(e -> {
+                    log.error("Failed to lock close gate: deviceId={}", deviceId, e);
+                    logGateResult(device, "LOCK_CLOSE_GATE", false, null);
+                    commandLogService.recordResponse(cmdLog.getId(), false, null,
+                            "Command failed: " + e.getMessage());
+                    return CommandResultDTO.builder()
+                            .success(false)
+                            .message("Command failed: " + e.getMessage())
+                            .build();
+                });
+    }
+
+    /**
      * 外围设备控制。
      */
     public CompletableFuture<PeripheralControlResult> controlPeripheral(String deviceId, PeripheralControlRequest req) {

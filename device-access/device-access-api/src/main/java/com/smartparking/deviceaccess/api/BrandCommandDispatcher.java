@@ -101,6 +101,13 @@ public class BrandCommandDispatcher {
     }
 
     /**
+     * 锁定道闸关闭命令分派。
+     */
+    public CompletableFuture<CommandResultDTO> lockCloseGate(String deviceId, DeviceProduct product, LockGateRequest req) {
+        return getCoordinator(product).lockCloseGate(deviceId, req);
+    }
+
+    /**
      * 在线状态查询分派。
      */
     public boolean isDeviceOnline(String deviceSn, DeviceProduct product) {

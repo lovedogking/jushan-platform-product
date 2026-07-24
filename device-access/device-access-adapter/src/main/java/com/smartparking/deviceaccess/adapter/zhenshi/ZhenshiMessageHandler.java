@@ -570,6 +570,44 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
     }
 
     /**
+     * 锁定道闸关闭（保持低电平锁定关闸方向）。
+     * <p>
+     * 使用臻识 set_io_lock_status 命令：
+     * ioout=0 对应 IO0（开闸继电器），status=2 低电平锁定。
+     * <p>
+     * 与 {@link #sendLockGate} 的区别：锁定开闸是 status=1（高电平），锁定关闸是 status=2（低电平）。
+     *
+     * @param deviceSn       设备序列号
+     * @param io             IO端口编号 (0=IO0)
+     * @param timeoutSeconds 超时时间（秒）
+     */
+    public CompletableFuture<MqttMessage> sendLockCloseGate(String deviceSn, int io, long timeoutSeconds) {
+        String id = UUID.randomUUID().toString();
+        long now = Instant.now().getEpochSecond();
+
+        // 臻识协议：ioout 0，status 2=低电平锁定关闸
+        Map<String, Object> body = Map.of("ioout", io, "status", 2);
+
+        MqttRequestPayload requestPayload = MqttRequestPayload.builder()
+                .type("set_io_lock_status")
+                .body(body)
+                .build();
+
+        MqttMessage command = MqttMessage.builder()
+                .id(id)
+                .sn(deviceSn)
+                .name("set_io_lock_status")
+                .version("1.0")
+                .timestamp(now)
+                .payload(requestPayload)
+                .build();
+
+        String topic = String.format("device/%s/message/down/set_io_lock_status", deviceSn);
+        log.info("[Gate] SEND lock-close  deviceSn={}  ioout={}  status=2(low)  topic={}  (set_io_lock_status)", deviceSn, io, topic);
+        return mqttGateway.publishAndWait(topic, command, timeoutSeconds, TimeUnit.SECONDS);
+    }
+
+    /**
      * 获取最近识别的车牌号（用于日志上下文）。
      *
      * @param deviceSn 设备序列号

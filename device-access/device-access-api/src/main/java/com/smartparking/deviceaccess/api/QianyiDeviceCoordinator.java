@@ -405,8 +405,17 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
     }
 
     // ═══════════════════════════════════════════
-    // 一期不支持的能力（占位，照信路通 lockGate 模式）
+    // 一期不支持的能力（占位）
     // ═══════════════════════════════════════════
+
+    /**
+     * 锁定道闸关闭（一期不支持）。
+     */
+    public CompletableFuture<CommandResultDTO> lockCloseGate(String deviceId, LockGateRequest req) {
+        log.warn("Qianyi lockCloseGate not implemented. deviceId={}", deviceId);
+        throw new UnsupportedOperationException(
+                "Qianyi camera does not support lock-close gate yet.");
+    }
 
     /**
      * 外围设备控制（一期不支持）。

@@ -24,10 +24,10 @@ public class DeviceModel implements Serializable {
     /** 所属厂商 ID */
     private Long vendorId;
 
-    /** 型号名称（如"C5H"） */
+    /** 型号名称（如"C5"） */
     private String name;
 
-    /** 型号编码（如 C5H） */
+    /** 型号编码（如 C5） */
     private String code;
 
     /** 设备类型：CAMERA-相机, GATE-道闸 */

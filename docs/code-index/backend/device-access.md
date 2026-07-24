@@ -2,7 +2,7 @@
 
 > **包路径**：`device-access/`（独立多模块 Maven 工程，根 pom 含 7 个子模块）
 > **职责**：与硬件设备通信（MQTT）、协议适配（臻识/信路通/芊熠）、Webhook 推送事件到 Platform、设备注册与心跳管理。
-> **最近更新**：2026-07-24
+> **最近更新**：2026-07-24（v1.5：新增 LOCK_CLOSE_GATE 能力、lockCloseGate 全链路、DeviceController /gate/lock-close 端点）
 
 ---
 
@@ -43,7 +43,10 @@
 | 类 / 接口 | 位置 | 功能 |
 |---|---|---|
 | `CaptureResultDTO` | api/dto | 抓拍结果：success / imageUrl / plateImageUrl / message |
+| `DeviceCapability.LOCK_CLOSE_GATE` | common/enums | 设备能力枚举新增「锁定关闸」（v1.5） |
 | `DeviceCapability.CAPTURE` | common/enums | 设备能力枚举新增「主动抓拍」 |
+| `DeviceService.lockCloseGate` | api | 锁定道闸关闭命令（v1.5） |
+| `DeviceCoordinator.lockCloseGate` | api | 协调器接口新增锁关闸方法（v1.5）；臻识已实现，信路通/芊熠为桩 |
 | `DeviceService.capture` | api | 能力校验后按品牌分派 |
 | `DeviceCoordinator.capture` | api | 协调器接口新增抓拍方法（v0.7）；臻识 v0.7.1 已实现，信路通仍为桩（抛 `UnsupportedOperationException`） |
 | `BrandCommandDispatcher.capture` | api | 路由到对应品牌协调器 |
@@ -70,5 +73,5 @@
 
 > 数据库变更：
 > - `device-access-starter/src/main/resources/migration-v0.5-qianyi.sql`（手动历史迁移，用于新库初始化 schema + 种子）
-> - `device-access-starter/src/main/resources/db/migration/V20260724001__add_capture_capability.sql`（Flyway 自动迁移，给芊熠 QY-01 追加 `CAPTURE` 能力）
+> - `device-access-starter/src/main/resources/db/migration/V20260724001__add_capture_capability.sql`（Flyway 自动迁移，给芊熠 QY-01 追加 `CAPTURE` 能力；QY-01 已在 V20260906002 被 QY-Q8 替代）
 > - `application.yml` 启用 `spring.flyway.baseline-on-migrate=true`；存量库首次启动自动 baseline 后执行 v0.7 迁移

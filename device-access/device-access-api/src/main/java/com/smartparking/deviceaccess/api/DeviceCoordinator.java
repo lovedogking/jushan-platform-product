@@ -66,6 +66,11 @@ public interface DeviceCoordinator {
     CompletableFuture<CommandResultDTO> unlockGate(String deviceId, UnlockGateRequest req);
 
     /**
+     * 锁定道闸关闭（继电器强制低电平，保持道闸关闭）。
+     */
+    CompletableFuture<CommandResultDTO> lockCloseGate(String deviceId, LockGateRequest req);
+
+    /**
      * 外围设备控制。
      */
     CompletableFuture<PeripheralControlResult> controlPeripheral(String deviceId, PeripheralControlRequest req);

@@ -87,6 +87,7 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
     private static final String CLOSE_GATE_PATH = "/api/v1/devices/{deviceSn}/gate/close";
     private static final String LOCK_GATE_PATH = "/api/v1/devices/{deviceSn}/gate/lock";
     private static final String UNLOCK_GATE_PATH = "/api/v1/devices/{deviceSn}/gate/unlock";
+    private static final String LOCK_CLOSE_GATE_PATH = "/api/v1/devices/{deviceSn}/gate/lock-close";
     private static final String DISPLAY_TEXT_PATH = "/api/v1/devices/{deviceSn}/display/text";
     private static final String SAVE_DISPLAY_PATH = "/api/v1/devices/{deviceSn}/display/save";
     private static final String DISPLAY_CONFIG_PATH = "/api/v1/devices/{deviceSn}/display/config";
@@ -317,6 +318,47 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
         } finally {
             sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
                     .tag("method", "unlockGate")
+                    .register(meterRegistry));
+        }
+    }
+
+    @Override
+    public CommandResultDTO lockCloseGate(String deviceSn) {
+        log.debug("常关（锁定道闸关闭）: deviceSn={}", deviceSn);
+        checkCircuitBreaker("lockCloseGate");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        DeviceAccessResponse<CommandResultDTO> response;
+
+        try {
+            response = execute(
+                    LOCK_CLOSE_GATE_PATH, HttpMethod.POST, deviceSn,
+                    new ParameterizedTypeReference<DeviceAccessResponse<CommandResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "lockCloseGate")
+                    .register(meterRegistry));
+        }
+
+        recordSuccess("lockCloseGate");
+        log.info("常关成功（锁定道闸关闭）: deviceSn={}, success={}, deviceCode={}", deviceSn,
+                response.getData() != null ? response.getData().getSuccess() : null,
+                response.getData() != null ? response.getData().getDeviceCode() : null);
+        return response.getData();
+    }
+
+    @Override
+    public CommandResultDTO lockCloseGate(String deviceSn, String commandId) {
+        log.debug("常关（锁定道闸关闭，幂等）: deviceSn={}, commandId={}", deviceSn, commandId);
+        checkCircuitBreaker("lockCloseGate");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        try {
+            return executeWithRetry(LOCK_CLOSE_GATE_PATH, deviceSn, commandId, "lockCloseGate",
+                    new ParameterizedTypeReference<DeviceAccessResponse<CommandResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "lockCloseGate")
                     .register(meterRegistry));
         }
     }

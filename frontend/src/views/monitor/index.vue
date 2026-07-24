@@ -87,7 +87,7 @@
                   <div class="lane-grid">
                     <a-card
                       v-for="lane in laneCards"
-                      :key="lane.laneId"
+                      :key="lane.laneId + '-' + lane.direction"
                       :bordered="false"
                       class="lane-card"
                       :class="{
@@ -167,26 +167,26 @@
                           </a-button>
                           <a-popconfirm
                             v-if="hasGateCapability(lane.laneId, 'KEEP_OPEN')"
-                            :title="laneLockState[lane.laneId]?.open ? '确定取消常开？道闸将恢复正常起落' : '确定设置常开？道闸将锁定保持抬杆状态'"
-                            @confirm="handleToggleLockOpen(lane.laneId)"
+                            :title="laneLockState[lane.lockKey]?.open ? '确定取消常开？道闸将恢复正常起落' : '确定设置常开？道闸将锁定保持抬杆状态'"
+                            @confirm="handleToggleLockOpen(lane.laneId, lane.lockKey)"
                           >
                             <a-button
-                              :type="laneLockState[lane.laneId]?.open ? 'default' : 'primary'"
+                              :type="laneLockState[lane.lockKey]?.open ? 'default' : 'primary'"
                               size="small"
                             >
-                              {{ laneLockState[lane.laneId]?.open ? '取消常开' : '常开' }}
+                              {{ laneLockState[lane.lockKey]?.open ? '取消常开' : '常开' }}
                             </a-button>
                           </a-popconfirm>
                           <a-popconfirm
-                            v-if="hasGateCapability(lane.laneId, 'KEEP_OPEN')"
-                            :title="laneLockState[lane.laneId]?.close ? '确定取消常关？道闸将恢复正常起落' : '确定设置常关？白名单车辆将不再自动开闸'"
-                            @confirm="handleToggleLockClose(lane.laneId)"
+                            v-if="hasGateCapability(lane.laneId, 'KEEP_CLOSE')"
+                            :title="laneLockState[lane.lockKey]?.close ? '确定取消常关？道闸将恢复正常起落' : '确定设置常关？白名单车辆将不再自动开闸'"
+                            @confirm="handleToggleLockClose(lane.laneId, lane.lockKey)"
                           >
                             <a-button
-                              :type="laneLockState[lane.laneId]?.close ? 'default' : 'primary'"
+                              :type="laneLockState[lane.lockKey]?.close ? 'default' : 'primary'"
                               size="small"
                             >
-                              {{ laneLockState[lane.laneId]?.close ? '取消常关' : '常关' }}
+                              {{ laneLockState[lane.lockKey]?.close ? '取消常关' : '常关' }}
                             </a-button>
                           </a-popconfirm>
                           <a-button
@@ -462,22 +462,33 @@ const manualReleaseOpen = ref(false)
 const manualReleaseLaneId = ref(0)
 const manualReleasePlate = ref('')
 
-/** 每个通道的锁定状态：{ [laneId]: { open: boolean, close: boolean } } */
-const laneLockState = ref<Record<number, { open: boolean; close: boolean }>>({})
+/** 每个车道的锁定状态：{ [laneId-direction]: { open: boolean, close: boolean } } */
+const laneLockState = ref<Record<string, { open: boolean; close: boolean }>>({})
 
 /** 车道控闸能力：laneId → capabilities[]，前端按钮按此动态渲染 */
 const gateCapabilities = ref<Record<number, string[]>>({})
+
+function lockStateKey(laneId: number, direction?: string): string {
+  return direction ? `${laneId}-${direction}` : `${laneId}`
+}
 
 // 从快照初始化 laneLockState（修复 gateMode 刷新后状态丢失）
 watch(() => store.lanes, (lanes) => {
   for (const lane of lanes) {
     const mode = lane.gateMode
-    if (mode === 'ALWAYS_OPEN') {
-      laneLockState.value[lane.id] = { open: true, close: false }
-    } else if (mode === 'ALWAYS_CLOSE') {
-      laneLockState.value[lane.id] = { open: false, close: true }
+    const entryKey = lockStateKey(lane.id, 'ENTRY')
+    const exitKey = lockStateKey(lane.id, 'EXIT')
+    const state = mode === 'ALWAYS_OPEN'
+      ? { open: true, close: false } :
+      mode === 'ALWAYS_CLOSE'
+        ? { open: false, close: true } :
+        { open: false, close: false }
+
+    if (lane.direction === 'MIXED') {
+      laneLockState.value[entryKey] = { ...state }
+      laneLockState.value[exitKey] = { ...state }
     } else {
-      laneLockState.value[lane.id] = { open: false, close: false }
+      laneLockState.value[lane.id] = state
     }
   }
 }, { immediate: true, deep: true })
@@ -642,19 +653,30 @@ async function handleManualCloseGate(laneId: number) {
   }
 }
 
-/** 切换常开/取消常开（锁定/解锁开闸继电器） */
-async function handleToggleLockOpen(laneId: number) {
-  if (!laneLockState.value[laneId]) {
-    laneLockState.value[laneId] = { open: false, close: false }
+/** 在同一 laneId 上同步 MIXED 入口/出口两张卡的状态 */
+function syncMixedLockState(laneId: number, changedLockKey: string, state: { open: boolean; close: boolean }) {
+  const entryKey = `${laneId}-ENTRY`
+  const exitKey = `${laneId}-EXIT`
+  // 仅 MIXED 车道才有 ENTRY/EXIT 双 key，非 MIXED 车道不会命中，无额外开销
+  if (laneLockState.value[entryKey] && laneLockState.value[exitKey]) {
+    laneLockState.value[entryKey] = { ...state }
+    laneLockState.value[exitKey] = { ...state }
   }
-  const isLocked = laneLockState.value[laneId]!.open
+}
+
+/** 切换常开/取消常开（锁定/解锁开闸继电器） */
+async function handleToggleLockOpen(laneId: number, lockKey: string) {
+  if (!laneLockState.value[lockKey]) {
+    laneLockState.value[lockKey] = { open: false, close: false }
+  }
+  const isLocked = laneLockState.value[lockKey]!.open
 
   try {
     const { manualLockGate, manualUnlockGate } = await import('@/api/charge')
     if (isLocked) {
       const result = await manualUnlockGate(laneId, '岗亭取消常开')
       if (result.gateDeviceAck) {
-        laneLockState.value[laneId]!.open = false
+        updateLockOpen(laneId, lockKey, false)
         message.success('取消常开成功')
       } else {
         message.warning(result.gateResult || '取消常开失败')
@@ -662,7 +684,7 @@ async function handleToggleLockOpen(laneId: number) {
     } else {
       const result = await manualLockGate(laneId, '岗亭设置常开')
       if (result.gateDeviceAck) {
-        laneLockState.value[laneId]!.open = true
+        updateLockOpen(laneId, lockKey, true)
         message.success('常开成功（道闸已锁定）')
       } else {
         message.warning(result.gateResult || '常开失败')
@@ -673,30 +695,36 @@ async function handleToggleLockOpen(laneId: number) {
   }
 }
 
+function updateLockOpen(laneId: number, lockKey: string, open: boolean) {
+  laneLockState.value[lockKey] = { open, close: false }
+  syncMixedLockState(laneId, lockKey, { open, close: false })
+}
+
 /** 切换常关/取消常关（锁定/解锁关闸继电器） */
-async function handleToggleLockClose(laneId: number) {
-  if (!laneLockState.value[laneId]) {
-    laneLockState.value[laneId] = { open: false, close: false }
+async function handleToggleLockClose(laneId: number, lockKey: string) {
+  if (!laneLockState.value[lockKey]) {
+    laneLockState.value[lockKey] = { open: false, close: false }
   }
-  const isLocked = laneLockState.value[laneId]!.close
+  const isLocked = laneLockState.value[lockKey]!.close
 
   try {
     if (isLocked) {
-      const { manualUnlockGate } = await import('@/api/charge')
-      const result = await manualUnlockGate(laneId, '岗亭取消常关')
+      // 取消常关（专用端点，审计可区分）
+      const { manualUnlockCloseGate } = await import('@/api/charge')
+      const result = await manualUnlockCloseGate(laneId, '岗亭取消常关')
       if (result.gateDeviceAck) {
-        laneLockState.value[laneId]!.close = false
+        updateLockClose(laneId, lockKey, false)
         message.success('取消常关成功')
       } else {
         message.warning(result.gateResult || '取消常关失败')
       }
     } else {
-      // 先关闸，视为常关
-      const { manualCloseGate } = await import('@/api/charge')
-      const result = await manualCloseGate(laneId, '岗亭常关')
+      // 常关：后端内部先关闸再锁定，一次调用完成
+      const { manualLockCloseGate } = await import('@/api/charge')
+      const result = await manualLockCloseGate(laneId, '岗亭常关')
       if (result.gateDeviceAck) {
-        laneLockState.value[laneId]!.close = true
-        message.success('常关成功')
+        updateLockClose(laneId, lockKey, true)
+        message.success('常关成功（道闸已锁定关闭）')
       } else {
         message.warning(result.gateResult || '常关失败')
       }
@@ -704,6 +732,11 @@ async function handleToggleLockClose(laneId: number) {
   } catch (e: any) {
     message.error(e?.message || (isLocked ? '取消常关失败' : '常关失败'))
   }
+}
+
+function updateLockClose(laneId: number, lockKey: string, close: boolean) {
+  laneLockState.value[lockKey] = { open: false, close }
+  syncMixedLockState(laneId, lockKey, { open: false, close })
 }
 
 /** 修改收费规则 */
@@ -836,6 +869,8 @@ interface LaneCard {
   laneId: number
   laneName: string
   direction: string
+  /** lockState 键：MIXED 车道为 `${laneId}-ENTRY` 或 `${laneId}-EXIT`，否则为 `${laneId}` */
+  lockKey: string
   deviceId?: number
   deviceOnline: boolean
   isOffline: boolean
@@ -847,11 +882,57 @@ interface LaneCard {
 }
 
 const laneCards = computed((): LaneCard[] => {
-  return store.lanes.map((lane) => {
+  const result: LaneCard[] = []
+
+  store.lanes.forEach((lane) => {
     const cameras = lane.cameras || []
     const hasMultiCameras = cameras.length > 0
 
-    if (!hasMultiCameras) {
+    function buildCard(direction: string, suffix: string, filterDirection?: string): LaneCard {
+      // 过滤该方向的事件和相机
+      const cardCameras = filterDirection
+        ? cameras.filter(c => c.direction === filterDirection)
+        : cameras
+      const cardEvents = filterDirection
+        ? store.recentEvents.filter(e => e.laneId === lane.id && e.direction === filterDirection)
+        : store.recentEvents.filter(e => e.laneId === lane.id)
+      const latestEvent = cardEvents[0] as RecognitionEventPayload | undefined
+      const cameraOnline = cardCameras.some(c => c.isActive && c.online)
+      const cameraOffline = cardCameras.length > 0 && cardCameras.every(c => !c.online)
+      const primaryOffline = cardCameras.filter(c => c.role === 'PRIMARY').some(c => !c.online)
+      const activeCamera = cardCameras.find(c => c.isActive)
+
+      const charging =
+        store.chargePanelVisible &&
+        store.currentChargeInfo?.laneId === lane.id
+
+      return {
+        laneId: lane.id,
+        laneName: (lane.name || `车道 ${lane.id}`) + suffix,
+        direction,
+        lockKey: filterDirection ? `${lane.id}-${filterDirection}` : `${lane.id}`,
+        deviceId: lane.deviceId,
+        deviceOnline: hasMultiCameras ? cameraOnline : (
+          !!store.deviceStatuses.find(d => d.deviceId === lane.deviceId)?.online
+        ),
+        isOffline: hasMultiCameras ? cameraOffline : (
+          !store.deviceStatuses.find(d => d.deviceId === lane.deviceId)?.online
+        ),
+        charging,
+        latestEvent,
+        cameras: cardCameras,
+        primaryOffline: hasMultiCameras ? primaryOffline : false,
+        activeSourceLabel: activeCamera
+          ? `当前: ${activeCamera.role === 'PRIMARY' ? '主相机' : '备相机'}`
+          : undefined,
+      }
+    }
+
+    if (lane.direction === 'MIXED') {
+      // 双向车道拆分为入口卡 + 出口卡
+      result.push(buildCard('ENTRY', ' 入口', 'ENTRY'))
+      result.push(buildCard('EXIT', ' 出口', 'EXIT'))
+    } else if (!hasMultiCameras) {
       const device = lane.deviceId
         ? store.deviceStatuses.find((d) => d.deviceId === lane.deviceId)
         : undefined
@@ -863,10 +944,11 @@ const laneCards = computed((): LaneCard[] => {
 
       // GB-08: 120 秒时间阈值判定离线（V1.4）
       const timeOffline = lane.deviceId != null && isDeviceOfflineByTime(lane.deviceId)
-      return {
+      result.push({
         laneId: lane.id,
         laneName: lane.name || `车道 ${lane.id}`,
         direction: lane.direction,
+        lockKey: `${lane.id}`,
         deviceId: lane.deviceId,
         deviceOnline: !!device?.online && !device?.stale && !timeOffline,
         isOffline: !device || !device.online || device.stale || timeOffline,
@@ -875,29 +957,32 @@ const laneCards = computed((): LaneCard[] => {
         cameras: [],
         primaryOffline: false,
         activeSourceLabel: undefined,
-      }
-    }
+      })
+    } else {
+      const primaryCameras = cameras.filter(c => c.role === 'PRIMARY')
+      const primaryOffline = primaryCameras.some(c => !c.online)
+      const activeCamera = cameras.find(c => c.isActive)
+      const activeSourceLabel = activeCamera
+        ? `当前: ${activeCamera.role === 'PRIMARY' ? '主相机' : '备相机'}`
+        : undefined
 
-    const primaryCameras = cameras.filter(c => c.role === 'PRIMARY')
-    const primaryOffline = primaryCameras.some(c => !c.online)
-    const activeCamera = cameras.find(c => c.isActive)
-    const activeSourceLabel = activeCamera
-      ? `当前: ${activeCamera.role === 'PRIMARY' ? '主相机' : '备相机'}`
-      : undefined
-
-    return {
-      laneId: lane.id,
-      laneName: lane.name || `车道 ${lane.id}`,
-      direction: lane.direction,
-      deviceOnline: cameras.some(c => c.isActive && c.online),
-      isOffline: cameras.every(c => !c.online),
-      charging: store.chargePanelVisible && store.currentChargeInfo?.laneId === lane.id,
-      latestEvent: store.recentEvents.find((e) => e.laneId === lane.id) as RecognitionEventPayload | undefined,
-      cameras,
-      primaryOffline,
-      activeSourceLabel,
+      result.push({
+        laneId: lane.id,
+        laneName: lane.name || `车道 ${lane.id}`,
+        direction: lane.direction,
+        lockKey: `${lane.id}`,
+        deviceOnline: cameras.some(c => c.isActive && c.online),
+        isOffline: cameras.every(c => !c.online),
+        charging: store.chargePanelVisible && store.currentChargeInfo?.laneId === lane.id,
+        latestEvent: store.recentEvents.find((e) => e.laneId === lane.id) as RecognitionEventPayload | undefined,
+        cameras,
+        primaryOffline,
+        activeSourceLabel,
+      })
     }
   })
+
+  return result
 })
 
 function sourceColor(source?: string) {

@@ -44,6 +44,9 @@ public enum DeviceCapability {
     /** 锁定开闸（继电器强制吸合，保持道闸开启） */
     LOCK_OPEN_GATE,
 
+    /** 锁定关闸（继电器强制吸合，保持道闸关闭） */
+    LOCK_CLOSE_GATE,
+
     /** 主动抓拍 */
     CAPTURE
 }

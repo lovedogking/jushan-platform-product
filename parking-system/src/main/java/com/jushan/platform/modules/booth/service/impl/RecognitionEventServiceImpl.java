@@ -505,53 +505,124 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
 
     @Override
     public RecognitionResultVO manualUnlockGate(Long laneId, Long operatorId, String reason) {
-        log.info("取消常开（解除道闸锁定）请求: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+        return unlockGateInternal(laneId, operatorId, reason,
+                "取消常开", "GATE_UNLOCK_FAILED", "GATE_UNLOCK_UNCERTAIN");
+    }
+
+    @Override
+    public RecognitionResultVO manualLockCloseGate(Long laneId, Long operatorId, String reason) {
+        log.info("常关（锁定道闸关闭）请求: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
 
         RecognitionResultVO result = new RecognitionResultVO();
-        result.setAllowPass(true);
+        result.setAllowPass(false);
 
         try {
             result.setGateCommandSent(true);
-            CommandResultDTO gateResult = deviceService.unlockGateByLane(laneId, "取消常开（解除锁定）: " + reason);
+            CommandResultDTO gateResult = deviceService.lockCloseGateByLane(laneId, "常关（锁定道闸关闭）: " + reason);
             boolean success = gateResult.isSuccessful();
             result.setGateDeviceAck(success);
             result.setGateOpened(false);
             if (success) {
-                result.setGateResult("取消常开成功（道闸已解锁并关闸）");
-                result.setResultMessage("取消常开: " + reason);
+                result.setGateResult("常关成功（道闸已锁定关闭）");
+                result.setResultMessage("常关: " + reason);
                 result.setException(false);
-                log.info("取消常开成功: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
+                log.info("常关成功: laneId={}, operatorId={}, reason={}", laneId, operatorId, reason);
 
-                // GAP-01: unlockGate 成功后同步落库 gate_mode = AUTO
+                // 常关成功后同步落库 gate_mode = ALWAYS_CLOSE
                 try {
                     ParkingLane lane = parkingLaneMapper.selectByIdIgnoreTenant(laneId);
-                    if (lane != null && !ParkingLane.GATE_MODE_AUTO.equals(lane.getGateMode())) {
-                        lane.setGateMode(ParkingLane.GATE_MODE_AUTO);
+                    if (lane != null && !ParkingLane.GATE_MODE_ALWAYS_CLOSE.equals(lane.getGateMode())) {
+                        lane.setGateMode(ParkingLane.GATE_MODE_ALWAYS_CLOSE);
                         lane.setUpdatedAt(LocalDateTime.now());
                         parkingLaneMapper.updateById(lane);
-                        log.info("取消常开成功，gate_mode 已恢复为 AUTO: laneId={}", laneId);
+                        log.info("常关成功，gate_mode 已更新为 ALWAYS_CLOSE: laneId={}", laneId);
                     }
                 } catch (Exception e) {
-                    log.warn("取消常开成功但 gate_mode 落库失败: laneId={}, error={}", laneId, e.getMessage());
+                    log.warn("常关成功但 gate_mode 落库失败: laneId={}, error={}", laneId, e.getMessage());
                 }
             } else {
-                result.setGateResult("取消常开失败: " + (gateResult.getMessage() != null ? gateResult.getMessage() : "设备返回异常"));
-                result.setResultMessage("取消常开失败: " + reason);
+                result.setGateResult("常关失败: " + (gateResult.getMessage() != null ? gateResult.getMessage() : "设备返回异常"));
+                result.setResultMessage("常关失败: " + reason);
                 result.setException(true);
-                result.setExceptionType("GATE_UNLOCK_FAILED");
-                log.warn("取消常开设备返回失败: laneId={}, operatorId={}, message={}",
+                result.setExceptionType("GATE_LOCK_CLOSE_FAILED");
+                log.warn("常关设备返回失败: laneId={}, operatorId={}, message={}",
                         laneId, operatorId, gateResult.getMessage());
             }
         } catch (BusinessException e) {
             result.setGateCommandSent(true);
             result.setGateDeviceAck(false);
             result.setGateOpened(null);
-            result.setGateResult("取消常开异常（UNCERTAIN）: " + e.getMessage());
-            result.setResultMessage("取消常开异常: " + reason);
+            result.setGateResult("常关异常（UNCERTAIN）: " + e.getMessage());
+            result.setResultMessage("常关异常: " + reason);
             result.setException(true);
-            result.setExceptionType("GATE_UNLOCK_UNCERTAIN");
-            log.error("取消常开异常（UNCERTAIN）: laneId={}, operatorId={}, error={}",
+            result.setExceptionType("GATE_LOCK_CLOSE_UNCERTAIN");
+            log.error("常关异常（UNCERTAIN）: laneId={}, operatorId={}, error={}",
                     laneId, operatorId, e.getMessage());
+        }
+
+        return result;
+    }
+
+    @Override
+    public RecognitionResultVO manualUnlockCloseGate(Long laneId, Long operatorId, String reason) {
+        // 底层与取消常开完全一致（都调 unlockGate），通过独立端点区分审计语义
+        return unlockGateInternal(laneId, operatorId, reason,
+                "取消常关", "GATE_UNLOCK_CLOSE_FAILED", "GATE_UNLOCK_CLOSE_UNCERTAIN");
+    }
+
+    /**
+     * 解锁道闸的统一实现：调 unlockGateByLane，成功后落库 gate_mode = AUTO。
+     * manualUnlockGate 和 manualUnlockCloseGate 的差异仅在于审计文案和 exceptionType，
+     * 提取到此方法避免重复。
+     */
+    private RecognitionResultVO unlockGateInternal(Long laneId, Long operatorId, String reason,
+                                                    String actionLabel, String failType, String uncertainType) {
+        log.info("{}（解除道闸锁定）请求: laneId={}, operatorId={}, reason={}", actionLabel, laneId, operatorId, reason);
+
+        RecognitionResultVO result = new RecognitionResultVO();
+        result.setAllowPass(true);
+
+        try {
+            result.setGateCommandSent(true);
+            CommandResultDTO gateResult = deviceService.unlockGateByLane(laneId, actionLabel + "（解除锁定）: " + reason);
+            boolean success = gateResult.isSuccessful();
+            result.setGateDeviceAck(success);
+            result.setGateOpened(false);
+            if (success) {
+                result.setGateResult(actionLabel + "成功（道闸已解锁，恢复正常模式）");
+                result.setResultMessage(actionLabel + ": " + reason);
+                result.setException(false);
+                log.info("{}成功: laneId={}, operatorId={}, reason={}", actionLabel, laneId, operatorId, reason);
+
+                try {
+                    ParkingLane lane = parkingLaneMapper.selectByIdIgnoreTenant(laneId);
+                    if (lane != null && !ParkingLane.GATE_MODE_AUTO.equals(lane.getGateMode())) {
+                        lane.setGateMode(ParkingLane.GATE_MODE_AUTO);
+                        lane.setUpdatedAt(LocalDateTime.now());
+                        parkingLaneMapper.updateById(lane);
+                        log.info("{}成功，gate_mode 已恢复为 AUTO: laneId={}", actionLabel, laneId);
+                    }
+                } catch (Exception e) {
+                    log.warn("{}成功但 gate_mode 落库失败: laneId={}, error={}", actionLabel, laneId, e.getMessage());
+                }
+            } else {
+                result.setGateResult(actionLabel + "失败: " + (gateResult.getMessage() != null ? gateResult.getMessage() : "设备返回异常"));
+                result.setResultMessage(actionLabel + "失败: " + reason);
+                result.setException(true);
+                result.setExceptionType(failType);
+                log.warn("{}设备返回失败: laneId={}, operatorId={}, message={}",
+                        actionLabel, laneId, operatorId, gateResult.getMessage());
+            }
+        } catch (BusinessException e) {
+            result.setGateCommandSent(true);
+            result.setGateDeviceAck(false);
+            result.setGateOpened(null);
+            result.setGateResult(actionLabel + "异常（UNCERTAIN）: " + e.getMessage());
+            result.setResultMessage(actionLabel + "异常: " + reason);
+            result.setException(true);
+            result.setExceptionType(uncertainType);
+            log.error("{}异常（UNCERTAIN）: laneId={}, operatorId={}, error={}",
+                    actionLabel, laneId, operatorId, e.getMessage());
         }
 
         return result;
@@ -817,7 +888,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
      * 执行开闸操作，填充三层状态到 result。
      * <p>
      * 优先查找车道绑定的 GATE 设备并通过 Device Access 开闸。
-     * 若车道无 GATE 设备但有 CAMERA 设备（如臻识 C5H），则回退到 CAMERA 设备开闸。
+     * 若车道无 GATE 设备但有 CAMERA 设备（如臻识 C5），则回退到 CAMERA 设备开闸。
      * 所有设备统一通过 Device Access → Adapter 下发开闸命令，Adapter 根据设备类型
      * 自动选择 gate_direct_open 或 gpio_out 协议。
      * 所有异常均被捕获，不向外传播（保证入场/出场记录不因开闸失败而回滚）。

@@ -214,6 +214,17 @@ public class XinlutongDeviceCoordinator implements DeviceCoordinator {
     }
 
     /**
+     * 锁定道闸关闭（信路通占位实现）。
+     * <p>
+     * 信路通 XLT-01 当前协议版本不支持锁闸机制，抛出 UnsupportedOperationException。
+     */
+    public CompletableFuture<CommandResultDTO> lockCloseGate(String deviceId, LockGateRequest req) {
+        log.warn("Xinlutong XLT-01 lockCloseGate not implemented. deviceId={}", deviceId);
+        throw new UnsupportedOperationException(
+                "Xinlutong XLT-01 does not support lock-close gate.");
+    }
+
+    /**
      * 澶栧洿璁惧鎺у埗銆?     */
     public CompletableFuture<PeripheralControlResult> controlPeripheral(String deviceId, PeripheralControlRequest req) {
         Device device = deviceRegistry.getByDeviceId(deviceId);

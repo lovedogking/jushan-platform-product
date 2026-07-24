@@ -114,6 +114,15 @@ public class DeviceService {
     }
 
     /**
+     * 锁定道闸关闭命令（锁定 IO0 低电平，继电器保持关闸方向）。
+     */
+    public CompletableFuture<CommandResultDTO> lockCloseGate(String deviceId, LockGateRequest req) {
+        DeviceWithProduct dp = getDeviceWithProduct(deviceId);
+        requireCapability(deviceId, dp.product(), DeviceCapability.LOCK_CLOSE_GATE);
+        return brandDispatcher.lockCloseGate(deviceId, dp.product(), req);
+    }
+
+    /**
      * 查询设备状态。
      * <p>
      * 在线状态基于心跳缓存判定（臻识 30s 阈值，信路通 90s 阈值）。

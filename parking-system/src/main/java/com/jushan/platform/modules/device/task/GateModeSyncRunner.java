@@ -20,7 +20,7 @@ import java.util.List;
  * 启动时查询所有 gate_mode ≠ AUTO 的车道：
  * <ul>
  *   <li>ALWAYS_OPEN → 重新下发 lockGate（适配器 set_io_lock_status 锁定常开）</li>
- *   <li>ALWAYS_CLOSE → unlockGate 取消常开后关闸</li>
+ *   <li>ALWAYS_CLOSE → 重新下发 lockCloseGate（继电器强制保持关闭）</li>
  * </ul>
  * <p>
  * 设备重连（状态变为 ONLINE）时的重同步由 DeviceStatusPollingTask 触发。
@@ -85,14 +85,7 @@ public class GateModeSyncRunner {
                     synced++;
                 } else if (ParkingLane.GATE_MODE_ALWAYS_CLOSE.equals(lane.getGateMode())) {
                     log.info("重同步常关: laneId={}, deviceSn={}", lane.getId(), gateDevice.getDeviceSn());
-                    // 先取消常开锁定，再关闸
-                    deviceAccessClient.unlockGate(gateDevice.getDeviceSn());
-                    try {
-                        Thread.sleep(500); // 等待解锁完成
-                    } catch (InterruptedException ignored) {
-                        Thread.currentThread().interrupt();
-                    }
-                    deviceAccessClient.closeGate(gateDevice.getDeviceSn());
+                    deviceAccessClient.lockCloseGate(gateDevice.getDeviceSn());
                     synced++;
                 }
             } catch (Exception e) {
@@ -125,13 +118,7 @@ public class GateModeSyncRunner {
                 deviceAccessClient.lockGate(deviceSn);
             } else if (ParkingLane.GATE_MODE_ALWAYS_CLOSE.equals(lane.getGateMode())) {
                 log.info("设备重连重同步常关: laneId={}, deviceSn={}", laneId, deviceSn);
-                deviceAccessClient.unlockGate(deviceSn);
-                try {
-                    Thread.sleep(500);
-                } catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                }
-                deviceAccessClient.closeGate(deviceSn);
+                deviceAccessClient.lockCloseGate(deviceSn);
             }
         } catch (Exception e) {
             log.warn("设备重连 gate_mode 同步失败: laneId={}, deviceSn={}, gateMode={}, error={}",

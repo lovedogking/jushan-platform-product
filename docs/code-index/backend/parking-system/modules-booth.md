@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/booth/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.booth`
 > **职责**：识别事件处理（入场/出场判定+开闸）、人工入场补录、费用减免、交接班管理、岗亭车辆查询。
-> **最近更新**：2026-07-24（captureImage 改为严格按入口相机解析，无入口相机报错）
+> **最近更新**：2026-07-24（v1.5：补齐常关控闸链路，常关/取消常关新增独立端点）
 
 ---
 
@@ -34,7 +34,7 @@
 
 ### RecognitionEventController  `controller/RecognitionEventController.java`
 - **基础路径**：`/api/v1/booth/recognition` ｜ **权限**：`booth:operate`
-- **功能**：识别事件处理、道闸控制（开闸/关闸/常开/取消常开）。
+- **功能**：识别事件处理、道闸控制（开闸/关闸/常开/取消常开/常关/取消常关）。
 
 | 方法 | HTTP | 路径 | 说明 | 入参 | 返回 |
 |---|---|---|---|---|---|
@@ -45,7 +45,9 @@
 | manualCloseGate | POST | `/manual-close-gate` | 人工关闸 | `laneId,reason` | `R<RecognitionResultVO>` |
 | manualLockGate | POST | `/manual-lock-gate` | 常开（锁定） | `laneId,reason` | `R<RecognitionResultVO>` |
 | manualUnlockGate | POST | `/manual-unlock-gate` | 取消常开 | `laneId,reason` | `R<RecognitionResultVO>` |
-| getGateCapabilities | GET | `/gate-capabilities` | 查询车道控闸设备能力集（按钮按能力渲染） | `laneId` | `R<List<String>>` |
+| manualLockCloseGate | POST | `/manual-lock-close-gate` | 常关（v1.5） | `laneId,reason` | `R<RecognitionResultVO>` |
+| manualUnlockCloseGate | POST | `/manual-unlock-close-gate` | 取消常关（v1.5） | `laneId,reason` | `R<RecognitionResultVO>` |
+| getGateCapabilities | GET | `/gate-capabilities` | 查询车道控闸设备能力（空则 fallback 到 DeviceModel.capabilities） | `laneId` | `R<List<String>>` |
 
 ### ShiftRecordController  `controller/ShiftRecordController.java`
 - **基础路径**：`/api/v1/shift-records` ｜ **权限**：`booth:*`
@@ -74,6 +76,8 @@
 | manualCloseGate | `RecognitionResultVO manualCloseGate(Long laneId, Long operatorId, String reason)` | 人工关闸（设备解析委托 `DeviceService.resolveGateDevice(laneId)`） |
 | manualLockGate | `RecognitionResultVO manualLockGate(Long laneId, Long operatorId, String reason)` | 常开锁定（委托 `DeviceService.lockGateByLane`） |
 | manualUnlockGate | `RecognitionResultVO manualUnlockGate(Long laneId, Long operatorId, String reason)` | 取消常开（委托 `DeviceService.unlockGateByLane`） |
+| manualLockCloseGate | `RecognitionResultVO manualLockCloseGate(Long laneId, Long operatorId, String reason)` | 常关锁定（v1.5；委托 `DeviceService.lockCloseGateByLane`，内部先关闸再锁定） |
+| manualUnlockCloseGate | `RecognitionResultVO manualUnlockCloseGate(Long laneId, Long operatorId, String reason)` | 取消常关（v1.5；委托 `unlockGateInternal`，与取消常开共用底层 unlock 逻辑） |
 
 ### ShiftRecordService  `service/ShiftRecordService.java`
 继承 `IService<ShiftRecord>`。
@@ -117,4 +121,4 @@
 
 - `RecognitionEventService.handleEvent` → `VehicleTypeDecisionService.decide(...)`（车辆类型判定）→ `FeeCalculationService.calculateFeeCents(...)`（计费）→ `DeviceService.resolveGateDevice(laneId)`（控闸设备解析，4级优先级：gate_device_id→GATE→CAMERA+OPEN_GATE→报错）→ `DeviceAccessClient.openGate(...)`（开闸）。
 - 手动开闸/关闸/自动开闸均统一走 `DeviceService.resolveGateDevice(laneId)`，停车场级回退已删除。
-- 前端按钮按 `GET /api/v1/booth/recognition/gate-capabilities?laneId=` 返回的能力列表动态渲染（Q3=只开闸，C5H=开/关/常开）。
+- 前端按钮按 `GET /api/v1/booth/recognition/gate-capabilities?laneId=` 返回的能力列表动态渲染（Q8=开闸/常开，C5=开/关/常开/常关），MIXED 车道按方向拆分为两张独立卡片。

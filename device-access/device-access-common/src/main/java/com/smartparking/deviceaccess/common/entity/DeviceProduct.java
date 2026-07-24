@@ -23,10 +23,10 @@ public class DeviceProduct {
     /** 品牌，如"臻识"、"信路通" */
     private String brand;
 
-    /** 型号，如"C5H" */
+    /** 型号，如"C5" */
     private String model;
 
-    /** 产品全称，如"臻识 C5H" */
+    /** 产品全称，如"臻识 C5" */
     private String productName;
 
     /** 设备类型：CAMERA / DISPLAY */
