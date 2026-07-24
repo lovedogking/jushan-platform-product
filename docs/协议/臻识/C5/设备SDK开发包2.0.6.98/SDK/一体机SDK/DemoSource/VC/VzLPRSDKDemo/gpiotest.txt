@@ -1,0 +1,1 @@
+2020:12:16:15:48:13 >>  VzLPRClient_SetGPIORecvCallBack GPIO Id = 0 Value = 1

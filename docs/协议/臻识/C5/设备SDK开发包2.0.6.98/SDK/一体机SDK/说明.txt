@@ -1,0 +1,11 @@
+1.注意事项
+  (1) 一体机SDK包括32位和64位的版本，一般使用32位版本。如果你的工程配置为64位，需要使用64版本。
+  (2) DemoSource目录的源码，不带有SDK的dll库，编译后不能直接运行，需要手动把SDK/bin目录中所有文件，拷到编译好的可执行程序目录下。
+
+2.Demo源码包括以下几种
+  语言        开发环境          Demo说明 
+  (1)C#，     vs2008            VzClientSDKDemo
+  (2)Delphi   delphi7           VzDelphiSDKDemo
+  (3)Java     eclipse
+  (4)VC       vs2008/vs2013     VzLPRSDKDemo
+  

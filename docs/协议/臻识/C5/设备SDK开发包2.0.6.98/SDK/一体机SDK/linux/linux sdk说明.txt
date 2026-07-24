@@ -1,0 +1,9 @@
+﻿centos平台
+gcc版本: gcc 4.8.5 64位
+
+aarch64平台:
+gcc版本: aarch64-linux-gnu-gcc 5.4.1 64位
+
+kylin麒麟平台
+gcc版本: gcc version 9.3.0 (Ubuntu 9.3.0-10kylin2)
+

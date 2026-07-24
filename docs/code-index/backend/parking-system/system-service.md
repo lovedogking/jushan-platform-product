@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/system/service/`
 > **所属**：`parking-system` · `com.jushan.system`
 > **职责**：存量业务的所有 Service 层。注意区别于 `com.jushan.platform.modules.*` 的 Service。
-> **最近更新**：2026-07-23（DeviceService 新增 resolveGateDevice / validateCapabilitiesMatch / gate-capabilities 车道级方法）
+> **最近更新**：2026-07-24（ParkingLotService/EmployeeService 租户校验统一切换至 `sys_tenant`）
 
 ---
 
@@ -20,7 +20,7 @@
 | `DeviceService` | 设备台账管理 + **控闸设备解析（resolveGateDevice）** + **能力校验（validateCapabilitiesMatch）** + 开/关/常开/取消常开车道级方法 |
 | `DuplicateEntryHandler` | 重复入场处理器 |
 | `DuplicateEntryPolicy` | 重复入场策略 |
-| `EmployeeService` | 员工管理 |
+| `EmployeeService` | 员工管理（租户校验走 `sys_tenant`；旧 `tenant` 表 max_employees 配额检查已移除，待二期套餐体系重实现） |
 | `EntryService` | 车辆入场服务（T30） |
 | `ExitService` / `ExitResult` | 车辆出场服务（P004） |
 | `FixedSpaceService` | 固定车位管理 |
@@ -35,7 +35,7 @@
 | `ParamResolver` | 参数解析器 |
 | `ParkingFeeService` | 停车费用查询 |
 | `ParkingLaneService` | 车道管理 |
-| `ParkingLotService` | 停车场管理 |
+| `ParkingLotService` | 停车场管理（租户校验走 `sys_tenant`） |
 | `ParkingLotScopeResolver` | 停车场数据范围解析 |
 | `ParkingOrderService` | 停车订单管理 |
 | `PermissionService` | 权限管理 |

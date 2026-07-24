@@ -135,3 +135,19 @@ Jushan Platform 停车管理平台，采用「多模块单体后端 + 独立设�
 3. 涉及文档的「最近更新」日期都刷新了吗？
 
 > **未同步更新文档的改动一律视为未完成。**
+
+---
+
+## 六、Agent Skills 配置
+
+### Issue tracker
+
+Issues 以 Local markdown 形式存储在 `.scratch/<feature-slug>/` 下。详见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+使用默认五标签体系：`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`。详见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+单上下文：`CONTEXT.md` 在仓库根目录，ADR 在 `docs/adr/`。详见 `docs/agents/domain.md`。

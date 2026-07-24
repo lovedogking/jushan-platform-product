@@ -1,0 +1,17 @@
+<publishData>
+  <publishTarget publishUrl="E:\SimpleCode\http_server\asp_net\">
+    <file relUrl="bin/Newtonsoft.Json.dll" publishTime="06/06/2013 13:33:44" />
+    <file relUrl="bin/CSharpServer.pdb" publishTime="04/19/2017 14:35:02" />
+    <file relUrl="Default.aspx" publishTime="04/22/2015 11:13:05" />
+    <file relUrl="bin/Newtonsoft.Json.pdb" publishTime="06/06/2013 13:33:44" />
+    <file relUrl="bin/CSharpServer.dll" publishTime="04/19/2017 14:35:02" />
+    <file relUrl="bin/Newtonsoft.Json.xml" publishTime="06/06/2013 13:33:44" />
+    <file relUrl="Web.config" publishTime="04/22/2015 11:15:59" />
+  </publishTarget>
+  <publishTarget publishUrl="E:\test\">
+    <file relUrl="bin/CSharpServer.pdb" publishTime="04/22/2015 16:43:42" />
+    <file relUrl="Default.aspx" publishTime="04/22/2015 11:13:05" />
+    <file relUrl="bin/CSharpServer.dll" publishTime="04/22/2015 16:43:42" />
+    <file relUrl="Web.config" publishTime="04/22/2015 11:15:59" />
+  </publishTarget>
+</publishData>

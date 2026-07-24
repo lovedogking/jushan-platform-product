@@ -15,13 +15,13 @@ import com.jushan.system.dto.UpdateParkingLotRequest;
 import com.jushan.system.entity.Company;
 import com.jushan.system.entity.ParkingLot;
 import com.jushan.system.entity.ParkingLotCapacityLog;
+import com.jushan.platform.modules.tenant.entity.SysTenant;
+import com.jushan.platform.modules.tenant.mapper.SysTenantMapper;
 import com.jushan.system.entity.ParkingLotStatusLog;
-import com.jushan.system.entity.Tenant;
 import com.jushan.system.mapper.CompanyMapper;
 import com.jushan.system.mapper.ParkingLotCapacityLogMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.ParkingLotStatusLogMapper;
-import com.jushan.system.mapper.TenantMapper;
 import com.jushan.system.vo.ParkingLotVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,7 +90,7 @@ public class ParkingLotService {
     private final ParkingLotMapper parkingLotMapper;
     private final ParkingLotCapacityLogMapper capacityLogMapper;
     private final ParkingLotStatusLogMapper statusLogMapper;
-    private final TenantMapper tenantMapper;
+    private final SysTenantMapper sysTenantMapper;
     private final CompanyMapper companyMapper;
     private final ParkingLotScopeResolver scopeResolver;
     private final ReadinessCheckService readinessCheckService;
@@ -113,14 +113,14 @@ public class ParkingLotService {
     public ParkingLotService(ParkingLotMapper parkingLotMapper,
                              ParkingLotCapacityLogMapper capacityLogMapper,
                              ParkingLotStatusLogMapper statusLogMapper,
-                             TenantMapper tenantMapper,
+                             SysTenantMapper sysTenantMapper,
                              CompanyMapper companyMapper,
                              ParkingLotScopeResolver scopeResolver,
                              ReadinessCheckService readinessCheckService) {
         this.parkingLotMapper = parkingLotMapper;
         this.capacityLogMapper = capacityLogMapper;
         this.statusLogMapper = statusLogMapper;
-        this.tenantMapper = tenantMapper;
+        this.sysTenantMapper = sysTenantMapper;
         this.companyMapper = companyMapper;
         this.scopeResolver = scopeResolver;
         this.readinessCheckService = readinessCheckService;
@@ -169,8 +169,8 @@ public class ParkingLotService {
             DataScope.requireCustomerAdmin();
         }
 
-        // 校验租户状态
-        Tenant tenant = tenantMapper.selectById(tenantId);
+        // 校验租户状态（sys_tenant：1正常 0禁用）
+        SysTenant tenant = sysTenantMapper.selectById(tenantId);
         DataScope.validateTenantEnabled(tenant != null ? tenant.getStatus() : null);
 
         ParkingLot lot = new ParkingLot();

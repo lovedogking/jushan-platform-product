@@ -2,6 +2,7 @@ package com.smartparking.deviceaccess.api;
 
 import com.smartparking.deviceaccess.adapter.support.display.OlmM1dProtocol;
 import com.smartparking.deviceaccess.adapter.zhenshi.ZhenshiMessageHandler;
+import com.smartparking.deviceaccess.api.image.ImageStorageService;
 import com.smartparking.deviceaccess.api.dto.*;
 import com.smartparking.deviceaccess.common.dto.mqtt.MqttMessage;
 import com.smartparking.deviceaccess.common.entity.Device;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -40,6 +42,7 @@ public class ZhenshiDeviceCoordinator implements DeviceCoordinator {
     private final MqttGateway mqttGateway;
     private final ZhenshiMessageHandler handler;
     private final DeviceCommandLogService commandLogService;
+    private final ImageStorageService imageStorageService;
 
     private static final long DEFAULT_TIMEOUT_SECONDS = 10;
 
@@ -637,13 +640,167 @@ public class ZhenshiDeviceCoordinator implements DeviceCoordinator {
     }
 
     /**
-     * 主动抓拍（v0.7 暂不支持）。
+     * 主动抓拍。
+     * <p>
+     * 臻识抓拍为两段式（协议 7.6/6.5）：下行 snapshot 命令仅回执确认，
+     * 抓图结果由设备通过 up/snapshot 异步推送；取 payload.image_content（Base64 背景图）落盘。
      */
     @Override
     public CompletableFuture<CaptureResultDTO> capture(String deviceId) {
-        log.warn("{} capture not implemented. deviceId={}", getBrand(), deviceId);
-        throw new UnsupportedOperationException(
-                getBrand() + " camera does not support capture yet.");
+        Device device = deviceRegistry.getByDeviceId(deviceId);
+        DeviceProduct product = productRegistry.getById(device.getProductId());
+        DeviceCommandLog cmdLog = commandLogService.recordRequest(
+                deviceId, product.getBrand(), "CAPTURE",
+                handler.getLastPlate(device.getDeviceId()),
+                device.getPlatformDeviceId(), device.getTenantId(),
+                device.getParkingLotId(), device.getLaneId());
+
+        ensureMqttConnected();
+
+        long startMs = System.currentTimeMillis();
+        log.info("[Capture] Coordinator: capture  deviceId={}", deviceId);
+
+        return handler.sendSnapshot(device.getDeviceId(), DEFAULT_TIMEOUT_SECONDS)
+                .thenApply(message -> {
+                    CaptureResultDTO result = parseSnapshotResult(device.getDeviceId(), message);
+                    long elapsed = System.currentTimeMillis() - startMs;
+                    if (result.isSuccess()) {
+                        log.info("[Capture] Coordinator: snapshot ok  deviceId={}  imageUrl={}  elapsedMs={}",
+                                deviceId, result.getImageUrl(), elapsed);
+                        commandLogService.recordResponse(cmdLog.getId(), true, null, "snapshot ok");
+                    } else {
+                        log.warn("[Capture] Coordinator: snapshot failed  deviceId={}  reason={}  elapsedMs={}",
+                                deviceId, result.getMessage(), elapsed);
+                        commandLogService.recordResponse(cmdLog.getId(), false, null, result.getMessage());
+                    }
+                    return result;
+                })
+                .exceptionally(e -> {
+                    log.warn("[Capture] Coordinator: snapshot error  deviceId={}  error={}", deviceId, e.getMessage());
+                    commandLogService.recordResponse(cmdLog.getId(), false, null, "snapshot error: " + e.getMessage());
+                    return CaptureResultDTO.builder()
+                            .success(false)
+                            .message("snapshot error: " + e.getMessage())
+                            .build();
+                });
+    }
+
+    /**
+     * 解析 up/snapshot 抓图结果：state_code 非 200 视为失败；image_content 非空则落盘返回 URL。
+     */
+    private CaptureResultDTO parseSnapshotResult(String deviceSn, MqttMessage message) {
+        Object payload = message.getPayload();
+        if (!(payload instanceof Map<?, ?> payloadMap)) {
+            return CaptureResultDTO.builder()
+                    .success(false)
+                    .message("snapshot result payload empty")
+                    .build();
+        }
+        Object stateCode = payloadMap.get("state_code");
+        if (stateCode instanceof Number num && num.intValue() != 200) {
+            return CaptureResultDTO.builder()
+                    .success(false)
+                    .message("device snapshot failed, state_code=" + num.intValue())
+                    .build();
+        }
+        Object imageContent = payloadMap.get("image_content");
+        if (imageContent instanceof String base64 && !base64.isBlank()) {
+            return saveBase64Image(deviceSn, base64, "snapshot");
+        }
+        // 传图方式非 MQTT 直传时，设备回云存路径（Base64 编码的签名 URL）
+        String ossUrl = decodeOssUrl(payloadMap);
+        if (ossUrl != null) {
+            return downloadAndSave(deviceSn, ossUrl);
+        }
+        return CaptureResultDTO.builder()
+                .success(false)
+                .message("snapshot result no image_content")
+                .build();
+    }
+
+    /**
+     * 解析云存路径字段（imgAbsolutePath → imgPath），Base64 解码为签名 URL。
+     *
+     * @return 解码后的 URL；无可用路径返回 null
+     */
+    private String decodeOssUrl(Map<?, ?> payloadMap) {
+        for (String field : new String[]{"imgAbsolutePath", "imgPath"}) {
+            Object value = payloadMap.get(field);
+            if (value instanceof String encoded && !encoded.isBlank()) {
+                try {
+                    String url = new String(java.util.Base64.getDecoder().decode(encoded),
+                            java.nio.charset.StandardCharsets.UTF_8);
+                    if (url.startsWith("http")) {
+                        return url;
+                    }
+                } catch (IllegalArgumentException e) {
+                    log.warn("[Capture] decode {} failed (not base64?)  deviceSn ignored, value={}", field, encoded);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 从云存签名 URL 下载图片并本地落盘（保证链接长期有效）；
+     * 下载失败时退化返回原始签名 URL（约 1 小时有效期，可即时查看）。
+     */
+    private CaptureResultDTO downloadAndSave(String deviceSn, String ossUrl) {
+        long epochSeconds = java.time.Instant.now().getEpochSecond();
+        java.net.HttpURLConnection conn = null;
+        try {
+            conn = (java.net.HttpURLConnection) java.net.URI.create(ossUrl).toURL().openConnection();
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            try (java.io.InputStream in = conn.getInputStream()) {
+                byte[] bytes = in.readAllBytes();
+                if (bytes.length == 0) {
+                    throw new java.io.IOException("empty image");
+                }
+                imageStorageService.saveBytes(deviceSn, epochSeconds, bytes, null);
+            }
+            String imageUrl = imageStorageService.buildFullImageUrl(deviceSn, epochSeconds);
+            return CaptureResultDTO.builder()
+                    .success(true)
+                    .imageUrl(imageUrl)
+                    .message("snapshot ok (oss downloaded)")
+                    .build();
+        } catch (Exception e) {
+            log.warn("[Capture] download oss image failed, fallback to signed url  deviceSn={}  error={}",
+                    deviceSn, e.getMessage());
+            return CaptureResultDTO.builder()
+                    .success(true)
+                    .imageUrl(ossUrl)
+                    .message("snapshot ok (oss signed url, expires soon)")
+                    .build();
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
+    /**
+     * Base64 图片解码落盘，返回可访问 URL。与芊熠实现保持一致。
+     */
+    private CaptureResultDTO saveBase64Image(String deviceSn, String base64, String sourceCmd) {
+        try {
+            long epochSeconds = java.time.Instant.now().getEpochSecond();
+            byte[] bytes = java.util.Base64.getDecoder().decode(base64);
+            imageStorageService.saveBytes(deviceSn, epochSeconds, bytes, null);
+            String imageUrl = imageStorageService.buildFullImageUrl(deviceSn, epochSeconds);
+            return CaptureResultDTO.builder()
+                    .success(true)
+                    .imageUrl(imageUrl)
+                    .message(sourceCmd + " ok")
+                    .build();
+        } catch (Exception e) {
+            log.error("[Capture] Coordinator: save image failed  deviceSn={}  sourceCmd={}", deviceSn, sourceCmd, e);
+            return CaptureResultDTO.builder()
+                    .success(false)
+                    .message("save image failed: " + e.getMessage())
+                    .build();
+        }
     }
 
     // ═══════════════════════════════════════════

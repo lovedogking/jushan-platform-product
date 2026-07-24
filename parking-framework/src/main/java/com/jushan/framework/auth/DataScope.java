@@ -237,4 +237,16 @@ public final class DataScope {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "租户不存在或已被禁用");
         }
     }
+
+    /**
+     * 校验租户处于启用状态（sys_tenant 数字状态模型）。
+     *
+     * @param status 租户状态（1正常 0禁用，见 sys_tenant.status）
+     * @throws BusinessException 租户不存在或已禁用
+     */
+    public static void validateTenantEnabled(Integer status) {
+        if (status == null || status != 1) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "租户不存在或已被禁用");
+        }
+    }
 }

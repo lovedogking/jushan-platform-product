@@ -14,12 +14,12 @@ import com.jushan.system.dto.ResetPasswordRequest;
 import com.jushan.system.dto.UpdateEmployeeRequest;
 import com.jushan.system.entity.EmployeeParkingLot;
 import com.jushan.system.entity.ParkingLot;
+import com.jushan.platform.modules.tenant.entity.SysTenant;
+import com.jushan.platform.modules.tenant.mapper.SysTenantMapper;
 import com.jushan.system.entity.SysUser;
-import com.jushan.system.entity.Tenant;
 import com.jushan.system.mapper.EmployeeParkingLotMapper;
 import com.jushan.system.mapper.ParkingLotMapper;
 import com.jushan.system.mapper.SysUserMapper;
-import com.jushan.system.mapper.TenantMapper;
 import com.jushan.system.vo.EmployeeVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,7 +56,7 @@ public class EmployeeService {
             "booth_operator", "岗亭");
 
     private final SysUserMapper sysUserMapper;
-    private final TenantMapper tenantMapper;
+    private final SysTenantMapper sysTenantMapper;
     private final ParkingLotMapper parkingLotMapper;
     private final EmployeeParkingLotMapper employeeParkingLotMapper;
 
@@ -74,11 +74,11 @@ public class EmployeeService {
     }
 
     public EmployeeService(SysUserMapper sysUserMapper,
-                           TenantMapper tenantMapper,
+                           SysTenantMapper sysTenantMapper,
                            ParkingLotMapper parkingLotMapper,
                            EmployeeParkingLotMapper employeeParkingLotMapper) {
         this.sysUserMapper = sysUserMapper;
-        this.tenantMapper = tenantMapper;
+        this.sysTenantMapper = sysTenantMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.employeeParkingLotMapper = employeeParkingLotMapper;
     }
@@ -91,7 +91,7 @@ public class EmployeeService {
      * 1. 从当前会话推导租户
      * 2. 校验当前操作人是客户管理员
      * 3. 校验角色合法性
-     * 4. 校验员工数量上限
+     * 4. 校验租户状态
      * 5. 校验手机号在租户内唯一
      * 6. 校验停车场归属
      * 7. 创建 sys_user 和授权记录
@@ -112,18 +112,10 @@ public class EmployeeService {
                     "不支持的角色: " + roleCode + "，可选角色: " + String.join(", ", ALLOWED_ROLE_CODES));
         }
 
-        // 2. 校验员工数量上限
-        Tenant tenant = tenantMapper.selectById(tenantId);
-        if (tenant == null || !"ENABLED".equals(tenant.getStatus())) {
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "租户不存在或已被禁用");
-        }
-        Long currentCount = sysUserMapper.selectCount(
-                new LambdaQueryWrapper<SysUser>()
-                        .eq(SysUser::getTenantId, tenantId));
-        if (currentCount >= tenant.getMaxEmployees()) {
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                    "员工数量已达上限（" + tenant.getMaxEmployees() + "人）");
-        }
+        // 2. 校验租户状态（sys_tenant：1正常 0禁用）
+        // 注：原旧 tenant 表 max_employees 配额检查已随租户体系统一移除，待二期套餐体系重新实现
+        SysTenant tenant = sysTenantMapper.selectById(tenantId);
+        DataScope.validateTenantEnabled(tenant != null ? tenant.getStatus() : null);
 
         // 3. 校验手机号在租户内唯一
         String phone = request.getPhone().trim();

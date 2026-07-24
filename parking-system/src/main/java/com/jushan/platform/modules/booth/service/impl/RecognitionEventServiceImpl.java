@@ -927,11 +927,11 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                     "车道不存在: laneId=" + laneId);
         }
 
-        // 优先选择车道主相机；若无主相机则取任意在线相机
-        Device camera = deviceMapper.selectByLaneIdAndTypeIgnoreTenant(laneId, "CAMERA");
+        // 严格按入口相机解析（识别方向=入口 的主相机）；无入口相机直接报错，避免误抓出口画面
+        Device camera = deviceMapper.selectPrimaryCameraByLaneAndDirectionIgnoreTenant(laneId, DeviceService.DIRECTION_ENTRY);
         if (camera == null) {
             throw new BusinessException(com.jushan.common.CommonErrorCode.PARAM_ERROR,
-                    "车道未绑定相机: laneId=" + laneId);
+                    "车道未绑定入口相机: laneId=" + laneId);
         }
 
         String deviceSn = camera.getDeviceSn();

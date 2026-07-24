@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/booth/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.booth`
 > **职责**：识别事件处理（入场/出场判定+开闸）、人工入场补录、费用减免、交接班管理、岗亭车辆查询。
-> **最近更新**：2026-07-23（手动开/关闸改用 DeviceService.resolveGateDevice 统一解析；新增 gate-capabilities 接口）
+> **最近更新**：2026-07-24（captureImage 改为严格按入口相机解析，无入口相机报错）
 
 ---
 
@@ -70,7 +70,7 @@
 |---|---|---|
 | handleEvent | `RecognitionResultVO handleEvent(RecognitionEventCmd)` | 识别→判定→余位→计费→开闸→日志 |
 | manualOpenGate | `RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason, boolean isCharge, Integer feeCents, String plateNumber, String entryImage)` | 人工开闸（设备解析委托 `DeviceService.resolveGateDevice(laneId)`；含审计/抓拍图/session补写/WS推送） |
-| captureImage | `CaptureResultDTO captureImage(Long laneId)` | 选择车道主相机触发主动抓拍 |
+| captureImage | `CaptureResultDTO captureImage(Long laneId)` | 严格按入口相机（识别方向=入口的主相机）触发主动抓拍；车道未绑入口相机直接报错 |
 | manualCloseGate | `RecognitionResultVO manualCloseGate(Long laneId, Long operatorId, String reason)` | 人工关闸（设备解析委托 `DeviceService.resolveGateDevice(laneId)`） |
 | manualLockGate | `RecognitionResultVO manualLockGate(Long laneId, Long operatorId, String reason)` | 常开锁定（委托 `DeviceService.lockGateByLane`） |
 | manualUnlockGate | `RecognitionResultVO manualUnlockGate(Long laneId, Long operatorId, String reason)` | 取消常开（委托 `DeviceService.unlockGateByLane`） |

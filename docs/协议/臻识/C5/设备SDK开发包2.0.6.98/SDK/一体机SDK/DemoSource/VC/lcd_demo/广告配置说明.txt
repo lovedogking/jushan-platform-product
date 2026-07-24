@@ -1,0 +1,255 @@
+LCD屏配置的区域范围为宽360*高640, 不同分辨率的屏会按比例进行换算。
+"scene_info"数组中的"scene_type"为"ad"的元素，由于元素中可能有视频资源，需要单独存放，不能和图片放在一起。
+demo中的displays.json两个场景，可以根据场景名称进行切换。具体字段说明如下：
+{
+	"ad_source": "local",       // 必填，广告源类型：local-本地/none-无/remote-远程
+	"ad_mode": 3,               // 广告模式：1-全屏/2-半屏/3-自定义模式
+	"ad_group": {               // 广告组配置容器
+		"group_id": 0,        // 必填，广告组唯一标识（范围0-255）
+		"scenes": [           // 场景数组（至少包含1个场景）
+			{
+				"scene_name": "YWQ=",       // Base64解码为"ad"，场景名称标识,可发tcp协议根据名称切换场景
+				"scene_id": 0,              // 场景唯一ID（范围0-255）
+				"scene_info": [             // 复合场景分层配置（当前场景分上下两部分）
+					{   // ----------- 上层信息区（420px高度）-----------
+						"background_type": 1,          // 背景类型：0-颜色/1-图片/2-无
+						"background_color": "",        // 背景颜色（background_type=0时生效）
+						"background_image": "1.png",   // 背景图片路径（需确保文件存在）
+						"scene_type":"",               // 场景类型：ad/car_in/car_out（当前为空需补全）
+						"scene_pos": {                 // 区域坐标（基于360x640基准分辨率）
+							"x": 0,                  // 左上角X坐标（像素）
+							"y": 0,                  // 左上角Y坐标（像素）
+							"width": 360,            // 区域宽度（像素）
+							"height": 420            // 区域高度（像素）
+						},
+						"elem_list": [                 // 元素列表（按渲染顺序排列）
+							{   // 元素1：时间显示
+								"elem_enable": 1,                // 元素启用开关：1-启用/0-禁用
+								"elem_type": "dynamic_text",     // 元素类型：dynamic_text
+								"elem_sub_type": "datetime",     // 子类型：datetime-实时时间
+								"elem_pos": {                    // 元素坐标（相对父容器）
+									"x": 70, 
+									"y": 10,
+									"width": 290,
+									"height": 20
+								},
+								"elem_bg_color": "rgba(255,255,255,0)", // 背景透明
+								"elem_fg_color": "#FF0000",      // 文字颜色：红色
+								"elem_font_family": 0,          // 字体ID：0-思源黑体
+								"elem_font_bold": 0,            // 字体加粗：0-常规
+								"elem_font_size": 16,          // 字号：16px
+								"elem_align": "center",         // 文本对齐方式
+								"week_enable": 0               // 星期显示开关：0-隐藏
+							},
+							{   // 元素2：LOGO图片
+								"elem_enable": 1,
+								"elem_type": "static_pic",      // 静态图片元素
+								"elem_pos": {
+									"x": 10,
+									"y": 10,
+									"width": 60,
+									"height": 40
+								},
+								"elem_res_list": [{             // 资源列表（可多个）
+									"path": "logo.png"     // 图片路径（需校验文件存在）
+								}]
+							},
+							{   // 元素3：车牌号显示
+								"elem_enable": 1,
+								"elem_bg_color": "rgba(255,255,255,0)", // 透明背景
+								"elem_type": "dynamic_text",
+								"elem_sub_type": "car_id",       // 车牌号动态数据
+								"elem_pos": {
+									"x": 0,
+									"y": 230,
+									"width": 360,
+									"height": 24
+								},
+								"elem_fg_color": "#FFFFFF",      // 白色文字
+								"elem_font_family": 0,
+								"elem_font_bold": 1,            // 加粗显示
+								"elem_font_size": 24,
+								"elem_align": "center"
+							},
+							{   // 元素4：自定义文本1
+								"elem_enable": 1,
+								"elem_type": "dynamic_text",
+								"elem_sub_type": "custom",       // 需外部传入文本
+								"elem_pos": {
+									"x": 0,
+									"y": 260,
+									"width": 360,
+									"height": 64
+								},
+								"elem_bg_color": "rgba(255,255,255,0)",
+								"elem_fg_color": "#FFFFFF",
+								"elem_font_family": 0,
+								"elem_font_bold": 0,
+								"elem_font_size": 64,           // 超大字号需校验屏幕支持
+								"elem_align": "center"
+							},
+							{   // 元素5：自定义文本2
+								"elem_enable": 1,
+								"elem_type": "dynamic_text",
+								"elem_sub_type": "custom",
+								"elem_pos": {
+									"x": 0,
+									"y": 330,
+									"width": 360,
+									"height": 64
+								},
+								"elem_bg_color": "rgba(255,255,255,0)",
+								"elem_fg_color": "#FFFFFF",
+								"elem_font_family": 0,
+								"elem_font_bold": 0,
+								"elem_font_size": 64,
+								"elem_align": "center"
+							}
+						]
+					},
+					{   // ----------- 下层广告区（220px高度）-----------
+						"background_type": 2,          // 无背景
+						"background_color": "",        
+						"background_image": "",
+						"scene_type":"ad",           // 广告类型场景
+						"scene_pos": {
+							"x": 0,
+							"y": 420,
+							"width": 360,
+							"height": 220
+						},
+						"elem_list": [{
+							"elem_enable": 1,
+							"elem_name": "ad",          // 元素名称（用于调试）
+							"elem_type": "ad",          // 广告容器元素
+							"elem_pos": {
+								"x": 0,
+								"y": 420,
+								"width": 360,
+								"height": 220
+							},
+							"elem_res_list": [        // 广告资源池（轮播）
+								{
+									"path": "22.mp4",      // 视频路径
+									"elem_type": "video",   // 视频类型
+									"video_play_count": 1   // 播放次数：1次
+								},
+								{
+									"path": "1.jpg",       // 图片路径
+									"picture_max_duration": 10, // 显示时长（秒）
+									"elem_type": "static_pic" // 图片类型
+								}
+							]
+						}]
+					}
+				]
+			},
+			{
+				"scene_name": "ZnVsbA==",       // Base64解码为"full"，场景名称标识
+				"scene_id": 1,                // 场景ID
+				"scene_info": [                // 分上下两部分
+					{   // ----------- 上层广告区（240px高度）-----------
+						"background_type": 2,          // 无背景
+						"background_color": "",
+						"background_image": "",
+						"scene_type":"ad",           // 广告场景
+						"scene_pos": {
+							"x": 0,
+							"y": 0,
+							"width": 360,
+							"height": 240
+						},
+						"elem_list": [{
+							"elem_id": 0,              // 元素唯一ID（范围0-255）
+							"elem_type": "ad",         // 广告容器
+							"elem_pos": {
+								"x": 0,
+								"y": 0,
+								"width": 360,
+								"height": 240
+							},
+							"elem_res_list": [        // 广告资源池
+								{
+									"path": "33.mp4",      // 视频广告
+									"elem_type": "video",
+									"video_play_count": 1
+								},
+								{
+									"path": "green.png",   // 静态图片
+									"picture_max_duration": 10,
+									"elem_type": "static_pic"
+								}
+							]
+						}]
+					},
+					{   // ----------- 下层信息区（400px高度）-----------
+						"background_type": 1,          // 背景图片
+						"background_color": "",
+						"background_image": "2.png",   // 背景图路径
+						"scene_type":"",               // 需补全场景类型
+						"scene_pos": {
+							"x": 0,
+							"y": 240,
+							"width": 360,
+							"height": 400
+						},
+						"elem_list": [
+							{   // 元素1：时间+星期
+								"elem_enable": 1,
+								"elem_type": "dynamic_text",
+								"elem_sub_type": "datetime",     // 时间类型
+								"elem_pos": {
+									"x": 0,
+									"y": 10,
+									"width": 360,
+									"height": 20
+								},
+								"elem_bg_color": "rgba(255,255,255,0)",
+								"elem_fg_color": "#FFFFFF",     // 白色文字
+								"elem_font_family": 0,
+								"elem_font_bold": 0,
+								"elem_font_size": 56,           // 特大字号（需校验）
+								"elem_align": "center",
+								"week_enable": 1                // 显示星期
+							},
+							{   // 元素2：车牌号
+								"elem_enable": 1,
+								"elem_type": "dynamic_text",
+								"elem_sub_type": "car_id",       // 动态车牌
+								"elem_pos": {
+									"x": 0,
+									"y": 160,
+									"width": 360,
+									"height": 32
+								},
+								"elem_bg_color": "rgba(255,255,255,0)",
+								"elem_fg_color": "#FFFFFF",
+								"elem_font_family": 0,
+								"elem_font_bold": 1,            // 加粗
+								"elem_font_size": 24,
+								"elem_align": "center"
+							},
+							{   // 元素3：动态二维码
+								"elem_enable": 1,
+								"picture_max_duration": 300,     // 显示300秒
+								"elem_type": "dynamic_pic",      // 动态图片
+								"elem_sub_type": "fee-qrcode",   // 收费二维码
+								"elem_pos": {
+									"x": 80,
+									"y": 200,
+									"width": 200,
+									"height": 200
+								},
+								"elem_bg_color": "rgba(255,255,255,0)",
+								"elem_res_list": [{             // 静态资源（当前为空）
+									"path": ""
+								}],
+								"elem_res_path": ""             
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

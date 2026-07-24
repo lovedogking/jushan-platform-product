@@ -54,10 +54,22 @@ class DeviceServiceResolveGateDeviceTest {
     private com.jushan.system.mapper.ParkingLotMapper parkingLotMapper;
 
     @Mock
-    private com.jushan.common.auth.DataScope scope;
+    private com.jushan.system.client.DeviceAccessClient deviceAccessClient;
 
     @Mock
-    private com.jushan.platform.infra.log.BusinessLogService businessLogService;
+    private com.jushan.system.mapper.DeviceStatusSnapshotMapper snapshotMapper;
+
+    @Mock
+    private com.jushan.system.mapper.SysAuditLogMapper auditLogMapper;
+
+    @Mock
+    private com.jushan.system.mapper.DeviceCommandAuditMapper commandAuditMapper;
+
+    @Mock
+    private ParkingLotScopeResolver scopeResolver;
+
+    @Mock
+    private CameraFailoverService cameraFailoverService;
 
     @InjectMocks
     private DeviceService deviceService;

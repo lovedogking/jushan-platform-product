@@ -60,6 +60,7 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
     private static final String NAME_KEEP_ALIVE = "keep_alive";
     private static final String NAME_IVS_RESULT = "ivs_result";
     private static final String NAME_QUICK_IVS_RESULT = "quick_ivs_result";
+    private static final String NAME_SNAPSHOT = "snapshot";
 
     // ──────────────────── Topic 模板 ────────────────────
 
@@ -67,10 +68,20 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
     private static final String TOPIC_SET_TIME = "device/%s/message/down/set_time";
     private static final String TOPIC_SERIAL_DATA = "device/%s/message/down/serial_data";
     private static final String TOPIC_GATE_DIRECT_OPEN = "device/%s/message/down/gate_direct_open";
+    private static final String TOPIC_SNAPSHOT = "device/%s/message/down/snapshot";
+    private static final String TOPIC_UP_SNAPSHOT = "/message/up/snapshot";
 
     // ──────────────────── 最近车牌识别记录（用于日志上下文） ────────────────────
 
     private final ConcurrentHashMap<String, String> lastPlateMap = new ConcurrentHashMap<>();
+
+    /**
+     * 等待抓拍结果的 Future，key = deviceSn（小写）。
+     * <p>
+     * 臻识抓拍为两段式：下行 snapshot 命令仅回执确认，
+     * 真正的抓图结果由设备通过 {@code device/{sn}/message/up/snapshot} 异步推送。
+     */
+    private final ConcurrentHashMap<String, CompletableFuture<MqttMessage>> pendingSnapshots = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void init() {
@@ -97,6 +108,7 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
             switch (name) {
                 case NAME_KEEP_ALIVE -> handleKeepAlive(message);
                 case NAME_IVS_RESULT, NAME_QUICK_IVS_RESULT -> handlePlateRecognition(message, name);
+                case NAME_SNAPSHOT -> handleSnapshotResult(topic, message);
                 default -> log.debug("Unhandled message type: {}, Topic: {}", name, topic);
             }
         } catch (Exception e) {
@@ -368,6 +380,85 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
         String topic = String.format(TOPIC_GATE_DIRECT_OPEN, deviceSn);
         log.info("[Gate] SEND gate_direct_open  deviceSn={}  topic={}", deviceSn, topic);
         return mqttGateway.publishAndWait(topic, command, timeoutSeconds, TimeUnit.SECONDS);
+    }
+
+    // ──────────────────── 主动抓拍 ────────────────────
+
+    /**
+     * 下发抓拍命令并等待异步抓图结果。
+     * <p>
+     * 流程（协议 7.6/6.5）：
+     * 1. 发布 {@code device/{sn}/message/down/snapshot}，回执仅确认设备受理（code=200）；
+     * 2. 设备抓图完成后通过 {@code device/{sn}/message/up/snapshot} 推送结果，
+     *    payload 含 state_code、image_content（Base64 背景图）等。
+     * <p>
+     * 为避免竞态（设备可能极快推送结果），先注册等待 Future 再下发命令。
+     *
+     * @param deviceSn       设备序列号
+     * @param timeoutSeconds 整体超时（命令回执 + 抓图结果）
+     * @return 抓图结果消息（payload 为 Map，含 state_code/image_content 等）
+     */
+    public CompletableFuture<MqttMessage> sendSnapshot(String deviceSn, long timeoutSeconds) {
+        String key = deviceSn.toLowerCase();
+        CompletableFuture<MqttMessage> resultFuture = new CompletableFuture<>();
+        pendingSnapshots.put(key, resultFuture);
+        resultFuture.orTimeout(timeoutSeconds, TimeUnit.SECONDS)
+                .whenComplete((r, e) -> pendingSnapshots.remove(key));
+
+        String id = UUID.randomUUID().toString();
+        long now = Instant.now().getEpochSecond();
+
+        MqttRequestPayload requestPayload = MqttRequestPayload.builder()
+                .type("snapshot")
+                .body(Map.of())
+                .build();
+
+        MqttMessage command = MqttMessage.builder()
+                .id(id)
+                .sn(deviceSn)
+                .name(NAME_SNAPSHOT)
+                .version("1.0")
+                .timestamp(now)
+                .payload(requestPayload)
+                .build();
+
+        String topic = String.format(TOPIC_SNAPSHOT, deviceSn);
+        log.info("[Capture] SEND snapshot  deviceSn={}  topic={}", deviceSn, topic);
+
+        // 剩余超时 = 总超时 - 回执耗时，简化处理：回执与结果共用同一总超时
+        return mqttGateway.publishAndWait(topic, command, timeoutSeconds, TimeUnit.SECONDS)
+                .thenCompose(ack -> {
+                    if (ack.getCode() != null && ack.getCode() != 200) {
+                        resultFuture.cancel(false);
+                        throw new RuntimeException("snapshot command rejected by device, code=" + ack.getCode());
+                    }
+                    log.info("[Capture] ACK snapshot  deviceSn={}  code={}", deviceSn, ack.getCode());
+                    return resultFuture;
+                });
+    }
+
+    /**
+     * 处理设备异步推送的抓图结果（up/snapshot），完成等待中的 Future。
+     * <p>
+     * 注意：下行命令的回执（down/snapshot/reply）消息 name 同样为 snapshot，
+     * 但其 Future 由 MqttGateway 按消息 id 完成，这里只处理 up 推送。
+     */
+    private void handleSnapshotResult(String topic, MqttMessage message) {
+        if (topic == null || !topic.contains(TOPIC_UP_SNAPSHOT)) {
+            return;
+        }
+        String sn = message.getSn();
+        if (sn == null) {
+            log.warn("[Capture] snapshot result without sn, topic={}", topic);
+            return;
+        }
+        CompletableFuture<MqttMessage> future = pendingSnapshots.remove(sn.toLowerCase());
+        if (future != null) {
+            log.info("[Capture] RECV snapshot result  deviceSn={}", sn);
+            future.complete(message);
+        } else {
+            log.info("[Capture] snapshot result with no waiter (设备主动推送?)  deviceSn={}", sn);
+        }
     }
 
     /**

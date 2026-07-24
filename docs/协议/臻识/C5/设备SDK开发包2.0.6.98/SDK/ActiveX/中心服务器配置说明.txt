@@ -1,0 +1,27 @@
+            // 配置中心服务器参数
+            int handle = axVZLPRClientCtrl1.VzLPRClientOpen("192.168.109.39", 80, "admin", "admin");
+            axVZLPRClientCtrl1.VzLPRSetCenterServerNet(handle, "192.168.1.107", 8001, false, 443, 10);
+            string center_server_param = axVZLPRClientCtrl1.VzLPRGetCenterServerNet(handle);
+
+            // 配置设备注册参数
+            axVZLPRClientCtrl1.VzLPRSetCenterServerDeviceReg(handle, 1, "/test.php");
+            string center_server_reg = axVZLPRClientCtrl1.VzLPRGetCenterServerDeviceReg(handle);
+
+            // 配置车牌推送参数
+            axVZLPRClientCtrl1.VzLPRSetCenterServerPlate(handle, "/test2.php", true, 0, true, true);
+            string center_plate = axVZLPRClientCtrl1.VzLPRGetCenterServerPlate(handle);
+
+            // 配置gpio推送参数
+            axVZLPRClientCtrl1.VzLPRSetCenterServerGionin(handle, true, "/test3.php");
+            string center_gpio = axVZLPRClientCtrl1.VzLPRGetCenterServerGionin(handle);
+
+            // 配置串口推送参数
+            axVZLPRClientCtrl1.VzLPRSetCenterServerSerial(handle, true, "/test4.php");
+            string center_serial = axVZLPRClientCtrl1.VzLPRGetCenterServerSerial(handle);
+
+            // 获取设备序列号
+            string serial_num = axVZLPRClientCtrl1.VzLPRGetSerialNumber(handle);
+            
+            // 配置网络参数
+            axVZLPRClientCtrl1.VzLPRSetNetConfig(handle, "192.168.109.39", "255.255.128.0", "192.168.1.11", "192.168.1.1", 80);
+            string net_config = axVZLPRClientCtrl1.VzLPRGetNetConfig(handle);
