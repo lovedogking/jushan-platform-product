@@ -8,7 +8,7 @@
 spring:
   datasource:
     # Docker MySQL 暴露在 127.0.0.1:3306，库名 device_access
-    url: jdbc:mysql://127.0.0.1:3306/device_access?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://127.0.0.1:3306/device_access?useUnicode=true&characterEncoding=UTF-8&characterSetResults=UTF-8&serverTimezone=Asia/Shanghai
     username: ${DB_USERNAME:jushan}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
