@@ -50,9 +50,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     /** STOMP 端点路径 */
     static final String STOMP_ENDPOINT = "/ws";
 
-    /** 允许跨域来源（本地开发 + Nginx 反向代理） */
+    /** 允许跨域来源（本地开发 + Nginx 反向代理 + 生产 IP） */
     static final String[] ALLOWED_ORIGINS = {"http://localhost:5173", "http://localhost:5174",
-            "http://localhost:8080", "http://localhost:8088", "http://localhost:3000", "http://localhost:3001"};
+            "http://localhost:8080", "http://localhost:8088", "http://localhost:3000", "http://localhost:3001",
+            "http://120.26.3.4"};
 
     /** 应用目标前缀（客户端 → 服务端） */
     static final String APP_DESTINATION_PREFIX = "/app";
@@ -65,12 +66,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // 原生 WebSocket 端点（@stomp/stompjs brokerURL 直连）
+        // setAllowedOriginPatterns 支持通配符，生产环境允许任意来源
         registry.addEndpoint(STOMP_ENDPOINT)
-                .setAllowedOrigins(ALLOWED_ORIGINS)
+                .setAllowedOriginPatterns("*")
                 .addInterceptors(new WsAuthHandshakeInterceptor());
         // SockJS 降级端点（对 WebSocket 不可用的浏览器）
         registry.addEndpoint(STOMP_ENDPOINT)
-                .setAllowedOrigins(ALLOWED_ORIGINS)
+                .setAllowedOriginPatterns("*")
                 .addInterceptors(new WsAuthHandshakeInterceptor())
                 .withSockJS();
     }

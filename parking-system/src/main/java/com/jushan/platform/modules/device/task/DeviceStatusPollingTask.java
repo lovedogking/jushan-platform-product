@@ -35,6 +35,7 @@ public class DeviceStatusPollingTask {
     private final DeviceAccessClient deviceAccessClient;
     private final BoothWebSocketPublisher boothWebSocketPublisher;
     private final GateModeSyncRunner gateModeSyncRunner;
+    private final com.jushan.platform.modules.device.mapper.DeviceStatusSnapshotMapper snapshotMapper;
 
     /** 各设备最近一次轮询到的连接状态（内存态，用于变化检测与重连判断） */
     private final Map<String, String> lastKnownStatus = new ConcurrentHashMap<>();
@@ -43,12 +44,14 @@ public class DeviceStatusPollingTask {
                                    ParkingLaneMapper parkingLaneMapper,
                                    DeviceAccessClient deviceAccessClient,
                                    BoothWebSocketPublisher boothWebSocketPublisher,
-                                   GateModeSyncRunner gateModeSyncRunner) {
+                                   GateModeSyncRunner gateModeSyncRunner,
+                                   com.jushan.platform.modules.device.mapper.DeviceStatusSnapshotMapper snapshotMapper) {
         this.deviceMapper = deviceMapper;
         this.parkingLaneMapper = parkingLaneMapper;
         this.deviceAccessClient = deviceAccessClient;
         this.boothWebSocketPublisher = boothWebSocketPublisher;
         this.gateModeSyncRunner = gateModeSyncRunner;
+        this.snapshotMapper = snapshotMapper;
     }
 
     @Scheduled(fixedRate = 30_000)
@@ -84,6 +87,9 @@ public class DeviceStatusPollingTask {
                         DeviceStatusVO vo = buildStatusVO(device, lane, newStatus);
                         boothWebSocketPublisher.sendDeviceStatus(lane.getLotId(), vo);
                     }
+
+                    // 写入快照表，确保 BoothMonitorService 加载快照时能查到最新状态
+                    saveSnapshot(device, statusDTO);
                 } catch (Exception e) {
                     log.debug("设备状态轮询单设备失败: deviceSn={}, error={}",
                             device.getDeviceSn(), e.getMessage());
@@ -128,5 +134,28 @@ public class DeviceStatusPollingTask {
         vo.setDeviceType(device.getDeviceType());
         vo.setDeviceStatus(connStatus);
         return vo;
+    }
+
+    private void saveSnapshot(Device device, DeviceStatusDTO dto) {
+        try {
+            var snapshot = new com.jushan.platform.modules.device.entity.DeviceStatusSnapshot();
+            snapshot.setDeviceId(device.getId());
+            snapshot.setDeviceSn(device.getDeviceSn());
+            snapshot.setOnline(dto != null ? dto.getOnline() : false);
+            snapshot.setQuerySuccess(true);
+            snapshot.setCollectedAt(java.time.LocalDateTime.now());
+            snapshot.setCreatedAt(java.time.LocalDateTime.now());
+            if (dto != null && dto.getLastOnlineTime() != null) {
+                try {
+                    snapshot.setLastOnlineTime(java.time.LocalDateTime.parse(
+                            dto.getLastOnlineTime(), java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                } catch (Exception ignored) {
+                    // ignore parse error
+                }
+            }
+            snapshotMapper.insert(snapshot);
+        } catch (Exception e) {
+            log.debug("写入设备状态快照失败: deviceSn={}, error={}", device.getDeviceSn(), e.getMessage());
+        }
     }
 }

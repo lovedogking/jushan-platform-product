@@ -2,7 +2,7 @@
 
 > **包路径**：`device-access/`（独立多模块 Maven 工程，根 pom 含 7 个子模块）
 > **职责**：与硬件设备通信（MQTT）、协议适配（臻识/信路通/芊熠）、Webhook 推送事件到 Platform、设备注册与心跳管理。
-> **最近更新**：2026-07-25（v1.6.0：芊熠 Q3 base64 图片直传——MQTT result 的 full_pic/plate_pic 字段由 Dispatcher 解码落盘；Webhook URL 走 nginx 80 端口；QY-Q8→Q3 全局重命名；ImageUploadController 兼容多固件参数名）
+> **最近更新**：2026-07-25（v1.6.1：修复 WebSocket 握手 403——SecurityConfig /ws/** permitAll + nginx location = /ws；DeviceStatusPollingTask 写快照表修复离线误判；前端 WebSocket 连 /ws 原生端点）
 
 ---
 

@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/device/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.device`
 > **职责**：设备台账 CRUD、厂商/型号管理、车道绑定、控闸设备解析、命令下发（开闸/关闸/显示/语音/校时）、状态查询、Webhook 事件接入。
-> **最近更新**：2026-07-24（从 system.* 迁入 Device 全部 Entity/Service/Controller/DTO/VO，拆分 5 个 Service 接口）
+> **最近更新**：2026-07-25（DeviceStatusPollingTask 写快照表；WebSocket  /ws 端点 Security 放行 + nginx exact match）
 
 **说明**：本模块于 2026-07-24 完成从 `com.jushan.system.*` 到 `com.jushan.platform.modules.device.*` 的完整迁移。旧 `system/entity/Device*.java`、`system/service/DeviceService.java`、`system/controller/DeviceController.java`、`system/dto/CreateDeviceRequest.java` / `UpdateDeviceRequest.java`、`system/vo/DeviceVO.java` / `DeviceStatusVO.java` 均已标 `@Deprecated`。
 

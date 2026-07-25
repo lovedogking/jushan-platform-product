@@ -64,8 +64,8 @@ public class SecurityConfig {
                 .requestMatchers("/favicon.ico", "/error").permitAll()
                 // springdoc-openapi / Swagger UI 文档
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                // SockJS 信息端点公开（实际握手仍需认证）
-                .requestMatchers("/ws/info").permitAll()
+                // WebSocket STOMP 端点公开（握手鉴权由 WsAuthHandshakeInterceptor 负责）
+                .requestMatchers("/ws/**").permitAll()
                 // 其他接口需要认证
                 .anyRequest().authenticated()
             )

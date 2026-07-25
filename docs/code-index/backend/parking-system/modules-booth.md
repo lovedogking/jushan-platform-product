@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/booth/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.booth`
 > **职责**：识别事件处理（入场/出场判定+开闸）、人工入场补录、费用减免、交接班管理、岗亭车辆查询。
-> **最近更新**：2026-07-25（v1.5.1：manual-capture 新增 direction 参数支持双向车道按方向选择相机；前端 ManualReleaseModal 同步适配）
+> **最近更新**：2026-07-25（v1.5.2：DeviceStatusPollingTask 写入 device_status_snapshot 表，修复岗亭加载快照时全显示离线；WebSocket 连接修复）
 
 ---
 

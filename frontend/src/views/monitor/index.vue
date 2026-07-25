@@ -105,11 +105,11 @@
                           </span>
                         </span>
                         <div class="lane-tags">
-                          <a-tag v-if="lane.charging" color="processing">
+                          <a-tag v-if="lane.charging" color="processing" size="small">
                             <SyncOutlined :spin="true" style="margin-right: 2px" />收费中
                           </a-tag>
                           <template v-if="!lane.cameras || lane.cameras.length === 0">
-                            <a-tag :color="lane.deviceOnline ? 'success' : 'error'">
+                            <a-tag :color="lane.deviceOnline ? 'success' : 'error'" size="small">
                               {{ lane.deviceOnline ? '在线' : '离线' }}
                             </a-tag>
                           </template>
@@ -118,16 +118,15 @@
                               v-for="cam in lane.cameras"
                               :key="cam.deviceId"
                               :color="cam.online ? (cam.isActive ? 'blue' : 'green') : 'error'"
+                              size="small"
                             >
-                              {{ cam.role === 'PRIMARY' ? '主' : '备' }}:{{ cam.direction === 'ENTRY' ? '入' : '出' }}
+                              {{ cam.role === 'PRIMARY' ? '主' : '备' }}{{ cam.direction === 'ENTRY' ? '入' : '出' }}
                             </a-tag>
                           </template>
+                          <a-tag :color="lane.direction === 'EXIT' ? 'orange' : 'blue'" size="small">
+                            {{ lane.direction === 'ENTRY' ? '入口' : lane.direction === 'EXIT' ? '出口' : '混合' }}
+                          </a-tag>
                         </div>
-                      </div>
-                      <div class="lane-direction">
-                        <a-tag :color="lane.direction === 'EXIT' ? 'orange' : 'blue'">
-                          {{ lane.direction === 'ENTRY' ? '入口' : lane.direction === 'EXIT' ? '出口' : '混合' }}
-                        </a-tag>
                       </div>
                       <div class="lane-event">
                         <template v-if="lane.latestEvent">
