@@ -249,6 +249,9 @@ public class BoothMonitorService {
                             isActive = true;
                         }
                         cvo.setIsActive(isActive);
+                        log.info("Lane camera: laneId={}, deviceId={}, name={}, dir={}, role={}, online={}, isActive={}",
+                                lane.getId(), camera.getId(), camera.getName(), cvo.getDirection(),
+                                cvo.getRole(), cvo.getOnline(), isActive);
 
                         cameraVOs.add(cvo);
                     }

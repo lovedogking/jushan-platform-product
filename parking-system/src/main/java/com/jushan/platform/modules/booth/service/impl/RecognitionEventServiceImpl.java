@@ -213,33 +213,56 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                 }
 
                 // GAP-03: 人工开闸补写 parking_session（entry_trigger=manual_open，附抓拍图）
+                //        根据车道方向：入口→写入场记录，出口→写出场记录
                 try {
                     if (lane != null && plateNumber != null && !plateNumber.isEmpty()) {
-                        ParkingSessionEntryCmd entryCmd = new ParkingSessionEntryCmd();
-                        entryCmd.setParkingLotId(lane.getLotId());
-                        // 岗亭/平台用户 tenantId 为 null，从车道继承租户，确保 session 落库
-                        entryCmd.setTenantId(lane.getTenantId());
-                        entryCmd.setLaneId(laneId);
-                        entryCmd.setPlateNumber(plateNumber.toUpperCase());
-                        entryCmd.setVehicleType("TEMP");
-                        entryCmd.setEntryOperator(operatorId);
-                        entryCmd.setEntryTrigger(ParkingSession.TRIGGER_MANUAL_OPEN);
-                        if (captureEvent != null) {
-                            entryCmd.setEntryImage(captureEvent.getImagePath());
+                        boolean isExitLane = lane.getType() != null && lane.getType() == 2;
+                        if (isExitLane) {
+                            // 出口车道：查询在场记录，执行出场
+                            var inSession = parkingSessionService.getInByPlateNumber(plateNumber.toUpperCase());
+                            if (inSession != null) {
+                                ParkingSessionExitCmd exitCmd = new ParkingSessionExitCmd();
+                                exitCmd.setSessionId(inSession.getId());
+                                exitCmd.setExitLaneId(laneId);
+                                exitCmd.setFeeAmount(isCharge && feeCents != null
+                                        ? java.math.BigDecimal.valueOf(feeCents).movePointLeft(2)
+                                        : java.math.BigDecimal.ZERO);
+                                parkingSessionService.exit(exitCmd);
+                                log.info("人工开闸已补写出口记录: plate={}, laneId={}, operatorId={}",
+                                        plateNumber, laneId, operatorId);
+                            } else {
+                                log.warn("人工开闸出口无在场记录，仅开闸不写session: plate={}, laneId={}",
+                                        plateNumber, laneId);
+                            }
+                        } else {
+                            // 入口车道：写入场记录
+                            ParkingSessionEntryCmd entryCmd = new ParkingSessionEntryCmd();
+                            entryCmd.setParkingLotId(lane.getLotId());
+                            entryCmd.setTenantId(lane.getTenantId());
+                            entryCmd.setLaneId(laneId);
+                            entryCmd.setPlateNumber(plateNumber.toUpperCase());
+                            // 查询车辆类型而非硬编码 TEMP
+                            var decision = vehicleTypeDecisionService.decide(plateNumber, lane.getLotId(), lane.getTenantId());
+                            entryCmd.setVehicleType(decision.getVehicleType());
+                            entryCmd.setEntryOperator(operatorId);
+                            entryCmd.setEntryTrigger(ParkingSession.TRIGGER_MANUAL_OPEN);
+                            if (captureEvent != null) {
+                                entryCmd.setEntryImage(captureEvent.getImagePath());
+                            }
+                            if (isCharge && feeCents != null && feeCents > 0) {
+                                java.math.BigDecimal fee = java.math.BigDecimal.valueOf(feeCents).movePointLeft(2);
+                                entryCmd.setFeeAmount(fee);
+                                entryCmd.setPaidAmount(fee);
+                            }
+                            entryCmd.setRemark("岗亭人工放行: " + reason);
+                            parkingSessionService.entry(entryCmd);
+                            log.info("人工开闸已补写入场记录: plate={}, laneId={}, operatorId={}, vehicleType={}",
+                                    plateNumber, laneId, operatorId, decision.getVehicleType());
                         }
-                        if (isCharge && feeCents != null && feeCents > 0) {
-                            java.math.BigDecimal fee = java.math.BigDecimal.valueOf(feeCents).movePointLeft(2);
-                            entryCmd.setFeeAmount(fee);
-                            entryCmd.setPaidAmount(fee);
-                        }
-                        entryCmd.setRemark("岗亭人工放行: " + reason);
-                        parkingSessionService.entry(entryCmd);
-                        log.info("人工开闸已补写 parking_session: plate={}, laneId={}, operatorId={}",
-                                plateNumber, laneId, operatorId);
                     }
                 } catch (Exception e) {
                     // 补写失败不阻塞开闸结果
-                    log.warn("人工开闸补写 parking_session 失败: plate={}, laneId={}, error={}",
+                    log.warn("人工开闸补写 session 失败: plate={}, laneId={}, error={}",
                             plateNumber, laneId, e.getMessage());
                 }
 
