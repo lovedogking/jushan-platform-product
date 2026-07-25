@@ -243,15 +243,10 @@ public class BoothMonitorService {
                                     lane.getId(), camera.getRecognitionDirection());
                             String roleStr = camera.getCameraRole() == DeviceService.CAMERA_ROLE_PRIMARY ? "PRIMARY" : "BACKUP";
                             isActive = roleStr.equals(activeSource);
-                        } else if (laneCameras.size() == 1) {
-                            // 单相机车道：该相机即为活跃
+                        }
+                        // 兜底：未匹配任何活跃判定逻辑时，在线即视为活跃
+                        if (!isActive && Boolean.TRUE.equals(cvo.getOnline())) {
                             isActive = true;
-                        } else if (camera.getRecognitionDirection() != null) {
-                            // 多相机车道但每个方向只有一台（如 ENTRY+EXIT），该方向唯一相机即为活跃
-                            long sameDirectionCount = laneCameras.stream()
-                                    .filter(c -> camera.getRecognitionDirection().equals(c.getRecognitionDirection()))
-                                    .count();
-                            isActive = (sameDirectionCount == 1);
                         }
                         cvo.setIsActive(isActive);
 
