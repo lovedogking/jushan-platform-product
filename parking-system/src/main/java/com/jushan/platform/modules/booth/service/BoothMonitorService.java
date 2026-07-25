@@ -246,6 +246,12 @@ public class BoothMonitorService {
                         } else if (laneCameras.size() == 1) {
                             // 单相机车道：该相机即为活跃
                             isActive = true;
+                        } else if (camera.getRecognitionDirection() != null) {
+                            // 多相机车道但每个方向只有一台（如 ENTRY+EXIT），该方向唯一相机即为活跃
+                            long sameDirectionCount = laneCameras.stream()
+                                    .filter(c -> camera.getRecognitionDirection().equals(c.getRecognitionDirection()))
+                                    .count();
+                            isActive = (sameDirectionCount == 1);
                         }
                         cvo.setIsActive(isActive);
 
