@@ -3,7 +3,7 @@ package com.jushan.system.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.jushan.system.cache.ParamCacheStore;
 import com.jushan.system.constant.ParamKeys;
-^import com.jushan.platform.modules.common.entity.SysConfig;
+import com.jushan.platform.modules.common.entity.SysConfig;
 import com.jushan.system.mapper.SysConfigMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

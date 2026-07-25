@@ -66,7 +66,13 @@ public interface RecognitionEventService {
      * @param laneId 通道 ID
      * @return 抓拍结果（含图片 URL）
      */
-    com.jushan.platform.modules.device.client.dto.CaptureResultDTO captureImage(Long laneId);
+    /**
+     * 手动抓拍指定车道相机。
+     *
+     * @param laneId    通道 ID
+     * @param direction 识别方向（1=入口, 2=出口），null 时默认入口
+     */
+    com.jushan.platform.modules.device.client.dto.CaptureResultDTO captureImage(Long laneId, Integer direction);
 
     /**
      * 人工关闸。

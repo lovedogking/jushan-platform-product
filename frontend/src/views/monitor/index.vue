@@ -337,6 +337,7 @@
       v-model:open="manualReleaseOpen"
       :lane-id="manualReleaseLaneId"
       :plate-number="manualReleasePlate"
+      :direction="manualReleaseDirection"
       @success="handleManualReleaseResult"
     />
 
@@ -461,6 +462,7 @@ let wsClient: MonitorWebSocketClient | null = null
 const manualReleaseOpen = ref(false)
 const manualReleaseLaneId = ref(0)
 const manualReleasePlate = ref('')
+const manualReleaseDirection = ref<number | undefined>(undefined)
 
 /** 每个车道的锁定状态：{ [laneId-direction]: { open: boolean, close: boolean } } */
 const laneLockState = ref<Record<string, { open: boolean; close: boolean }>>({})
@@ -635,6 +637,8 @@ function handleManualOpenGate(lane: LaneCard) {
   manualReleaseLaneId.value = lane.laneId
   // 预填该车道最近识别事件的车牌（可在弹窗中编辑）
   manualReleasePlate.value = lane.latestEvent?.correctedPlate || lane.latestEvent?.plateNumber || ''
+  // 双向车道传方向用于选择正确相机抓拍（1=入口, 2=出口）
+  manualReleaseDirection.value = lane.direction === 'ENTRY' ? 1 : lane.direction === 'EXIT' ? 2 : undefined
   manualReleaseOpen.value = true
 }
 
@@ -1355,8 +1359,9 @@ onUnmounted(() => {
     .lane-capture {
       width: 100%;
       max-width: 220px;
-      height: 90px;
-      object-fit: cover;
+      height: auto;
+      max-height: 120px;
+      object-fit: contain;
       border-radius: 4px;
       margin-bottom: 4px;
       background: #e5e7eb;

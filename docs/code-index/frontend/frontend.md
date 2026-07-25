@@ -2,7 +2,7 @@
 
 > **路径**：`frontend/` （独立 `pnpm` 工作区）
 > **技术栈**：Vue 3.4 · TypeScript 5.4 · Vite 5.2 · Pinia 2.1 · ant-design-vue 4.1 · axios
-> **最近更新**：2026-07-24（v1.5：MIXED 车道拆分入口/出口两张卡片，常关按钮 lockKey 拆分，常关/取消常关独立端点）
+> **最近更新**：2026-07-25（v1.5.1：ManualReleaseModal 新增 direction 参数，双向车道抓拍按卡片方向选择对应相机）
 
 ---
 

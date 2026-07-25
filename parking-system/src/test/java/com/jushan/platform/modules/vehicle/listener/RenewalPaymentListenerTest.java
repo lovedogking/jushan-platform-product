@@ -2,7 +2,7 @@ package com.jushan.platform.modules.vehicle.listener;
 
 import com.jushan.platform.modules.vehicle.service.VehicleRenewalService;
 import com.jushan.platform.modules.vehicle.vo.RenewalOrderVO;
-^import com.jushan.platform.modules.parking.entity.ParkingOrder;
+import com.jushan.platform.modules.parking.entity.ParkingOrder;
 import com.jushan.system.event.PaymentSuccessEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

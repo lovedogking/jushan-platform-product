@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.UUID;
 
 /**
  * 事件推送器 — 通过 HTTP POST Webhook 异步推送事件到 Parking Platform。
@@ -27,7 +28,7 @@ import java.util.Base64;
  *   <li>推送失败仅日志告警，不抛异常（不影响 adapter 主流程）</li>
  *   <li>内存重试 retryCount 次，固定间隔 retryIntervalSeconds 秒</li>
  *   <li>内存重试耗尽后写入 t_event_outbox，由 EventRetryService 定时重试</li>
- *   <li>配置 secretKey 后发送 X-Signature 头（HMAC-SHA256(eventId + timestamp)）</li>
+ *   <li>配置 secretKey 后发送 X-Sign 头（HMAC-SHA256(timestamp + nonce + body)），对齐 parking-system WebhookVerificationFilter</li>
  *   <li>不硬编码业务 URL 或响应格式</li>
  * </ul>
  *
@@ -127,27 +128,32 @@ public class EventPublisher {
     }
 
     private HttpRequest buildRequest(String eventId, String json) {
-        long timestamp = Instant.now().getEpochSecond();
+        long timestamp = Instant.now().toEpochMilli();
+        String nonce = UUID.randomUUID().toString();
+
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(properties.getUrl()))
                 .header("Content-Type", "application/json")
                 .header("X-Timestamp", String.valueOf(timestamp))
+                .header("X-Nonce", nonce)
                 .timeout(Duration.ofSeconds(properties.getTimeoutSeconds()))
                 .POST(HttpRequest.BodyPublishers.ofString(json));
 
         if (StringUtils.hasText(properties.getSecretKey())) {
-            String signature = computeSignature(eventId, timestamp);
+            // 签名算法对齐 parking-system WebhookVerificationFilter:
+            // HMAC-SHA256(timestamp + nonce + rawBody)
+            String signature = computeSignature(timestamp, nonce, json);
             if (signature != null) {
-                builder.header("X-Signature", signature);
+                builder.header("X-Sign", signature);
             }
         }
 
         return builder.build();
     }
 
-    private String computeSignature(String eventId, long timestamp) {
+    private String computeSignature(long timestamp, String nonce, String json) {
         try {
-            String data = eventId + timestamp;
+            String data = timestamp + nonce + json;
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(properties.getSecretKey().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] bytes = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));

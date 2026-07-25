@@ -336,7 +336,8 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
      * @return 最近车牌号，无记录返回空字符串
      */
     public String getLastPlate(String deviceSn) {
-        return lastPlateMap.getOrDefault(deviceSn, "");
+        // 统一小写匹配：lastPlateMap 的 key 来自 handleResult 中已 lowerCase 的 sn
+        return lastPlateMap.getOrDefault(deviceSn.toLowerCase(), "");
     }
 
     // ──────────────────── 下行命令 ────────────────────
@@ -511,11 +512,14 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
      * 按同前缀约定推导下行（post→down）；最后回退默认模板 device/plate/{sn}。
      */
     private String subtopicOf(String deviceSn) {
-        String subtopic = subtopicMap.get(deviceSn);
+        // 统一小写：onRawMessage 存入时已 lowerCase，但外部调用（如 REST API）传入的
+        // deviceId 可能保留原始大小写（如相机上报 "15ZK231028466482"），导致查不到 key。
+        String normalizedSn = deviceSn.toLowerCase();
+        String subtopic = subtopicMap.get(normalizedSn);
         if (subtopic != null) {
             return subtopic;
         }
-        String uplink = uplinkTopicBySn.get(deviceSn);
+        String uplink = uplinkTopicBySn.get(normalizedSn);
         if (uplink != null && uplink.endsWith(QYMQTT_UPLINK_SUFFIX)) {
             String derived = uplink.substring(0, uplink.length() - QYMQTT_UPLINK_SUFFIX.length())
                     + QYMQTT_DOWNLINK_SUFFIX;
@@ -536,7 +540,8 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
      * 通过心跳缓存判断：最近 90 秒内有心跳视为在线（芊熠心跳默认 30 秒间隔）。
      */
     public boolean isDeviceOnline(String deviceSn) {
-        return heartbeatRecorder.isDeviceOnline(deviceSn, 90_000L);
+        // 统一小写匹配：heartbeatRecorder 的 key 来自 onRawMessage 已 lowerCase 的 sn
+        return heartbeatRecorder.isDeviceOnline(deviceSn.toLowerCase(), 90_000L);
     }
 
     // ──────────────────── 命令结果解析 ────────────────────

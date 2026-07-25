@@ -161,12 +161,14 @@ export function submitFeeReduction(data: FeeReductionRequest): Promise<FeeReduct
 /**
  * 手动抓拍指定车道相机。
  * POST /api/v1/booth/recognition/manual-capture
+ * @param laneId 通道 ID
+ * @param direction 识别方向（1=入口, 2=出口），不传默认入口
  */
-export function captureImage(laneId: number): Promise<CaptureImageResult> {
+export function captureImage(laneId: number, direction?: number): Promise<CaptureImageResult> {
   return request.post<CaptureImageResult>(
     '/v1/booth/recognition/manual-capture',
     undefined,
-    { params: { laneId } },
+    { params: direction != null ? { laneId, direction } : { laneId } },
   )
 }
 

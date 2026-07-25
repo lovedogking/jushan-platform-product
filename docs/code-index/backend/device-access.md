@@ -2,7 +2,7 @@
 
 > **包路径**：`device-access/`（独立多模块 Maven 工程，根 pom 含 7 个子模块）
 > **职责**：与硬件设备通信（MQTT）、协议适配（臻识/信路通/芊熠）、Webhook 推送事件到 Platform、设备注册与心跳管理。
-> **最近更新**：2026-07-24（v1.5：新增 LOCK_CLOSE_GATE 能力、lockCloseGate 全链路、DeviceController /gate/lock-close 端点）
+> **最近更新**：2026-07-25（v1.5.1：修复 QianyiMessageHandler SN 大小写不一致导致下行命令 Topic 错误；修复 manual-capture 硬编码只抓入口相机，新增 direction 参数）
 
 ---
 

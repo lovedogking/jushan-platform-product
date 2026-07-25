@@ -107,6 +107,8 @@ const props = defineProps<{
   open: boolean
   laneId: number
   plateNumber: string
+  /** 识别方向：1=入口, 2=出口（双向车道用于选择正确相机抓拍） */
+  direction?: number
 }>()
 
 const emit = defineEmits<{
@@ -202,7 +204,7 @@ async function handleCapture() {
   capturing.value = true
   captureResult.value = null
   try {
-    const result = await captureImage(props.laneId)
+    const result = await captureImage(props.laneId, props.direction)
     captureResult.value = result
     if (result.success && result.imageUrl) {
       formState.entryImage = result.imageUrl

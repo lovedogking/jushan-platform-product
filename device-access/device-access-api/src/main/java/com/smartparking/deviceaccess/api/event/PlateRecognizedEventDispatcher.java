@@ -1,5 +1,6 @@
 package com.smartparking.deviceaccess.api.event;
 
+import com.smartparking.deviceaccess.api.image.ImageProperties;
 import com.smartparking.deviceaccess.api.image.ImageStorageService;
 import com.smartparking.deviceaccess.api.image.RemoteImageDownloader;
 import com.smartparking.deviceaccess.common.entity.Device;
@@ -14,6 +15,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -48,6 +53,7 @@ public class PlateRecognizedEventDispatcher implements PlateRecognizedListener {
     private final EventPublisher eventPublisher;
     private final ImageStorageService imageStorageService;
     private final RemoteImageDownloader remoteImageDownloader;
+    private final ImageProperties imageProperties;
 
     private static final DateTimeFormatter ISO_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
@@ -80,29 +86,43 @@ public class PlateRecognizedEventDispatcher implements PlateRecognizedListener {
             String plateImagePath = data.plateImagePath();
             if (isQianyi(vendor) && data.occurredAtMillis() != null) {
                 long epochSeconds = data.occurredAtMillis() / 1000;
-                imagePath = imageStorageService.buildFullImageUrl(data.deviceSn(), epochSeconds);
-                plateImagePath = imageStorageService.buildPlateImageUrl(data.deviceSn(), epochSeconds);
+                imagePath = waitForLocalImage(data.deviceSn(), epochSeconds, false);
+                plateImagePath = waitForLocalImage(data.deviceSn(), epochSeconds, true);
             } else {
                 long epochSeconds = data.occurredAtMillis() != null
                         ? data.occurredAtMillis() / 1000 : Instant.now().getEpochSecond();
-                if (imagePath != null) {
+
+                // 臻识 FTP URL：相机本地文件标识被 ZhenshiMessageHandler 替换为 FTP HTTP URL，
+                // 文件已在服务器本地磁盘（nginx 静态目录下），无需 HTTP 下载，直接在磁盘查找并转存。
+                // URL 中的时间戳子秒部分可能与实际文件名有偏差，用通配匹配查找。
+                if (imagePath != null && imagePath.startsWith(imageProperties.getPublicBaseUrl())) {
+                    String local = resolveZhenshiFtpFile(imagePath, data.deviceSn(), epochSeconds, false);
+                    if (local != null) imagePath = local;
+                } else if (imagePath != null) {
                     String local = remoteImageDownloader.downloadAndStore(
                             data.deviceSn(), epochSeconds, imagePath, false);
-                    if (local != null) {
-                        imagePath = local;
-                    }
+                    if (local != null) imagePath = local;
                 }
-                if (plateImagePath != null) {
+                if (plateImagePath != null && plateImagePath.startsWith(imageProperties.getPublicBaseUrl())) {
+                    String localPlate = resolveZhenshiFtpFile(plateImagePath, data.deviceSn(), epochSeconds, true);
+                    if (localPlate != null) plateImagePath = localPlate;
+                } else if (plateImagePath != null) {
                     String localPlate = remoteImageDownloader.downloadAndStore(
                             data.deviceSn(), epochSeconds, plateImagePath, true);
-                    if (localPlate != null) {
-                        plateImagePath = localPlate;
-                    }
+                    if (localPlate != null) plateImagePath = localPlate;
                 }
             }
 
             // 3. 构造 payload
             Map<String, Object> payload = new LinkedHashMap<>();
+
+            // 臻识 fallback：full 目录通常不存在（相机仅上传 plate 图），
+            // 若 imagePath 仍含 FTP 子目录标识(IVS)，说明解析失败，用 plateImagePath 顶替
+            if (imagePath != null && imagePath.contains("/IVS(") &&
+                    plateImagePath != null && !plateImagePath.contains("/IVS(")) {
+                imagePath = plateImagePath;
+                log.info("臻识 full 图不可用，用 plate 图顶替: {}", imagePath);
+            }
             payload.put("plateNo", data.license());
             if (data.plateColor() != null) {
                 payload.put("plateColor", data.plateColor());
@@ -155,6 +175,113 @@ public class PlateRecognizedEventDispatcher implements PlateRecognizedListener {
      */
     private boolean isQianyi(String vendor) {
         return "芊熠".equals(vendor) || "QIANYI".equalsIgnoreCase(vendor);
+    }
+
+    /**
+     * 等待芊熠/臻识相机 HTTP 上传的图片落盘（时序竞态：MQTT 事件早于 HTTP 上传完成），
+     * 最多等待 3 秒，每次间隔 1 秒检查文件是否存在；超时返回 null。
+     */
+    private String waitForLocalImage(String deviceSn, long epochSeconds, boolean plateOnly) {
+        for (int retry = 0; retry < 3; retry++) {
+            if (retry > 0) {
+                try { Thread.sleep(1000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return null; }
+            }
+            Path filePath = imageStorageService.resolveFilePath(deviceSn, epochSeconds, plateOnly);
+            if (Files.exists(filePath)) {
+                log.info("{} 图片已落盘(第{}次): {}", plateOnly ? "Plate" : "Full", retry + 1, filePath);
+                return plateOnly
+                        ? imageStorageService.buildPlateImageUrl(deviceSn, epochSeconds)
+                        : imageStorageService.buildFullImageUrl(deviceSn, epochSeconds);
+            }
+        }
+        log.info("{} 图片等待超时(3s): sn={}, ts={}", plateOnly ? "Plate" : "Full", deviceSn, epochSeconds);
+        return null;
+    }
+
+    /**
+     * 解析臻识 FTP 上传的图片文件：将 FTP HTTP URL 转为本地磁盘路径，
+     * 通配匹配文件名（时间戳子秒部分可能偏移），找到后转存到标准图片目录。
+     *
+     * @param ftpUrl       FTP 图片的 HTTP URL（如 http://.../parking/IVS(ip)/.../0938150000_川A88888.jpg）
+     * @param deviceSn     设备 SN
+     * @param epochSeconds 事件时间（秒）
+     * @param plateOnly    true=车牌特写，false=全景
+     * @return 标准本地 URL；文件不存在或读取失败返回 null
+     */
+    private String resolveZhenshiFtpFile(String ftpUrl, String deviceSn, long epochSeconds, boolean plateOnly) {
+        log.info("臻识 FTP 文件解析: url={}", ftpUrl);
+        try {
+            // 从 HTTP URL 反推文件系统路径：http://.../images/parking/... → {storageDir}/parking/...
+            String publicBase = imageProperties.getPublicBaseUrl();
+            if (!ftpUrl.startsWith(publicBase)) {
+                return null;
+            }
+            String relativePath = ftpUrl.substring(publicBase.length());
+            if (relativePath.startsWith("/")) {
+                relativePath = relativePath.substring(1);
+            }
+
+            // 解析文件名和目录：parking/IVS(...)/channel_0/plate/2026-07-25/0938150000_川A88888.jpg
+            int lastSlash = relativePath.lastIndexOf('/');
+            if (lastSlash < 0) return null;
+            String dir = relativePath.substring(0, lastSlash);
+            String filename = relativePath.substring(lastSlash + 1);
+
+            // 文件名格式：{HHmmss}{????}_{plate}.jpg，用通配替换子秒部分
+            int underscoreIdx = filename.indexOf('_');
+            if (underscoreIdx < 0) return null;
+            // 时间部分去掉最后4位数字 + 保留*通配匹配
+            String timePrefix = filename.substring(0, underscoreIdx);
+            if (timePrefix.length() < 5) return null;
+            // 去掉末尾4位子秒，用 * 替换
+            String timeGlob = timePrefix.substring(0, timePrefix.length() - 4) + "*";
+            String globPattern = timeGlob + filename.substring(underscoreIdx);
+
+            Path dirPath = Paths.get(imageProperties.getStorageDir(), dir);
+            if (!Files.isDirectory(dirPath)) {
+                log.info("臻识 FTP 目录不存在(可能是full目录仅plate有图): {}", dirPath);
+                return null;
+            }
+
+            log.info("臻识 FTP 磁盘查找: dir={}, pattern={}", dirPath, globPattern);
+            final String regexPattern = globToRegex(globPattern);
+
+            // MQTT 到达时 FTP 上传可能未完成（时序竞态），最多重试 3 次，每次间隔 1s
+            for (int retry = 0; retry < 3; retry++) {
+                if (retry > 0) {
+                    try { Thread.sleep(1000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return null; }
+                }
+                try (var stream = Files.list(dirPath)) {
+                    var matches = stream
+                            .filter(p -> p.getFileName().toString().matches(regexPattern))
+                            .toList();
+                    if (!matches.isEmpty()) {
+                        Path match = matches.get(0);
+                        log.info("臻识 FTP 匹配到文件(第{}次): {}", retry + 1, match);
+                        byte[] bytes = Files.readAllBytes(match);
+                        if (plateOnly) {
+                            imageStorageService.saveBytes(deviceSn, epochSeconds, null, bytes);
+                            return imageStorageService.buildPlateImageUrl(deviceSn, epochSeconds);
+                        } else {
+                            imageStorageService.saveBytes(deviceSn, epochSeconds, bytes, null);
+                            return imageStorageService.buildFullImageUrl(deviceSn, epochSeconds);
+                        }
+                    }
+                }
+            }
+            log.info("臻识 FTP 目录中未找到匹配文件: dir={}, pattern={}", dirPath, globPattern);
+            return null;
+        } catch (Exception e) {
+            log.warn("解析臻识 FTP 文件失败: url={}", ftpUrl, e);
+            return null;
+        }
+    }
+
+    /**
+     * 简单 glob → Java 正则转换（仅支持 * 通配符）。
+     */
+    private static String globToRegex(String glob) {
+        return "^" + java.util.regex.Pattern.quote(glob).replace("*", "\\E.*\\Q") + "$";
     }
 
     /**

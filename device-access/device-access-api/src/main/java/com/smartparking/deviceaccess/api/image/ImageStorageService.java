@@ -173,6 +173,13 @@ public class ImageStorageService {
                 + String.format(nameTemplate, epochSeconds);
     }
 
+    public Path resolveFilePath(String sn, long epochSeconds, boolean plateOnly) {
+        String filename = plateOnly
+                ? String.format(PLATE_IMAGE_NAME, epochSeconds)
+                : String.format(FULL_IMAGE_NAME, epochSeconds);
+        return resolveDir(sn, epochSeconds).resolve(filename);
+    }
+
     private Path resolveDir(String sn, long epochSeconds) {
         return Paths.get(properties.getStorageDir(), dateDirOf(epochSeconds), sn)
                 .toAbsolutePath().normalize();

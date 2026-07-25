@@ -8,7 +8,7 @@ import com.jushan.platform.modules.vehicle.entity.SysVehicle;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
 import com.jushan.platform.modules.vehicle.vo.RenewalOrderVO;
 import com.jushan.platform.modules.vehicle.vo.RenewalPreviewVO;
-^import com.jushan.platform.modules.parking.entity.ParkingOrder;
+import com.jushan.platform.modules.parking.entity.ParkingOrder;
 import com.jushan.system.mapper.ParkingOrderMapper;
 import com.jushan.system.service.AuditService;
 import com.fasterxml.jackson.databind.ObjectMapper;

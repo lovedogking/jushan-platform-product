@@ -55,6 +55,14 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
     @Autowired(required = false)
     private PlateRecognizedListener plateListener;
 
+    /** 图片公网访问基础 URL（如 http://120.26.3.4/images），用于构造 FTP 上传图片的对外地址 */
+    @org.springframework.beans.factory.annotation.Value("${device-access.image.public-base-url:http://localhost:8082/images}")
+    private String imagePublicBaseUrl;
+
+    /** 臻识相机 FTP 上传子目录（相机配置中填写的上传路径），默认 parking */
+    @org.springframework.beans.factory.annotation.Value("${device-access.image.zhenshi-ftp-subdir:parking}")
+    private String zhenshiFtpSubdir;
+
     // ──────────────────── 消息名常量 ────────────────────
 
     private static final String NAME_KEEP_ALIVE = "keep_alive";
@@ -185,6 +193,17 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
         String rawPlateImagePath = firstPlate != null ? (String) firstPlate.get("image_path") : null;
         String plateImagePath = (rawPlateImagePath != null && !rawPlateImagePath.isBlank())
                 ? decodeBase64(rawPlateImagePath) : null;
+
+        // 臻识 C5 的 imagePath/plateImagePath 为相机本地文件标识（非 HTTP URL）时，
+        // 按 FTP 上传路径构造对外可访问的 HTTP URL（相机已配置 FTP 上传到 nginx 静态目录）
+        String ipAddr = (String) alarmInfo.get("ipaddr");
+        long eventTs = message.getTimestamp() != null ? message.getTimestamp() : 0L;
+        if (imagePath == null || !imagePath.startsWith("http")) {
+            imagePath = buildFtpImageUrl(ipAddr, license, eventTs, false);
+        }
+        if (plateImagePath == null || !plateImagePath.startsWith("http")) {
+            plateImagePath = buildFtpImageUrl(ipAddr, license, eventTs, true);
+        }
 
         PlateRecognizedEvent event = PlateRecognizedEvent.builder()
                 .sn(message.getSn())
@@ -1079,16 +1098,54 @@ public class ZhenshiMessageHandler implements MqttMessageListener {
      * 臻识协议中部分字段（如 deviceName、license）使用 Base64 编码传输，
      * 目的是避免中文字符在 MQTT 传输中出现编码问题。
      */
+    /**
+     * 根据臻识相机 FTP 上传路径规则，构造全景图或车牌特写图的对外 HTTP URL。
+     * <p>
+     * FTP 上传目录结构：{ftpSubdir}/IVS({ip})/channel_0/{type}/{yyyy-MM-dd}/{HHmmss}0000_{plate}.jpg
+     * <p>
+     * nginx 将该目录映射为对外可访问的 HTTP URL。
+     *
+     * @param ipAddr    相机内网 IP（从 MQTT 消息 alarmInfo.ipaddr 提取）
+     * @param license   车牌号
+     * @param eventTs   事件时间戳（秒）
+     * @param plateOnly true=车牌特写(plate)，false=全景(full)
+     * @return FTP 图片的 HTTP URL，信息不足时返回 null
+     */
+    private String buildFtpImageUrl(String ipAddr, String license, long eventTs, boolean plateOnly) {
+        if (ipAddr == null || ipAddr.isBlank() || license == null || license.isBlank() || eventTs <= 0) {
+            return null;
+        }
+        try {
+            java.time.Instant instant = java.time.Instant.ofEpochSecond(eventTs);
+            java.time.ZonedDateTime zdt = instant.atZone(java.time.ZoneId.of("Asia/Shanghai"));
+            String dateStr = zdt.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            String timeStr = zdt.format(java.time.format.DateTimeFormatter.ofPattern("HHmmss"));
+            String typeDir = plateOnly ? "plate" : "full";
+            // 文件名格式：{HHmmss}0000_{plate}.jpg（相机 FTP 上行文件名）
+            String filename = timeStr + "0000_" + license + ".jpg";
+            return String.format("%s/%s/IVS(%s)/channel_0/%s/%s/%s",
+                    imagePublicBaseUrl, zhenshiFtpSubdir, ipAddr, typeDir, dateStr, filename);
+        } catch (Exception e) {
+            log.warn("构造臻识 FTP 图片 URL 失败: ip={}, plate={}", ipAddr, license, e);
+            return null;
+        }
+    }
+
     private String decodeBase64(String encoded) {
         if (encoded == null || encoded.isBlank()) {
             return "";
         }
         try {
-            byte[] decoded = java.util.Base64.getDecoder().decode(encoded);
+            // 臻识相机固定长度字段可能以 null 字符填充，需先清除
+            String cleaned = encoded.replace("\0", "").trim();
+            if (cleaned.isEmpty()) {
+                return "";
+            }
+            byte[] decoded = java.util.Base64.getDecoder().decode(cleaned);
             return new String(decoded, java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception e) {
-            // 不是 Base64 编码，直接返回原始值
-            return encoded;
+            // 不是 Base64 编码，直接返回原始值（也清除 null 填充）
+            return encoded.replace("\0", "").trim();
         }
     }
 

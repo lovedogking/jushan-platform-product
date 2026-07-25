@@ -91,16 +91,19 @@ public class RecognitionEventController {
     /**
      * 手动抓拍指定车道相机。
      * <p>
-     * 选择车道主相机（或唯一相机）触发抓拍，返回图片 URL。
+     * 选择车道指定方向的主相机触发抓拍，返回图片 URL。
      *
-     * @param laneId 通道 ID
+     * @param laneId    通道 ID
+     * @param direction 识别方向（1=入口, 2=出口），不传默认入口
      * @return 抓拍结果（含图片 URL）
      */
     @PostMapping("/manual-capture")
     @RequirePermission("booth:operate")
-    public R<CaptureResultDTO> manualCapture(@RequestParam Long laneId) {
-        CaptureResultDTO result = recognitionEventService.captureImage(laneId);
-        log.info("手动抓拍: laneId={}, success={}, imageUrl={}", laneId, result.isSuccessful(), result.getImageUrl());
+    public R<CaptureResultDTO> manualCapture(@RequestParam Long laneId,
+                                              @RequestParam(required = false) Integer direction) {
+        CaptureResultDTO result = recognitionEventService.captureImage(laneId, direction);
+        log.info("手动抓拍: laneId={}, direction={}, success={}, imageUrl={}",
+                laneId, direction, result.isSuccessful(), result.getImageUrl());
         return R.ok(result);
     }
 

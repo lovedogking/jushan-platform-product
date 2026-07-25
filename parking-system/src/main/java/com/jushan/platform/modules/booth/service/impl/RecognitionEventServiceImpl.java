@@ -994,8 +994,9 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     }
 
     @Override
-    public com.jushan.platform.modules.device.client.dto.CaptureResultDTO captureImage(Long laneId) {
-        log.info("主动抓拍请求: laneId={}", laneId);
+    public com.jushan.platform.modules.device.client.dto.CaptureResultDTO captureImage(Long laneId, Integer direction) {
+        int dir = (direction != null) ? direction : DeviceService.DIRECTION_ENTRY;
+        log.info("主动抓拍请求: laneId={}, direction={}", laneId, dir);
 
         ParkingLane lane = null;
         try {
@@ -1008,11 +1009,12 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                     "车道不存在: laneId=" + laneId);
         }
 
-        // 严格按入口相机解析（识别方向=入口 的主相机）；无入口相机直接报错，避免误抓出口画面
-        Device camera = deviceMapper.selectPrimaryCameraByLaneAndDirectionIgnoreTenant(laneId, DeviceService.DIRECTION_ENTRY);
+        // 按指定方向解析主相机；direction 为空时默认入口（向后兼容）
+        Device camera = deviceMapper.selectPrimaryCameraByLaneAndDirectionIgnoreTenant(laneId, dir);
         if (camera == null) {
+            String dirLabel = (dir == DeviceService.DIRECTION_ENTRY) ? "入口" : "出口";
             throw new BusinessException(com.jushan.common.CommonErrorCode.PARAM_ERROR,
-                    "车道未绑定入口相机: laneId=" + laneId);
+                    "车道未绑定" + dirLabel + "相机: laneId=" + laneId);
         }
 
         String deviceSn = camera.getDeviceSn();
