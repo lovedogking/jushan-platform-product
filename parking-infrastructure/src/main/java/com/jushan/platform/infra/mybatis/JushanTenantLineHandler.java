@@ -53,7 +53,9 @@ public class JushanTenantLineHandler implements com.baomidou.mybatisplus.extensi
             "company",
             "sys_admin_account",
             "plate_binding",
-            "vehicle"
+            "vehicle",
+            // 系统任务写入的快照表，tenant_id 由轮询任务填充，租户查询不应过滤
+            "device_status_snapshot"
     ).collect(Collectors.toSet());
 
     @Override
