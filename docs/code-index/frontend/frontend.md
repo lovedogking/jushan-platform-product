@@ -2,7 +2,7 @@
 
 > **路径**：`frontend/` （独立 `pnpm` 工作区）
 > **技术栈**：Vue 3.4 · TypeScript 5.4 · Vite 5.2 · Pinia 2.1 · ant-design-vue 4.1 · axios
-> **最近更新**：2026-07-25（v1.5.3：新增车场删除按钮，弹窗二次确认，仅超管可见；v1.6.1 WebSocket/设备在线状态修复）
+> **最近更新**：2026-07-25（v2.0：设备管理新增「设备控制」Tab——显示屏实时文字发送 + 语音播报手动控制；新增「识别联动」Tab——傻瓜式配置，自动播报开关 + 语音/显示屏消息模板 + 实时预览 + 待机恢复；parking-manage.ts 新增 deviceDisplayText/deviceVoiceControl API）
 
 ---
 

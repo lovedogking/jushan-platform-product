@@ -2,7 +2,7 @@
 
 > **包路径**：`device-access/`（独立多模块 Maven 工程，根 pom 含 7 个子模块）
 > **职责**：与硬件设备通信（MQTT）、协议适配（臻识/信路通/芊熠）、Webhook 推送事件到 Platform、设备注册与心跳管理。
-> **最近更新**：2026-07-25（v2.3：全链路颜色支持——DisplayTextRequest 新增 colorName 字段 → BrandCommandDispatcher/DeviceCoordinator 签名扩展 → QianyiMessageHandler.displayText 通过 OlmM1dProtocol.colorFromName 转换 RGBA 构建多行帧；v2.2：芊熠补全 VOICE_CONTROL——QianyiMessageHandler 新增 playVoice/stopVoice；v1.6.1：WebSocket/Security/心跳修复）
+> **最近更新**：2026-07-25（v2.4：OlmM1dProtocol.colorFromName 颜色名→RGBA 转换；DisplayTextRequest 新增 colorName 字段 → BrandCommandDispatcher/DeviceCoordinator displayText 签名扩展；DB 迁移 V20260725003 给 QY-01/QY-Q3 追加 VOICE_CONTROL；v2.2：QianyiMessageHandler 新增 playVoice/stopVoice 经 rs485 透传 OLM-M1D 0x30/0x31；v1.6.1：WebSocket/Security/心跳修复）
 
 ---
 
@@ -73,5 +73,6 @@
 
 > 数据库变更：
 > - `device-access-starter/src/main/resources/migration-v0.5-qianyi.sql`（手动历史迁移，用于新库初始化 schema + 种子）
-> - `device-access-starter/src/main/resources/db/migration/V20260724001__add_capture_capability.sql`（Flyway 自动迁移，给芊熠 QY-01 追加 `CAPTURE` 能力；QY-01 已在 V20260906002 被 QY-Q3 替代）
-> - `application.yml` 启用 `spring.flyway.baseline-on-migrate=true`；存量库首次启动自动 baseline 后执行 v0.7 迁移
+> - `device-access-starter/src/main/resources/db/migration/V20260724001__add_capture_capability.sql`（Flyway，给芊熠 QY-01 追加 `CAPTURE` 能力）
+> - `device-access-starter/src/main/resources/db/migration/V20260725003__qianyi_voice_capability.sql`（Flyway，给 QY-01/QY-Q3 追加 `VOICE_CONTROL` 能力）
+> - `application.yml` 启用 `spring.flyway.baseline-on-migrate=true`
