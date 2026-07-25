@@ -40,7 +40,7 @@ export function submitCharge(data: {
 export function manualOpenGate(
   laneId: number,
   reason: string,
-  options?: { isCharge?: boolean; feeCents?: number; plateNumber?: string; entryImage?: string },
+  options?: { isCharge?: boolean; feeCents?: number; plateNumber?: string; entryImage?: string; direction?: number },
 ): Promise<GateOpenResult> {
   return request.post<GateOpenResult>(
     '/v1/booth/recognition/manual-open-gate',
@@ -53,6 +53,7 @@ export function manualOpenGate(
         feeCents: options?.feeCents ?? 0,
         plateNumber: options?.plateNumber ?? undefined,
         entryImage: options?.entryImage ?? undefined,
+        direction: options?.direction ?? undefined,
       },
     },
   )

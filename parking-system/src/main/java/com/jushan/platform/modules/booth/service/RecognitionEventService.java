@@ -45,17 +45,20 @@ public interface RecognitionEventService {
      */
     RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason,
                                        boolean isCharge, Integer feeCents, String plateNumber,
-                                       String entryImage);
+                                       String entryImage, Integer direction);
 
     /**
-     * 人工开闸（向后兼容，不带抓拍图）。
-     * <p>
-     * 委托到 {@link #manualOpenGate(Long, Long, String, boolean, Integer, String, String)}，
-     * entryImage 传 null。
+     * 人工开闸（向后兼容，不带抓拍图和方向）。
      */
     default RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason,
+                                               boolean isCharge, Integer feeCents, String plateNumber,
+                                               String entryImage) {
+        return manualOpenGate(laneId, operatorId, reason, isCharge, feeCents, plateNumber, null, null);
+    }
+
+    default RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason,
                                                boolean isCharge, Integer feeCents, String plateNumber) {
-        return manualOpenGate(laneId, operatorId, reason, isCharge, feeCents, plateNumber, null);
+        return manualOpenGate(laneId, operatorId, reason, isCharge, feeCents, plateNumber, null, null);
     }
 
     /**

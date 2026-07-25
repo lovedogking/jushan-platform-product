@@ -180,6 +180,7 @@ async function handleConfirm() {
         feeCents,
         plateNumber: plate || undefined,
         entryImage: formState.entryImage || undefined,
+        direction: props.direction,
       },
     )
 

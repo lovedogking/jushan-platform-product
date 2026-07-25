@@ -153,7 +153,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     @Override
     public RecognitionResultVO manualOpenGate(Long laneId, Long operatorId, String reason,
                                               boolean isCharge, Integer feeCents, String plateNumber,
-                                              String entryImage) {
+                                              String entryImage, Integer direction) {
         log.info("人工开闸请求: laneId={}, operatorId={}, reason={}, isCharge={}, feeCents={}, plateNumber={}, hasEntryImage={}",
                 laneId, operatorId, reason, isCharge, feeCents, plateNumber, entryImage != null);
 
@@ -216,7 +216,8 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                 //        根据车道方向：入口→写入场记录，出口→写出场记录
                 try {
                     if (lane != null && plateNumber != null && !plateNumber.isEmpty()) {
-                        boolean isExitLane = lane.getType() != null && lane.getType() == 2;
+                        boolean isExitLane = (direction != null && direction == 2)
+                                || (lane.getType() != null && lane.getType() == 2);
                         if (isExitLane) {
                             // 出口车道：查询在场记录，执行出场
                             var inSession = parkingSessionService.getInByPlateNumber(plateNumber.toUpperCase());
