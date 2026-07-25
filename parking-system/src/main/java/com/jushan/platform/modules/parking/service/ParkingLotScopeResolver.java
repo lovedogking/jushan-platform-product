@@ -156,9 +156,11 @@ public class ParkingLotScopeResolver {
             return filterToTenant(authorizedIds, tenantId, userId);
         }
 
-        log.debug("用户 {} 无任何停车场授权: userId={}, tenantId={}, roles={}",
+        // 6. 未匹配任何显式授权规则 → 兜底：租户用户允许访问本租户全部停车场
+        //    避免新创建的租户账号因未配置 employee_parking_lot 而无法使用岗亭
+        log.debug("租户用户 {} 无显式授权记录，回退为全量租户访问: userId={}, tenantId={}, roles={}",
                 userId, userId, tenantId, roles);
-        return Collections.emptySet();
+        return null;
     }
 
     /**
