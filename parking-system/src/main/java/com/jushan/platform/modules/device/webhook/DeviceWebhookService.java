@@ -2,8 +2,12 @@ package com.jushan.platform.modules.device.webhook;
 
 import com.jushan.common.auth.TenantContext;
 import com.jushan.platform.modules.booth.vo.RecognitionResultVO;
+import com.jushan.platform.modules.device.client.DeviceAccessClient;
+import com.jushan.platform.modules.device.client.dto.DisplayResultDTO;
+import com.jushan.platform.modules.device.client.dto.VoiceResultDTO;
 import com.jushan.platform.modules.device.dto.DeviceWebhookEvent;
 import com.jushan.platform.modules.device.entity.Device;
+import com.jushan.platform.modules.device.service.DeviceService;
 import com.jushan.platform.modules.parking.entity.ParkingLane;
 import com.jushan.platform.modules.booth.entity.RecognitionEventLog;
 import com.jushan.platform.modules.device.mapper.DeviceMapper;
@@ -72,19 +76,22 @@ public class DeviceWebhookService {
     private final StringRedisTemplate stringRedisTemplate;
     private final BoothWebSocketPublisher wsPublisher;
     private final RecognitionEventLogMapper eventLogMapper;
+    private final DeviceAccessClient deviceAccessClient;
 
     public DeviceWebhookService(DeviceMapper deviceMapper,
                                 ParkingLaneMapper laneMapper,
                                 DeviceWebhookEventHandler eventHandler,
                                 ObjectProvider<StringRedisTemplate> redisTemplateProvider,
                                 BoothWebSocketPublisher wsPublisher,
-                                RecognitionEventLogMapper eventLogMapper) {
+                                RecognitionEventLogMapper eventLogMapper,
+                                DeviceAccessClient deviceAccessClient) {
         this.deviceMapper = deviceMapper;
         this.laneMapper = laneMapper;
         this.eventHandler = eventHandler;
         this.stringRedisTemplate = redisTemplateProvider.getIfAvailable();
         this.wsPublisher = wsPublisher;
         this.eventLogMapper = eventLogMapper;
+        this.deviceAccessClient = deviceAccessClient;
     }
 
     /**
@@ -234,6 +241,9 @@ public class DeviceWebhookService {
                     wsPublisher.sendRecognitionEvent(trustedParkingLotId, eventLog);
                 }
             }
+
+            // 7c. 自动语音+显示屏联动（设备级可配置）
+            triggerAutoVoiceAndDisplay(device, normalizedPlate, result);
 
             // 8. 记录处理完成
             log.info("Webhook 事件处理完成: eventId={}, plate={}, allowPass={}, sessionId={}",
@@ -406,5 +416,72 @@ public class DeviceWebhookService {
         Boolean success = stringRedisTemplate.opsForValue()
                 .setIfAbsent(key, "1", EVENT_TTL);
         return Boolean.TRUE.equals(success);
+    }
+
+    /**
+     * 按设备配置自动触发语音播报+显示屏联动。
+     * <p>
+     * 仅在设备开启 voice_enabled 且有对应模板时触发。
+     * 语音和显示屏各自独立，任一失败不影响另一者。
+     */
+    private void triggerAutoVoiceAndDisplay(Device device, String plate, RecognitionResultVO result) {
+        if (device.getVoiceEnabled() == null || device.getVoiceEnabled() != 1) {
+            return;
+        }
+
+        boolean allowPass = Boolean.TRUE.equals(result.getAllowPass());
+        String voiceTemplate = allowPass ? device.getVoiceWelcomeTemplate() : device.getVoiceDenyTemplate();
+        String displayTemplate = allowPass ? device.getDisplayWelcomeTemplate() : device.getDisplayDenyTemplate();
+
+        // 语音
+        if (voiceTemplate != null && !voiceTemplate.isBlank()) {
+            String voiceText = voiceTemplate.replace("{plate}", plate);
+            log.info("自动语音播报: deviceId={}, plate={}, allowPass={}, text=\"{}\"",
+                    device.getId(), plate, allowPass, voiceText);
+            try {
+                deviceAccessClient.voiceControl(device.getDeviceSn(),
+                        new com.jushan.platform.modules.device.client.dto.VoiceControlRequest("PLAY", voiceText, 1));
+            } catch (Exception e) {
+                log.warn("自动语音播报失败: deviceId={}, plate={}, error={}",
+                        device.getId(), plate, e.getMessage());
+            }
+        }
+
+        // 显示屏
+        if (displayTemplate != null && !displayTemplate.isBlank()) {
+            String displayText = displayTemplate.replace("{plate}", plate)
+                    .replace("\\n", " ");  // 兼容旧数据的字面 \n
+            log.info("自动显示屏: deviceId={}, plate={}, allowPass={}, text=\"{}\"",
+                    device.getId(), plate, allowPass, displayText);
+            try {
+                deviceAccessClient.displayText(device.getDeviceSn(),
+                        new com.jushan.platform.modules.device.client.dto.DisplayTextRequest(displayText, "HORIZONTAL"));
+                // 延迟恢复待机文字
+                scheduleIdleDisplay(device);
+            } catch (Exception e) {
+                log.warn("自动显示屏失败: deviceId={}, plate={}, error={}",
+                        device.getId(), plate, e.getMessage());
+            }
+        }
+    }
+
+    /** 识别联动显示后延迟恢复待机文字 */
+    private void scheduleIdleDisplay(Device device) {
+        int duration = device.getDisplayDurationSec() != null ? device.getDisplayDurationSec() : 5;
+        if (duration <= 0) return;
+        String idleText = device.getDisplayIdleText();
+        if (idleText == null || idleText.isBlank()) return;
+        String deviceSn = device.getDeviceSn();
+        java.util.concurrent.CompletableFuture
+                .runAsync(() -> {
+                    try {
+                        Thread.sleep(duration * 1000L);
+                        deviceAccessClient.displayText(deviceSn,
+                                new com.jushan.platform.modules.device.client.dto.DisplayTextRequest(idleText, "HORIZONTAL"));
+                        log.info("待机显示恢复: deviceSn={}, text=\"{}\"", deviceSn, idleText);
+                    } catch (Exception e) {
+                        log.warn("待机显示恢复失败: deviceSn={}, error={}", deviceSn, e.getMessage());
+                    }
+                });
     }
 }

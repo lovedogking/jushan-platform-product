@@ -478,9 +478,9 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
 
     @Override
     public VoiceResultDTO voiceControl(String deviceSn, VoiceControlRequest request) {
-        log.debug("语音播报: deviceSn={}, action={}, voiceId={}", deviceSn,
+        log.debug("语音播报: deviceSn={}, action={}, voiceText={}", deviceSn,
                 request != null ? request.getAction() : null,
-                request != null ? request.getVoiceId() : null);
+                request != null ? request.getVoiceText() : null);
 
         checkCircuitBreaker("voiceControl");
 

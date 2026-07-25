@@ -321,7 +321,7 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
     /**
      * 实时显示文字。
      */
-    public CompletableFuture<DisplayResult> displayText(String deviceId, String content, DisplayDirection direction) {
+    public CompletableFuture<DisplayResult> displayText(String deviceId, String content, DisplayDirection direction, String colorName) {
         Device device = deviceRegistry.getByDeviceId(deviceId);
         if (!productRegistry.hasCapability(device.getProductId(), DeviceCapability.DISPLAY_TEXT)) {
             throw new UnsupportedOperationException(
@@ -337,10 +337,10 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
         ensureMqttConnected();
 
         long startMs = System.currentTimeMillis();
-        log.info("[Display] Coordinator: displayText  deviceId={}  direction={}  content=\"{}\"",
-                deviceId, direction, content.replace("\n", "\\n"));
+        log.info("[Display] Coordinator: displayText  deviceId={}  direction={}  color={}  content=\"{}\"",
+                deviceId, direction, colorName, content.replace("\n", "\\n"));
 
-        return handler.displayText(device.getDeviceId(), content, direction)
+        return handler.displayText(device.getDeviceId(), content, direction, colorName)
                 .thenApply(ok -> {
                     long elapsed = System.currentTimeMillis() - startMs;
                     log.info("[Display] Coordinator: displayText done  deviceId={}  handlerResult={}  elapsedMs={}",
@@ -436,12 +436,70 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
     }
 
     /**
-     * 语音控制（一期不支持）。
+     * 语音控制（播放、停止）。
+     * <p>
+     * 通过 rs485 透传 OLM-M1D 0x30/0x31 命令到 LED 屏卡。
+     * 语音与显示内容分离，各自独立生命周期。
      */
     public CompletableFuture<VoiceControlResult> controlVoice(String deviceId, VoiceControlRequest req) {
-        log.warn("Qianyi controlVoice not implemented. deviceId={}", deviceId);
-        throw new UnsupportedOperationException(
-                "Qianyi camera does not support voice control yet.");
+        Device device = deviceRegistry.getByDeviceId(deviceId);
+        if (!productRegistry.hasCapability(device.getProductId(), DeviceCapability.VOICE_CONTROL)) {
+            throw new UnsupportedOperationException(
+                    "Device " + deviceId + " does not support voice control");
+        }
+        DeviceProduct product = productRegistry.getById(device.getProductId());
+        DeviceCommandLog cmdLog = commandLogService.recordRequest(
+                deviceId, product.getBrand(), "VOICE_CONTROL",
+                handler.getLastPlate(device.getDeviceId()),
+                device.getPlatformDeviceId(), device.getTenantId(),
+                device.getParkingLotId(), device.getLaneId());
+
+        ensureMqttConnected();
+
+        String action = req.getAction();
+        long startMs = System.currentTimeMillis();
+        log.info("[Display] Coordinator: controlVoice  deviceId={}  action={}  voiceText={}",
+                deviceId, action, req.getVoiceText());
+
+        CompletableFuture<Boolean> future;
+        switch (action) {
+            case "PLAY" -> {
+                if (req.getVoiceText() == null || req.getVoiceText().isEmpty()) {
+                    throw new IllegalArgumentException("voiceText is required for PLAY action");
+                }
+                int opt = req.getOpt() != null ? req.getOpt() : 0x01;
+                future = handler.playVoice(device.getDeviceId(), opt, req.getVoiceText());
+            }
+            case "STOP" -> future = handler.stopVoice(device.getDeviceId());
+            default -> throw new IllegalArgumentException("Unknown action: " + action
+                    + ". Supported: PLAY, STOP");
+        }
+
+        return future.thenApply(success -> {
+                    long elapsed = System.currentTimeMillis() - startMs;
+                    log.info("[Display] Coordinator: controlVoice done  deviceId={}  action={}  success={}  elapsedMs={}",
+                            deviceId, action, success, elapsed);
+                    commandLogService.recordResponse(cmdLog.getId(), success, null,
+                            success ? "Voice " + action + " executed" : "Device returned error");
+                    return VoiceControlResult.builder()
+                            .success(success)
+                            .action(action)
+                            .voiceText(req.getVoiceText())
+                            .message(success ? "Voice " + action + " executed" : "Device returned error")
+                            .build();
+                })
+                .exceptionally(e -> {
+                    long elapsed = System.currentTimeMillis() - startMs;
+                    log.error("[Display] Coordinator: controlVoice FAILED  deviceId={}  action={}  elapsedMs={}  errorType={}",
+                            deviceId, action, elapsed, e.getClass().getName(), e);
+                    commandLogService.recordResponse(cmdLog.getId(), false, null,
+                            "Command failed: " + e.getMessage());
+                    return VoiceControlResult.builder()
+                            .success(false)
+                            .action(action)
+                            .errorMessage(e.getMessage())
+                            .build();
+                });
     }
 
     /**

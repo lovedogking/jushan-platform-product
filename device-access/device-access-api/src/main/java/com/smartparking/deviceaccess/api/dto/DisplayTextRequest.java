@@ -44,6 +44,9 @@ public class DisplayTextRequest {
      */
     private java.util.List<int[]> color;
 
+    /** 颜色名称（简化版），如 "RED"、"GREEN"、"YELLOW"、"WHITE"。优先于 color 字段 */
+    private String colorName;
+
     /** 是否同步播放语音（可选，默认 false） */
     private boolean playVoice;
 

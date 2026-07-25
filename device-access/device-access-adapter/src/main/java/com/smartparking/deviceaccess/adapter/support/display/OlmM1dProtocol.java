@@ -95,6 +95,21 @@ public class OlmM1dProtocol {
     /** 默认文字颜色：白色 (R=255, G=255, B=255) */
     private static final int[] COLOR_WHITE = {0xFF, 0xFF, 0xFF, 0x00};
 
+    /** 预设颜色名 → RGBA */
+    private static final java.util.Map<String, int[]> COLOR_MAP = java.util.Map.of(
+            "RED",    new int[]{0xFF, 0x00, 0x00, 0x00},
+            "GREEN",  new int[]{0x00, 0xFF, 0x00, 0x00},
+            "YELLOW", new int[]{0xFF, 0xFF, 0x00, 0x00},
+            "BLUE",   new int[]{0x00, 0x00, 0xFF, 0x00},
+            "WHITE",  new int[]{0xFF, 0xFF, 0xFF, 0x00}
+    );
+
+    /** 根据颜色名称获取 RGBA 数组，未知名称返回白色 */
+    public static int[] colorFromName(String colorName) {
+        if (colorName == null) return COLOR_WHITE;
+        return COLOR_MAP.getOrDefault(colorName.toUpperCase(), COLOR_WHITE);
+    }
+
     // ──────────────────── 字体枚举 ────────────────────
 
     /**

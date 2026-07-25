@@ -343,17 +343,17 @@ public class DeviceController {
      * 权限：device:manage
      *
      * @param id   平台设备 ID
-     * @param body 包含 action、voiceId、variable 字段
+     * @param body 包含 action、voiceText、opt 字段
      */
     @PostMapping("/{id}/voice-control")
     @RequirePermission("device:manage")
     public R<VoiceResultDTO> voiceControl(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         String action = (String) body.getOrDefault("action", "PLAY");
-        Integer voiceId = body.get("voiceId") != null ? ((Number) body.get("voiceId")).intValue() : null;
-        String variable = (String) body.get("variable");
-        VoiceResultDTO result = deviceService.voiceControl(id, action, voiceId, variable);
-        log.info("语音播报完成: deviceId={}, action={}, voiceId={}, success={}",
-                id, action, voiceId, result.getSuccess());
+        String voiceText = (String) body.get("voiceText");
+        Integer opt = body.get("opt") != null ? ((Number) body.get("opt")).intValue() : null;
+        VoiceResultDTO result = deviceService.voiceControl(id, action, voiceText, opt);
+        log.info("语音播报完成: deviceId={}, action={}, voiceText={}, success={}",
+                id, action, voiceText, result.getSuccess());
         return R.ok(result);
     }
 

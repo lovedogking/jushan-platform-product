@@ -162,14 +162,14 @@ class BrandCommandDispatcherTest {
     void displayTextRoutesToQianyi() {
         CompletableFuture<DisplayResult> expected =
                 CompletableFuture.completedFuture(DisplayResult.builder().success(true).build());
-        when(qianyiCoordinator.displayText("dev-001", "hello", DisplayDirection.HORIZONTAL))
+        when(qianyiCoordinator.displayText("dev-001", "hello", DisplayDirection.HORIZONTAL, null))
                 .thenReturn(expected);
 
         CompletableFuture<DisplayResult> result = dispatcher.displayText("dev-001", product("芊熠"),
-                "hello", DisplayDirection.HORIZONTAL);
+                "hello", DisplayDirection.HORIZONTAL, null);
 
         assertThat(result).isSameAs(expected);
-        verify(qianyiCoordinator).displayText("dev-001", "hello", DisplayDirection.HORIZONTAL);
+        verify(qianyiCoordinator).displayText("dev-001", "hello", DisplayDirection.HORIZONTAL, null);
     }
 
     @Test

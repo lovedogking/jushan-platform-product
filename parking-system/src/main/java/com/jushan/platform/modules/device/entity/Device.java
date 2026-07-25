@@ -102,6 +102,27 @@ public class Device implements Serializable {
     /** 网关地址 */
     private String gateway;
 
+    /** 识别后自动语音播报开关（0=关闭, 1=开启） */
+    private Integer voiceEnabled;
+
+    /** 准入语音模板，{plate}=车牌占位符，如 "{plate},欢迎光临" */
+    private String voiceWelcomeTemplate;
+
+    /** 禁入语音模板，{plate}=车牌占位符，如 "{plate},禁止通行" */
+    private String voiceDenyTemplate;
+
+    /** 准入显示屏模板，{plate}=车牌占位符，\n=换行 */
+    private String displayWelcomeTemplate;
+
+    /** 禁入显示屏模板，{plate}=车牌占位符，\n=换行 */
+    private String displayDenyTemplate;
+
+    /** 待机默认显示文字，识别联动结束后恢复 */
+    private String displayIdleText;
+
+    /** 识别联动显示停留秒数，默认5，0=不自动恢复 */
+    private Integer displayDurationSec;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
@@ -167,6 +188,27 @@ public class Device implements Serializable {
 
     public String getGateway() { return gateway; }
     public void setGateway(String gateway) { this.gateway = gateway; }
+
+    public Integer getVoiceEnabled() { return voiceEnabled; }
+    public void setVoiceEnabled(Integer voiceEnabled) { this.voiceEnabled = voiceEnabled; }
+
+    public String getVoiceWelcomeTemplate() { return voiceWelcomeTemplate; }
+    public void setVoiceWelcomeTemplate(String voiceWelcomeTemplate) { this.voiceWelcomeTemplate = voiceWelcomeTemplate; }
+
+    public String getVoiceDenyTemplate() { return voiceDenyTemplate; }
+    public void setVoiceDenyTemplate(String voiceDenyTemplate) { this.voiceDenyTemplate = voiceDenyTemplate; }
+
+    public String getDisplayWelcomeTemplate() { return displayWelcomeTemplate; }
+    public void setDisplayWelcomeTemplate(String displayWelcomeTemplate) { this.displayWelcomeTemplate = displayWelcomeTemplate; }
+
+    public String getDisplayDenyTemplate() { return displayDenyTemplate; }
+    public void setDisplayDenyTemplate(String displayDenyTemplate) { this.displayDenyTemplate = displayDenyTemplate; }
+
+    public String getDisplayIdleText() { return displayIdleText; }
+    public void setDisplayIdleText(String displayIdleText) { this.displayIdleText = displayIdleText; }
+
+    public Integer getDisplayDurationSec() { return displayDurationSec; }
+    public void setDisplayDurationSec(Integer displayDurationSec) { this.displayDurationSec = displayDurationSec; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

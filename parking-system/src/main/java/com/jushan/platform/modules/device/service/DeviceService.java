@@ -378,6 +378,34 @@ public class DeviceService {
             wrapper.set(Device::getGateway, request.getGateway());
             hasUpdate = true;
         }
+        if (request.getVoiceEnabled() != null) {
+            wrapper.set(Device::getVoiceEnabled, request.getVoiceEnabled());
+            hasUpdate = true;
+        }
+        if (request.getVoiceWelcomeTemplate() != null) {
+            wrapper.set(Device::getVoiceWelcomeTemplate, request.getVoiceWelcomeTemplate().trim());
+            hasUpdate = true;
+        }
+        if (request.getVoiceDenyTemplate() != null) {
+            wrapper.set(Device::getVoiceDenyTemplate, request.getVoiceDenyTemplate().trim());
+            hasUpdate = true;
+        }
+        if (request.getDisplayWelcomeTemplate() != null) {
+            wrapper.set(Device::getDisplayWelcomeTemplate, request.getDisplayWelcomeTemplate().trim());
+            hasUpdate = true;
+        }
+        if (request.getDisplayDenyTemplate() != null) {
+            wrapper.set(Device::getDisplayDenyTemplate, request.getDisplayDenyTemplate().trim());
+            hasUpdate = true;
+        }
+        if (request.getDisplayIdleText() != null) {
+            wrapper.set(Device::getDisplayIdleText, request.getDisplayIdleText().trim());
+            hasUpdate = true;
+        }
+        if (request.getDisplayDurationSec() != null) {
+            wrapper.set(Device::getDisplayDurationSec, request.getDisplayDurationSec());
+            hasUpdate = true;
+        }
 
         if (!hasUpdate) {
             return toVO(device, vendorMapper.selectById(device.getVendorId()),
@@ -1569,7 +1597,8 @@ public class DeviceService {
         }
 
         String deviceSn = device.getDeviceSn();
-        DisplayTextRequest request = new DisplayTextRequest(content, direction, fontSize, color);
+        DisplayTextRequest request = new DisplayTextRequest(content, direction,
+                color != null ? color : null);
 
         ParkingLot lot = getParkingLotWithAuth(device.getParkingLotId());
         Long tenantId = lot.getTenantId();
@@ -1661,7 +1690,7 @@ public class DeviceService {
      * @return 播报结果
      */
     @Transactional
-    public VoiceResultDTO voiceControl(Long deviceId, String action, Integer voiceId, String variable) {
+    public VoiceResultDTO voiceControl(Long deviceId, String action, String voiceText, Integer opt) {
         Device device = getDeviceWithAuth(deviceId);
 
         if (!STATUS_ENABLED.equals(device.getStatus())) {
@@ -1674,15 +1703,15 @@ public class DeviceService {
         }
 
         String deviceSn = device.getDeviceSn();
-        VoiceControlRequest request = new VoiceControlRequest(action, voiceId, variable);
+        VoiceControlRequest request = new VoiceControlRequest(action, voiceText, opt);
 
         ParkingLot lot = getParkingLotWithAuth(device.getParkingLotId());
         Long tenantId = lot.getTenantId();
         String resultStatus = "SUCCESS";
         String failReason = "";
 
-        log.info("发送语音播报: deviceId={}, deviceSn={}, action={}, voiceId={}, variable={}",
-                deviceId, deviceSn, action, voiceId, variable);
+        log.info("发送语音播报: deviceId={}, deviceSn={}, action={}, voiceText={}, opt={}",
+                deviceId, deviceSn, action, voiceText, opt);
 
         try {
             VoiceResultDTO result = deviceAccessClient.voiceControl(deviceSn, request);
@@ -1692,13 +1721,13 @@ public class DeviceService {
                 failReason = result.getMessage();
             }
             writeControlAuditLog(device, lot, tenantId, "voice_control", resultStatus, failReason,
-                    "action=" + action + ",voiceId=" + voiceId);
+                    "action=" + action + ",voiceText=" + voiceText);
             return result;
         } catch (BusinessException e) {
             resultStatus = "FAILED";
             failReason = e.getMessage();
             writeControlAuditLog(device, lot, tenantId, "voice_control", resultStatus, failReason,
-                    "action=" + action + ",voiceId=" + voiceId);
+                    "action=" + action + ",voiceText=" + voiceText);
             log.error("语音播报失败: deviceId={}, error={}", deviceId, e.getMessage());
             throw e;
         }
@@ -2165,6 +2194,17 @@ public class DeviceService {
         vo.setStatus(device.getStatus());
         vo.setCapabilities(device.getCapabilities());
         vo.setDescription(device.getDescription());
+        vo.setIpAddress(device.getIpAddress());
+        vo.setPort(device.getPort());
+        vo.setSubnetMask(device.getSubnetMask());
+        vo.setGateway(device.getGateway());
+        vo.setVoiceEnabled(device.getVoiceEnabled());
+        vo.setVoiceWelcomeTemplate(device.getVoiceWelcomeTemplate());
+        vo.setVoiceDenyTemplate(device.getVoiceDenyTemplate());
+        vo.setDisplayWelcomeTemplate(device.getDisplayWelcomeTemplate());
+        vo.setDisplayDenyTemplate(device.getDisplayDenyTemplate());
+        vo.setDisplayIdleText(device.getDisplayIdleText());
+        vo.setDisplayDurationSec(device.getDisplayDurationSec());
         vo.setCreatedAt(device.getCreatedAt());
         vo.setUpdatedAt(device.getUpdatedAt());
         return vo;

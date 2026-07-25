@@ -602,7 +602,7 @@ public class ZhenshiDeviceCoordinator implements DeviceCoordinator {
     /**
      * 实时显示文字。
      */
-    public CompletableFuture<DisplayResult> displayText(String deviceId, String content, DisplayDirection direction) {
+    public CompletableFuture<DisplayResult> displayText(String deviceId, String content, DisplayDirection direction, String colorName) {
         Device device = deviceRegistry.getByDeviceId(deviceId);
         if (!productRegistry.hasCapability(device.getProductId(), DeviceCapability.DISPLAY_TEXT)) {
             throw new UnsupportedOperationException(

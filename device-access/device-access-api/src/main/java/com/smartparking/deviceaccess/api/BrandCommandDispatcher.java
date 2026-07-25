@@ -126,8 +126,8 @@ public class BrandCommandDispatcher {
      * 实时显示文字分派。
      */
     public CompletableFuture<DisplayResult> displayText(String deviceId, DeviceProduct product,
-                                                          String content, DisplayDirection direction) {
-        return getCoordinator(product).displayText(deviceId, content, direction);
+                                                          String content, DisplayDirection direction, String colorName) {
+        return getCoordinator(product).displayText(deviceId, content, direction, colorName);
     }
 
     /**

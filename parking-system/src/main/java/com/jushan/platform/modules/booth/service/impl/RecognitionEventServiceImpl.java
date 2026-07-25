@@ -800,8 +800,8 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
             return result;
         }
 
-        // 一期：仅固定车白名单自动放行；非白名单不自动开闸、不计费，事件推送岗亭等待人工放行
-        if (!"WHITE".equals(decision.getVehicleType())) {
+        // 根据车辆类型判定是否允许自动出场
+        if (!Boolean.TRUE.equals(decision.getAllowExit())) {
             result.setAllowPass(false);
             result.setGateCommandSent(false);
             result.setGateDeviceAck(false);

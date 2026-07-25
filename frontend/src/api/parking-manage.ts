@@ -132,6 +132,13 @@ export interface DeviceVO {
   port?: number
   subnetMask?: string
   gateway?: string
+  voiceEnabled?: number
+  voiceWelcomeTemplate?: string
+  voiceDenyTemplate?: string
+  displayWelcomeTemplate?: string
+  displayDenyTemplate?: string
+  displayIdleText?: string
+  displayDurationSec?: number
   recognitionDirection?: number | null
 }
 
@@ -180,6 +187,13 @@ export interface DeviceUpdateCmd {
   port?: number
   subnetMask?: string
   gateway?: string
+  voiceEnabled?: number
+  voiceWelcomeTemplate?: string | null
+  voiceDenyTemplate?: string | null
+  displayWelcomeTemplate?: string | null
+  displayDenyTemplate?: string | null
+  displayIdleText?: string | null
+  displayDurationSec?: number
 }
 
 export function createDevice(data: DeviceCreateCmd): Promise<DeviceVO> {
@@ -212,6 +226,27 @@ export function getDeviceVendors(): Promise<DeviceVendor[]> {
 
 export function getDeviceModels(vendorId?: number): Promise<DeviceModel[]> {
   return request.get('/admin/devices/models', vendorId ? { vendorId } : {})
+}
+
+// ============ Device Display & Voice Control ============
+
+/** 显示屏实时文字 */
+export function deviceDisplayText(deviceId: number, data: {
+  content: string
+  direction?: string
+  fontSize?: number
+  color?: string
+}): Promise<{ success: boolean; message?: string }> {
+  return request.post(`/admin/devices/${deviceId}/display-text`, data)
+}
+
+/** 语音播报 */
+export function deviceVoiceControl(deviceId: number, data: {
+  action: string
+  voiceText?: string
+  opt?: number
+}): Promise<{ success: boolean; message?: string }> {
+  return request.post(`/admin/devices/${deviceId}/voice-control`, data)
 }
 
 // ============ Vehicle List ============

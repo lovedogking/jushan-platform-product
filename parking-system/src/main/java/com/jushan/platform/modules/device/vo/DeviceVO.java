@@ -33,6 +33,25 @@ public class DeviceVO {
     private Integer port;
     private String subnetMask;
     private String gateway;
+
+    /** 识别后自动语音播报开关（0=关闭, 1=开启） */
+    private Integer voiceEnabled;
+
+    /** 准入语音模板，{plate}=车牌占位符 */
+    private String voiceWelcomeTemplate;
+
+    /** 禁入语音模板，{plate}=车牌占位符 */
+    private String voiceDenyTemplate;
+
+    /** 准入显示屏模板 */
+    private String displayWelcomeTemplate;
+
+    /** 禁入显示屏模板 */
+    private String displayDenyTemplate;
+
+    private String displayIdleText;
+    private Integer displayDurationSec;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -100,6 +119,27 @@ public class DeviceVO {
 
     public String getGateway() { return gateway; }
     public void setGateway(String gateway) { this.gateway = gateway; }
+
+    public Integer getVoiceEnabled() { return voiceEnabled; }
+    public void setVoiceEnabled(Integer voiceEnabled) { this.voiceEnabled = voiceEnabled; }
+
+    public String getVoiceWelcomeTemplate() { return voiceWelcomeTemplate; }
+    public void setVoiceWelcomeTemplate(String voiceWelcomeTemplate) { this.voiceWelcomeTemplate = voiceWelcomeTemplate; }
+
+    public String getVoiceDenyTemplate() { return voiceDenyTemplate; }
+    public void setVoiceDenyTemplate(String voiceDenyTemplate) { this.voiceDenyTemplate = voiceDenyTemplate; }
+
+    public String getDisplayWelcomeTemplate() { return displayWelcomeTemplate; }
+    public void setDisplayWelcomeTemplate(String displayWelcomeTemplate) { this.displayWelcomeTemplate = displayWelcomeTemplate; }
+
+    public String getDisplayDenyTemplate() { return displayDenyTemplate; }
+    public void setDisplayDenyTemplate(String displayDenyTemplate) { this.displayDenyTemplate = displayDenyTemplate; }
+
+    public String getDisplayIdleText() { return displayIdleText; }
+    public void setDisplayIdleText(String displayIdleText) { this.displayIdleText = displayIdleText; }
+
+    public Integer getDisplayDurationSec() { return displayDurationSec; }
+    public void setDisplayDurationSec(Integer displayDurationSec) { this.displayDurationSec = displayDurationSec; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

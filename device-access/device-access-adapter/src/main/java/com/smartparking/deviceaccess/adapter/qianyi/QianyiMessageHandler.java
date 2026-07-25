@@ -600,12 +600,14 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
      * @return Future，true 表示设备应答 status=ok
      */
     public CompletableFuture<Boolean> displayText(String deviceSn, String content,
-                                                   DisplayDirection direction) {
+                                                   DisplayDirection direction, String colorName) {
         List<String> lines = toLines(content, direction);
-        byte[] frame = OlmM1dProtocol.buildMultiLineFrame(OlmM1dProtocol.DA_DEFAULT, lines.size(), lines);
-        log.info("[Display] ACTION: DISPLAY_TEXT  deviceSn={}  direction={}  rows={}  cmd=rs485" +
+        int[] color = OlmM1dProtocol.colorFromName(colorName);
+        byte[] frame = OlmM1dProtocol.buildMultiLineFrame(OlmM1dProtocol.DA_DEFAULT, lines.size(), lines,
+                OlmM1dProtocol.FontType.SONG_16, java.util.List.of(color), null);
+        log.info("[Display] ACTION: DISPLAY_TEXT  deviceSn={}  direction={}  rows={}  color={}  cmd=rs485" +
                         "\n  content=\"{}\"",
-                deviceSn, direction, lines.size(), content.replace("\n", "\\n"));
+                deviceSn, direction, lines.size(), colorName, content.replace("\n", "\\n"));
         return sendRs485(deviceSn, List.of(frame), 10)
                 .thenApply(reply -> {
                     QianyiCommandResult result = parseCommandResult(reply);
@@ -613,6 +615,12 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
                             deviceSn, result.isSuccess(), result.getStatus());
                     return result.isSuccess();
                 });
+    }
+
+    /** 无颜色参数的便捷方法（兼容旧调用） */
+    public CompletableFuture<Boolean> displayText(String deviceSn, String content,
+                                                   DisplayDirection direction) {
+        return displayText(deviceSn, content, direction, null);
     }
 
     /**
@@ -655,6 +663,54 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
                     deviceSn, allOk, lines.size());
             return allOk;
         });
+    }
+
+    // ═══════════════════════════════════════════
+    // 语音控制（通过 rs485 透传 OLM-M1D 协议帧）
+    // ═══════════════════════════════════════════
+
+    /**
+     * 播放语音。
+     * <p>
+     * 对应 OLM-M1D 0x30 命令（文本匹配模式），经 rs485 base64 透传到屏卡。
+     * 显示屏通过词组匹配查找内置语音库播放。
+     *
+     * @param deviceSn  设备序列号
+     * @param opt       操作选项：0x00=添加到队列不播放, 0x01=添加到队列并播放（默认）, 0x02=清除队列后播放
+     * @param voiceText 播报文本（GBK编码），如"欢迎光临,请入场停车"
+     * @return Future，true 表示设备应答 status=ok
+     */
+    public CompletableFuture<Boolean> playVoice(String deviceSn, int opt, String voiceText) {
+        byte[] frame = OlmM1dProtocol.buildPlayVoiceFrame(OlmM1dProtocol.DA_DEFAULT, voiceText, opt);
+        log.info("[Display] ACTION: PLAY_VOICE  deviceSn={}  opt={}  voiceText=\"{}\"  cmd=0x30",
+                deviceSn, opt, voiceText);
+        return sendRs485(deviceSn, List.of(frame), 10)
+                .thenApply(reply -> {
+                    QianyiCommandResult result = parseCommandResult(reply);
+                    log.info("[Display] PLAY_VOICE result: deviceSn={}  success={}  status={}",
+                            deviceSn, result.isSuccess(), result.getStatus());
+                    return result.isSuccess();
+                });
+    }
+
+    /**
+     * 停止语音。
+     * <p>
+     * 对应 OLM-M1D 0x31 命令，经 rs485 base64 透传到屏卡。
+     *
+     * @param deviceSn 设备序列号
+     * @return Future，true 表示设备应答 status=ok
+     */
+    public CompletableFuture<Boolean> stopVoice(String deviceSn) {
+        byte[] frame = OlmM1dProtocol.buildStopVoiceFrame(OlmM1dProtocol.DA_DEFAULT);
+        log.info("[Display] ACTION: STOP_VOICE  deviceSn={}  cmd=0x31", deviceSn);
+        return sendRs485(deviceSn, List.of(frame), 10)
+                .thenApply(reply -> {
+                    QianyiCommandResult result = parseCommandResult(reply);
+                    log.info("[Display] STOP_VOICE result: deviceSn={}  success={}  status={}",
+                            deviceSn, result.isSuccess(), result.getStatus());
+                    return result.isSuccess();
+                });
     }
 
     // ──────────────────── 工具方法 ────────────────────

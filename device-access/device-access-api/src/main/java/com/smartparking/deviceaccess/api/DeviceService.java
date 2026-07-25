@@ -262,7 +262,7 @@ public class DeviceService {
     public CompletableFuture<DisplayResult> displayText(String deviceId, DisplayTextRequest req) {
         DeviceWithProduct dp = getDeviceWithProduct(deviceId);
         requireCapability(deviceId, dp.product(), DeviceCapability.DISPLAY_TEXT);
-        return brandDispatcher.displayText(deviceId, dp.product(), req.getContent(), req.getDirection());
+        return brandDispatcher.displayText(deviceId, dp.product(), req.getContent(), req.getDirection(), req.getColorName());
     }
 
     public CompletableFuture<DisplayResult> saveDisplay(String deviceId, DisplaySaveRequest req) {

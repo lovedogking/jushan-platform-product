@@ -2,7 +2,7 @@
 
 > **包路径**：`device-access/`（独立多模块 Maven 工程，根 pom 含 7 个子模块）
 > **职责**：与硬件设备通信（MQTT）、协议适配（臻识/信路通/芊熠）、Webhook 推送事件到 Platform、设备注册与心跳管理。
-> **最近更新**：2026-07-25（v1.6.1：修复 WebSocket 握手 403——SecurityConfig /ws/** permitAll + nginx location = /ws；DeviceStatusPollingTask 写快照表修复离线误判；前端 WebSocket 连 /ws 原生端点）
+> **最近更新**：2026-07-25（v2.3：全链路颜色支持——DisplayTextRequest 新增 colorName 字段 → BrandCommandDispatcher/DeviceCoordinator 签名扩展 → QianyiMessageHandler.displayText 通过 OlmM1dProtocol.colorFromName 转换 RGBA 构建多行帧；v2.2：芊熠补全 VOICE_CONTROL——QianyiMessageHandler 新增 playVoice/stopVoice；v1.6.1：WebSocket/Security/心跳修复）
 
 ---
 
@@ -67,7 +67,7 @@
 
 | 类 | 位置 | 功能 |
 |---|---|---|
-| `QianyiMessageHandler` | adapter/qianyi | 处理芊熠 MQTT 注册/心跳/识别结果；发送 iooutput（开闸 `sendOpenGate` ionum=0 / 关闸 `sendCloseGate` ionum=2，均 action=on 脉冲触发）、barrierKeepOpen、syncSysTime、RS485、`snapshot`/`tarkphoto` 等命令并等待应答。SN 统一小写规范化；下行主题三级解析 |
+| `QianyiMessageHandler` | adapter/qianyi | 处理芊熠 MQTT 注册/心跳/识别结果；发送 iooutput（开闸 `sendOpenGate` ionum=0 / 关闸 `sendCloseGate` ionum=2，均 action=on 脉冲触发）、barrierKeepOpen、syncSysTime、RS485（显示屏 `displayText`/`saveDisplay`、语音 `playVoice`/`stopVoice` 透传 OLM-M1D 0x30/0x31）、`snapshot`/`tarkphoto` 等命令并等待应答。SN 统一小写规范化；下行主题三级解析 |
 | `QianyiCommandResult` | adapter/qianyi | 芊熠命令应答结果封装（status 字符串：ok/错误描述） |
 | `QianyiDeviceCoordinator` | api | 芊熠设备命令编排：查设备 → 能力校验 → MQTT 校验 → Handler → 等待应答（开/关闸、常开、对时、显示屏、语音、外设、主动抓拍） |
 

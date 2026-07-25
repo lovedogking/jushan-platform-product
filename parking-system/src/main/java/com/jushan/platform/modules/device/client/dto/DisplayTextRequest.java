@@ -16,19 +16,20 @@ public class DisplayTextRequest {
     /** 显示方向：HORIZONTAL / VERTICAL */
     private String direction;
 
-    /** 字体大小 */
-    private Integer fontSize;
-
-    /** 文字颜色 */
-    private String color;
+    /** 颜色名称：RED / GREEN / YELLOW / WHITE */
+    private String colorName;
 
     public DisplayTextRequest() {}
 
-    public DisplayTextRequest(String content, String direction, Integer fontSize, String color) {
+    public DisplayTextRequest(String content, String direction) {
         this.content = content;
         this.direction = direction;
-        this.fontSize = fontSize;
-        this.color = color;
+    }
+
+    public DisplayTextRequest(String content, String direction, String colorName) {
+        this.content = content;
+        this.direction = direction;
+        this.colorName = colorName;
     }
 
     // ==================== getter / setter ====================
@@ -39,9 +40,6 @@ public class DisplayTextRequest {
     public String getDirection() { return direction; }
     public void setDirection(String direction) { this.direction = direction; }
 
-    public Integer getFontSize() { return fontSize; }
-    public void setFontSize(Integer fontSize) { this.fontSize = fontSize; }
-
-    public String getColor() { return color; }
-    public void setColor(String color) { this.color = color; }
+    public String getColorName() { return colorName; }
+    public void setColorName(String colorName) { this.colorName = colorName; }
 }

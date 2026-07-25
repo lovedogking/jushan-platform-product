@@ -77,8 +77,9 @@ public interface DeviceCoordinator {
 
     /**
      * 实时显示文字。
+     * @param colorName 颜色名称（"RED"/"GREEN"/"YELLOW"/"WHITE"），null=默认白色
      */
-    CompletableFuture<DisplayResult> displayText(String deviceId, String content, DisplayDirection direction);
+    CompletableFuture<DisplayResult> displayText(String deviceId, String content, DisplayDirection direction, String colorName);
 
     /**
      * 保存显示内容。

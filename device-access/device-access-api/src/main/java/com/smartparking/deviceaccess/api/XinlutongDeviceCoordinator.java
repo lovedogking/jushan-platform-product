@@ -465,7 +465,7 @@ public class XinlutongDeviceCoordinator implements DeviceCoordinator {
 
     /**
      * 瀹炴椂鏄剧ず鏂囧瓧銆?     */
-    public CompletableFuture<DisplayResult> displayText(String deviceId, String content, DisplayDirection direction) {
+    public CompletableFuture<DisplayResult> displayText(String deviceId, String content, DisplayDirection direction, String colorName) {
         Device device = deviceRegistry.getByDeviceId(deviceId);
         if (!productRegistry.hasCapability(device.getProductId(), DeviceCapability.DISPLAY_TEXT)) {
             throw new UnsupportedOperationException(
