@@ -2,7 +2,7 @@
 
 > **包路径**：`device-access/`（独立多模块 Maven 工程，根 pom 含 7 个子模块）
 > **职责**：与硬件设备通信（MQTT）、协议适配（臻识/信路通/芊熠）、Webhook 推送事件到 Platform、设备注册与心跳管理。
-> **最近更新**：2026-07-25（v2.4：OlmM1dProtocol.colorFromName 颜色名→RGBA 转换；DisplayTextRequest 新增 colorName 字段 → BrandCommandDispatcher/DeviceCoordinator displayText 签名扩展；DB 迁移 V20260725003 给 QY-01/QY-Q3 追加 VOICE_CONTROL；v2.2：QianyiMessageHandler 新增 playVoice/stopVoice 经 rs485 透传 OLM-M1D 0x30/0x31；v1.6.1：WebSocket/Security/心跳修复）
+> **最近更新**：2026-07-25（v2.5：芊熠抓拍优化——tarkphoto 优先(400ms)，snapshot 兜底，超时 10s→5s；v2.4：颜色支持 colorName/RGBA；v2.2：VOICE_CONTROL playVoice/stopVoice；v1.6.1：WebSocket/Security/心跳修复）
 
 ---
 
