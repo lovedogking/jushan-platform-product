@@ -373,20 +373,22 @@ public class DeviceWebhookService {
     /**
      * 解析抓拍时间（ISO-8601 UTC 转本地时区，或 yyyy-MM-dd HH:mm:ss），失败回退当前时间。
      */
+    private static final java.time.ZoneId SHANGHAI = java.time.ZoneId.of("Asia/Shanghai");
+
     private LocalDateTime parseCaptureTime(String captureTime) {
         if (captureTime == null || captureTime.isBlank()) {
-            return LocalDateTime.now();
+            return LocalDateTime.now(SHANGHAI);
         }
         try {
             return java.time.Instant.parse(captureTime)
-                    .atZone(java.time.ZoneId.systemDefault())
+                    .atZone(SHANGHAI)
                     .toLocalDateTime();
         } catch (Exception ignored) {
             try {
                 return LocalDateTime.parse(captureTime,
                         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
             } catch (Exception e) {
-                return LocalDateTime.now();
+                return LocalDateTime.now(SHANGHAI);
             }
         }
     }
