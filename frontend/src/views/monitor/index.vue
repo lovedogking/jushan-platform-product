@@ -3,14 +3,14 @@
     <!-- 顶部栏 -->
     <div class="page-header">
       <div class="header-left">
-        <span class="page-title">实时监控面板</span>
-        <a-tag :color="statusColor">{{ statusText }}</a-tag>
+        <span class="page-title">岗亭工作区</span>
+        <a-tag color="green">在线</a-tag>
+        <span style="margin-left:16px;color:#6b7280;font-size:13px">{{ currentTime }}</span>
       </div>
       <div class="header-right">
-        <a-button @click="refreshDevices">刷新设备</a-button>
-        <a-badge :count="unhandledRecognitionFailedCount" :overflow-count="99">
-          <a-button @click="tempPlateDrawerOpen = true">无牌车处理</a-button>
-        </a-badge>
+        <span style="margin-right:12px;color:#374151;font-size:13px">{{ currentUser }}</span>
+        <a-button size="small" @click="refreshDevices">刷新设备</a-button>
+        <a-button size="small" style="margin-left:8px" @click="handleLogout">退出</a-button>
       </div>
     </div>
 
@@ -823,6 +823,19 @@ const statusColor = computed(() => {
   return map[store.connectionStatus] || 'default'
 })
 
+const currentTime = ref('')
+const currentUser = ref('')
+let timeTimer: ReturnType<typeof setInterval> | null = null
+
+function updateTime() {
+  currentTime.value = dayjs().format('YYYY-MM-DD HH:mm:ss')
+}
+
+function handleLogout() {
+  sessionStorage.removeItem('jushan_access_token')
+  window.location.href = '/login'
+}
+
 const criticalAlertMessages = computed(() => {
   return store.criticalAlerts.map((a) => a.message).join('；')
 })
@@ -1165,6 +1178,13 @@ async function refreshDevices() {
 
 onMounted(() => {
   loadLotOptions()
+  updateTime()
+  timeTimer = setInterval(updateTime, 1000)
+  // 从 sessionStorage 读取用户名
+  const userStr = sessionStorage.getItem('jushan_user')
+  if (userStr) {
+    try { currentUser.value = JSON.parse(userStr).username || JSON.parse(userStr).name || '' } catch {}
+  }
   const saved = sessionStorage.getItem(LOT_ID_KEY)
   if (saved) {
     handleLotSelect(Number(saved))
@@ -1172,6 +1192,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (timeTimer) { clearInterval(timeTimer); timeTimer = null }
   wsClient?.disconnect()
   if (remoteGateDismissTimer) {
     clearTimeout(remoteGateDismissTimer)
