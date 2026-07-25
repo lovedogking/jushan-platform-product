@@ -59,6 +59,8 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
     private final ImageStorageService imageStorageService;
 
     private static final long DEFAULT_TIMEOUT_SECONDS = 10;
+    /** 抓拍命令超时（snapshot 不可用时快速回退） */
+    private static final long CAPTURE_TIMEOUT_SECONDS = 5;
 
     @Override
     public String getBrand() {
@@ -516,8 +518,8 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
     /**
      * 主动抓拍。
      * <p>
-     * 优先使用通用 {@code snapshot} 命令获取全景图；失败或无图时回退到
-     * 车牌相机专用 {@code tarkphoto} 命令获取车牌特写图。
+     * 优先使用车牌相机专用 {@code tarkphoto} 命令获取车牌特写图；失败时回退到
+     * 通用 {@code snapshot} 命令获取全景图。
      * 图片保存到本地存储后返回可访问 URL。
      */
     @Override
@@ -535,20 +537,8 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
         long startMs = System.currentTimeMillis();
         log.info("[Capture] Coordinator: capture  deviceId={}", deviceId);
 
-        return trySnapshot(device)
-                .thenCompose(snapshotResult -> {
-                    if (snapshotResult != null && snapshotResult.isSuccess()) {
-                        long elapsed = System.currentTimeMillis() - startMs;
-                        log.info("[Capture] Coordinator: snapshot ok  deviceId={}  imageUrl={}  elapsedMs={}",
-                                deviceId, snapshotResult.getImageUrl(), elapsed);
-                        commandLogService.recordResponse(cmdLog.getId(), true, null, "snapshot ok");
-                        return CompletableFuture.completedFuture(snapshotResult);
-                    }
-                    String reason = snapshotResult != null ? snapshotResult.getMessage() : "null";
-                    log.info("[Capture] Coordinator: snapshot failed/empty, trying tarkphoto  deviceId={}  reason={}",
-                            deviceId, reason);
-                    return tryTarkphoto(device);
-                })
+        // 芊熠 Q3 snapshot 命令通常不响应（10s 超时），tarkphoto 仅 400ms，优先走 tarkphoto
+        return tryTarkphoto(device)
                 .thenCompose(tarkphotoResult -> {
                     if (tarkphotoResult != null && tarkphotoResult.isSuccess()) {
                         long elapsed = System.currentTimeMillis() - startMs;
@@ -558,7 +548,20 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
                         return CompletableFuture.completedFuture(tarkphotoResult);
                     }
                     String reason = tarkphotoResult != null ? tarkphotoResult.getMessage() : "null";
-                    String msg = "snapshot failed, tarkphoto also failed: " + reason;
+                    log.info("[Capture] Coordinator: tarkphoto failed/empty, trying snapshot  deviceId={}  reason={}",
+                            deviceId, reason);
+                    return trySnapshot(device);
+                })
+                .thenCompose(snapshotResult -> {
+                    if (snapshotResult != null && snapshotResult.isSuccess()) {
+                        long elapsed = System.currentTimeMillis() - startMs;
+                        log.info("[Capture] Coordinator: snapshot ok  deviceId={}  imageUrl={}  elapsedMs={}",
+                                deviceId, snapshotResult.getImageUrl(), elapsed);
+                        commandLogService.recordResponse(cmdLog.getId(), true, null, "snapshot ok");
+                        return CompletableFuture.completedFuture(snapshotResult);
+                    }
+                    String reason = snapshotResult != null ? snapshotResult.getMessage() : "null";
+                    String msg = "tarkphoto failed, snapshot also failed: " + reason;
                     log.warn("[Capture] Coordinator: capture failed  deviceId={}  reason={}", deviceId, msg);
                     commandLogService.recordResponse(cmdLog.getId(), false, null, msg);
                     return CompletableFuture.completedFuture(
@@ -613,7 +616,7 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
      */
     private CompletableFuture<CaptureResultDTO> trySnapshot(Device device) {
         String deviceSn = device.getDeviceId();
-        return handler.sendSnapshot(deviceSn, DEFAULT_TIMEOUT_SECONDS)
+        return handler.sendSnapshot(deviceSn, CAPTURE_TIMEOUT_SECONDS)
                 .thenApply(reply -> {
                     String picture = (String) reply.get("picture");
                     if (picture != null && !picture.isBlank()) {
@@ -642,7 +645,7 @@ public class QianyiDeviceCoordinator implements DeviceCoordinator {
      */
     private CompletableFuture<CaptureResultDTO> tryTarkphoto(Device device) {
         String deviceSn = device.getDeviceId();
-        return handler.sendTarkphoto(deviceSn, DEFAULT_TIMEOUT_SECONDS)
+        return handler.sendTarkphoto(deviceSn, CAPTURE_TIMEOUT_SECONDS)
                 .thenApply(reply -> {
                     String platePic = (String) reply.get("plate_pic");
                     if (platePic != null && !platePic.isBlank()) {
