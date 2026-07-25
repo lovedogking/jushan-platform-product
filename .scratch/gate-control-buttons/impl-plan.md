@@ -7,7 +7,7 @@
 | 项目 | 说明 |
 |---|---|
 | 臻识 C5 能力 | OPEN_GATE, CLOSE_GATE, KEEP_OPEN, KEEP_CLOSE |
-| 芊熠 Q8 能力 | OPEN_GATE, KEEP_OPEN |
+| 芊熠 Q3 能力 | OPEN_GATE, KEEP_OPEN |
 | DeviceModel 兜底 | `/gate-capabilities` 优先 `Device.capabilities`，空则 fallback `DeviceModel.capabilities` |
 | 常关语义 | 持久锁定关闸（对称常开），取消复用 `unlockGate` 恢复 AUTO |
 
@@ -20,7 +20,7 @@
 > 依赖：无
 
 - 更新 `device_model` 表中臻识 C5 行的 `capabilities` 为 `OPEN_GATE,CLOSE_GATE,KEEP_OPEN,KEEP_CLOSE`
-- 更新/确认芊熠 Q8 行的 `capabilities` 为 `OPEN_GATE,KEEP_OPEN`
+- 更新/确认芊熠 Q3 行的 `capabilities` 为 `OPEN_GATE,KEEP_OPEN`
 
 **验证**：SQL 查询确认两行数据正确。
 
@@ -153,4 +153,4 @@ export async function manualLockCloseGate(laneId: number, reason: string): Promi
 1. `mvn compile -pl parking-system -am -q` — 后端编译通过
 2. `mvn test -pl parking-system` — 178 pass / 12 预存错误不变
 3. 前端 `npm run build` — 无 TS 错误
-4. 手工验证：确认臻识 C5 设备显示四个按钮，芊熠 Q8 显示两个按钮
+4. 手工验证：确认臻识 C5 设备显示四个按钮，芊熠 Q3 显示两个按钮

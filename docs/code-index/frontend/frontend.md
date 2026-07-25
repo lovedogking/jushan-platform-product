@@ -61,6 +61,6 @@ frontend/src/
 | `utils/websocket.ts` | STOMP over WebSocket（接收实时监控数据） |
 | `utils/offline-queue.ts` | 离线时缓存请求到 localStorage 并在恢复时重放 |
 | `stores/monitor.ts` | 中心化监控状态（设备列表、在场车辆、余位、异常） |
-| `views/monitor/` | 监控大屏主页面（实时设备/车位/事件/异常面板；识别事件列表与车道卡片实时显示抓拍图；车道卡片按钮按 `gateCapabilities` 接口返回的能力动态渲染——Q8车道只显示「开闸」「常开/取消常开」，C5车道显示「开闸」「关闸」「常开/取消常开」「常关/取消常关」；MIXED 车道按方向拆分为入口/出口两张独立卡片；手动放行弹窗预填最近识别车牌） |
+| `views/monitor/` | 监控大屏主页面（实时设备/车位/事件/异常面板；识别事件列表与车道卡片实时显示抓拍图；车道卡片按钮按 `gateCapabilities` 接口返回的能力动态渲染——Q3车道只显示「开闸」「常开/取消常开」，C5车道显示「开闸」「关闸」「常开/取消常开」「常关/取消常关」；MIXED 车道按方向拆分为入口/出口两张独立卡片；手动放行弹窗预填最近识别车牌） |
 | `views/operation/AccessRecords.vue` | 运营端通行记录页（分页/筛选，含入场抓拍图列） |
 | `.env.development` / `.env.production` | 环境变量（API base URL / WebSocket） |

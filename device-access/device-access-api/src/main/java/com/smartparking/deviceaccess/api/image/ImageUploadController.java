@@ -1,5 +1,6 @@
 package com.smartparking.deviceaccess.api.image;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -9,6 +10,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -19,13 +22,15 @@ import java.util.Map;
  * 抓拍时通过 HTTP multipart POST 主动上传图片到本接口；
  * 原 MQTT result 消息中不再携带 base64 图片数据。
  * <p>
- * 表单字段（协议规定）：
+ * 表单字段（兼容不同固件版本的参数名）：
  * <ul>
- *   <li>{@code sn}：相机序列号（必填）</li>
- *   <li>{@code plateSignTime}：车辆识别时间（UTC 秒，与 result 上报的 utc_ts 关联）</li>
- *   <li>{@code bigFile}：全景图片数据（可选，未勾选「发送图片」时不传）</li>
- *   <li>{@code smallFile}：车牌图片数据（可选，未勾选「发送小图片」时不传）</li>
+ *   <li>{@code sn} 或 {@code deviceId}：相机序列号（必填）</li>
+ *   <li>{@code plateSignTime} 或 {@code timestamp} 或 {@code utc_ts}：识别时间（UTC 秒）</li>
+ *   <li>{@code bigFile} 或 {@code image}：全景图片数据（可选）</li>
+ *   <li>{@code smallFile} 或 {@code plateImage}：车牌特写图数据（可选）</li>
  * </ul>
+ * <p>
+ * 所有参数缺失时使用当前时间戳作为 fallback。
  * <p>
  * 应答格式按协议要求：{@code {"code":200,"msg":"ok","success":true,"data":true}}。
  * 相机无 ApiKey，本端点在 {@code ApiKeyAuthFilter} 中豁免认证；
@@ -43,26 +48,53 @@ public class ImageUploadController {
 
     /**
      * 接收相机上传的抓拍图片并落盘。
-     *
-     * @param sn            相机序列号
-     * @param plateSignTime 识别时间（UTC 秒）
-     * @param bigFile       全景图（可选）
-     * @param smallFile     车牌特写图（可选）
-     * @return 协议应答；失败时 data=false
+     * <p>
+     * 兼容不同固件版本的参数名：{@code sn/deviceId}、
+     * {@code plateSignTime/timestamp/utc_ts}、{@code bigFile/image}、
+     * {@code smallFile/plateImage}。
+     * 参数缺失时记录所有接收到的参数名帮助排查。
      */
     @PostMapping("/upload")
-    public Map<String, Object> upload(@RequestParam String sn,
-                                      @RequestParam long plateSignTime,
+    public Map<String, Object> upload(HttpServletRequest request,
+                                      @RequestParam(required = false) String sn,
+                                      @RequestParam(required = false) String deviceId,
+                                      @RequestParam(required = false) Long plateSignTime,
+                                      @RequestParam(required = false) Long timestamp,
+                                      @RequestParam(required = false) Long utc_ts,
                                       @RequestParam(required = false) MultipartFile bigFile,
-                                      @RequestParam(required = false) MultipartFile smallFile) {
+                                      @RequestParam(required = false) MultipartFile image,
+                                      @RequestParam(required = false) MultipartFile smallFile,
+                                      @RequestParam(required = false) MultipartFile plateImage) {
+        // 解析设备 SN（sn 优先，deviceId 兜底）
+        String resolvedSn = sn != null ? sn : deviceId;
+        if (resolvedSn == null || resolvedSn.isBlank()) {
+            // 记录所有参数名帮助排查
+            log.warn("图片上传缺少设备SN，收到参数: {}",
+                    Collections.list(request.getParameterNames()));
+            return reply(400, "missing sn/deviceId", false);
+        }
+
+        // 解析时间戳（plateSignTime → timestamp → utc_ts → 当前时间兜底）
+        Long resolvedTs = plateSignTime != null ? plateSignTime
+                : (timestamp != null ? timestamp : utc_ts);
+        if (resolvedTs == null) {
+            log.info("图片上传缺少时间戳，使用当前时间兜底: sn={}, 收到参数: {}",
+                    resolvedSn, Collections.list(request.getParameterNames()));
+            resolvedTs = Instant.now().getEpochSecond();
+        }
+
+        // 解析图片文件（优先标准名，兜底别名）
+        MultipartFile resolvedBig = bigFile != null ? bigFile : image;
+        MultipartFile resolvedSmall = smallFile != null ? smallFile : plateImage;
+
         try {
-            imageStorageService.save(sn, plateSignTime, bigFile, smallFile);
+            imageStorageService.save(resolvedSn, resolvedTs, resolvedBig, resolvedSmall);
             return reply(200, "ok", true);
         } catch (IllegalArgumentException e) {
-            log.warn("图片上传参数非法: sn={}, plateSignTime={}, error={}", sn, plateSignTime, e.getMessage());
+            log.warn("图片上传参数非法: sn={}, plateSignTime={}, error={}", resolvedSn, resolvedTs, e.getMessage());
             return reply(400, e.getMessage(), false);
         } catch (IOException e) {
-            log.error("图片上传落盘失败: sn={}, plateSignTime={}, error={}", sn, plateSignTime, e.getMessage(), e);
+            log.error("图片上传落盘失败: sn={}, plateSignTime={}, error={}", resolvedSn, resolvedTs, e.getMessage(), e);
             return reply(500, "save failed: " + e.getMessage(), false);
         }
     }

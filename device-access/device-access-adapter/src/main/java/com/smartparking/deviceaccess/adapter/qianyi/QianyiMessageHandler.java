@@ -303,8 +303,8 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
             plateNum = null;  // 无牌车
         }
 
-        log.info("Qianyi plate detected: sn={}, plate={}, type={}, inout={}, msg_id={}",
-                sn, plateNum, type, rawJson.get("inout"), msgId);
+        log.info("Qianyi plate detected: sn={}, plate={}, type={}, inout={}, msg_id={}, keys={}",
+                sn, plateNum, type, rawJson.get("inout"), msgId, rawJson.keySet());
 
         if (plateNum != null && !plateNum.isBlank()) {
             lastPlateMap.put(sn, plateNum);
@@ -312,15 +312,31 @@ public class QianyiMessageHandler implements MqttRawMessageListener {
 
         if (plateListener != null && plateNum != null && !plateNum.isBlank()) {
             try {
+                // 图片来源优先级：base64（MQTT 直传） > 本地路径（待 HTTP 上传）
+                String fullPic = (String) rawJson.get("full_pic");
+                String platePic = (String) rawJson.get("plate_pic");
+                Long utcTs = toEpochMillis(rawJson.get("utc_ts"));
+
+                // 若 MQTT 消息中含 base64 图片，标记 data.type 前缀以便 Dispatcher 识别
+                String imagePath = (String) rawJson.get("full_pic_path");
+                String plateImagePath = (String) rawJson.get("plate_pic_path");
+                if (fullPic != null && !fullPic.isBlank()) {
+                    imagePath = "base64:" + fullPic;
+                    log.info("Qianyi result carries base64 full_pic: sn={}, len={}", sn, fullPic.length());
+                }
+                if (platePic != null && !platePic.isBlank()) {
+                    plateImagePath = "base64:" + platePic;
+                }
+
                 PlateRecognizedData data = new PlateRecognizedData(
                         sn,
                         plateNum,
                         toInteger(rawJson.get("confidence")),
                         null,   // direction: 芊熠为 in/out 语义，PlateRecognizedData 为编号，不传
                         null,   // plateColor: 芊熠为中文字符串枚举，PlateRecognizedData 为编号，不传
-                        (String) rawJson.get("full_pic_path"),
-                        (String) rawJson.get("plate_pic_path"),
-                        toEpochMillis(rawJson.get("utc_ts"))
+                        imagePath,
+                        plateImagePath,
+                        utcTs
                 );
                 plateListener.onPlateRecognized(data);
             } catch (Exception e) {

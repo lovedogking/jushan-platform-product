@@ -2,7 +2,7 @@
 
 > **包路径**：`device-access/`（独立多模块 Maven 工程，根 pom 含 7 个子模块）
 > **职责**：与硬件设备通信（MQTT）、协议适配（臻识/信路通/芊熠）、Webhook 推送事件到 Platform、设备注册与心跳管理。
-> **最近更新**：2026-07-25（v1.5.1：修复 QianyiMessageHandler SN 大小写不一致导致下行命令 Topic 错误；修复 manual-capture 硬编码只抓入口相机，新增 direction 参数）
+> **最近更新**：2026-07-25（v1.6.0：芊熠 Q3 base64 图片直传——MQTT result 的 full_pic/plate_pic 字段由 Dispatcher 解码落盘；Webhook URL 走 nginx 80 端口；QY-Q8→Q3 全局重命名；ImageUploadController 兼容多固件参数名）
 
 ---
 
@@ -32,7 +32,7 @@
 
 | 类 | 位置 | 功能 |
 |---|---|---|
-| `ImageUploadController` | api/image | `POST /api/v1/images/upload` 接收相机 multipart 上传（sn/plateSignTime/bigFile/smallFile），协议格式应答；ApiKey 豁免 |
+| `ImageUploadController` | api/image | `POST /api/v1/images/upload` 接收相机 multipart 上传，兼容多固件参数名（sn/deviceId、plateSignTime/timestamp/utc_ts、bigFile/image、smallFile/plateImage），时间戳缺失以当前时间兜底；协议格式应答；ApiKey 豁免 |
 | `ImageStorageService` | api/image | 图片落盘 `{storageDir}/{yyyyMMdd}/{sn}/{ts}.jpg`（`_plate` 为车牌图）；按 sn+utc_ts 构造可访问 URL；每日 03:20 清理过期图片（默认 30 天）；`saveBytes` 支持字节形式落盘（远程图片转存用） |
 | `RemoteImageDownloader` | api/image | 远程图片转存：臻识等品牌事件携带的 OSS 签名 URL（约 1 小时过期）在事件到达时立即下载落盘，替换为本地可访问 URL；失败保留原地址 |
 | `ImageProperties` | api/image | `device-access.image.*`：storage-dir / public-base-url / retention-days |
@@ -73,5 +73,5 @@
 
 > 数据库变更：
 > - `device-access-starter/src/main/resources/migration-v0.5-qianyi.sql`（手动历史迁移，用于新库初始化 schema + 种子）
-> - `device-access-starter/src/main/resources/db/migration/V20260724001__add_capture_capability.sql`（Flyway 自动迁移，给芊熠 QY-01 追加 `CAPTURE` 能力；QY-01 已在 V20260906002 被 QY-Q8 替代）
+> - `device-access-starter/src/main/resources/db/migration/V20260724001__add_capture_capability.sql`（Flyway 自动迁移，给芊熠 QY-01 追加 `CAPTURE` 能力；QY-01 已在 V20260906002 被 QY-Q3 替代）
 > - `application.yml` 启用 `spring.flyway.baseline-on-migrate=true`；存量库首次启动自动 baseline 后执行 v0.7 迁移

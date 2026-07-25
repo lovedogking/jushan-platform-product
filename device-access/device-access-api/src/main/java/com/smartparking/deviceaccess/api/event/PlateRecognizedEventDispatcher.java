@@ -77,17 +77,28 @@ public class PlateRecognizedEventDispatcher implements PlateRecognizedListener {
             }
             String vendor = product != null ? product.getBrand() : "UNKNOWN";
 
-            // 2b. 图片 URL 化：芊熠相机「独立上传图片」（协议 §7.1.2）由相机 HTTP POST 到本平台，
-            //     result 上报的 full_pic_path 是相机本地路径，无法直接访问；
-            //     此处按关联键（sn + utc_ts）构造可访问 URL（nginx 反代到图片存储目录）。
+            // 2b. 图片 URL 化。芊熠 Q3 优先从 MQTT result 的 base64 字段（full_pic/plate_pic）
+            //     解码落盘；若无 base64 则走 HTTP 独立上传等待（alonepush=1 模式，协议 §7.1.2）。
             //     臻识等品牌事件携带的是远程限时 URL（如 OSS 签名地址，约 1 小时过期），
             //     立即下载转存本地并替换为本地 URL；失败则保留原地址（限时内仍可用）。
             String imagePath = data.imagePath();
             String plateImagePath = data.plateImagePath();
-            if (isQianyi(vendor) && data.occurredAtMillis() != null) {
-                long epochSeconds = data.occurredAtMillis() / 1000;
-                imagePath = waitForLocalImage(data.deviceSn(), epochSeconds, false);
-                plateImagePath = waitForLocalImage(data.deviceSn(), epochSeconds, true);
+            if (isQianyi(vendor)) {
+                long epochSeconds = data.occurredAtMillis() != null
+                        ? data.occurredAtMillis() / 1000 : Instant.now().getEpochSecond();
+                // 优先 base64（MQTT 直传，alonepush=0 模式）
+                if (imagePath != null && imagePath.startsWith("base64:")) {
+                    imagePath = saveQianyiBase64Image(data.deviceSn(), epochSeconds,
+                            imagePath.substring(7), false);
+                } else {
+                    imagePath = waitForLocalImage(data.deviceSn(), epochSeconds, false);
+                }
+                if (plateImagePath != null && plateImagePath.startsWith("base64:")) {
+                    plateImagePath = saveQianyiBase64Image(data.deviceSn(), epochSeconds,
+                            plateImagePath.substring(7), true);
+                } else {
+                    plateImagePath = waitForLocalImage(data.deviceSn(), epochSeconds, true);
+                }
             } else {
                 long epochSeconds = data.occurredAtMillis() != null
                         ? data.occurredAtMillis() / 1000 : Instant.now().getEpochSecond();
@@ -175,6 +186,40 @@ public class PlateRecognizedEventDispatcher implements PlateRecognizedListener {
      */
     private boolean isQianyi(String vendor) {
         return "芊熠".equals(vendor) || "QIANYI".equalsIgnoreCase(vendor);
+    }
+
+    /**
+     * 将芊熠 MQTT result 中的 base64 图片解码落盘并返回本地 URL。
+     * <p>
+     * Q3 相机在 alonepush=0（默认）模式下，result 消息的 full_pic / plate_pic
+     * 字段携带 base64 编码图片。落盘后按标准路径构造可访问 URL。
+     *
+     * @param deviceSn     设备 SN
+     * @param epochSeconds 识别时间（UTC 秒，与 MQTT utc_ts 一致）
+     * @param base64Data   base64 编码图片数据
+     * @param plateOnly    true=车牌特写图，false=全景图
+     * @return 本地可访问 URL；解码失败返回 null
+     */
+    private String saveQianyiBase64Image(String deviceSn, long epochSeconds,
+                                          String base64Data, boolean plateOnly) {
+        try {
+            byte[] bytes = java.util.Base64.getDecoder().decode(base64Data);
+            String url;
+            if (plateOnly) {
+                imageStorageService.saveBytes(deviceSn, epochSeconds, null, bytes);
+                url = imageStorageService.buildPlateImageUrl(deviceSn, epochSeconds);
+            } else {
+                imageStorageService.saveBytes(deviceSn, epochSeconds, bytes, null);
+                url = imageStorageService.buildFullImageUrl(deviceSn, epochSeconds);
+            }
+            log.info("芊熠 base64 图片已落盘: sn={}, ts={}, plateOnly={}, url={}",
+                    deviceSn, epochSeconds, plateOnly, url);
+            return url;
+        } catch (Exception e) {
+            log.warn("芊熠 base64 图片解码落盘失败: sn={}, ts={}, plateOnly={}, error={}",
+                    deviceSn, epochSeconds, plateOnly, e.getMessage());
+            return null;
+        }
     }
 
     /**

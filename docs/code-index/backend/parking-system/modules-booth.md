@@ -121,4 +121,4 @@
 
 - `RecognitionEventService.handleEvent` → `VehicleTypeDecisionService.decide(...)`（车辆类型判定）→ `FeeCalculationService.calculateFeeCents(...)`（计费）→ `DeviceService.resolveGateDevice(laneId)`（控闸设备解析，4级优先级：gate_device_id→GATE→CAMERA+OPEN_GATE→报错）→ `DeviceAccessClient.openGate(...)`（开闸）。
 - 手动开闸/关闸/自动开闸均统一走 `DeviceService.resolveGateDevice(laneId)`，停车场级回退已删除。
-- 前端按钮按 `GET /api/v1/booth/recognition/gate-capabilities?laneId=` 返回的能力列表动态渲染（Q8=开闸/常开，C5=开/关/常开/常关），MIXED 车道按方向拆分为两张独立卡片。
+- 前端按钮按 `GET /api/v1/booth/recognition/gate-capabilities?laneId=` 返回的能力列表动态渲染（Q3=开闸/常开，C5=开/关/常开/常关），MIXED 车道按方向拆分为两张独立卡片。
