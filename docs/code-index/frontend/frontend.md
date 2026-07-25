@@ -2,7 +2,7 @@
 
 > **路径**：`frontend/` （独立 `pnpm` 工作区）
 > **技术栈**：Vue 3.4 · TypeScript 5.4 · Vite 5.2 · Pinia 2.1 · ant-design-vue 4.1 · axios
-> **最近更新**：2026-07-25（v2.0：设备管理新增「设备控制」Tab——显示屏实时文字+语音播报；新增「识别联动」Tab——傻瓜式配置自动播报+待机恢复；岗亭监控卡片按方向拆分+多相机在线判定修复）
+> **最近更新**：2026-07-25（v2.2：岗亭 UI 完全重构——双层导航+四宫格(入口/出口/车辆详情/通行记录)+右侧窄侧边栏；控闸按钮改为开闸/关闸/道闸常开/道闸常关四键+二次确认；运营端通行记录表格增加车辆类型/入场车道/出场车道/出场时间/停车时长列+车牌/类型/状态/车道筛选）
 
 ---
 
@@ -41,7 +41,7 @@ frontend/src/
 │   └── offline-queue.ts # 离线请求队列
 └── views/          # 页面
     ├── login/           # 登录页
-    ├── monitor/         # 监控页（5 个文件）
+    ├── monitor/         # 监控页（4 个文件；index.vue 不再使用 MonitorTabs/ParkingLotSidebar）
     ├── operation/       # 运营（5 个文件）
     ├── admin/           # 管理
     └── error/           # 错误页
@@ -61,6 +61,9 @@ frontend/src/
 | `utils/websocket.ts` | STOMP over WebSocket（接收实时监控数据） |
 | `utils/offline-queue.ts` | 离线时缓存请求到 localStorage 并在恢复时重放 |
 | `stores/monitor.ts` | 中心化监控状态（设备列表、在场车辆、余位、异常） |
-| `views/monitor/` | 监控大屏主页面（实时设备/车位/事件/异常面板；识别事件列表与车道卡片实时显示抓拍图；车道卡片按钮按 `gateCapabilities` 接口返回的能力动态渲染——Q3车道只显示「开闸」「常开/取消常开」，C5车道显示「开闸」「关闸」「常开/取消常开」「常关/取消常关」；MIXED 车道按方向拆分为入口/出口两张独立卡片；手动放行弹窗预填最近识别车牌） |
-| `views/operation/AccessRecords.vue` | 运营端通行记录页（分页/筛选，含入场抓拍图列） |
+| `views/monitor/index.vue` | **岗亭工作区主页面**。布局：顶部单层导航（飓山智慧停车+岗亭工作区+在线圆点+车场下拉+时间+用户名+退出）→ 常开/常关横幅 → 左85%四宫格（入口车道控制/出口车道控制/车辆详情/通行记录表格）+ 右15%侧边栏（提示消息+车场总车位/在场车辆/剩余车位）。入口/出口车道卡片：车道下拉选择+在线/离线+浅灰视频占位+开闸(绿)/关闸(红)/道闸常开(蓝,二次确认)/道闸常关(橙,二次确认)四按钮。车辆详情卡片：本次识别/上次识别两张抓拍图(可点击放大)+方向+车牌+类型(固定车/临时车)+车道+区域+时间+计费+金额+车主+备注+提示。通行记录表格：车牌号+类型(固定车/临时车标签)+入场时间+出场时间+状态(在场/已出场)+入场图片(可点击放大)，数据源=getParkingSessions。设备在线含120s宽限期防抖。保留收费面板/人工放行/规则编辑/远程开闸/车牌校正弹窗。 |
+| `views/monitor/MonitorTabs.vue` | （遗留）原通行监控/车辆查询标签页组件，已从 index.vue 移除引用，保留以备后续复用 |
+| `views/monitor/ParkingLotSidebar.vue` | （遗留）原停车场左侧栏组件，已从 index.vue 移除引用，车场选择改为顶部下拉 |
+| `views/monitor/VehicleQuery.vue` | （遗留）原车辆查询页（在场车辆+历史记录+分页筛选），已从 MonitorTabs 移除引用 |
+| `views/operation/AccessRecords.vue` | 运营端通行记录页。筛选：车牌号/车辆类型(固定车/临时车)/状态(在场/已出场)/入场车道 → 查询/重置。表格列：车牌号+车辆类型(固定车/临时车标签)+订单状态(在场/已出场)+停车区域+入场时间+入口车道(真实名称)+出场时间+出场车道(真实名称)+停车时长。数据源：getParkingSessions + getSnapshot(车道名称映射)。车辆类型覆盖后端所有可能值(WHITE/FIXED/FIXED_SPACE/MONTHLY→固定车, TEMP/null→临时车)。 |
 | `.env.development` / `.env.production` | 环境变量（API base URL / WebSocket） |

@@ -7,22 +7,22 @@
     <a-card class="filter-bar">
       <a-form layout="inline" :model="filters">
         <a-form-item label="车牌号">
-          <a-input v-model:value="filters.plateNumber" placeholder="请输入车牌号" allow-clear />
+          <a-input v-model:value="filters.plateNumber" placeholder="请输入车牌号" allow-clear style="width: 140px" />
         </a-form-item>
-        <a-form-item label="入场触发方式">
-          <a-select v-model:value="filters.entryTrigger" placeholder="全部" allow-clear style="width: 160px">
-            <a-select-option value="whitelist_auto">白名单自动</a-select-option>
-            <a-select-option value="manual_open">人工放行</a-select-option>
-            <a-select-option value="always_open_period">常开时段</a-select-option>
-            <a-select-option value="manual_entry">人工补录</a-select-option>
+        <a-form-item label="车辆类型">
+          <a-select v-model:value="filters.vehicleType" placeholder="全部" allow-clear style="width: 120px">
+            <a-select-option value="WHITE">固定车</a-select-option>
+            <a-select-option value="TEMP">临时车</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="会话状态">
-          <a-select v-model:value="filters.status" placeholder="全部" allow-clear style="width: 140px">
+        <a-form-item label="状态">
+          <a-select v-model:value="filters.status" placeholder="全部" allow-clear style="width: 120px">
             <a-select-option value="IN">在场</a-select-option>
             <a-select-option value="OUT">已出场</a-select-option>
-            <a-select-option value="EXCEPTION">异常</a-select-option>
           </a-select>
+        </a-form-item>
+        <a-form-item label="入场车道">
+          <a-select v-model:value="filters.laneId" placeholder="全部" allow-clear style="width: 160px" :options="laneFilterOptions" />
         </a-form-item>
         <a-form-item>
           <a-button type="primary" @click="handleSearch">查询</a-button>
@@ -38,30 +38,34 @@
         :loading="loading"
         :pagination="pagination"
         row-key="id"
+        size="small"
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'entryImage'">
-            <a-image
-              v-if="record.entryImage"
-              :src="record.entryImage"
-              :width="72"
-              :height="54"
-              style="object-fit: cover; border-radius: 4px"
-            />
-            <span v-else>-</span>
-          </template>
-          <template v-if="column.key === 'entryTrigger'">
-            <a-tag v-if="record.entryTrigger === 'whitelist_auto'" color="green">白名单自动</a-tag>
-            <a-tag v-else-if="record.entryTrigger === 'manual_open'" color="blue">人工放行</a-tag>
-            <a-tag v-else-if="record.entryTrigger === 'manual_entry'" color="orange">人工补录</a-tag>
-            <template v-else>-</template>
+          <template v-if="column.key === 'vehicleType'">
+            <a-tag :color="record.vehicleType === 'WHITE' || record.vehicleType === 'FIXED' ? 'green' : 'orange'" size="small">
+              {{ vehicleTypeLabel(record.vehicleType) }}
+            </a-tag>
           </template>
           <template v-if="column.key === 'status'">
             <a-tag v-if="record.status === 'IN'" color="processing">在场</a-tag>
             <a-tag v-else-if="record.status === 'OUT'" color="default">已出场</a-tag>
-            <a-tag v-else-if="record.status === 'EXCEPTION'" color="error">异常</a-tag>
-            <template v-else>{{ record.status }}</template>
+            <template v-else>{{ record.status || '--' }}</template>
+          </template>
+          <template v-if="column.key === 'entryTime'">
+            {{ record.entryTime ? dayjs(record.entryTime).format('YYYY-MM-DD HH:mm:ss') : '--' }}
+          </template>
+          <template v-if="column.key === 'exitTime'">
+            {{ record.exitTime ? dayjs(record.exitTime).format('YYYY-MM-DD HH:mm:ss') : '--' }}
+          </template>
+          <template v-if="column.key === 'duration'">
+            {{ formatDuration(record.durationMinutes) }}
+          </template>
+          <template v-if="column.key === 'entryLane'">
+            {{ getLaneName(record.laneId) }}
+          </template>
+          <template v-if="column.key === 'exitLane'">
+            {{ record.exitLaneId ? getLaneName(record.exitLaneId) : '--' }}
           </template>
         </template>
       </a-table>
@@ -70,22 +74,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import dayjs from 'dayjs'
 import { getParkingSessions } from '@/api/vehicle-query'
 import type { ParkingSessionVO } from '@/api/monitor-types'
-
-interface SessionRecord extends ParkingSessionVO {
-  laneName?: string
-  parkingLotName?: string
-}
+import { getBoothParkingLots } from '@/api/parking-lot'
 
 const loading = ref(false)
-const records = ref<SessionRecord[]>([])
+const records = ref<ParkingSessionVO[]>([])
 
 const filters = reactive({
   plateNumber: '',
-  entryTrigger: undefined as string | undefined,
+  vehicleType: undefined as string | undefined,
   status: undefined as string | undefined,
+  laneId: undefined as number | undefined,
 })
 
 const pagination = reactive({
@@ -95,15 +97,66 @@ const pagination = reactive({
 })
 
 const columns = [
-  { title: '车牌号', dataIndex: 'plateNumber', key: 'plateNumber' },
-  { title: '入场抓拍', key: 'entryImage', width: 110 },
-  { title: '入场时间', dataIndex: 'entryTime', key: 'entryTime' },
-  { title: '出场时间', dataIndex: 'exitTime', key: 'exitTime' },
-  { title: '触发方式', key: 'entryTrigger' },
-  { title: '状态', key: 'status' },
-  { title: '通道ID', dataIndex: 'laneId', key: 'laneId' },
-  { title: '车场ID', dataIndex: 'parkingLotId', key: 'parkingLotId' },
+  { title: '车牌号', dataIndex: 'plateNumber', key: 'plateNumber', width: 120 },
+  { title: '车辆类型', key: 'vehicleType', width: 90 },
+  { title: '订单状态', key: 'status', width: 80 },
+  { title: '停车区域', key: 'zone', width: 90 },
+  { title: '入场时间', key: 'entryTime', width: 160 },
+  { title: '入口车道', key: 'entryLane', width: 120 },
+  { title: '出场时间', key: 'exitTime', width: 160 },
+  { title: '出场车道', key: 'exitLane', width: 120 },
+  { title: '停车时长', key: 'duration', width: 90 },
 ]
+
+// 车道名称映射
+const laneNames = ref<Record<number, string>>({})
+const laneFilterOptions = ref<{ value: number; label: string }[]>([])
+
+async function loadLaneNames() {
+  try {
+    const lots = await getBoothParkingLots()
+    const map: Record<number, string> = {}
+    const opts: { value: number; label: string }[] = []
+    for (const lot of lots) {
+      // 每个车场有自己的车道列表，需要单独获取
+      try {
+        const { getSnapshot } = await import('@/api/monitor')
+        const snapshot = await getSnapshot(lot.id)
+        for (const lane of snapshot.lanes || []) {
+          map[lane.id] = lane.name || `车道${lane.id}`
+          opts.push({ value: lane.id, label: lane.name || `车道${lane.id}` })
+        }
+      } catch { /* 跳过无权限的车场 */ }
+    }
+    laneNames.value = map
+    laneFilterOptions.value = opts
+  } catch { /* 静默 */ }
+}
+
+function getLaneName(laneId: number): string {
+  return laneNames.value[laneId] || `车道${laneId}`
+}
+
+function vehicleTypeLabel(type: string): string {
+  if (!type) return '临时车'
+  const t = type.toUpperCase()
+  if (t === 'WHITE' || t === 'FIXED' || t === 'FIXED_SPACE' || t === 'MONTHLY' || t === 'MONTHLY_PASS' || t === 'WHITELIST') return '固定车'
+  if (t === 'TEMP' || t === 'TEMPORARY') return '临时车'
+  return '临时车'
+}
+
+function isFixedVehicle(type: string): boolean {
+  if (!type) return false
+  const t = type.toUpperCase()
+  return t === 'WHITE' || t === 'FIXED' || t === 'FIXED_SPACE' || t === 'MONTHLY' || t === 'MONTHLY_PASS' || t === 'WHITELIST'
+}
+
+function formatDuration(minutes: number): string {
+  if (minutes == null || minutes < 0) return '--'
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return h > 0 ? `${h}时${m}分` : `${m}分`
+}
 
 async function loadData() {
   loading.value = true
@@ -114,7 +167,19 @@ async function loadData() {
       plateNumber: filters.plateNumber || undefined,
       status: filters.status || undefined,
     })
-    records.value = result.records || []
+    let list = result.records || []
+    // 客户端筛选：车辆类型和入场车道
+    if (filters.vehicleType) {
+      if (filters.vehicleType === 'WHITE') {
+        list = list.filter(r => isFixedVehicle(r.vehicleType))
+      } else {
+        list = list.filter(r => !isFixedVehicle(r.vehicleType))
+      }
+    }
+    if (filters.laneId) {
+      list = list.filter(r => r.laneId === filters.laneId || r.exitLaneId === filters.laneId)
+    }
+    records.value = list
     pagination.total = result.total || 0
   } catch {
     records.value = []
@@ -130,8 +195,9 @@ function handleSearch() {
 
 function handleReset() {
   filters.plateNumber = ''
-  filters.entryTrigger = undefined
+  filters.vehicleType = undefined
   filters.status = undefined
+  filters.laneId = undefined
   pagination.current = 1
   loadData()
 }
@@ -141,6 +207,11 @@ function handleTableChange(pag: any) {
   pagination.pageSize = pag.pageSize
   loadData()
 }
+
+onMounted(() => {
+  loadLaneNames()
+  loadData()
+})
 </script>
 
 <style lang="scss" scoped>

@@ -1,367 +1,225 @@
 <template>
   <div class="monitor-page">
-    <!-- 顶部栏 -->
+    <!-- ========== 顶部双层通栏导航 ========== -->
+    <!-- 第一层：主导航 -->
     <div class="page-header">
       <div class="header-left">
-        <span class="page-title">岗亭工作区</span>
-        <a-tag color="green">在线</a-tag>
-        <span style="margin-left:16px;color:#6b7280;font-size:13px">{{ currentTime }}</span>
+        <span class="header-brand">飓山智慧停车</span>
+        <span class="header-title">岗亭工作区</span>
+        <span class="online-dot" />
+        <span class="online-label">在线</span>
+        <a-select
+          v-model:value="selectedLotId"
+          :options="lotOptions"
+          placeholder="测试车场"
+          size="small"
+          class="lot-select"
+          @change="handleLotSelect"
+        />
       </div>
       <div class="header-right">
-        <span style="margin-right:12px;color:#374151;font-size:13px">{{ currentUser }}</span>
-        <a-button size="small" @click="refreshDevices">刷新设备</a-button>
-        <a-button size="small" style="margin-left:8px" @click="handleLogout">退出</a-button>
+        <span class="current-time">{{ currentTime }}</span>
+        <span class="username">gangting001</span>
+        <a-button size="small" @click="handleLogout">退出</a-button>
       </div>
     </div>
 
-    <!-- 常开/常关状态条（GB-04/05 — V1.4） -->
+    <!-- ========== 常开/常关横幅 ========== -->
     <div v-if="gateModeBanners.length > 0" class="gate-mode-banners">
       <a-alert
-        v-for="banner in gateModeBanners"
-        :key="banner.laneId"
-        :type="banner.mode === 'ALWAYS_OPEN' ? 'success' : 'warning'"
-        :message="banner.label"
-        show-icon
-        banner
-        class="gate-mode-banner-item"
+        v-for="b in gateModeBanners" :key="b.laneId"
+        :type="b.mode === 'ALWAYS_OPEN' ? 'success' : 'warning'"
+        :message="b.label" show-icon banner class="gate-mode-banner-item"
       />
     </div>
 
-    <!-- 严重异常横幅 -->
-    <a-alert
-      v-if="store.criticalAlerts.length > 0"
-      type="error"
-      :message="`严重异常 (${store.criticalAlerts.length})`"
-      :description="criticalAlertMessages"
-      show-icon
-      banner
-      closable
-      class="critical-banner"
-    />
-
-    <!-- 三段式主体 -->
+    <!-- ========== 主体：左 85% 四宫格 + 右 15% 侧边栏 ========== -->
     <div class="monitor-body">
-      <!-- 左侧：车场列表 -->
-      <ParkingLotSidebar
-        :lots="sidebarLots"
-        :selected-id="selectedLotId"
-        @select="handleLotSelect"
-      />
-
-      <!-- 右侧：上下分区 -->
-      <div class="monitor-right">
-        <!-- 右上：视频预览占位 -->
-        <div class="video-placeholder">
-          <div class="video-placeholder-content">
-            <VideoCameraOutlined style="font-size: 48px; color: #d1d5db;" />
-            <p>视频接入中，敬请期待</p>
+      <div class="main-grid">
+        <!-- 左上：入口车道控制 -->
+        <div class="grid-card">
+          <div class="card-topbar">
+            <a-select
+              v-model:value="entryLaneKey" :options="entryLaneOptions"
+              placeholder="测试车道 入口" size="small" class="lane-select"
+            />
+            <span class="card-status" :class="entryLaneOnline ? 'online' : 'offline'">
+              {{ entryLaneOnline ? '在线' : '离线' }}
+            </span>
+          </div>
+          <div class="card-video">
+            <VideoCameraOutlined class="video-icon" />
+            <span class="video-text">视频接入中，敬请期待</span>
+          </div>
+          <div class="card-actions">
+            <a-button size="small" type="primary" class="btn-open" @click="handleEntryOpen">开闸</a-button>
+            <a-button size="small" class="btn-close" @click="handleEntryClose">关闸</a-button>
+            <a-popconfirm
+              :title="(entryLockState.open ? '确定取消常开？' : '确定设置常开？道闸将锁定保持抬杆状态')"
+              @confirm="handleEntryKeepOpen"
+            >
+              <a-button size="small" type="primary" class="btn-keep">{{ entryLockState.open ? '取消常开' : '道闸常开' }}</a-button>
+            </a-popconfirm>
+            <a-popconfirm
+              :title="(entryLockState.close ? '确定取消常关？' : '确定设置常关？白名单车辆将不再自动开闸')"
+              @confirm="handleEntryKeepClose"
+            >
+              <a-button size="small" class="btn-keep-close">{{ entryLockState.close ? '取消常关' : '道闸常关' }}</a-button>
+            </a-popconfirm>
           </div>
         </div>
 
-        <!-- 右下：Tab 操作面板 -->
-        <div class="monitor-panel">
-          <MonitorTabs :parking-lot-id="selectedLotId ?? 0">
-            <template #monitor>
-              <!-- 原有监控内容：车位 + 车道网格 + 事件/告警 -->
-              <div class="monitor-tab-content">
-                <!-- 车位大卡 -->
-                <a-card :bordered="false" class="space-card">
-                  <div class="space-grid">
-                    <div class="space-item">
-                      <div class="space-value remaining">{{ parkingLot?.remainingSpaces ?? '-' }}</div>
-                      <div class="space-label">剩余车位</div>
-                    </div>
-                    <div class="space-item">
-                      <div class="space-value">{{ parkingLot?.currentVehicles ?? '-' }}</div>
-                      <div class="space-label">在场车辆</div>
-                    </div>
-                    <div class="space-item">
-                      <div class="space-value">{{ parkingLot?.totalSpaces ?? '-' }}</div>
-                      <div class="space-label">总车位</div>
-                    </div>
-                  </div>
-                </a-card>
+        <!-- 右上：出口车道控制 -->
+        <div class="grid-card">
+          <div class="card-topbar">
+            <a-select
+              v-model:value="exitLaneKey" :options="exitLaneOptions"
+              placeholder="测试车道 出口" size="small" class="lane-select"
+            />
+            <span class="card-status" :class="exitLaneOnline ? 'online' : 'offline'">
+              {{ exitLaneOnline ? '在线' : '离线' }}
+            </span>
+          </div>
+          <div class="card-video">
+            <VideoCameraOutlined class="video-icon" />
+            <span class="video-text">视频接入中，敬请期待</span>
+          </div>
+          <div class="card-actions">
+            <a-button size="small" type="primary" class="btn-open" @click="handleExitOpen">开闸</a-button>
+            <a-button size="small" class="btn-close" @click="handleExitClose">关闸</a-button>
+            <a-popconfirm
+              :title="(exitLockState.open ? '确定取消常开？' : '确定设置常开？道闸将锁定保持抬杆状态')"
+              @confirm="handleExitKeepOpen"
+            >
+              <a-button size="small" type="primary" class="btn-keep">{{ exitLockState.open ? '取消常开' : '道闸常开' }}</a-button>
+            </a-popconfirm>
+            <a-popconfirm
+              :title="(exitLockState.close ? '确定取消常关？' : '确定设置常关？白名单车辆将不再自动开闸')"
+              @confirm="handleExitKeepClose"
+            >
+              <a-button size="small" class="btn-keep-close">{{ exitLockState.close ? '取消常关' : '道闸常关' }}</a-button>
+            </a-popconfirm>
+          </div>
+        </div>
 
-                <!-- 车道网格 -->
-                <a-spin :spinning="store.loading">
-                  <div class="lane-grid">
-                    <a-card
-                      v-for="lane in laneCards"
-                      :key="lane.laneId + '-' + lane.direction"
-                      :bordered="false"
-                      class="lane-card"
-                      :class="{
-                        'lane-offline': lane.isOffline,
-                        'lane-charging': lane.charging,
-                        'lane-primary-offline': lane.primaryOffline,
-                      }"
-                    >
-                      <div class="lane-header">
-                        <span class="lane-name">
-                          {{ lane.laneName }}
-                          <span v-if="lane.primaryOffline" style="color: #f59e0b; margin-left: 6px;">
-                            <ExclamationCircleOutlined />
-                            <span style="font-size: 12px; margin-left: 2px;">主相机离线</span>
-                          </span>
-                        </span>
-                        <div class="lane-tags">
-                          <a-tag v-if="lane.charging" color="processing" size="small">
-                            <SyncOutlined :spin="true" style="margin-right: 2px" />收费中
-                          </a-tag>
-                          <template v-if="!lane.cameras || lane.cameras.length === 0">
-                            <a-tag :color="lane.deviceOnline ? 'success' : 'error'" size="small">
-                              {{ lane.deviceOnline ? '在线' : '离线' }}
-                            </a-tag>
-                          </template>
-                          <template v-else>
-                            <a-tag
-                              v-for="cam in lane.cameras"
-                              :key="cam.deviceId"
-                              :color="cam.online ? (cam.isActive ? 'blue' : 'green') : 'error'"
-                              size="small"
-                            >
-                              {{ cam.role === 'PRIMARY' ? '主' : '备' }}{{ cam.direction === 'ENTRY' ? '入' : '出' }}
-                            </a-tag>
-                          </template>
-                          <a-tag :color="lane.direction === 'EXIT' ? 'orange' : 'blue'" size="small">
-                            {{ lane.direction === 'ENTRY' ? '入口' : lane.direction === 'EXIT' ? '出口' : '混合' }}
-                          </a-tag>
-                        </div>
-                      </div>
-                      <div class="lane-event">
-                        <template v-if="lane.latestEvent">
-                          <img
-                            v-if="lane.latestEvent.imagePath"
-                            :src="lane.latestEvent.imagePath"
-                            class="lane-capture"
-                            alt="抓拍图"
-                            @error="handleCaptureError"
-                          />
-                          <div v-else class="lane-capture lane-capture-placeholder">无抓拍图</div>
-                          <div class="event-plate">
-                            {{ lane.latestEvent.plateNumber }}
-                          </div>
-                        </template>
-                        <div v-else class="event-empty">暂无事件</div>
-                        <div v-if="lane.latestEvent" class="event-time">
-                          {{ store.formatTime(lane.latestEvent.eventTime) }}
-                        </div>
-                      </div>
-                      <div class="lane-actions">
-                        <a-space>
-                          <a-button
-                            v-if="hasGateCapability(lane.laneId, 'OPEN_GATE')"
-                            type="primary"
-                            size="small"
-                            @click="handleManualOpenGate(lane)"
-                          >
-                            开闸
-                          </a-button>
-                          <a-button
-                            v-if="hasGateCapability(lane.laneId, 'CLOSE_GATE')"
-                            size="small"
-                            @click="handleManualCloseGate(lane.laneId)"
-                          >
-                            关闸
-                          </a-button>
-                          <a-popconfirm
-                            v-if="hasGateCapability(lane.laneId, 'KEEP_OPEN')"
-                            :title="laneLockState[lane.lockKey]?.open ? '确定取消常开？道闸将恢复正常起落' : '确定设置常开？道闸将锁定保持抬杆状态'"
-                            @confirm="handleToggleLockOpen(lane.laneId, lane.lockKey)"
-                          >
-                            <a-button
-                              :type="laneLockState[lane.lockKey]?.open ? 'default' : 'primary'"
-                              size="small"
-                            >
-                              {{ laneLockState[lane.lockKey]?.open ? '取消常开' : '常开' }}
-                            </a-button>
-                          </a-popconfirm>
-                          <a-popconfirm
-                            v-if="hasGateCapability(lane.laneId, 'KEEP_CLOSE')"
-                            :title="laneLockState[lane.lockKey]?.close ? '确定取消常关？道闸将恢复正常起落' : '确定设置常关？白名单车辆将不再自动开闸'"
-                            @confirm="handleToggleLockClose(lane.laneId, lane.lockKey)"
-                          >
-                            <a-button
-                              :type="laneLockState[lane.lockKey]?.close ? 'default' : 'primary'"
-                              size="small"
-                            >
-                              {{ laneLockState[lane.lockKey]?.close ? '取消常关' : '常关' }}
-                            </a-button>
-                          </a-popconfirm>
-                          <a-button
-                            size="small"
-                            @click="handleEditFeeRule(lane.laneId)"
-                          >
-                            修改收费
-                          </a-button>
-                        </a-space>
-                      </div>
-                    </a-card>
-                  </div>
-                </a-spin>
-
-                <!-- 事件与异常（内嵌于监控Tab） -->
-                <a-row :gutter="[12, 12]" style="margin-top: 12px">
-                  <a-col :xs="24" :lg="12">
-                    <a-card title="最近识别事件" :bordered="false" size="small" class="inner-card">
-                      <a-list
-                        :data-source="store.recentEvents"
-                        :locale="{ emptyText: '暂无识别事件' }"
-                        size="small"
-                      >
-                        <template #renderItem="{ item }">
-                          <!-- EXIT 事件：点击弹出下拉菜单（收费处理 / 校正车牌） -->
-                          <a-list-item
-                            v-if="item.direction === 'EXIT'"
-                            class="event-list-item"
-                            :class="{ 'event-exit-unpaid': !item.paymentStatus }"
-                          >
-                            <a-dropdown :trigger="['click']">
-                              <div class="event-row dropdown-trigger">
-                                <a-image
-                                  v-if="item.imagePath"
-                                  :src="item.imagePath"
-                                  :width="72"
-                                  :height="54"
-                                  class="event-thumb"
-                                  @click.stop
-                                />
-                                <div v-else class="event-thumb event-thumb-placeholder">无图</div>
-                                <div class="event-text">
-                                <div class="event-main">
-                                  <span class="event-plate-text">{{ item.correctedPlate || item.plateNumber || '-' }}</span>
-                                  <a-tag size="small" color="orange">出</a-tag>
-                                  <a-tag v-if="item.correctedPlate" size="small" color="purple">已校正</a-tag>
-                                  <a-tag size="small" :color="sourceColor(item.source)">{{ sourceLabel(item.source) }}</a-tag>
-                                  <a-tag
-                                    v-if="item.paymentStatus"
-                                    size="small"
-                                    :color="item.paymentStatus === 'PAID' ? 'success' : 'warning'"
-                                  >
-                                    {{ item.paymentStatus === 'PAID' ? '已支付' : '待支付' }}
-                                  </a-tag>
-                                </div>
-                                <div class="event-sub">
-                                  <span>{{ item.laneName || '未知车道' }}</span>
-                                  <span class="event-time-text">{{ store.formatTime(item.eventTime) }}</span>
-                                </div>
-                                <div v-if="item.feeAmount != null && item.feeAmount > 0" class="event-fee">
-                                  应收: ¥{{ item.feeAmount.toFixed(2) }}
-                                </div>
-                                </div>
-                              </div>
-                              <template #overlay>
-                                <a-menu @click="(e: any) => handleExitMenuClick(e, item)">
-                                  <a-menu-item key="charge">收费处理</a-menu-item>
-                                  <a-menu-item v-if="!item.correctedPlate" key="correct">校正车牌</a-menu-item>
-                                </a-menu>
-                              </template>
-                            </a-dropdown>
-                          </a-list-item>
-
-                          <!-- ENTRY 事件：点击直接打开校正弹窗 -->
-                          <a-list-item
-                            v-else
-                            class="event-list-item"
-                            @click="handleEventClick(item)"
-                          >
-                            <div class="event-row">
-                              <a-image
-                                v-if="item.imagePath"
-                                :src="item.imagePath"
-                                :width="72"
-                                :height="54"
-                                class="event-thumb"
-                                @click.stop
-                              />
-                              <div v-else class="event-thumb event-thumb-placeholder">无图</div>
-                              <div class="event-text">
-                              <div class="event-main">
-                                <span class="event-plate-text">{{ item.correctedPlate || item.plateNumber || '-' }}</span>
-                                <a-tag size="small" color="blue">入</a-tag>
-                                <a-tag v-if="item.correctedPlate" size="small" color="purple">已校正</a-tag>
-                                <a-tag size="small" :color="sourceColor(item.source)">{{ sourceLabel(item.source) }}</a-tag>
-                              </div>
-                              <div class="event-sub">
-                                <span>{{ item.laneName || '未知车道' }}</span>
-                                <span class="event-time-text">{{ store.formatTime(item.eventTime) }}</span>
-                              </div>
-                              <div v-if="item.feeAmount != null && item.feeAmount > 0" class="event-fee">
-                                应收: ¥{{ item.feeAmount.toFixed(2) }}
-                              </div>
-                              </div>
-                            </div>
-                          </a-list-item>
-                        </template>
-                      </a-list>
-                    </a-card>
-                  </a-col>
-                  <a-col :xs="24" :lg="12">
-                    <a-card title="异常提醒" :bordered="false" size="small" class="inner-card">
-                      <a-list
-                        :data-source="store.alerts"
-                        :locale="{ emptyText: '暂无异常提醒' }"
-                        size="small"
-                      >
-                        <template #renderItem="{ item }">
-                          <a-list-item class="alert-list-item">
-                            <div class="alert-row">
-                              <a-tag :color="item.severity === 'CRITICAL' ? 'error' : 'warning'">
-                                {{ item.severity === 'CRITICAL' ? '严重' : '警告' }}
-                              </a-tag>
-                              <span class="alert-message">{{ item.message }}</span>
-                              <a-button type="link" size="small" @click="store.ackAlert(item.id)">
-                                确认
-                              </a-button>
-                            </div>
-                            <div class="alert-time">{{ store.formatTime(item.createdAt) }}</div>
-                          </a-list-item>
-                        </template>
-                      </a-list>
-                    </a-card>
-                  </a-col>
-                </a-row>
+        <!-- 左下：当前车辆详情 -->
+        <div class="grid-card vehicle-detail-card">
+          <div class="detail-layout" v-if="latestRecognition">
+            <div class="detail-thumbs">
+              <div class="thumb-item">
+                <div class="detail-thumb">
+                  <a-image v-if="latestRecognition.imagePath" :src="latestRecognition.imagePath" />
+                  <VideoCameraOutlined v-else class="thumb-placeholder" />
+                </div>
+                <span class="thumb-label">本次识别</span>
               </div>
+              <div class="thumb-item">
+                <div class="detail-thumb">
+                  <a-image v-if="prevRecognition?.imagePath" :src="prevRecognition.imagePath" />
+                  <VideoCameraOutlined v-else class="thumb-placeholder" />
+                </div>
+                <span class="thumb-label">上次识别</span>
+              </div>
+            </div>
+            <div class="detail-info">
+              <div class="info-row"><span class="info-label">车牌</span><span class="info-value">{{ latestRecognition.correctedPlate || latestRecognition.plateNumber || '--' }}</span></div>
+              <div class="info-row"><span class="info-label">方向</span><span class="info-value">{{ latestRecognition.direction === 'ENTRY' ? '入场' : '出场' }}</span></div>
+              <div class="info-row"><span class="info-label">类型</span><span class="info-value">{{ vehicleType || '临时车' }}</span></div>
+              <div class="info-row"><span class="info-label">车道</span><span class="info-value">{{ latestRecognition.laneName || '--' }}</span></div>
+              <div class="info-row"><span class="info-label">区域</span><span class="info-value">--</span></div>
+              <div class="info-row"><span class="info-label">时间</span><span class="info-value">{{ store.formatTime(latestRecognition.eventTime) }}</span></div>
+              <div class="info-row"><span class="info-label">计费</span><span class="info-value">--</span></div>
+              <div class="info-row"><span class="info-label">金额</span><span class="info-value fee">{{ latestRecognition.feeAmount != null ? `¥${latestRecognition.feeAmount.toFixed(2)}` : '--' }}</span></div>
+              <div class="info-row"><span class="info-label">车主</span><span class="info-value">--</span></div>
+              <div class="info-row"><span class="info-label">备注</span><span class="info-value">--</span></div>
+              <div class="info-row"><span class="info-label">提示</span><span class="info-value">--</span></div>
+            </div>
+          </div>
+          <div class="detail-empty" v-else>
+            <a-empty description="暂无车辆信息" :image-style="{ height: '40px' }" />
+          </div>
+        </div>
+
+        <!-- 右下：通行记录表格 -->
+        <div class="grid-card records-table-card">
+          <div class="records-header">
+            <span class="records-title">通行记录</span>
+            <div class="records-tools">
+              <a-input v-model:value="recordsSearch" placeholder="搜索车牌" size="small" style="width: 120px" allow-clear />
+              <a-button size="small" type="primary" @click="searchRecords">查询</a-button>
+            </div>
+          </div>
+          <a-table
+            :data-source="displayedRecords" :columns="recordColumns" :pagination="false"
+            size="small" :locale="{ emptyText: '无数据' }" row-key="key" class="records-table"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'vehicleType'">
+                <a-tag :color="record.vehicleType === 'WHITE' || record.vehicleType === 'FIXED' ? 'green' : 'orange'" size="small">
+                  {{ vehicleTypeLabel(record.vehicleType) }}
+                </a-tag>
+              </template>
+              <template v-if="column.key === 'entryTime'">
+                {{ record.entryTime ? dayjs(record.entryTime).format('MM-DD HH:mm') : '--' }}
+              </template>
+              <template v-if="column.key === 'exitTime'">
+                {{ record.exitTime ? dayjs(record.exitTime).format('MM-DD HH:mm') : '--' }}
+              </template>
+              <template v-if="column.key === 'status'">
+                <a-tag :color="record.exitTime ? 'default' : 'green'" size="small">
+                  {{ record.exitTime ? '已出场' : '在场' }}
+                </a-tag>
+              </template>
+              <template v-if="column.key === 'entryImage'">
+                <a-image v-if="record.entryImage" :src="record.entryImage" :width="44" class="table-thumb" />
+                <span v-else>--</span>
+              </template>
             </template>
-          </MonitorTabs>
+          </a-table>
+        </div>
+      </div>
+
+      <!-- 右侧侧边栏 -->
+      <div class="right-sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-title">提示消息</span>
+          <span class="sidebar-icons">
+            <ReloadOutlined class="sidebar-icon" @click="refreshDevices" />
+          </span>
+        </div>
+        <div class="sidebar-stats">
+          <div class="stat-item">
+            <span class="stat-label">车场总车位</span>
+            <span class="stat-value">{{ parkingLot?.totalSpaces ?? '--' }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">在场车辆</span>
+            <span class="stat-value">{{ parkingLot?.currentVehicles ?? '--' }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">剩余车位</span>
+            <span class="stat-value remaining">{{ parkingLot?.remainingSpaces ?? '--' }}</span>
+          </div>
+        </div>
+        <div class="sidebar-messages">
+          <a-empty description="暂无消息" :image-style="{ height: '36px' }" />
         </div>
       </div>
     </div>
 
-    <!-- 收费面板 -->
+    <!-- ========== 弹窗 ========== -->
     <ChargePanel />
-
-    <!-- 人工放行弹窗（单通道） -->
     <ManualReleaseModal
-      v-model:open="manualReleaseOpen"
-      :lane-id="manualReleaseLaneId"
-      :plate-number="manualReleasePlate"
-      :direction="manualReleaseDirection"
+      v-model:open="manualReleaseOpen" :lane-id="manualReleaseLaneId"
+      :plate-number="manualReleasePlate" :direction="manualReleaseDirection"
       @success="handleManualReleaseResult"
     />
-
-    <!-- 收费规则编辑弹窗 -->
     <FeeRuleEditModal
-      v-model:open="feeRuleEditOpen"
-      :lane-id="feeRuleEditLaneId"
-      :fee-rule="currentFeeRule"
-      @save="handleSaveFeeRule"
+      v-model:open="feeRuleEditOpen" :lane-id="feeRuleEditLaneId"
+      :fee-rule="currentFeeRule" @save="handleSaveFeeRule"
     />
-
-    <!-- 远程开闸弹窗 -->
-    <a-modal
-      v-model:open="remoteGateModalVisible"
-      title="🚧 运营端远程开闸"
-      :footer="null"
-      width="420px"
-      centered
-      :closable="true"
-      :mask-closable="true"
-    >
-      <a-result
-        status="success"
-        title="远程开闸通知"
-      >
+    <a-modal v-model:open="remoteGateModalVisible" title="🚧 运营端远程开闸" :footer="null" width="420px" centered>
+      <a-result status="success" title="远程开闸通知">
         <template #subTitle>
           <a-descriptions :column="1" size="small" bordered>
             <a-descriptions-item label="操作人">{{ currentRemoteGateAlert?.operatorName || '-' }}</a-descriptions-item>
@@ -373,82 +231,29 @@
         </template>
       </a-result>
     </a-modal>
-
-    <!-- 无牌车处理抽屉 -->
-    <a-drawer
-      v-model:open="tempPlateDrawerOpen"
-      title="无牌车处理"
-      placement="right"
-      :width="400"
-    >
-      <div class="temp-plate-section">
-        <a-divider orientation="left" style="margin: 4px 0 12px">手动入场</a-divider>
-        <a-form layout="vertical">
-          <a-form-item label="临时车牌号">
-            <a-space style="width: 100%">
-              <a-input v-model:value="tempPlateEntryPlate" placeholder="留空自动生成" :maxlength="20" style="flex: 1" />
-              <a-button @click="handleSuggestTempPlate">建议</a-button>
-            </a-space>
-          </a-form-item>
-          <a-form-item label="入口车道">
-            <a-select v-model:value="tempPlateEntryLane" placeholder="选择入口车道" style="width: 100%">
-              <a-select-option v-for="lane in entryLanes" :key="lane.laneId" :value="lane.laneId">
-                {{ lane.laneName }}
-              </a-select-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item>
-            <a-button type="primary" :loading="tempPlateEntering" block @click="handleTempPlateEntry">
-              入场并开闸
-            </a-button>
-          </a-form-item>
-        </a-form>
-
-        <a-divider orientation="left" style="margin: 4px 0 12px">匹配出场</a-divider>
-        <a-form layout="vertical">
-          <a-form-item label="临时车牌号">
-            <a-input v-model:value="tempPlateSearch" placeholder="输入临时车牌号" :maxlength="20" />
-          </a-form-item>
-          <a-form-item label="出口车道">
-            <a-select v-model:value="tempPlateExitLane" placeholder="选择出口车道" style="width: 100%">
-              <a-select-option v-for="lane in exitLanes" :key="lane.laneId" :value="lane.laneId">
-                {{ lane.laneName }}
-              </a-select-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item>
-            <a-button type="primary" :loading="tempPlateExiting" block @click="handleTempPlateExit">
-              匹配出场并计费
-            </a-button>
-          </a-form-item>
-        </a-form>
-      </div>
-    </a-drawer>
-
-    <!-- 车牌校正弹窗 -->
     <PlateCorrectionModal
-      v-model:open="correctionModalOpen"
-      :event="correctionTarget"
+      v-model:open="correctionModalOpen" :event="correctionTarget"
       @corrected="handleCorrectionDone"
     />
-
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
-import { message, notification } from 'ant-design-vue'
-import { SyncOutlined, ExclamationCircleOutlined, VideoCameraOutlined } from '@ant-design/icons-vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { message } from 'ant-design-vue'
+import {
+  VideoCameraOutlined, ReloadOutlined,
+} from '@ant-design/icons-vue'
+import dayjs from 'dayjs'
 import { useMonitorStore } from '@/stores/monitor'
-import { MonitorWebSocketClient, type ConnectionStatus } from '@/utils/websocket'
-import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, AlertPayload, RecognitionEvent, RemoteGateAlertPayload, LaneCamera } from '@/api/monitor-types'
+import { MonitorWebSocketClient } from '@/utils/websocket'
+import type { DeviceStatus, RecognitionEventPayload, SpaceUpdatePayload, RecognitionEvent, RemoteGateAlertPayload, ParkingSessionVO } from '@/api/monitor-types'
 import ChargePanel from '@/components/ChargePanel.vue'
 import PlateCorrectionModal from '@/components/PlateCorrectionModal.vue'
 import ManualReleaseModal from '@/components/ManualReleaseModal.vue'
 import FeeRuleEditModal from '@/components/FeeRuleEditModal.vue'
-import ParkingLotSidebar from './ParkingLotSidebar.vue'
-import MonitorTabs from './MonitorTabs.vue'
 import { getBoothParkingLots, type BoothParkingLot } from '@/api/parking-lot'
+import { getParkingSessions } from '@/api/vehicle-query'
 
 const TOKEN_KEY = 'jushan_access_token'
 const LOT_ID_KEY = 'booth_selected_lot_id'
@@ -456,1083 +261,627 @@ const LOT_ID_KEY = 'booth_selected_lot_id'
 const store = useMonitorStore()
 const selectedLotId = ref<number | null>(null)
 let wsClient: MonitorWebSocketClient | null = null
+const lotOptions = ref<{ value: number; label: string }[]>([])
 
-// 人工放行
+// ========== 车道选择 ==========
+const entryLaneKey = ref('')
+const exitLaneKey = ref('')
+
+// ========== 人工放行 ==========
 const manualReleaseOpen = ref(false)
 const manualReleaseLaneId = ref(0)
 const manualReleasePlate = ref('')
 const manualReleaseDirection = ref<number | undefined>(undefined)
-
-/** 每个车道的锁定状态：{ [laneId-direction]: { open: boolean, close: boolean } } */
 const laneLockState = ref<Record<string, { open: boolean; close: boolean }>>({})
-
-/** 车道控闸能力：laneId → capabilities[]，前端按钮按此动态渲染 */
 const gateCapabilities = ref<Record<number, string[]>>({})
-
-function lockStateKey(laneId: number, direction?: string): string {
-  return direction ? `${laneId}-${direction}` : `${laneId}`
-}
-
-// 从快照初始化 laneLockState（修复 gateMode 刷新后状态丢失）
-watch(() => store.lanes, (lanes) => {
-  for (const lane of lanes) {
-    const mode = lane.gateMode
-    const entryKey = lockStateKey(lane.id, 'ENTRY')
-    const exitKey = lockStateKey(lane.id, 'EXIT')
-    const state = mode === 'ALWAYS_OPEN'
-      ? { open: true, close: false } :
-      mode === 'ALWAYS_CLOSE'
-        ? { open: false, close: true } :
-        { open: false, close: false }
-
-    if (lane.direction === 'MIXED') {
-      laneLockState.value[entryKey] = { ...state }
-      laneLockState.value[exitKey] = { ...state }
-    } else {
-      laneLockState.value[lane.id] = state
-    }
-  }
-}, { immediate: true, deep: true })
-
-// 收费规则编辑
 const feeRuleEditOpen = ref(false)
 const feeRuleEditLaneId = ref(0)
 const currentFeeRule = ref<any>(null)
-
-// 远程开闸弹窗
 const remoteGateModalVisible = ref(false)
 const currentRemoteGateAlert = ref<RemoteGateAlertPayload | null>(null)
 let remoteGateDismissTimer: ReturnType<typeof setTimeout> | null = null
-
-// 无牌车处理
-const tempPlateDrawerOpen = ref(false)
-const tempPlateSearch = ref('')
-const tempPlateExitLane = ref<number | null>(null)
-const tempPlateExiting = ref(false)
-const tempPlateEntryPlate = ref('')
-const tempPlateEntryLane = ref<number | null>(null)
-const tempPlateEntering = ref(false)
-/** 识别失败未处理计数 */
-const unhandledRecognitionFailedCount = ref(0)
-
-// 车牌校正
 const correctionModalOpen = ref(false)
 const correctionTarget = ref<RecognitionEvent | null>(null)
-
-// 车场列表（左侧栏）
-const sidebarLots = ref<{ id: number; name: string; status: string; currentVehicles?: number }[]>([])
-
-/** 出口车道列表 */
-const exitLanes = computed(() => {
-  return store.lanes
-    .filter((l: any) => l.direction === 'EXIT' || l.direction === 'MIXED')
-    .map((l) => ({
-      laneId: l.id,
-      laneName: l.name || `车道 ${l.id}`,
-    }))
-})
-
-/** 入口车道列表 */
-const entryLanes = computed(() => {
-  return store.lanes
-    .filter((l: any) => l.direction === 'ENTRY' || l.direction === 'MIXED')
-    .map((l) => ({
-      laneId: l.id,
-      laneName: l.name || `车道 ${l.id}`,
-    }))
-})
-
-/** 建议临时车牌号 */
-async function handleSuggestTempPlate() {
-  if (!selectedLotId.value) { message.warning('请先选择停车场'); return }
-  try {
-    const res = await import('@/api/monitor').then(m => m.suggestTempPlate(selectedLotId.value!))
-    tempPlateEntryPlate.value = res.tempPlate
-  } catch (e: any) {
-    message.error(e?.response?.data?.message || '获取建议临牌失败')
-  }
-}
-
-/** 无牌车手动入场并开闸 */
-async function handleTempPlateEntry() {
-  if (!tempPlateEntryLane.value) { message.warning('请选择入口车道'); return }
-  if (!selectedLotId.value) { message.warning('请先选择停车场'); return }
-  tempPlateEntering.value = true
-  try {
-    const res = await import('@/api/monitor').then(m => m.manualTempPlateEntry({
-      parkingLotId: selectedLotId.value!,
-      laneId: tempPlateEntryLane.value!,
-      tempPlate: tempPlateEntryPlate.value.trim() || undefined,
-    }))
-    message.success(`无牌车入场成功，临牌：${res.tempPlate}`)
-    tempPlateEntryPlate.value = ''
-    tempPlateEntryLane.value = null
-  } catch (e: any) {
-    message.error(e?.response?.data?.message || '入场失败')
-  } finally {
-    tempPlateEntering.value = false
-  }
-}
-
-/** 无牌车匹配出场并计费 */
-async function handleTempPlateExit() {
-  if (!tempPlateSearch.value.trim()) { message.warning('请输入临时车牌号'); return }
-  if (!tempPlateExitLane.value) { message.warning('请选择出口车道'); return }
-  if (!selectedLotId.value) { message.warning('请先选择停车场'); return }
-  tempPlateExiting.value = true
-  try {
-    const res = await import('@/api/monitor').then(m => m.manualTempPlateExit({
-      tempPlate: tempPlateSearch.value.trim(),
-      parkingLotId: selectedLotId.value!,
-      laneId: tempPlateExitLane.value!,
-    }))
-    message.success(`无牌车出场成功，费用：${(res.feeCents / 100).toFixed(2)} 元`)
-    tempPlateSearch.value = ''
-    tempPlateExitLane.value = null
-    tempPlateDrawerOpen.value = false
-  } catch (e: any) {
-    message.error(e?.response?.data?.message || '出场失败')
-  } finally {
-    tempPlateExiting.value = false
-  }
-}
-
-/** 加载车场列表（填充左侧栏） */
-async function loadLotOptions() {
-  try {
-    const lots = await getBoothParkingLots()
-    sidebarLots.value = (lots || []).map((lot: BoothParkingLot) => ({
-      id: lot.id,
-      name: lot.name,
-      status: lot.status,
-      currentVehicles: undefined,
-    }))
-  } catch {
-    // 静默失败
-  }
-}
-
-/** 刷新所有车道控闸能力（按钮按能力动态渲染） */
-async function refreshGateCapabilities() {
-  const { getGateCapabilities } = await import('@/api/charge')
-  const caps: Record<number, string[]> = {}
-  for (const lane of store.lanes) {
-    try {
-      caps[lane.id] = await getGateCapabilities(lane.id)
-    } catch {
-      caps[lane.id] = [] // 接口异常兜底：不展示任何闸控按钮
-    }
-  }
-  gateCapabilities.value = caps
-}
-
-/** 判断车道控闸设备是否具备指定能力 */
-function hasGateCapability(laneId: number, capability: string): boolean {
-  const caps = gateCapabilities.value[laneId]
-  return caps != null && caps.includes(capability)
-}
-
-function handleManualOpenGate(lane: LaneCard) {
-  manualReleaseLaneId.value = lane.laneId
-  // 预填该车道最近识别事件的车牌（可在弹窗中编辑）
-  manualReleasePlate.value = lane.latestEvent?.correctedPlate || lane.latestEvent?.plateNumber || ''
-  // 双向车道传方向用于选择正确相机抓拍（1=入口, 2=出口）
-  manualReleaseDirection.value = lane.direction === 'ENTRY' ? 1 : lane.direction === 'EXIT' ? 2 : undefined
-  manualReleaseOpen.value = true
-}
-
-/** 直接关闸（无需选择原因） */
-async function handleManualCloseGate(laneId: number) {
-  try {
-    const { manualCloseGate } = await import('@/api/charge')
-    const result = await manualCloseGate(laneId, '岗亭手动关闸')
-    if (result.gateDeviceAck) {
-      message.success('关闸成功')
-    } else {
-      message.warning(result.gateResult || '关闸失败')
-    }
-  } catch (e: any) {
-    message.error(e?.message || '关闸失败')
-  }
-}
-
-/** 在同一 laneId 上同步 MIXED 入口/出口两张卡的状态 */
-function syncMixedLockState(laneId: number, changedLockKey: string, state: { open: boolean; close: boolean }) {
-  const entryKey = `${laneId}-ENTRY`
-  const exitKey = `${laneId}-EXIT`
-  // 仅 MIXED 车道才有 ENTRY/EXIT 双 key，非 MIXED 车道不会命中，无额外开销
-  if (laneLockState.value[entryKey] && laneLockState.value[exitKey]) {
-    laneLockState.value[entryKey] = { ...state }
-    laneLockState.value[exitKey] = { ...state }
-  }
-}
-
-/** 切换常开/取消常开（锁定/解锁开闸继电器） */
-async function handleToggleLockOpen(laneId: number, lockKey: string) {
-  if (!laneLockState.value[lockKey]) {
-    laneLockState.value[lockKey] = { open: false, close: false }
-  }
-  const isLocked = laneLockState.value[lockKey]!.open
-
-  try {
-    const { manualLockGate, manualUnlockGate } = await import('@/api/charge')
-    if (isLocked) {
-      const result = await manualUnlockGate(laneId, '岗亭取消常开')
-      if (result.gateDeviceAck) {
-        updateLockOpen(laneId, lockKey, false)
-        message.success('取消常开成功')
-      } else {
-        message.warning(result.gateResult || '取消常开失败')
-      }
-    } else {
-      const result = await manualLockGate(laneId, '岗亭设置常开')
-      if (result.gateDeviceAck) {
-        updateLockOpen(laneId, lockKey, true)
-        message.success('常开成功（道闸已锁定）')
-      } else {
-        message.warning(result.gateResult || '常开失败')
-      }
-    }
-  } catch (e: any) {
-    message.error(e?.message || (isLocked ? '取消常开失败' : '常开失败'))
-  }
-}
-
-function updateLockOpen(laneId: number, lockKey: string, open: boolean) {
-  laneLockState.value[lockKey] = { open, close: false }
-  syncMixedLockState(laneId, lockKey, { open, close: false })
-}
-
-/** 切换常关/取消常关（锁定/解锁关闸继电器） */
-async function handleToggleLockClose(laneId: number, lockKey: string) {
-  if (!laneLockState.value[lockKey]) {
-    laneLockState.value[lockKey] = { open: false, close: false }
-  }
-  const isLocked = laneLockState.value[lockKey]!.close
-
-  try {
-    if (isLocked) {
-      // 取消常关（专用端点，审计可区分）
-      const { manualUnlockCloseGate } = await import('@/api/charge')
-      const result = await manualUnlockCloseGate(laneId, '岗亭取消常关')
-      if (result.gateDeviceAck) {
-        updateLockClose(laneId, lockKey, false)
-        message.success('取消常关成功')
-      } else {
-        message.warning(result.gateResult || '取消常关失败')
-      }
-    } else {
-      // 常关：后端内部先关闸再锁定，一次调用完成
-      const { manualLockCloseGate } = await import('@/api/charge')
-      const result = await manualLockCloseGate(laneId, '岗亭常关')
-      if (result.gateDeviceAck) {
-        updateLockClose(laneId, lockKey, true)
-        message.success('常关成功（道闸已锁定关闭）')
-      } else {
-        message.warning(result.gateResult || '常关失败')
-      }
-    }
-  } catch (e: any) {
-    message.error(e?.message || (isLocked ? '取消常关失败' : '常关失败'))
-  }
-}
-
-function updateLockClose(laneId: number, lockKey: string, close: boolean) {
-  laneLockState.value[lockKey] = { open: false, close }
-  syncMixedLockState(laneId, lockKey, { open: false, close })
-}
-
-/** 修改收费规则 */
-async function handleEditFeeRule(laneId: number) {
-  feeRuleEditLaneId.value = laneId
-  feeRuleEditOpen.value = true
-  currentFeeRule.value = null
-  try {
-    const { getCurrentFeeRule } = await import('@/api/charge')
-    const lotId = store.currentLotId
-    if (!lotId) {
-      message.warning('请先连接停车场')
-      return
-    }
-    const rule = await getCurrentFeeRule(lotId)
-    currentFeeRule.value = rule
-  } catch (e: any) {
-    message.error(e?.message || '加载收费规则失败')
-  }
-}
-
-/** 保存收费规则调整 */
-async function handleSaveFeeRule(data: any) {
-  try {
-    const { updateFeeRule } = await import('@/api/charge')
-    if (currentFeeRule.value?.id) {
-      await updateFeeRule(currentFeeRule.value.id, data)
-      message.success('收费规则已更新')
-    }
-    feeRuleEditOpen.value = false
-  } catch (e: any) {
-    message.error(e?.message || '更新收费规则失败')
-  }
-}
-
-/** 显示远程开闸弹窗并启动自动消失计时器 */
-function showRemoteGateAlert(payload: RemoteGateAlertPayload) {
-  if (remoteGateDismissTimer) {
-    clearTimeout(remoteGateDismissTimer)
-    remoteGateDismissTimer = null
-  }
-
-  currentRemoteGateAlert.value = payload
-  remoteGateModalVisible.value = true
-
-  const dismissMs = (payload.autoDismissSeconds || 10) * 1000
-  remoteGateDismissTimer = setTimeout(() => {
-    remoteGateModalVisible.value = false
-    remoteGateDismissTimer = null
-  }, dismissMs)
-}
-
-function handleManualReleaseResult(result: { success: boolean; message: string; gateOpened: boolean | null }) {
-  manualReleaseOpen.value = false
-  if (result.success) {
-    message.success('开闸成功')
-  } else {
-    message.warning(result.message || '开闸失败')
-  }
-}
-
-const parkingLot = computed(() => store.parkingLot)
-
-const statusText = computed(() => {
-  const map: Record<ConnectionStatus, string> = {
-    connecting: '连接中',
-    connected: '已连接',
-    disconnected: '已断开',
-    reconnecting: '重连中',
-  }
-  return map[store.connectionStatus] || store.connectionStatus
-})
-
-const statusColor = computed(() => {
-  const map: Record<ConnectionStatus, string> = {
-    connecting: 'processing',
-    connected: 'success',
-    disconnected: 'default',
-    reconnecting: 'warning',
-  }
-  return map[store.connectionStatus] || 'default'
-})
-
 const currentTime = ref('')
 const currentUser = ref('')
 let timeTimer: ReturnType<typeof setInterval> | null = null
 
-function updateTime() {
-  currentTime.value = dayjs().format('YYYY-MM-DD HH:mm:ss')
+// 设备在线宽限期
+const DEVICE_GRACE_PERIOD_MS = 120_000
+const lastDeviceOnlineTime = ref<Record<number, number>>({})
+
+function isDeviceEffectivelyOnline(deviceId: number): boolean {
+  const device = store.deviceStatuses.find(d => d.deviceId === deviceId)
+  if (device?.online) { lastDeviceOnlineTime.value[deviceId] = Date.now(); return true }
+  const lastOnline = lastDeviceOnlineTime.value[deviceId] || 0
+  if (lastOnline === 0) return false
+  return (Date.now() - lastOnline) < DEVICE_GRACE_PERIOD_MS
 }
 
-function handleLogout() {
-  sessionStorage.removeItem('jushan_access_token')
-  window.location.href = '/login'
+function updateTime() { currentTime.value = dayjs().format('YYYY-MM-DD HH:mm:ss') }
+function handleLogout() { sessionStorage.removeItem(TOKEN_KEY); window.location.href = '/login' }
+
+// ========== 车场 ==========
+async function loadLotOptions() {
+  try {
+    const lots = await getBoothParkingLots()
+    lotOptions.value = (lots || []).map((l: BoothParkingLot) => ({ value: l.id, label: l.name }))
+  } catch {}
 }
 
-const criticalAlertMessages = computed(() => {
-  return store.criticalAlerts.map((a) => a.message).join('；')
+async function handleLotSelect(lotId: number) {
+  if (lotId === store.currentLotId) return
+  wsClient?.disconnect(); store.reset()
+  selectedLotId.value = lotId
+  sessionStorage.setItem(LOT_ID_KEY, String(lotId))
+  try {
+    await store.loadSnapshot(lotId); await refreshGateCapabilities(); buildWsClient(lotId); autoSelectLanes()
+    loadPresentVehicles()
+  } catch (e: any) { message.error(e?.message || '车场切换失败') }
+}
+
+function autoSelectLanes() {
+  const entry = store.lanes.find(l => l.direction === 'ENTRY' || l.direction === 'MIXED')
+  const exit = store.lanes.find(l => l.direction === 'EXIT' || l.direction === 'MIXED')
+  if (entry) entryLaneKey.value = entry.id + '-ENTRY'
+  if (exit) exitLaneKey.value = exit.id + (exit.direction === 'MIXED' ? '-EXIT' : '')
+}
+
+// ========== 车道数据 ==========
+interface LaneInfo { key: string; laneId: number; name: string; direction: string; deviceId?: number; online: boolean }
+
+const allLaneInfos = computed((): LaneInfo[] => {
+  const r: LaneInfo[] = []
+  store.lanes.forEach(l => {
+    const name = l.name || `车道${l.id}`
+    const online = l.deviceId != null ? isDeviceEffectivelyOnline(l.deviceId) : false
+    if (l.direction === 'MIXED') {
+      r.push({ key: l.id + '-ENTRY', laneId: l.id, name: name + ' 入口', direction: 'ENTRY', deviceId: l.deviceId, online })
+      r.push({ key: l.id + '-EXIT', laneId: l.id, name: name + ' 出口', direction: 'EXIT', deviceId: l.deviceId, online })
+    } else {
+      r.push({ key: l.id + '', laneId: l.id, name, direction: l.direction, deviceId: l.deviceId, online })
+    }
+  })
+  return r
 })
 
-// GB-04/05: 常开/常关状态条（V1.4）
+const entryLaneOptions = computed(() => allLaneInfos.value.filter(l => l.direction === 'ENTRY').map(l => ({ value: l.key, label: l.name })))
+const exitLaneOptions = computed(() => allLaneInfos.value.filter(l => l.direction === 'EXIT').map(l => ({ value: l.key, label: l.name })))
+const entryLaneOnline = computed(() => allLaneInfos.value.find(l => l.key === entryLaneKey.value)?.online ?? false)
+const exitLaneOnline = computed(() => allLaneInfos.value.find(l => l.key === exitLaneKey.value)?.online ?? false)
+
+function parseLaneKey(key: string): { laneId: number; direction: string } {
+  const parts = key.split('-')
+  return { laneId: parseInt(parts[0]) || 0, direction: parts[1] || '' }
+}
+
+// ========== 车辆详情 ==========
+const latestRecognition = computed(() => store.recentEvents[0] || null)
+const prevRecognition = computed(() => store.recentEvents[1] || null)
+const vehicleType = ref('')
+
+watch(latestRecognition, async (event) => {
+  vehicleType.value = ''
+  if (!event) return
+  const plate = event.correctedPlate || event.plateNumber
+  if (!plate) return
+
+  // 优先从已加载的在场车辆列表中查找
+  const found = presentVehicles.value.find(
+    v => v.plateNumber?.toUpperCase() === plate.toUpperCase()
+  )
+  if (found && found.vehicleType != null) {
+    vehicleType.value = vehicleTypeLabel(found.vehicleType)
+    return
+  }
+
+  // 回退到 getChargeInfo
+  try {
+    const { getChargeInfo } = await import('@/api/charge')
+    const session = await getChargeInfo(plate)
+    if (session) {
+      vehicleType.value = vehicleTypeLabel((session as any).vehicleType || '')
+    }
+  } catch { /* 查询失败不影响 */ }
+})
+
+// ========== 通行记录 ==========
+
+const recordsSearch = ref('')
+const presentVehicles = ref<ParkingSessionVO[]>([])
+const recordColumns = [
+  { title: '车牌号', dataIndex: 'plateNumber', key: 'plateNumber', width: 100 },
+  { title: '类型', key: 'vehicleType', width: 65 },
+  { title: '入场时间', key: 'entryTime', width: 95 },
+  { title: '出场时间', key: 'exitTime', width: 95 },
+  { title: '状态', key: 'status', width: 60 },
+  { title: '入场图片', key: 'entryImage', width: 70 },
+]
+
+const displayedRecords = computed(() => {
+  let records = presentVehicles.value.map((v, i) => ({ ...v, key: (v as any).id || v.plateNumber + '-' + i }))
+  if (recordsSearch.value) records = records.filter(r => (r.plateNumber || '').toUpperCase().includes(recordsSearch.value.toUpperCase()))
+  return records
+})
+
+async function loadPresentVehicles() {
+  if (!selectedLotId.value) return
+  try {
+    const result = await getParkingSessions({ parkingLotId: selectedLotId.value, size: 50 })
+    presentVehicles.value = result.records || []
+  } catch { presentVehicles.value = [] }
+}
+
+function searchRecords() { loadPresentVehicles() }
+
+function formatDuration(minutes: number): string {
+  if (minutes == null || minutes < 0) return '--'
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return h > 0 ? `${h}时${m}分` : `${m}分`
+}
+
+function vehicleTypeLabel(type: string): string {
+  if (!type) return '临时车'
+  const t = type.toUpperCase()
+  if (t === 'WHITE' || t === 'FIXED' || t === 'FIXED_SPACE' || t === 'MONTHLY' || t === 'MONTHLY_PASS' || t === 'WHITELIST') return '固定车'
+  if (t === 'TEMP' || t === 'TEMPORARY') return '临时车'
+  return '临时车'
+}
+
+// ========== 车位 ==========
+const parkingLot = computed(() => store.parkingLot)
+
+// ========== 横幅 ==========
 const gateModeBanners = computed(() => {
   const banners: { laneId: number; mode: string; label: string }[] = []
   for (const lane of store.lanes) {
     const gateMode = (lane as any).gateMode
-    if (gateMode === 'ALWAYS_OPEN') {
-      banners.push({ laneId: lane.id, mode: 'ALWAYS_OPEN', label: `车道「${lane.name || `车道${lane.id}`}」处于常开模式 — 道闸已锁定，车辆可直接通行` })
-    } else if (gateMode === 'ALWAYS_CLOSE') {
-      banners.push({ laneId: lane.id, mode: 'ALWAYS_CLOSE', label: `车道「${lane.name || `车道${lane.id}`}」处于常关模式 — 白名单不会自动开闸，需人工放行` })
-    }
+    if (gateMode === 'ALWAYS_OPEN') banners.push({ laneId: lane.id, mode: 'ALWAYS_OPEN', label: `车道「${lane.name || `车道${lane.id}`}」处于常开模式` })
+    else if (gateMode === 'ALWAYS_CLOSE') banners.push({ laneId: lane.id, mode: 'ALWAYS_CLOSE', label: `车道「${lane.name || `车道${lane.id}`}」处于常关模式` })
   }
   return banners
 })
 
-// GB-07: WebSocket 事件提示音（V1.4 — 使用 Web Audio API 生成提示音）
-let audioCtx: AudioContext | null = null
-function playAlertSound() {
-  try {
-    if (!audioCtx) audioCtx = new AudioContext()
-    const osc = audioCtx.createOscillator()
-    const gain = audioCtx.createGain()
-    osc.connect(gain); gain.connect(audioCtx.destination)
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(800, audioCtx.currentTime)
-    osc.frequency.setValueAtTime(1000, audioCtx.currentTime + 0.1)
-    gain.gain.setValueAtTime(0.3, audioCtx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3)
-    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3)
-  } catch { /* 浏览器不支持或用户未交互 */ }
+// ========== 控闸 ==========
+async function refreshGateCapabilities() {
+  const { getGateCapabilities } = await import('@/api/charge')
+  const caps: Record<number, string[]> = {}
+  for (const lane of store.lanes) { try { caps[lane.id] = await getGateCapabilities(lane.id) } catch { caps[lane.id] = [] } }
+  gateCapabilities.value = caps
 }
 
-// GB-08: 设备离线判定（V1.4 口径：最后状态包距今超过 120 秒即判定离线）
-const DEVICE_OFFLINE_THRESHOLD_MS = 120_000
-const lastDeviceStatusTime = ref<Record<number, number>>({}) // deviceId -> last seen timestamp (ms)
+// ========== 入口操作 ==========
+async function handleEntryOpen() { manualReleaseOpenGate(entryLaneKey.value, 1) }
+async function handleEntryClose() { await gateClose(entryLaneKey.value) }
+async function handleEntryKeepOpen() { await toggleKeepOpen(entryLaneKey.value) }
+async function handleEntryKeepClose() { await toggleKeepClose(entryLaneKey.value) }
 
-function isDeviceOfflineByTime(deviceId: number): boolean {
-  const lastSeen = lastDeviceStatusTime.value[deviceId]
-  if (!lastSeen) return false // 从未收到状态，暂不判定离线
-  return (Date.now() - lastSeen) > DEVICE_OFFLINE_THRESHOLD_MS
-}
-
-interface LaneCard {
-  laneId: number
-  laneName: string
-  direction: string
-  /** lockState 键：MIXED 车道为 `${laneId}-ENTRY` 或 `${laneId}-EXIT`，否则为 `${laneId}` */
-  lockKey: string
-  deviceId?: number
-  deviceOnline: boolean
-  isOffline: boolean
-  charging: boolean
-  latestEvent?: RecognitionEventPayload
-  cameras?: LaneCamera[]
-  primaryOffline: boolean
-  activeSourceLabel?: string
-}
-
-const laneCards = computed((): LaneCard[] => {
-  const result: LaneCard[] = []
-
-  store.lanes.forEach((lane) => {
-    const cameras = lane.cameras || []
-    const hasMultiCameras = cameras.length > 0
-
-    function buildCard(direction: string, suffix: string, filterDirection?: string): LaneCard {
-      // 过滤该方向的事件和相机
-      const cardCameras = filterDirection
-        ? cameras.filter(c => c.direction === filterDirection)
-        : cameras
-      const cardEvents = filterDirection
-        ? store.recentEvents.filter(e => e.laneId === lane.id && e.direction === filterDirection)
-        : store.recentEvents.filter(e => e.laneId === lane.id)
-      const latestEvent = cardEvents[0] as RecognitionEventPayload | undefined
-      const cameraOnline = cardCameras.some(c => c.isActive && c.online)
-      const cameraOffline = cardCameras.length > 0 && cardCameras.every(c => !c.online)
-      const primaryOffline = cardCameras.filter(c => c.role === 'PRIMARY').some(c => !c.online)
-      const activeCamera = cardCameras.find(c => c.isActive)
-
-      const charging =
-        store.chargePanelVisible &&
-        store.currentChargeInfo?.laneId === lane.id
-
-      return {
-        laneId: lane.id,
-        laneName: (lane.name || `车道 ${lane.id}`) + suffix,
-        direction,
-        lockKey: filterDirection ? `${lane.id}-${filterDirection}` : `${lane.id}`,
-        deviceId: lane.deviceId,
-        deviceOnline: hasMultiCameras ? cameraOnline : (
-          !!store.deviceStatuses.find(d => d.deviceId === lane.deviceId)?.online
-        ),
-        isOffline: hasMultiCameras ? cameraOffline : (
-          !store.deviceStatuses.find(d => d.deviceId === lane.deviceId)?.online
-        ),
-        charging,
-        latestEvent,
-        cameras: cardCameras,
-        primaryOffline: hasMultiCameras ? primaryOffline : false,
-        activeSourceLabel: activeCamera
-          ? `当前: ${activeCamera.role === 'PRIMARY' ? '主相机' : '备相机'}`
-          : undefined,
-      }
-    }
-
-    if (lane.direction === 'MIXED') {
-      // 双向车道拆分为入口卡 + 出口卡
-      result.push(buildCard('ENTRY', ' 入口', 'ENTRY'))
-      result.push(buildCard('EXIT', ' 出口', 'EXIT'))
-    } else if (!hasMultiCameras) {
-      const device = lane.deviceId
-        ? store.deviceStatuses.find((d) => d.deviceId === lane.deviceId)
-        : undefined
-      const latestEvent = store.recentEvents.find((e) => e.laneId === lane.id)
-
-      const charging =
-        store.chargePanelVisible &&
-        store.currentChargeInfo?.laneId === lane.id
-
-      // GB-08: 120 秒时间阈值判定离线（V1.4）
-      const timeOffline = lane.deviceId != null && isDeviceOfflineByTime(lane.deviceId)
-      result.push({
-        laneId: lane.id,
-        laneName: lane.name || `车道 ${lane.id}`,
-        direction: lane.direction,
-        lockKey: `${lane.id}`,
-        deviceId: lane.deviceId,
-        deviceOnline: !!device?.online && !device?.stale && !timeOffline,
-        isOffline: !device || !device.online || device.stale || timeOffline,
-        charging,
-        latestEvent: latestEvent as RecognitionEventPayload | undefined,
-        cameras: [],
-        primaryOffline: false,
-        activeSourceLabel: undefined,
-      })
-    } else {
-      const primaryCameras = cameras.filter(c => c.role === 'PRIMARY')
-      const primaryOffline = primaryCameras.some(c => !c.online)
-      const activeCamera = cameras.find(c => c.isActive)
-      const activeSourceLabel = activeCamera
-        ? `当前: ${activeCamera.role === 'PRIMARY' ? '主相机' : '备相机'}`
-        : undefined
-
-      result.push({
-        laneId: lane.id,
-        laneName: lane.name || `车道 ${lane.id}`,
-        direction: lane.direction,
-        lockKey: `${lane.id}`,
-        deviceOnline: cameras.some(c => c.isActive && c.online),
-        isOffline: cameras.every(c => !c.online),
-        charging: store.chargePanelVisible && store.currentChargeInfo?.laneId === lane.id,
-        latestEvent: store.recentEvents.find((e) => e.laneId === lane.id) as RecognitionEventPayload | undefined,
-        cameras,
-        primaryOffline,
-        activeSourceLabel,
-      })
-    }
-  })
-
-  return result
+const entryLockState = computed(() => {
+  const key = getLockKey(entryLaneKey.value)
+  return laneLockState.value[key] || { open: false, close: false }
 })
 
-function sourceColor(source?: string) {
-  if (source === 'DEVICE_ACCESS') return 'green'
-  if (source === 'MOCK') return 'purple'
-  if (source === 'MANUAL') return 'blue'
-  return 'default'
+// ========== 出口操作 ==========
+async function handleExitOpen() { manualReleaseOpenGate(exitLaneKey.value, 2) }
+async function handleExitClose() { await gateClose(exitLaneKey.value) }
+async function handleExitKeepOpen() { await toggleKeepOpen(exitLaneKey.value) }
+async function handleExitKeepClose() { await toggleKeepClose(exitLaneKey.value) }
+
+const exitLockState = computed(() => {
+  const key = getLockKey(exitLaneKey.value)
+  return laneLockState.value[key] || { open: false, close: false }
+})
+
+// ========== 闸控通用 ==========
+function getLockKey(key: string) { const p = parseLaneKey(key); return p.direction ? `${p.laneId}-${p.direction}` : `${p.laneId}` }
+
+async function gateClose(laneKey: string) {
+  const { laneId } = parseLaneKey(laneKey)
+  if (!laneId) { message.warning('请先选择车道'); return }
+  try {
+    const { manualCloseGate } = await import('@/api/charge')
+    const r = await manualCloseGate(laneId, '岗亭手动关闸')
+    r.gateDeviceAck ? message.success('关闸成功') : message.warning(r.gateResult || '关闸失败')
+  } catch (e: any) { message.error(e?.message || '关闸失败') }
 }
 
-function sourceLabel(source?: string) {
-  const map: Record<string, string> = {
-    DEVICE_ACCESS: '设备识别',
-    MOCK: '模拟测试',
-    MANUAL: '手动操作',
-  }
-  return map[source || ''] || source || '未知'
+async function toggleKeepOpen(laneKey: string) {
+  const { laneId } = parseLaneKey(laneKey)
+  if (!laneId) { message.warning('请先选择车道'); return }
+  const lockKey = getLockKey(laneKey)
+  if (!laneLockState.value[lockKey]) laneLockState.value[lockKey] = { open: false, close: false }
+  const isLocked = laneLockState.value[lockKey]!.open
+  try {
+    const { manualLockGate, manualUnlockGate } = await import('@/api/charge')
+    if (isLocked) {
+      const r = await manualUnlockGate(laneId, '岗亭取消常开')
+      r.gateDeviceAck ? (laneLockState.value[lockKey] = { open: false, close: false }, message.success('取消常开成功')) : message.warning(r.gateResult || '取消常开失败')
+    } else {
+      const r = await manualLockGate(laneId, '岗亭设置常开')
+      r.gateDeviceAck ? (laneLockState.value[lockKey] = { open: true, close: false }, message.success('常开成功')) : message.warning(r.gateResult || '常开失败')
+    }
+  } catch (e: any) { message.error(e?.message || (isLocked ? '取消常开失败' : '常开失败')) }
 }
 
-/** 点击事件列表项：ENTRY 事件打开校正弹窗 */
-function handleEventClick(item: RecognitionEvent) {
-  correctionTarget.value = item
-  correctionModalOpen.value = true
+async function toggleKeepClose(laneKey: string) {
+  const { laneId } = parseLaneKey(laneKey)
+  if (!laneId) { message.warning('请先选择车道'); return }
+  const lockKey = getLockKey(laneKey)
+  if (!laneLockState.value[lockKey]) laneLockState.value[lockKey] = { open: false, close: false }
+  const isLocked = laneLockState.value[lockKey]!.close
+  try {
+    if (isLocked) {
+      const { manualUnlockCloseGate } = await import('@/api/charge')
+      const r = await manualUnlockCloseGate(laneId, '岗亭取消常关')
+      r.gateDeviceAck ? (laneLockState.value[lockKey] = { open: false, close: false }, message.success('取消常关成功')) : message.warning(r.gateResult || '取消常关失败')
+    } else {
+      const { manualLockCloseGate } = await import('@/api/charge')
+      const r = await manualLockCloseGate(laneId, '岗亭设置常关')
+      r.gateDeviceAck ? (laneLockState.value[lockKey] = { open: false, close: true }, message.success('常关成功')) : message.warning(r.gateResult || '常关失败')
+    }
+  } catch (e: any) { message.error(e?.message || (isLocked ? '取消常关失败' : '常关失败')) }
 }
 
-/**
- * 抓拍图加载失败容错：识别事件（MQTT）通常早于图片 HTTP 上传几百毫秒到达，
- * 首次 404 时延迟 1.5s 重试一次；仍失败则隐藏图片（保留占位背景）。
- */
+function manualReleaseOpenGate(laneKey: string, direction: number) {
+  const { laneId } = parseLaneKey(laneKey)
+  if (!laneId) { message.warning('请先选择车道'); return }
+  const latest = store.recentEvents.find(e => e.laneId === laneId)
+  manualReleaseLaneId.value = laneId
+  manualReleasePlate.value = latest?.correctedPlate || latest?.plateNumber || ''
+  manualReleaseDirection.value = direction
+  manualReleaseOpen.value = true
+}
+
+function handleManualReleaseResult(r: { success: boolean; message: string }) {
+  manualReleaseOpen.value = false
+  r.success ? message.success('开闸成功') : message.warning(r.message || '开闸失败')
+}
+
+async function handleSaveFeeRule(data: any) {
+  try {
+    const { updateFeeRule } = await import('@/api/charge')
+    if (currentFeeRule.value?.id) { await updateFeeRule(currentFeeRule.value.id, data); message.success('收费规则已更新') }
+    feeRuleEditOpen.value = false
+  } catch (e: any) { message.error(e?.message || '更新收费规则失败') }
+}
+
+// ========== 远程开闸 ==========
+function showRemoteGateAlert(payload: RemoteGateAlertPayload) {
+  if (remoteGateDismissTimer) { clearTimeout(remoteGateDismissTimer); remoteGateDismissTimer = null }
+  currentRemoteGateAlert.value = payload; remoteGateModalVisible.value = true
+  remoteGateDismissTimer = setTimeout(() => { remoteGateModalVisible.value = false; remoteGateDismissTimer = null }, (payload.autoDismissSeconds || 10) * 1000)
+}
+
 function handleCaptureError(e: Event) {
   const el = e.target as HTMLImageElement
-  if (!el.dataset.retried) {
-    el.dataset.retried = '1'
-    setTimeout(() => {
-      const base = el.src.split('?')[0]
-      el.src = `${base}?_r=1`
-    }, 1500)
-  } else {
-    el.style.visibility = 'hidden'
-  }
+  if (!el.dataset.retried) { el.dataset.retried = '1'; setTimeout(() => { el.src = `${el.src.split('?')[0]}?_r=1` }, 1500) }
+  else { el.style.visibility = 'hidden' }
+}
+function handleCorrectionDone() {}
+
+async function refreshDevices() {
+  if (!selectedLotId.value) { message.warning('请先选择停车场'); return }
+  try { await store.refreshAllDevices(); await refreshGateCapabilities(); message.success('设备状态已刷新') }
+  catch (e: any) { message.error(e?.message || '刷新失败') }
 }
 
-/** EXIT 事件下拉菜单点击处理 */
-function handleExitMenuClick(e: { key: string }, item: RecognitionEvent) {
-  if (e.key === 'charge') {
-    store.showChargePanel(
-      item.correctedPlate || item.plateNumber,
-      item.laneId
-    ).catch(() => {
-      // 查询失败不阻塞
-    })
-  } else if (e.key === 'correct') {
-    correctionTarget.value = item
-    correctionModalOpen.value = true
-  }
-}
-
-/** 校正完成后 */
-function handleCorrectionDone() {
-  // WebSocket 推送的校正后事件会自动更新 store.recentEvents
-}
-
-function getToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY)
-}
+// ========== WebSocket ==========
+function getToken() { return sessionStorage.getItem(TOKEN_KEY) }
 
 function buildWsClient(lotId: number) {
   const token = getToken()
-  if (!token) {
-    message.error('登录已过期，请重新登录')
-    return
-  }
-
+  if (!token) { message.error('登录已过期'); return }
   wsClient?.disconnect()
   wsClient = new MonitorWebSocketClient({
-    token,
-    parkingLotId: lotId,
+    token, parkingLotId: lotId,
     handlers: {
-      onConnectionChange: (status) => {
-        store.setConnectionStatus(status)
+      onConnectionChange: s => store.setConnectionStatus(s),
+      onSpaceUpdate: (p: SpaceUpdatePayload) => store.handleSpaceUpdate(p),
+      onRecognitionEvent: (p: RecognitionEventPayload) => {
+        if (!store.handleRecognitionEvent(p)) return; playAlertSound()
+        message.info(`${p.direction === 'ENTRY' ? '入场' : '出场'}识别: ${p.plateNumber}`)
+        loadPresentVehicles()
       },
-      onSpaceUpdate: (payload: SpaceUpdatePayload) => {
-        store.handleSpaceUpdate(payload)
-      },
-      onRecognitionEvent: (payload: RecognitionEventPayload) => {
-        const isNew = store.handleRecognitionEvent(payload)
-        if (!isNew) return // 重复事件不再提示音/弹窗
-        playAlertSound() // GB-07: 新事件提示音（V1.4）
-        message.info(`${payload.direction === 'ENTRY' ? '入场' : '出场'}识别: ${payload.plateNumber}`)
-        // 一期仅白名单自动放行，出场不再自动弹收费面板；需要时可在事件菜单中手动打开
-      },
-      onDeviceStatus: (payload: DeviceStatus) => {
-        store.handleDeviceStatus(payload)
-        // GB-08: 记录设备最后状态时间，用于 120 秒离线判定（V1.4）
-        if (payload.deviceId != null) {
-          lastDeviceStatusTime.value[payload.deviceId] = Date.now()
-        }
-      },
-      onAlert: (payload: any) => {
-        if (payload.type === 'RECOGNITION_FAILED') {
-          unhandledRecognitionFailedCount.value++
-          const key = `recognition-failed-${payload.eventId || Date.now()}`
-          notification.warning({
-            message: '识别失败',
-            description: `${payload.laneName || ''} | ${payload.eventTime || ''} | ${payload.message || '车牌未识别'}`,
-            placement: 'bottomRight',
-            duration: 0,
-            btn: () => h(
-              'a-button',
-              {
-                size: 'small',
-                type: 'primary',
-                onClick: () => {
-                  notification.close(key)
-                  unhandledRecognitionFailedCount.value = Math.max(0, unhandledRecognitionFailedCount.value - 1)
-                  tempPlateDrawerOpen.value = true
-                },
-              },
-              '处理',
-            ),
-            onClose: () => {
-              unhandledRecognitionFailedCount.value = Math.max(0, unhandledRecognitionFailedCount.value - 1)
-            },
-            key,
-          })
-        } else {
-          store.handleAlert(payload)
-        }
-      },
-      onRemoteGateAlert: (payload: RemoteGateAlertPayload) => {
-        showRemoteGateAlert(payload)
-      },
-      onError: (error) => {
-        console.warn('WebSocket 错误:', error)
-      },
+      onDeviceStatus: (p: DeviceStatus) => store.handleDeviceStatus(p),
+      onAlert: (p: any) => store.handleAlert(p),
+      onRemoteGateAlert: (p: RemoteGateAlertPayload) => showRemoteGateAlert(p),
+      onError: e => console.warn('WS 错误:', e),
     },
   })
   wsClient.connect()
 }
 
-/** 切换车场（替代原 connectOrReconnect） */
-async function handleLotSelect(lotId: number) {
-  if (lotId === selectedLotId.value) return
-
-  // 断开当前 WebSocket
-  wsClient?.disconnect()
-
-  // 清空 store
-  store.reset()
-
-  // 更新选中
-  selectedLotId.value = lotId
-  sessionStorage.setItem(LOT_ID_KEY, String(lotId))
-
-  // 加载新快照
+let audioCtx: AudioContext | null = null
+function playAlertSound() {
   try {
-    await store.loadSnapshot(lotId)
-    await refreshGateCapabilities()
-    buildWsClient(lotId)
-  } catch (e: any) {
-    message.error(e?.message || '车场切换失败')
-  }
+    if (!audioCtx) audioCtx = new AudioContext()
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination)
+    o.type = 'sine'; o.frequency.setValueAtTime(800, audioCtx.currentTime); o.frequency.setValueAtTime(1000, audioCtx.currentTime + 0.1)
+    g.gain.setValueAtTime(0.3, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3)
+    o.start(audioCtx.currentTime); o.stop(audioCtx.currentTime + 0.3)
+  } catch {}
 }
 
-async function refreshDevices() {
-  if (!selectedLotId.value) {
-    message.warning('请先选择停车场')
-    return
+// ========== 生命周期 ==========
+watch(() => store.lanes, lanes => {
+  for (const lane of lanes) {
+    const mode = (lane as any).gateMode
+    const state = mode === 'ALWAYS_OPEN' ? { open: true, close: false } : mode === 'ALWAYS_CLOSE' ? { open: false, close: true } : { open: false, close: false }
+    if (lane.direction === 'MIXED') { laneLockState.value[`${lane.id}-ENTRY`] = { ...state }; laneLockState.value[`${lane.id}-EXIT`] = { ...state } }
+    else laneLockState.value[`${lane.id}`] = state
   }
-  try {
-    await store.refreshAllDevices()
-    await refreshGateCapabilities()
-    message.success('设备状态已刷新')
-  } catch (e: any) {
-    message.error(e?.message || '刷新失败')
-  }
-}
+}, { immediate: true, deep: true })
 
 onMounted(() => {
-  loadLotOptions()
-  updateTime()
-  timeTimer = setInterval(updateTime, 1000)
-  // 从 sessionStorage 读取用户名
-  const userStr = sessionStorage.getItem('jushan_user')
-  if (userStr) {
-    try { currentUser.value = JSON.parse(userStr).username || JSON.parse(userStr).name || '' } catch {}
-  }
+  loadLotOptions(); updateTime(); timeTimer = setInterval(updateTime, 1000)
   const saved = sessionStorage.getItem(LOT_ID_KEY)
-  if (saved) {
-    handleLotSelect(Number(saved))
-  }
+  if (saved) handleLotSelect(Number(saved))
 })
 
 onUnmounted(() => {
   if (timeTimer) { clearInterval(timeTimer); timeTimer = null }
   wsClient?.disconnect()
-  if (remoteGateDismissTimer) {
-    clearTimeout(remoteGateDismissTimer)
-    remoteGateDismissTimer = null
-  }
+  if (remoteGateDismissTimer) { clearTimeout(remoteGateDismissTimer); remoteGateDismissTimer = null }
 })
 </script>
 
 <style lang="scss" scoped>
 .monitor-page {
-  height: 100%;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
+  background: #f3f6fa;
   overflow: hidden;
 }
 
+// ========== 顶部导航栏第一层 ==========
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
+  padding: 0 20px;
+  height: 48px;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
   flex-shrink: 0;
 
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
+  .header-left { display: flex; align-items: center; gap: 8px; }
+  .header-right { display: flex; align-items: center; gap: 14px; }
 
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .page-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1f2937;
-  }
+  .header-brand { font-size: 16px; font-weight: 700; color: #1f2937; }
+  .header-title { font-size: 14px; font-weight: 600; color: #374151; }
+  .online-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; flex-shrink: 0; margin-left: 2px; }
+  .online-label { font-size: 12px; color: #10b981; }
+  .lot-select { width: 150px; }
+  .current-time { color: #6b7280; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .username { color: #374151; font-size: 14px; }
 }
 
-.gate-mode-banners {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
+// ========== 常开/常关横幅 ==========
+.gate-mode-banners { flex-shrink: 0; }
+.gate-mode-banner-item { border-radius: 0; margin: 0; }
 
-.gate-mode-banner-item {
-  border-radius: 0;
-  margin: 0;
-}
-
-.critical-banner {
-  flex-shrink: 0;
-}
-
+// ========== 主体 ==========
 .monitor-body {
   flex: 1;
   display: flex;
   overflow: hidden;
+  min-height: 0;
 }
 
-.monitor-right {
+// ========== 四宫格 ==========
+.main-grid {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.video-placeholder {
-  height: 200px;
-  min-height: 200px;
-  background: #f3f4f6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border-bottom: 1px solid #d1d5db;
-}
-
-.video-placeholder-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  color: #6b7280;
-  font-size: 14px;
-
-  p {
-    margin: 0;
-  }
-}
-
-.monitor-panel {
-  flex: 1;
-  overflow: hidden;
-}
-
-.monitor-tab-content {
-  height: 100%;
-  overflow: auto;
-  padding: 8px;
-}
-
-.space-card {
-  margin-bottom: 8px;
-
-  .space-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    text-align: center;
-  }
-
-  .space-item {
-    padding: 8px;
-  }
-
-  .space-value {
-    font-size: 28px;
-    font-weight: 700;
-    color: #1f2937;
-
-    &.remaining {
-      color: #10b981;
-    }
-  }
-
-  .space-label {
-    margin-top: 4px;
-    color: #6b7280;
-    font-size: 12px;
-  }
-}
-
-.lane-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-}
-
-.lane-card {
-  .lane-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-
-  .lane-name {
-    font-weight: 600;
-    font-size: 14px;
-  }
-
-  .lane-tags {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .lane-direction {
-    margin-bottom: 8px;
-  }
-
-	  .lane-actions {
-	    margin-top: 8px;
-
-	    :deep(.ant-space) {
-	      flex-wrap: wrap;
-	      justify-content: flex-end;
-	    }
-	  }
-  .lane-event {
-    text-align: center;
-    padding: 8px 0;
-    background: #f9fafb;
-    border-radius: 6px;
-
-    .lane-capture {
-      width: 100%;
-      max-width: 220px;
-      height: auto;
-      max-height: 120px;
-      object-fit: contain;
-      border-radius: 4px;
-      margin-bottom: 4px;
-      background: #e5e7eb;
-    }
-
-    .lane-capture-placeholder {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      color: #9ca3af;
-      font-size: 12px;
-    }
-
-    .event-plate {
-      font-size: 20px;
-      font-weight: 700;
-      color: #111827;
-    }
-
-    .event-empty {
-      color: #9ca3af;
-    }
-
-    .event-time {
-      margin-top: 2px;
-      font-size: 12px;
-      color: #6b7280;
-    }
-  }
-
-  &.lane-offline {
-    border: 1px solid #fca5a5;
-  }
-
-  &.lane-charging {
-    border: 2px solid $primary-color;
-    box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.15);
-  }
-
-  &.lane-primary-offline {
-    border: 2px solid #f59e0b;
-    background-color: rgba(245, 158, 11, 0.04);
-  }
-}
-
-.inner-card {
-  max-height: 320px;
-  overflow: auto;
-}
-
-.event-list-item {
-  padding: 6px 0;
-  cursor: pointer;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background-color: #f0f5ff;
-  }
-
-  &.event-exit-unpaid {
-    border-left: 3px solid $warning-color;
-    padding-left: 9px;
-    background-color: rgba(245, 158, 11, 0.04);
-  }
-}
-
-.event-row {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.event-thumb {
-  flex-shrink: 0;
-  width: 72px;
-  height: 54px;
-  object-fit: cover;
-  border-radius: 4px;
-  overflow: hidden;
-  background: #e5e7eb;
-}
-
-.event-thumb-placeholder {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #9ca3af;
-  font-size: 11px;
-}
-
-.event-text {
-  flex: 1;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+  padding: 6px;
   min-width: 0;
 }
 
-.dropdown-trigger {
-  cursor: pointer;
-  user-select: none;
+.grid-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.event-main {
+.card-topbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 2px;
-}
-
-.event-plate-text {
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.event-sub {
-  display: flex;
   justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+
+  .lane-select { width: 150px; }
+}
+
+.card-status {
+  font-size: 13px;
+  &.online { color: #10b981; }
+  &.offline { color: #ef4444; }
+}
+
+.card-video {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #f5f6f8;
+}
+.video-icon { font-size: 48px; color: #c5cdd8; }
+.video-text { font-size: 14px; color: #9ca3af; margin: 0; }
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #f0f0f0;
+  flex-shrink: 0;
+  justify-content: center;
+
+  :deep(.ant-btn) {
+    font-size: 13px;
+    height: 32px;
+    padding: 0 16px;
+    border-radius: 4px;
+  }
+
+  .btn-release { border-color: #d1d5db; color: #6b7280; }
+  .btn-keep { background: #165dff; border-color: #165dff; }
+  .btn-keep-close { border-color: #f59e0b; color: #f59e0b; }
+  .btn-close { background: #dc2626; border-color: #dc2626; color: #fff; &:hover { background: #b91c1c; border-color: #b91c1c; color: #fff; } }
+  .btn-open { background: #10b981; border-color: #10b981; }
+}
+
+// ========== 车辆详情卡片 ==========
+.vehicle-detail-card { padding: 14px; }
+
+.detail-layout {
+  display: flex;
+  gap: 16px;
+  height: 100%;
+  align-items: center;
+}
+
+.detail-thumbs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.thumb-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.detail-thumb {
+  width: 200px;
+  background: #f5f6f8;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  :deep(.ant-image) {
+    width: 100%;
+    .ant-image-img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+  }
+
+  .thumb-placeholder { font-size: 24px; color: #d1d5db; padding: 16px 0; }
+}
+
+.thumb-label {
   font-size: 11px;
   color: #6b7280;
 }
 
-.event-time-text {
-  font-family: monospace;
+.detail-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  min-width: 0;
 }
 
-.event-fee {
-  margin-top: 2px;
-  font-size: 11px;
-  font-weight: 600;
-  color: $error-color;
-  text-align: right;
-}
-
-.alert-list-item {
-  padding: 6px 0;
-}
-
-.alert-row {
+.info-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 2px;
+  padding: 4px 0;
 }
 
-.alert-message {
+.info-label { font-size: 14px; color: #6b7280; width: 45px; flex-shrink: 0; text-align: right; margin-right: 12px; }
+.info-value { font-size: 15px; color: #1f2937; font-weight: 500; flex: 1; &.fee { color: #dc2626; } }
+
+.detail-empty {
+  display: flex; align-items: center; justify-content: center; height: 100%;
+}
+
+// ========== 通行记录 ==========
+.records-table-card { padding: 0; }
+
+.records-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+
+.records-title { font-size: 14px; font-weight: 600; color: #374151; }
+.records-tools { display: flex; align-items: center; gap: 8px; }
+
+.records-table {
+  flex: 1; overflow: auto;
+  :deep(.ant-table) { font-size: 13px; }
+  :deep(.ant-table-thead th) { background: #fafbfc; font-size: 12px; padding: 8px 10px; }
+  :deep(.ant-table-tbody td) { padding: 6px 10px; }
+}
+
+.table-thumb { width: 44px; height: auto; display: block; border-radius: 2px; cursor: pointer; }
+
+// ========== 右侧侧边栏 ==========
+.right-sidebar {
+  width: 200px;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-left: 1px solid #e5e7eb;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+.sidebar-title { font-size: 14px; font-weight: 600; color: #374151; }
+.sidebar-icon { font-size: 15px; color: #9ca3af; cursor: pointer; &:hover { color: #6b7280; } }
+
+.sidebar-stats {
+  padding: 18px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f6f8;
+  &:last-child { border-bottom: none; }
+}
+.stat-label { font-size: 13px; color: #6b7280; }
+.stat-value { font-size: 18px; font-weight: 700; color: #1f2937; &.remaining { color: #10b981; } }
+
+.sidebar-messages {
   flex: 1;
-  font-size: 13px;
-  color: #374151;
-}
-
-.alert-time {
-  font-size: 11px;
-  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

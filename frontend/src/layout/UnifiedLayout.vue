@@ -27,8 +27,8 @@
     </a-layout-sider>
 
     <a-layout>
-      <!-- 顶栏 -->
-      <a-layout-header class="unified-header">
+      <!-- 顶栏（岗亭页隐藏，由页面自带完整导航） -->
+      <a-layout-header v-if="!isBoothRoute" class="unified-header">
         <div class="header-left">
           <span v-if="!showSider" class="logo-text">飓山智慧停车</span>
           <span class="area-title">{{ areaTitle }}</span>
