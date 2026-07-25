@@ -35,7 +35,8 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/api/admin/parking-lots")
-@RequireRole("platform") // SA-01: 仅超管（V1.4 权限矩阵修正）
+// 权限由各方法 @RequirePermission + ParkingLotScopeResolver 控制；
+// 不再在类级限制角色，租户/岗亭管理员通过 scope 过滤可见车场
 public class ParkingLotController {
 
     private static final Logger log = LoggerFactory.getLogger(ParkingLotController.class);

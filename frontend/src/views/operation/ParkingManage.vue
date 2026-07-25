@@ -31,6 +31,17 @@
                     {{ item.totalSpaces }} 车位 · {{ item.address || '未填写地址' }}
                   </template>
                 </a-list-item-meta>
+                <template #actions>
+                  <a-popconfirm
+                    title="删除后不可恢复，确定删除该车场？"
+                    ok-text="确认删除"
+                    cancel-text="取消"
+                    ok-type="danger"
+                    @confirm="handleDeleteLot(item)"
+                  >
+                    <a-button v-if="isPlatform" type="link" danger size="small">删除</a-button>
+                  </a-popconfirm>
+                </template>
               </a-list-item>
             </template>
           </a-list>
@@ -87,7 +98,7 @@ import { ref, onMounted, reactive, computed } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import {
-  getParkingLots, createParkingLot,
+  getParkingLots, createParkingLot, deleteParkingLot,
   type ParkingLotVO, type ParkingLotCreateCmd
 } from '@/api/parking-manage'
 import LotBasicInfo from './components/LotBasicInfo.vue'
@@ -174,6 +185,19 @@ async function handleCreateLot() {
 function handleLotUpdated(lot: ParkingLotVO) {
   selectedLot.value = lot
   fetchParkingLots()
+}
+
+async function handleDeleteLot(lot: ParkingLotVO) {
+  try {
+    await deleteParkingLot(lot.id)
+    message.success(`车场"${lot.name}"已删除`)
+    if (selectedLot.value?.id === lot.id) {
+      selectedLot.value = null
+    }
+    await fetchParkingLots()
+  } catch (e: any) {
+    message.error(e?.message || '删除失败')
+  }
 }
 
 onMounted(() => {

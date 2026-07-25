@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/parking/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.parking`
 > **职责**：停车会话（入/出场）、收费规则、费用计算、通行策略、车位管控策略、通道权限、数据分析。
-> **最近更新**：2026-07-24（ParkingLot/ParkingLane 双 Entity 合并；7 个 Controller + 2 个 Service + 11 个 DTO/VO 从 system.* 迁入；删 modules 重复 Mapper，统一到 system/mapper）
+> **最近更新**：2026-07-25（ParkingLotController 移除类级 @RequireRole，租户/岗亭管理员通过 ParkingLotScopeResolver 按分配范围可见车场；前端新增删除车场按钮）
 
 **说明**：
 - 本模块下表格路径均相对上述**包路径**（如 `controller/FeeRuleController.java`）。
