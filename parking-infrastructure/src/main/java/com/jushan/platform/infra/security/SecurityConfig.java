@@ -64,6 +64,8 @@ public class SecurityConfig {
                 .requestMatchers("/favicon.ico", "/error").permitAll()
                 // springdoc-openapi / Swagger UI 文档
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                // H5 车主端接口（免登录）
+                .requestMatchers("/api/v1/h5/**").permitAll()
                 // WebSocket STOMP 端点公开（握手鉴权由 WsAuthHandshakeInterceptor 负责）
                 .requestMatchers("/ws/**").permitAll()
                 // 其他接口需要认证

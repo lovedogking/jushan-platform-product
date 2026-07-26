@@ -165,3 +165,8 @@ logging:
     com.jushan: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId}] %-5level %logger{36} - %msg%n"
+
+# ---- H5 车主端配置 ----
+h5:
+  mock-pay-enabled: true
+  callback-url: http://localhost:3002/pay/result
