@@ -61,6 +61,12 @@ public class VehicleVO {
     /** 绑定车牌列表（一位多车） */
     private List<String> multiPlates;
 
+    /** 生效车道ID列表 */
+    private List<Long> laneIds;
+
+    /** 生效车道名称列表 */
+    private List<String> laneNames;
+
     /** 创建时间 */
     private LocalDateTime createdAt;
 

@@ -1,198 +1,132 @@
 <template>
-  <div class="page">
-    <div class="toolbar">
+  <div class="vehicles-page">
+    <div class="page-header">
       <h3>固定车管理</h3>
       <a-space>
-        <!-- platform：下拉选场；tenant 单场：锁定显示场名 -->
         <template v-if="isTenantOnly && lotOptions.length === 1">
-          <a-tag color="blue" style="font-size:14px;padding:4px 12px">{{ lotOptions[0]!.name }}</a-tag>
+          <a-tag color="blue">{{ lotOptions[0]!.name }}</a-tag>
         </template>
-        <a-select
-          v-else
-          v-model:value="selectedLotId" placeholder="选择车场" style="width:200px" @change="fetchData" :loading="lotLoading"
-        >
+        <a-select v-else v-model:value="selectedLotId" placeholder="全部车场" style="width:180px" @change="onLotChange" :loading="lotLoading" allow-clear>
           <a-select-option v-for="lot in lotOptions" :key="lot.id" :value="lot.id">{{ lot.name }}</a-select-option>
         </a-select>
         <a-input-search v-model:value="plateFilter" placeholder="搜索车牌" @search="fetchData" allow-clear style="width:160px" />
-        <a-button type="primary" @click="showAddModal"><template #icon><PlusOutlined /></template>添加车牌</a-button>
-        <a-upload :before-upload="handleImport" accept=".xlsx" :show-upload-list="false">
-          <a-button><template #icon><UploadOutlined /></template>Excel 导入</a-button>
-        </a-upload>
+        <a-button type="primary" @click="showAddModal"><PlusOutlined /> 新增车辆</a-button>
       </a-space>
     </div>
-    <a-table :columns="cols" :data-source="data" :loading="loading" :pagination="pag" @change="onPage" row-key="id" size="middle">
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'listType'"><a-tag color="green">白名单</a-tag></template>
-        <template v-if="column.key === 'actions'">
-          <a-popconfirm title="确定删除？" @confirm="handleDelete(record.id)">
-            <a style="color:red">删除</a>
-          </a-popconfirm>
-        </template>
-      </template>
-    </a-table>
-
-    <!-- 添加车牌弹窗 -->
-    <a-modal v-model:open="addVisible" title="添加车牌" :confirm-loading="addSaving" @ok="handleAdd">
+    <a-row :gutter="16">
+      <a-col :span="6">
+        <div class="list-sidebar">
+          <div v-for="item in types" :key="item.key" :class="['list-item', { active: activeType === item.key }]" @click="selectType(item.key)">
+            <div class="item-title">{{ item.label }}<a-tag :color="typeColor(item.key)" style="margin-left:8px;font-size:12px">{{ item.count }}</a-tag></div>
+            <div class="item-desc">{{ typeDesc(item.key) }}</div>
+          </div>
+        </div>
+      </a-col>
+      <a-col :span="18">
+        <div v-if="!activeType" class="empty-state"><a-empty description="请从左侧选择车辆类型" /></div>
+        <a-table v-else :columns="currentCols" :data-source="data" :loading="loading" :pagination="pag" @change="onPage" row-key="id" size="middle">
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'plate'">
+              <PlateTag :plate-number="record.plateNumber" :plate-color="record.plateColor" size="small" />
+            </template>
+            <template v-if="column.key === 'vehicleType'">
+              <a-tag :color="typeColor(activeType!)">{{ typeLabel(activeType!) }}</a-tag>
+            </template>
+            <template v-if="column.key === 'remainDays'">
+              <span :style="{ color: String(record.remainDays).startsWith('已过期') ? 'red' : 'inherit' }">{{ record.remainDays }}</span>
+            </template>
+            <template v-if="column.key === 'actions'">
+              <a-space>
+                <a @click="showEditModal(record)">编辑</a>
+                <a-popconfirm title="确定删除？" @confirm="handleDelete(record.id)"><a style="color:red">删除</a></a-popconfirm>
+              </a-space>
+            </template>
+          </template>
+        </a-table>
+      </a-col>
+    </a-row>
+    <a-modal v-model:open="formVisible" :title="editingId ? '编辑车辆' : '添加车辆'" :confirm-loading="formSaving" @ok="handleSave" width="560px">
       <a-form layout="vertical">
-        <a-form-item label="车牌号" required>
-          <a-input v-model:value="addForm.plateNumber" placeholder="如 川A88888" :maxlength="8" />
+        <a-form-item label="车辆类型" required>
+          <a-radio-group v-model:value="form.vehicleType" :disabled="!!editingId">
+            <a-radio-button value="BLACKLIST">黑名单</a-radio-button>
+            <a-radio-button value="FREE">免费车</a-radio-button>
+            <a-radio-button value="MONTHLY">月租车</a-radio-button>
+            <a-radio-button value="PREPAID">储值车</a-radio-button>
+          </a-radio-group>
         </a-form-item>
-        <a-form-item label="生效车场" required>
-          <a-select v-model:value="addForm.parkingLotId" placeholder="选择车场">
-            <a-select-option v-for="lot in lotOptions" :key="lot.id" :value="lot.id">{{ lot.name }}</a-select-option>
-          </a-select>
+        <a-form-item label="车牌号" required><a-input v-model:value="form.plateNumber" placeholder="如 川A88888" :maxlength="8" style="text-transform:uppercase" /></a-form-item>
+        <a-form-item label="车牌类型">
+          <a-radio-group v-model:value="form.plateColor">
+            <a-radio-button value="BLUE">蓝牌</a-radio-button>
+            <a-radio-button value="GREEN">绿牌</a-radio-button>
+            <a-radio-button value="YELLOW">黄牌</a-radio-button>
+            <a-radio-button value="BLACK">黑牌</a-radio-button>
+            <a-radio-button value="WHITE">白牌</a-radio-button>
+          </a-radio-group>
         </a-form-item>
-        <a-form-item label="到期日期">
-          <a-date-picker v-model:value="addForm.endDate" style="width: 100%" placeholder="不填则长期有效" />
-        </a-form-item>
-        <a-form-item label="备注">
-          <a-input v-model:value="addForm.remark" placeholder="选填" :maxlength="255" />
-        </a-form-item>
+        <a-row :gutter="12">
+          <a-col :span="12"><a-form-item label="生效时间" required><a-date-picker v-model:value="form.validStartDate" style="width:100%" placeholder="选择生效日期" /></a-form-item></a-col>
+          <a-col :span="12"><a-form-item label="到期时间"><a-date-picker v-model:value="form.validEndDate" style="width:100%" placeholder="到期日期" /></a-form-item></a-col>
+        </a-row>
+        <a-form-item v-if="form.vehicleType === 'PREPAID'" label="初始余额（元）"><a-input-number v-model:value="form.prepaidBalance" :min="0" :precision="2" style="width:100%" placeholder="选填，后续可充值" /></a-form-item>
+        <a-row :gutter="12">
+          <a-col :span="12"><a-form-item label="车主姓名"><a-input v-model:value="form.ownerName" placeholder="选填" :maxlength="30" /></a-form-item></a-col>
+          <a-col :span="12"><a-form-item label="手机号码"><a-input v-model:value="form.ownerPhone" placeholder="选填" :maxlength="20" /></a-form-item></a-col>
+        </a-row>
+        <a-form-item label="生效车场" required><a-select v-model:value="form.parkingLotId" placeholder="选择车场" @change="onFormLotChange"><a-select-option v-for="lot in lotOptions" :key="lot.id" :value="lot.id">{{ lot.name }}</a-select-option></a-select></a-form-item>
+        <a-form-item label="生效车道" required><a-select v-model:value="form.laneIds" mode="multiple" placeholder="选择车道（可多选）" :loading="laneLoading"><a-select-option v-for="lane in laneOptions" :key="lane.id" :value="lane.id">{{ lane.name }}</a-select-option></a-select></a-form-item>
+        <a-form-item label="备注"><a-input v-model:value="form.remark" placeholder="选填" :maxlength="200" /></a-form-item>
       </a-form>
-    </a-modal>
-
-    <a-modal v-model:visible="importVisible" title="导入结果" @ok="importVisible = false" cancel-button-props="{ style: { display: 'none' } }" width="600px">
-      <a-descriptions bordered size="small" :column="3">
-        <a-descriptions-item label="总数">{{ importResult.total }}</a-descriptions-item>
-        <a-descriptions-item label="成功">{{ importResult.successCount }}</a-descriptions-item>
-        <a-descriptions-item label="失败">{{ importResult.failCount }}</a-descriptions-item>
-      </a-descriptions>
-      <a-table v-if="importResult.errors?.length" :columns="errCols" :data-source="importResult.errors" size="small" :pagination="false" style="margin-top:12px" row-key="plate" />
     </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { UploadOutlined, PlusOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined } from '@ant-design/icons-vue'
 import dayjs, { type Dayjs } from 'dayjs'
-import { getVehicleList, deleteVehicle, importVehicles, createVehicle, getParkingLots, type VehicleListVO } from '@/api/parking-manage'
+import { getVehicles, createVehicle, updateVehicle, deleteVehicle, type VehicleVO, type VehicleCreateCmd } from '@/api/vehicle'
 import { getBoothParkingLots } from '@/api/parking-lot'
+import { getParkingLots } from '@/api/parking-manage'
+import PlateTag from '@/components/PlateTag.vue'
 
 const ROLES_KEY = 'jushan_roles'
-
-function getUserRoles(): string[] {
-  try {
-    const raw = sessionStorage.getItem(ROLES_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
-}
-
+function getUserRoles(): string[] { try { const r = sessionStorage.getItem(ROLES_KEY); return r ? JSON.parse(r) : [] } catch { return [] } }
 const isPlatform = computed(() => getUserRoles().includes('platform'))
 const isTenantOnly = computed(() => !getUserRoles().includes('platform') && getUserRoles().includes('tenant'))
-
-const loading = ref(false); const plateFilter = ref(''); const lotLoading = ref(false)
-const selectedLotId = ref<number | undefined>(undefined)
-const lotOptions = ref<{ id: number; name: string }[]>([])
-const data = ref<VehicleListVO[]>([])
-const pag = reactive({ current: 1, pageSize: 10, total: 0 })
-
-const importVisible = ref(false)
-const importResult = reactive<{ total: number; successCount: number; failCount: number; errors: any[] }>({ total: 0, successCount: 0, failCount: 0, errors: [] })
-
-// 添加车牌
-const addVisible = ref(false)
-const addSaving = ref(false)
-const addForm = reactive<{ plateNumber: string; parkingLotId: number | undefined; endDate: Dayjs | null; remark: string }>({
-  plateNumber: '',
-  parkingLotId: undefined,
-  endDate: null,
-  remark: '',
-})
-
-function showAddModal() {
-  addForm.plateNumber = ''
-  addForm.parkingLotId = selectedLotId.value
-  addForm.endDate = null
-  addForm.remark = ''
-  addVisible.value = true
-}
-
-async function handleAdd() {
-  const plate = addForm.plateNumber.trim().toUpperCase()
-  if (!plate) { message.warning('请输入车牌号'); return }
-  if (!addForm.parkingLotId) { message.warning('请选择生效车场'); return }
-  addSaving.value = true
-  try {
-    await createVehicle({
-      plateNumber: plate,
-      listType: 'WHITE',
-      parkingLotId: addForm.parkingLotId,
-      endDate: addForm.endDate ? dayjs(addForm.endDate).format('YYYY-MM-DD') : undefined,
-      remark: addForm.remark.trim() || undefined,
-    })
-    message.success('添加成功')
-    addVisible.value = false
-    fetchData()
-  } catch (e: any) {
-    message.error(e?.response?.data?.message || e.message || '添加失败')
-  } finally {
-    addSaving.value = false
-  }
-}
-
-const cols = [
-  { title: '车牌号', dataIndex: 'plateNumber', key: 'plate' },
-  { title: '类型', key: 'listType', width: 80 },
-  { title: '所属车场', dataIndex: 'parkingLotName', key: 'lot' },
-  { title: '创建时间', dataIndex: 'createdAt', key: 'time', width: 170 },
-  { title: '操作', key: 'actions', width: 80 },
-]
-const errCols = [
-  { title: '行号', dataIndex: 'row', key: 'row', width: 60 },
-  { title: '车牌', dataIndex: 'plate', key: 'plate' },
-  { title: '原因', dataIndex: 'reason', key: 'reason' },
-]
-
-async function fetchData() {
-  loading.value = true
-  try {
-    const res = await getVehicleList({
-      page: pag.current, size: pag.pageSize,
-      plateNumber: plateFilter.value || undefined,
-      listType: 'WHITE',
-      parkingLotId: selectedLotId.value,
-    })
-    data.value = res.records; pag.total = res.total
-  } finally { loading.value = false }
-}
-async function handleDelete(id: number) {
-  try { await deleteVehicle(id); message.success('已删除'); fetchData() } catch (e: any) { message.error(e.message) }
-}
-async function handleImport(file: File) {
-  const lotId = selectedLotId.value
-  if (!lotId) { message.warning('请先选择车场'); return false }
-  try {
-    const res = await importVehicles(file, lotId)
-    Object.assign(importResult, res)
-    importVisible.value = true; fetchData()
-  } catch (e: any) { message.error(e.message || '导入失败') }
-  return false // prevent default upload
-}
-async function loadLotOptions() {
-  lotLoading.value = true
-  try {
-    if (isPlatform.value) {
-      // platform 用户：加载全部车场
-      const res = await getParkingLots({ page: 1, size: 1000 })
-      lotOptions.value = (res.records || []).map((l: any) => ({ id: l.id, name: l.name }))
-    } else {
-      // tenant/booth 用户：只加载授权车场
-      const lots = await getBoothParkingLots()
-      lotOptions.value = (lots || []).map((l: any) => ({ id: l.id, name: l.name }))
-    }
-    // 默认选中第一个车场
-    if (lotOptions.value.length > 0 && !selectedLotId.value) {
-      selectedLotId.value = lotOptions.value[0]!.id
-      fetchData()
-    }
-  } catch { /* */ } finally { lotLoading.value = false }
-}
-function onPage(p: { current: number; pageSize: number }) { pag.current = p.current; pag.pageSize = p.pageSize; fetchData() }
-onMounted(() => loadLotOptions())
+const types = reactive([{ key: 'BLACKLIST', label: '黑名单', count: 0 },{ key: 'FREE', label: '免费车', count: 0 },{ key: 'MONTHLY', label: '月租车', count: 0 },{ key: 'PREPAID', label: '储值车', count: 0 }])
+const activeType = ref<string|null>('BLACKLIST'); const loading=ref(false); const plateFilter=ref(''); const lotLoading=ref(false)
+const selectedLotId=ref<number|undefined>(undefined); const lotOptions=ref<{id:number;name:string}[]>([]); const data=ref<any[]>([])
+const pag=reactive({current:1,pageSize:10,total:0})
+const cols_base={plate:{title:'车牌号',key:'plate',width:130},type:{title:'类型',key:'vehicleType',width:70},owner:{title:'车主',dataIndex:'ownerName',key:'owner',width:80},phone:{title:'手机号',dataIndex:'ownerPhone',key:'phone',width:120},lanes:{title:'生效车道',key:'lanes'},act:{title:'操作',key:'actions',width:100}}
+const monthlyCols=[cols_base.plate,cols_base.type,{title:'有效期起',key:'validStart',width:110},{title:'有效期止',key:'validEnd',width:110},{title:'剩余天数',key:'remainDays',width:80},cols_base.owner,cols_base.phone,cols_base.lanes,cols_base.act]
+const prepaidCols=[cols_base.plate,cols_base.type,{title:'余额(元)',key:'balance',width:100},cols_base.owner,cols_base.phone,cols_base.lanes,cols_base.act]
+const freeCols=[cols_base.plate,cols_base.type,{title:'有效期起',key:'validStart',width:110},{title:'有效期止',key:'validEnd',width:110},{title:'剩余天数',key:'remainDays',width:80},cols_base.owner,cols_base.phone,cols_base.lanes,cols_base.act]
+const blacklistCols=[cols_base.plate,cols_base.type,cols_base.owner,cols_base.phone,cols_base.lanes,cols_base.act]
+const currentCols=computed(()=>{if(activeType.value==='PREPAID')return prepaidCols;if(activeType.value==='FREE')return freeCols;if(activeType.value==='BLACKLIST')return blacklistCols;return monthlyCols})
+function typeLabel(t:string){const m:Record<string,string>={BLACKLIST:'黑名单',FREE:'免费车',MONTHLY:'月租车',PREPAID:'储值车'};return m[t]||t}
+function typeColor(t:string){const m:Record<string,string>={BLACKLIST:'red',FREE:'green',MONTHLY:'blue',PREPAID:'orange'};return m[t]||'default'}
+function typeDesc(t:string){const m:Record<string,string>={BLACKLIST:'禁止通行',FREE:'免费通行',MONTHLY:'有效期内不限次数',PREPAID:'余额扣费'};return m[t]||''}
+const formVisible=ref(false);const formSaving=ref(false);const editingId=ref<number|null>(null)
+const form=reactive({vehicleType:'BLACKLIST',plateNumber:'',plateColor:'',ownerName:'',ownerPhone:'',parkingLotId:undefined as number|undefined,validStartDate:null as Dayjs|null,validEndDate:null as Dayjs|null,prepaidBalance:undefined as number|undefined,laneIds:[] as number[],remark:''})
+const laneLoading=ref(false);const laneOptions=ref<{id:number;name:string}[]>([])
+function selectType(key:string){activeType.value=key;pag.current=1;fetchData()}
+async function fetchData(){loading.value=true;try{const res=await getVehicles({page:pag.current,size:pag.pageSize,plateNumber:plateFilter.value||undefined,vehicleType:activeType.value||undefined,parkingLotId:selectedLotId.value});data.value=(res.records||[]).map(r=>{const e=r.validEndDate?dayjs(r.validEndDate):null;const d=e?e.diff(dayjs(),'day'):null;return{...r,validStart:r.validStartDate||'-',validEnd:r.validEndDate||'长期',remainDays:d!=null?(d>=0?`${d}天`:`已过期${Math.abs(d)}天`):'-',balance:r.prepaidBalance!=null?(r.prepaidBalance/100).toFixed(2):'-',lanes:(r.laneNames||[]).join('、')||'-'}});pag.total=res.total;const i=types.findIndex(t=>t.key===activeType.value);if(i>=0)types[i].count=res.total}finally{loading.value=false}}
+async function handleDelete(id:number){try{await deleteVehicle(id);message.success('已删除');fetchData()}catch(e:any){message.error(e.message)}}
+function onPage(p:{current:number;pageSize:number}){pag.current=p.current;pag.pageSize=p.pageSize;fetchData()}
+function onLotChange(){pag.current=1;fetchData()}
+async function loadLotOptions(){lotLoading.value=true;try{if(isPlatform.value){const r=await getParkingLots({page:1,size:1000});lotOptions.value=(r.records||[]).map(l=>({id:l.id,name:l.name}))}else{const lots=await getBoothParkingLots();lotOptions.value=(lots||[]).map(l=>({id:l.id,name:l.name}))}}finally{lotLoading.value=false}}
+function showAddModal(){editingId.value=null;form.vehicleType=activeType.value||'BLACKLIST';form.plateNumber='';form.plateColor='';form.ownerName='';form.ownerPhone='';form.parkingLotId=selectedLotId.value;form.validStartDate=null;form.validEndDate=null;form.prepaidBalance=undefined;form.laneIds=[];form.remark='';laneOptions.value=[];formVisible.value=true;if(form.parkingLotId)loadLanes(form.parkingLotId)}
+function showEditModal(record:VehicleVO){editingId.value=record.id;form.vehicleType=record.vehicleType;form.plateNumber=record.plateNumber;form.plateColor=record.plateColor||'';form.ownerName=record.ownerName||'';form.ownerPhone=record.ownerPhone||'';form.parkingLotId=record.parkingLotId;form.validStartDate=record.validStartDate?dayjs(record.validStartDate):null;form.validEndDate=record.validEndDate?dayjs(record.validEndDate):null;form.prepaidBalance=record.prepaidBalance!=null?record.prepaidBalance/100:undefined;form.laneIds=record.laneIds||[];form.remark=record.remark||'';laneOptions.value=[];formVisible.value=true;if(record.parkingLotId)loadLanes(record.parkingLotId)}
+watch(()=>form.vehicleType,()=>{if(form.vehicleType!=='PREPAID')form.prepaidBalance=undefined})
+async function onFormLotChange(lotId:number|undefined){form.laneIds=[];if(lotId)await loadLanes(lotId)}
+async function loadLanes(parkingLotId:number){laneLoading.value=true;try{const{getParkingLanes}=await import('@/api/parking-manage');const r=await getParkingLanes({page:1,size:200,parkingLotId});laneOptions.value=(r.records||[]).map(l=>({id:l.id,name:l.name||`车道${l.id}`}))}catch{laneOptions.value=[]}finally{laneLoading.value=false}}
+async function handleSave(){const p=form.plateNumber.trim().toUpperCase();if(!p){message.warning('请输入车牌号');return}if(!form.parkingLotId){message.warning('请选择生效车场');return}if(!form.validStartDate){message.warning('请选择生效时间');return}if(form.laneIds.length===0){message.warning('请选择生效车道');return}formSaving.value=true;try{const cmd:VehicleCreateCmd={plateNumber:p,plateColor:form.plateColor||undefined,vehicleType:form.vehicleType,ownerName:form.ownerName||undefined,ownerPhone:form.ownerPhone||undefined,parkingLotId:form.parkingLotId,validStartDate:dayjs(form.validStartDate).format('YYYY-MM-DD'),validEndDate:form.validEndDate?dayjs(form.validEndDate).format('YYYY-MM-DD'):undefined,prepaidBalance:form.prepaidBalance!=null?Math.round(form.prepaidBalance*100):undefined,laneIds:form.laneIds,remark:form.remark||undefined};if(editingId.value){await updateVehicle(editingId.value,cmd);message.success('更新成功')}else{await createVehicle(cmd);message.success('添加成功')}formVisible.value=false;fetchData()}catch(e:any){message.error(e?.response?.data?.message||e?.message||'保存失败')}finally{formSaving.value=false}}
+onMounted(()=>{loadLotOptions();fetchData()})
 </script>
 
 <style lang="scss" scoped>
-.page { .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; h3 { margin: 0; } } }
+.vehicles-page{height:100%;display:flex;flex-direction:column}.empty-state{display:flex;justify-content:center;align-items:center;height:300px}
 </style>

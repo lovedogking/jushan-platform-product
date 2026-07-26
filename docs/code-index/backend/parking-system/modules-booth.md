@@ -3,11 +3,19 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/booth/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.booth`
 > **职责**：识别事件处理（入场/出场判定+开闸）、人工入场补录、费用减免、交接班管理、岗亭车辆查询。
-> **最近更新**：2026-07-25（v1.5.2：DeviceStatusPollingTask 写入 device_status_snapshot 表，修复岗亭加载快照时全显示离线；WebSocket 连接修复）
+> **最近更新**：2026-07-26（v1.6：新增 GateOperationLog 操作日志表+实体+接口；RecognitionEventController.manualOpenGate 增加 plateColor/vehicleType 参数+语音播报+自动写操作日志）
 
 ---
 
 ## 一、接口入口
+
+### BoothSpaceController  `controller/BoothSpaceController.java`
+- **基础路径**：`/api/booth/spaces` ｜ **权限**：`booth:operate` ｜ **状态**：✅（v1.5.3 新增）
+- **功能**：岗亭端手动修正剩余车位数。
+
+| 方法 | HTTP | 路径 | 权限 | 说明 | 入参 | 返回 |
+|---|---|---|---|---|---|
+| adjust | POST | `/adjust` | `booth:operate` | 调整余位（SET 直接设定 / ADJUST 加减调整），操作后 WS 推送 | `SpaceAdjustCmd` | `R<Void>` |
 
 ### BoothFeeReductionController  `controller/BoothFeeReductionController.java`
 - **基础路径**：`/api/v1/booth/charge`
@@ -65,6 +73,13 @@
 
 ## 二、Service（均为接口 + impl）
 
+### BoothSpaceService  `service/BoothSpaceService.java`（v1.5.3 新增）
+岗亭余位调整。委托 `ParkingLotService.updateCapacity` 执行 DB 更新+审计日志，完成后通过 `BoothWebSocketPublisher` 推送。
+
+| 方法 | 签名 | 功能 |
+|---|---|---|
+| adjust | `void adjust(SpaceAdjustCmd)` | 调整余位：SET（直接设定）/ ADJUST（加减），负数保护，WS 推送 |
+
 ### RecognitionEventService  `service/RecognitionEventService.java`
 岗亭核心服务：识别事件处理、道闸控制。通过 `DeviceAccessClient` 调用 Device Access 开闸接口。
 
@@ -99,6 +114,7 @@
 
 | 类型 | 类名 | 作用 |
 |---|---|---|
+| DTO | SpaceAdjustCmd | 余位调整命令（mode: SET/ADJUST, value, parkingLotId, reason）v1.5.3 新增 |
 | Entity | ShiftRecord | 交接班记录 |
 | DTO | FeeReductionCmd | 费用减免命令 |
 | DTO | RecognitionEventCmd | 识别事件命令 |

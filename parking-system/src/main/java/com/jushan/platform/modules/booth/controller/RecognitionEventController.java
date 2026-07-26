@@ -80,10 +80,12 @@ public class RecognitionEventController {
             @RequestParam(defaultValue = "0") Integer feeCents,
             @RequestParam(required = false) String plateNumber,
             @RequestParam(required = false) String entryImage,
-            @RequestParam(required = false) Integer direction) {
+            @RequestParam(required = false) Integer direction,
+            @RequestParam(required = false) String plateColor,
+            @RequestParam(required = false) String vehicleType) {
         Long operatorId = com.jushan.common.auth.TenantContext.getUserId();
         RecognitionResultVO result = recognitionEventService.manualOpenGate(
-                laneId, operatorId, reason, isCharge, feeCents, plateNumber, entryImage, direction);
+                laneId, operatorId, reason, isCharge, feeCents, plateNumber, entryImage, direction, plateColor, vehicleType);
         log.info("人工开闸: laneId={}, operatorId={}, reason={}, isCharge={}, feeCents={}, plateNumber={}, direction={}",
                 laneId, operatorId, reason, isCharge, feeCents, plateNumber, direction);
         return R.ok(result);

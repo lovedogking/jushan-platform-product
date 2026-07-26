@@ -6,6 +6,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 车辆更新命令。
@@ -17,7 +18,7 @@ import java.time.LocalDate;
 public class VehicleUpdateCmd {
 
     /** 车牌号 */
-    @Pattern(regexp = "^[A-Z0-9]{5,10}$", message = "车牌号格式不正确")
+    @Pattern(regexp = "^[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤川青藏琼宁][A-Z][A-Z0-9]{4,6}$", message = "车牌号格式不正确")
     private String plateNumber;
 
     /** 车牌颜色 */
@@ -58,4 +59,7 @@ public class VehicleUpdateCmd {
 
     /** 状态 */
     private String status;
+
+    /** 生效车道ID列表（传 null 表示不更新） */
+    private List<Long> laneIds;
 }

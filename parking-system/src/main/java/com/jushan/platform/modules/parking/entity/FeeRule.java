@@ -1,5 +1,6 @@
 package com.jushan.platform.modules.parking.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.jushan.common.BaseEntity;
 import lombok.Data;
@@ -34,11 +35,26 @@ public class FeeRule extends BaseEntity {
     /** 规则名称 */
     private String name;
 
+    /** 规则描述 */
+    private String description;
+
     /**
      * 计费模式：1按时(按分钟累计) 2按次 3阶梯 4分时段(按时段阶梯)。
      * 封顶计费通过 dailyCap/maxAmount 与任意模式叠加。
      */
     private Integer billingMode;
+
+    /**
+     * 适用车辆类型（逗号分隔：TEMP/MONTHLY/PREPAID/FREE/BLACKLIST），
+     * NULL 表示适用所有类型。
+     */
+    private String vehicleType;
+
+    /**
+     * 适用车牌颜色（逗号分隔：BLUE/GREEN/YELLOW/BLACK/WHITE），
+     * NULL 表示适用所有颜色。
+     */
+    private String plateColor;
 
     /** 免费时长（分钟） */
     private Integer freeMinutes;
@@ -46,28 +62,36 @@ public class FeeRule extends BaseEntity {
     /** 计费单位（分钟） */
     private Integer unitMinutes;
 
-    /** 首时段时长（分钟），0 表示无首时段优惠 */
+    /** 首时段时长（分钟），0 表示无首时段优惠<br>注意：DB fee_rule 表暂无此列，字段通过 MyBatis-Plus 忽略映射 */
+    @TableField(exist = false)
     private Integer firstPeriodMinutes;
 
     /** 首时段价格 */
+    @TableField(exist = true)
     private BigDecimal firstPeriodPrice;
 
     /** 后续单价 */
+    @TableField(exist = true)
     private BigDecimal subsequentPrice;
 
     /** 24小时封顶金额（NULL 表示不封顶） */
+    @TableField(exist = true)
     private BigDecimal dailyCap;
 
-    /** 最大封顶金额（NULL 表示不封顶），整单封顶 */
+    /** 最大封顶金额（NULL 表示不封顶），整单封顶<br>注意：DB fee_rule 表暂无此列 */
+    @TableField(exist = false)
     private BigDecimal maxAmount;
 
     /** 夜间封顶金额（NULL 表示不封顶） */
+    @TableField(exist = true)
     private BigDecimal nightCap;
 
-    /** 跨天计费规则：1按自然日分段（每天0点重置） 2连续计费（按总时长，每24小时一个封顶窗口） */
+    /** 跨天计费规则：1按自然日分段（每天0点重置） 2连续计费（按总时长，每24小时一个封顶窗口）<br>注意：DB fee_rule 表暂无此列 */
+    @TableField(exist = false)
     private Integer crossDayMode;
 
-    /** 生效方式：1立即生效 2仅新入场生效 3定时生效（配合 effectiveStart） */
+    /** 生效方式：1立即生效 2仅新入场生效 3定时生效（配合 effectiveStart）<br>注意：DB fee_rule 表暂无此列 */
+    @TableField(exist = false)
     private Integer effectMode;
 
     /** 优先级，数字越大优先级越高 */

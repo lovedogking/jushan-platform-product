@@ -87,6 +87,9 @@ public class ParkingLot extends BaseEntity {
     /** 业务数据保存天数 */
     private Integer dataRetentionDays;
 
+    /** 绑定的计费规则 ID（逻辑外键：fee_rule.id） */
+    private Long feeRuleId;
+
     /** 缴费后免费离场时间（分钟） */
     private Integer freeExitMinutes;
 

@@ -95,17 +95,19 @@ const MENUS: MenuItem[] = [
   {
     key: 'parking', title: '车场管理', icon: HomeOutlined, roles: ['platform', 'tenant'],
     children: [
-      { title: '车场信息', path: '/admin/parking', roles: ['platform', 'tenant'] },
+      { title: '车场配置', path: '/admin/parking', roles: ['platform', 'tenant'] },
       { title: '固定车管理', path: '/operation/vehicles', roles: ['platform', 'tenant'] },
+      { title: '计费规则', path: '/operation/fee-rules', roles: ['platform', 'tenant'] },
     ],
   },
   {
     key: 'records', title: '记录查询', icon: FileTextOutlined, roles: ['platform', 'tenant'],
     children: [
       { title: '通行记录', path: '/operation/access-records', roles: ['platform', 'tenant'] },
+      { title: '操作日志', path: '/operation/operation-logs', roles: ['platform', 'tenant'] },
     ],
   },
-  { key: 'booth', title: '岗亭工作区', icon: MonitorOutlined, path: '/booth/monitor', roles: ['platform', 'tenant', 'booth'] },
+  { key: 'booth', title: '岗亭管理', icon: MonitorOutlined, path: '/booth/monitor', roles: ['platform', 'tenant', 'booth'] },
   { key: 'accounts', title: '账号管理', icon: UserOutlined, path: '/admin/accounts', roles: ['platform'] },
 ]
 
@@ -168,7 +170,7 @@ const isBoothRoute = computed(() => route.path.startsWith('/booth'))
 const areaTitle = computed(() => {
   if (route.path.startsWith('/admin')) return '平台管理区'
   if (route.path.startsWith('/operation')) return '车场运营区'
-  if (route.path.startsWith('/booth')) return '岗亭工作区'
+  if (route.path.startsWith('/booth')) return '岗亭管理'
   return ''
 })
 

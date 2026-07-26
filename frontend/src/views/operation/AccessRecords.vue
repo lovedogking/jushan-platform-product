@@ -17,7 +17,7 @@
         </a-form-item>
         <a-form-item label="状态">
           <a-select v-model:value="filters.status" placeholder="全部" allow-clear style="width: 120px">
-            <a-select-option value="IN">在场</a-select-option>
+            <a-select-option value="IN">已入场</a-select-option>
             <a-select-option value="OUT">已出场</a-select-option>
           </a-select>
         </a-form-item>
@@ -42,13 +42,16 @@
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'plateNumber'">
+            <PlateTag :plate-number="record.plateNumber" size="small" />
+          </template>
           <template v-if="column.key === 'vehicleType'">
             <a-tag :color="record.vehicleType === 'WHITE' || record.vehicleType === 'FIXED' ? 'green' : 'orange'" size="small">
               {{ vehicleTypeLabel(record.vehicleType) }}
             </a-tag>
           </template>
           <template v-if="column.key === 'status'">
-            <a-tag v-if="record.status === 'IN'" color="processing">在场</a-tag>
+            <a-tag v-if="record.status === 'IN'" color="processing">已入场</a-tag>
             <a-tag v-else-if="record.status === 'OUT'" color="default">已出场</a-tag>
             <template v-else>{{ record.status || '--' }}</template>
           </template>
@@ -78,7 +81,7 @@ import { ref, reactive, onMounted } from 'vue'
 import dayjs from 'dayjs'
 import { getParkingSessions } from '@/api/vehicle-query'
 import type { ParkingSessionVO } from '@/api/monitor-types'
-import { getBoothParkingLots } from '@/api/parking-lot'
+import PlateTag from '@/components/PlateTag.vue'
 
 const loading = ref(false)
 const records = ref<ParkingSessionVO[]>([])

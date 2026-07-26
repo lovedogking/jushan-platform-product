@@ -21,8 +21,13 @@ public class FeeRuleVO {
     private Long lotId;
     private Long zoneId;
     private String name;
+    private String description;
     /** 计费模式：1按时 2按次 3阶梯 4分时段 */
     private Integer billingMode;
+    /** 适用车辆类型（逗号分隔） */
+    private String vehicleType;
+    /** 适用车牌颜色（逗号分隔） */
+    private String plateColor;
     private Integer freeMinutes;
     private Integer unitMinutes;
     /** 首时段时长（分钟） */

@@ -1,6 +1,7 @@
 package com.jushan.platform.modules.vehicle.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -8,6 +9,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 车辆创建命令。
@@ -20,7 +22,7 @@ public class VehicleCreateCmd {
 
     /** 车牌号 */
     @NotBlank(message = "车牌号不能为空")
-    @Pattern(regexp = "^[A-Z0-9]{5,10}$", message = "车牌号格式不正确")
+    @Pattern(regexp = "^[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤川青藏琼宁][A-Z][A-Z0-9]{4,6}$", message = "车牌号格式不正确")
     private String plateNumber;
 
     /** 车牌颜色 */
@@ -46,6 +48,7 @@ public class VehicleCreateCmd {
     private Long parkingLotId;
 
     /** 月卡/固定车有效期开始 */
+    @NotNull(message = "生效时间不能为空")
     private LocalDate validStartDate;
 
     /** 月卡/固定车有效期结束 */
@@ -60,4 +63,11 @@ public class VehicleCreateCmd {
     /** 备注 */
     @Size(max = 200, message = "备注最多200个字符")
     private String remark;
+
+    /** 生效车道ID列表 */
+    @NotEmpty(message = "生效车道不能为空")
+    private List<Long> laneIds;
+
+    /** 租户ID（超管创建时需指定，租户用户忽略） */
+    private Long tenantId;
 }

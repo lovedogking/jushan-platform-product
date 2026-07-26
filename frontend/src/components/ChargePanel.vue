@@ -38,10 +38,7 @@
         <!-- 车辆信息卡片 -->
         <a-card :bordered="false" size="small" class="vehicle-card">
           <div class="vehicle-plate">
-            <span class="plate-text">{{ store.currentChargeInfo.plateNumber }}</span>
-            <a-tag v-if="store.currentChargeInfo.plateColor" :color="plateColorHex">
-              {{ plateColorLabel }}
-            </a-tag>
+            <PlateTag :plate-number="store.currentChargeInfo.plateNumber" :plate-color="store.currentChargeInfo.plateColor" />
           </div>
           <a-descriptions :column="1" size="small" class="vehicle-detail">
             <a-descriptions-item label="车辆类型">
@@ -121,15 +118,6 @@
                 <template #icon><DollarOutlined /></template>
                 费用减免
               </a-button>
-              <a-button
-                size="large"
-                block
-                :disabled="submitting"
-                @click="handleFreeRelease"
-              >
-                <template #icon><ThunderboltOutlined /></template>
-                免费放行
-              </a-button>
             <a-button
               type="dashed"
               size="large"
@@ -186,6 +174,7 @@
       v-model:open="manualReleaseVisible"
       :lane-id="store.currentChargeInfo?.laneId ?? 0"
       :plate-number="store.currentChargeInfo?.plateNumber ?? ''"
+      :direction="2"
       @success="handleManualReleaseSuccess"
     />
   </a-drawer>
@@ -196,7 +185,6 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   CheckOutlined,
-  ThunderboltOutlined,
   ToolOutlined,
   ScanOutlined,
   DollarOutlined,
@@ -205,6 +193,7 @@ import dayjs from 'dayjs'
 import { useMonitorStore } from '@/stores/monitor'
 import { submitCharge, manualOpenGate, submitFeeReduction } from '@/api/charge'
 import ManualReleaseModal from './ManualReleaseModal.vue'
+import PlateTag from '@/components/PlateTag.vue'
 import type { PaymentMethod } from '@/api/monitor-types'
 
 const store = useMonitorStore()
@@ -351,7 +340,7 @@ async function handleConfirmCharge() {
 
     // 2. 收费成功后自动开闸
     const reason = `收费放行: ${paymentMethodLabel.value}`
-    const gateResult = await manualOpenGate(info.laneId, reason)
+    const gateResult = await manualOpenGate(info.laneId, reason, { direction: 2 })
 
     const success = gateResult.gateOpened === true
 
@@ -372,53 +361,6 @@ async function handleConfirmCharge() {
     }
   } catch (e: any) {
     const errMsg = e?.message || '收费失败'
-    store.setChargeResult({
-      success: false,
-      message: errMsg,
-      gateOpened: false,
-    })
-    message.error(errMsg)
-  } finally {
-    submitting.value = false
-  }
-}
-
-/** 免费放行 */
-async function handleFreeRelease() {
-  const info = store.currentChargeInfo
-  if (!info) return
-
-  submitting.value = true
-  try {
-    // 免费放行：提交 0 元收费
-    await submitCharge({
-      sessionId: info.sessionId,
-      exitLaneId: info.laneId,
-      feeAmount: 0,
-      paidAmount: 0,
-      paymentMethod: 'FREE',
-      remark: '免费放行',
-    })
-
-    const gateResult = await manualOpenGate(info.laneId, `免费放行: ${info.plateNumber}`)
-    const success = gateResult.gateOpened === true
-
-    store.setChargeResult({
-      success,
-      message: success
-        ? `${info.plateNumber} 已免费放行`
-        : `免费放行完成但开闸失败: ${gateResult.gateResult || '请人工处理'}`,
-      gateOpened: gateResult.gateOpened === true,
-    })
-
-    if (success) {
-      message.success(`${info.plateNumber} 免费放行成功`)
-      store.refreshAllDevices().catch(() => {})
-    } else {
-      message.warning('免费放行完成但开闸失败，请人工处理')
-    }
-  } catch (e: any) {
-    const errMsg = e?.message || '免费放行失败'
     store.setChargeResult({
       success: false,
       message: errMsg,

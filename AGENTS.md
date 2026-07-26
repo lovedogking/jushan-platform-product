@@ -29,6 +29,15 @@ Jushan Platform 停车管理平台，采用「多模块单体后端 + 独立设�
 - **REST 风格**：路径统一前缀 `/api/v1/...`；接口权限用 `@RequirePermission("模块:动作")`（如 `fee:write`、`parking:read`）。
 - **多租户**：业务查询经 `TenantContext` 解析租户；平台用户（super_admin / platform_operator）无租户绑定（`tenantId == null`），可跨租户访问。
 - **金额**：一律以**整数分**存储与传递，禁止浮点数。
+- **多租户 Service 安全写法**：任何从 `TenantContext.getTenantId()` 获取 `tenantId` 并用于**与实体归属比较**的方法，必须兼容 `tenantId == null`（平台用户/超管无租户）。标准写法：
+  ```java
+  Long tenantId = TenantContext.getTenantId();
+  // ❌ 错误：tenantId 为 null 时直接 NPE
+  if (!tenantId.equals(entity.getTenantId())) { ... }
+  // ✅ 正确：先判空，平台用户跳过租户校验
+  if (tenantId != null && !tenantId.equals(entity.getTenantId())) { ... }
+  ```
+  对于**创建操作**，需为超管提供合理的 tenantId（如从请求体获取，或默认值兜底）。
 - **Service 分层**：标准写法为**接口 + `impl/` 实现**（参照 `modules/device/service/` 下 DeviceManagementService 等 5 个接口）。旧写法（直接继承 MyBatis-Plus `ServiceImpl<Mapper, Entity>`）仅存在于待迁移的遗留模块。新 Service **必须**先定义接口再写实现。
 - **前端 API**：封装在 `frontend/src/api/*.ts`，每个函数用 JSDoc 标注 HTTP 方法与后端路径。
 - **Entity 约定**：① 同一张 DB 表只允许一个 Entity 类映射（禁止 system 和 modules 各写一个）；② 继承 `BaseEntity` 时必须覆盖 `@TableId(type = IdType.AUTO)`（DB 实际使用自增主键，BaseEntity 默认的 ASSIGN_ID 是错误的）；③ 字段类型必须与 DB 列类型一致（如 `status` 是 `VARCHAR` 就不能用 `Integer`）。

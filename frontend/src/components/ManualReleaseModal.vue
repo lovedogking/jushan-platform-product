@@ -19,6 +19,25 @@
         />
       </a-form-item>
 
+      <a-form-item label="车牌颜色">
+        <a-radio-group v-model:value="formState.plateColor" :disabled="releasing">
+          <a-radio-button value="BLUE">蓝牌</a-radio-button>
+          <a-radio-button value="GREEN">绿牌</a-radio-button>
+          <a-radio-button value="YELLOW">黄牌</a-radio-button>
+          <a-radio-button value="BLACK">黑牌</a-radio-button>
+          <a-radio-button value="WHITE">白牌</a-radio-button>
+        </a-radio-group>
+      </a-form-item>
+
+      <a-form-item label="车辆类型">
+        <a-radio-group v-model:value="formState.vehicleType" :disabled="releasing">
+          <a-radio-button value="TEMP">临时车</a-radio-button>
+          <a-radio-button value="MONTHLY">月租车</a-radio-button>
+          <a-radio-button value="PREPAID">储值车</a-radio-button>
+          <a-radio-button value="FREE">免费车</a-radio-button>
+        </a-radio-group>
+      </a-form-item>
+
       <a-form-item label="是否计费">
         <a-switch v-model:checked="formState.isCharge" :disabled="releasing" />
         <span style="margin-left: 8px; color: #6b7280; font-size: 12px;">
@@ -121,6 +140,8 @@ const formState = reactive({
   isCharge: false,
   amountYuan: 0,
   entryImage: '',
+  plateColor: 'BLUE' as string,
+  vehicleType: 'TEMP' as string,
 })
 
 /** 放行车辆（可编辑，弹窗打开时用 prop 初始化） */
@@ -131,7 +152,7 @@ const capturing = ref(false)
 const captureResult = ref<CaptureImageResult | null>(null)
 const releaseResult = ref<{ success: boolean; message: string; gateOpened: boolean | null } | null>(null)
 
-// 弹窗打开时重置状态
+// 弹窗打开时重置状态并自动抓拍
 watch(
   () => props.open,
   (newVal) => {
@@ -140,9 +161,13 @@ watch(
       formState.isCharge = false
       formState.amountYuan = 0
       formState.entryImage = ''
+      formState.plateColor = 'BLUE'
+      formState.vehicleType = 'TEMP'
       editablePlate.value = props.plateNumber || ''
       captureResult.value = null
       releaseResult.value = null
+      // 自动触发抓拍
+      handleCapture()
     }
   },
 )
@@ -181,6 +206,8 @@ async function handleConfirm() {
         plateNumber: plate || undefined,
         entryImage: formState.entryImage || undefined,
         direction: props.direction,
+        plateColor: formState.plateColor || undefined,
+        vehicleType: formState.vehicleType || undefined,
       },
     )
 

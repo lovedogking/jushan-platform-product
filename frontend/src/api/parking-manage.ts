@@ -32,6 +32,7 @@ export interface ParkingLotVO {
   address: string; totalSpaces: number; remainingSpaces: number
   status: string; createdAt: string
   contactName?: string; contactPhone?: string
+  feeRuleId?: number
 }
 
 export interface ParkingLotPageQuery {
@@ -74,6 +75,15 @@ export function deleteParkingLot(id: number): Promise<void> {
 
 export function updateParkingLotStatus(id: number, action: 'ENABLED' | 'DISABLED'): Promise<void> {
   return request.post(`/admin/parking-lots/${id}/status`, { action })
+}
+
+/** 修改总车位数或剩余车位数（需填写原因） */
+export function updateParkingLotCapacity(id: number, data: {
+  fieldName: 'total_spaces' | 'remaining_spaces'
+  value: number
+  reason: string
+}): Promise<void> {
+  return request.post(`/admin/parking-lots/${id}/capacity`, data)
 }
 
 // ============ Parking Lane ============

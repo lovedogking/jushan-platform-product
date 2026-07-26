@@ -22,7 +22,16 @@ public class FeeRuleUpdateCmd {
     @Size(max = 128, message = "名称长度不能超过128")
     private String name;
 
+    @Size(max = 256, message = "描述长度不能超过256")
+    private String description;
+
     private Integer billingMode;
+
+    /** 适用车辆类型（逗号分隔，如 TEMP,MONTHLY），不传则适用所有 */
+    private String vehicleType;
+
+    /** 适用车牌颜色（逗号分隔，如 BLUE,GREEN），不传则适用所有 */
+    private String plateColor;
 
     private Integer freeMinutes;
 

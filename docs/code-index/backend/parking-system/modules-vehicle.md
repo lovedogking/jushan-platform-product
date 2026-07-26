@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/vehicle/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.vehicle`
 > **职责**：车辆主档 CRUD、一位多车、月卡/固定车续费、储值车钱包（充值/退款/调账/流水）、车辆审核、车辆类型判定引擎。
-> **最近更新**：2026-07-21
+> **最近更新**：2026-07-26（v1.6：VehicleCreateCmd 增加生效车道/租户/生效时间必填，车牌正则修正确认支持中文；VehicleTypeDecisionService 重构优先级链——黑名单>免费>月租(过期扣储值)>储值>临时；SysVehicleServiceImpl 集成 lane_permission 写入/查询/同步）
 
 **说明**：表格路径均相对上述**包路径**。5 个 Service 均为「接口 + `impl/` 实现」；另有 `listener/RenewalPaymentListener.java` 监听续费支付回调触发生效。
 
@@ -17,7 +17,7 @@
 
 | 方法 | HTTP | 路径 | 权限 | 说明 | 入参 | 返回 |
 |---|---|---|---|---|---|---|
-| create | POST | `/` | `vehicle:create` | 新增车辆 | `VehicleCreateCmd` | `R<VehicleVO>` |
+| create | POST | `/` | `vehicle:create` | 新增车辆（laneIds 必填，超管 tenantId 默认 1） | `VehicleCreateCmd` | `R<VehicleVO>` |
 | update | PUT | `/{id}` | `vehicle:update` | 编辑车辆 | `id, VehicleUpdateCmd` | `R<VehicleVO>` |
 | delete | DELETE | `/{id}` | `vehicle:delete` | 软删除 | `id` | `R<Void>` |
 | batchDelete | POST | `/batch-delete` | `vehicle:delete` | 批量删除 | `List<Long> ids` | `R<Void>` |
@@ -101,7 +101,7 @@
 | applyRenewalByPlate | `RenewalOrderVO applyRenewalByPlate(Long tenantId, Long parkingLotId, String plateNumber, String paySerial)` | 按车牌回调生效（P云 notify） |
 
 ### VehicleTypeDecisionService  `service/VehicleTypeDecisionService.java`（+ impl）
-**车辆类型判定引擎**——优先级链：黑名单 → 超级车牌 → VIP → 月租(查有效期) → 储值 → 免费 → 临时。
+**车辆类型判定引擎**——优先级链：黑名单（vehicle_list + sys_vehicle TYPE_BLACKLIST）→ 免费车（sys_vehicle TYPE_FREE）→ 月租（monthly_pass 或 sys_vehicle MONTHLY 有效期，过期查钱包余额扣费）→ 储值 → 临时。
 
 | 方法 | 签名 | 功能 |
 |---|---|---|
@@ -126,7 +126,7 @@
 
 | 类名 | 作用 | 类名 | 作用 |
 |---|---|---|---|
-| VehicleCreateCmd | 车辆创建 | VehicleUpdateCmd | 车辆更新 |
+| VehicleCreateCmd | 车辆创建（v1.6：新增 laneIds @NotEmpty、tenantId、validStartDate @NotNull；车牌正则改为支持中文） | VehicleUpdateCmd | 车辆更新（v1.6：新增 laneIds） |
 | VehicleMultiPlateBindCmd | 一位多车绑定 | VehicleRenewalCmd | 续费 |
 | VehicleAuditSubmitCmd | 审核提交 | VehicleAuditProcessCmd | 审核处理 |
 | WalletRechargeCmd | 钱包充值 | WalletRefundCmd | 钱包退款 |
@@ -136,7 +136,7 @@
 
 | 类名 | 作用 | 类名 | 作用 |
 |---|---|---|---|
-| VehicleVO | 车辆视图 | VehicleAuditVO | 审核记录视图 |
+| VehicleVO | 车辆视图（v1.6：新增 laneIds、laneNames） | VehicleAuditVO | 审核记录视图 |
 | WalletVO | 钱包视图 | WalletLogVO | 钱包流水视图 |
 | RenewalOrderVO | 续费订单视图 | RenewalPreviewVO | 续费有效期预览 |
 | VehicleTypeDecisionVO | 车辆类型判定结果 | | |

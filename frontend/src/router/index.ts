@@ -13,7 +13,7 @@ const routes: RouteRecordRaw[] = [
     name: 'BoothLayout',
     component: () => import('@/layout/UnifiedLayout.vue'),
     redirect: '/booth/monitor',
-    meta: { title: '岗亭工作区', roles: ['platform', 'tenant', 'booth'] },
+    meta: { title: '岗亭管理', roles: ['platform', 'tenant', 'booth'] },
     children: [
       {
         path: 'monitor',
@@ -55,6 +55,18 @@ const routes: RouteRecordRaw[] = [
         name: 'AccessRecords',
         component: () => import('@/views/operation/AccessRecords.vue'),
         meta: { title: '通行记录' },
+      },
+      {
+        path: 'fee-rules',
+        name: 'FeeRules',
+        component: () => import('@/views/operation/FeeRules.vue'),
+        meta: { title: '计费规则' },
+      },
+      {
+        path: 'operation-logs',
+        name: 'OperationLogs',
+        component: () => import('@/views/operation/OperationLogs.vue'),
+        meta: { title: '操作日志' },
       },
     ],
   },

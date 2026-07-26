@@ -37,3 +37,15 @@ export function manualTempPlateExit(data: { tempPlate: string; parkingLotId: num
 export function correctPlate(logId: number, correctedPlate: string) {
   return request.post<void>(`/booth/recognition/${logId}/correct`, { correctedPlate })
 }
+
+// ========== 余位调整 ==========
+
+/** 岗亭端调整剩余车位数（SET 直接设定 / ADJUST 加减调整） */
+export function adjustSpaces(data: {
+  mode: 'SET' | 'ADJUST'
+  value: number
+  parkingLotId: number
+  reason: string
+}) {
+  return request.post<void>('/booth/spaces/adjust', data)
+}

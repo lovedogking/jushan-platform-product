@@ -3,11 +3,11 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/parking/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.parking`
 > **职责**：停车会话（入/出场）、收费规则、费用计算、通行策略、车位管控策略、通道权限、数据分析。
-> **最近更新**：2026-07-25（ParkingLotController 移除类级 @RequireRole，租户/岗亭管理员通过 ParkingLotScopeResolver 按分配范围可见车场；前端新增删除车场按钮）
+> **最近更新**：2026-07-26（FeeRuleController 解冻启用；fee_rule 新增 vehicleType/plateColor/description；FeeRuleService 拆分为接口+实现；parking_lot 新增 feeRuleId 绑定计费规则；前端新增计费规则管理页 + 车场配置规则选择器）
 
 **说明**：
 - 本模块下表格路径均相对上述**包路径**（如 `controller/FeeRuleController.java`）。
-- **状态标记**：`FeeRuleController`、`FeeCalculationController`、`ParkingZoneController` 标注 `@Tag("二期计费体系候选(冻结)")`，属**冻结**能力，改动前先确认是否在启用范围。
+- **状态标记**：`FeeRuleController` 已于 2026-07-26 解冻启用；`FeeCalculationController`、`ParkingZoneController` 标注 `@Tag("二期计费体系候选(冻结)")`，属**冻结**能力，改动前先确认是否在启用范围。
 - **通道 / 车场档案**：`ParkingLane` / `ParkingLot` 的 Entity/DTO/Mapper/**Controller 全在本模块**——已于 2026-07-24 完成两套 Entity 合并（消重复映射 + 修 ID 策略 bug），旧 `system/entity/ParkingLot.java` / `ParkingLane.java` 标 `@Deprecated`。
 
 ---
@@ -29,7 +29,7 @@
 | countInByParkingLotId | GET | `/in/{parkingLotId}/count` | `booth:view` | 在场车辆数 | `parkingLotId` | `R<Long>` |
 
 ### FeeRuleController  `controller/FeeRuleController.java`
-- **基础路径**：`/api/v1/fee-rules` ｜ **权限**：`fee:*` ｜ **状态**：⚠️ 冻结（二期计费候选）
+- **基础路径**：`/api/v1/fee-rules` ｜ **权限**：`fee:*` ｜ **状态**：✅ 正常
 - **功能**：收费规则增删改查、复制、状态管理。
 
 | 方法 | HTTP | 路径 | 权限 | 说明 | 入参 | 返回 |
@@ -132,18 +132,18 @@
 | calculateFeeCents | `int calculateFeeCents(Long lotId, LocalDateTime entryTime, LocalDateTime exitTime)` | 整数分计费（收敛入口，替代旧 BillingEngine） |
 | calculateFeeCents | `int calculateFeeCents(Long lotId, Long zoneId, LocalDateTime entryTime, LocalDateTime exitTime)` | 同上，可指定区域 |
 
-### FeeRuleService  `service/FeeRuleService.java`
-- **类型**：具体类，继承 `ServiceImpl<FeeRuleMapper, FeeRule>`（乐观锁 version + `@BusinessLog`）
+### FeeRuleService（接口）  `service/FeeRuleService.java`
+- **实现**：`service/FeeRuleServiceImpl.java`（extends `ServiceImpl<FeeRuleMapper, FeeRule>` implements `FeeRuleService`）
 - **功能**：收费规则 CRUD、时段管理、规则复制、生效规则查询。优先级：区域 > 车场 > 平台默认。
 
 | 方法 | 签名 | 功能 |
 |---|---|---|
-| create | `FeeRuleVO create(FeeRuleCreateCmd cmd)` | 创建（分时段模式校验时段） |
+| create | `FeeRuleVO create(FeeRuleCreateCmd cmd)` | 创建（分时段模式校验时段，平台用户从车场反查tenantId） |
 | update | `FeeRuleVO update(Long ruleId, FeeRuleUpdateCmd cmd)` | 更新（乐观锁，重建时段） |
 | removeById | `boolean removeById(Long ruleId)` | 软删除 + 级联删时段 |
 | copy | `FeeRuleVO copy(Long ruleId)` | 复制规则含时段 |
 | detail | `FeeRuleVO detail(Long ruleId)` | 详情（含时段列表） |
-| pageList | `IPage<FeeRuleVO> pageList(long current, long size, Long lotId, Long zoneId, Integer billingMode, Integer status)` | 分页 |
+| pageList | `IPage<FeeRuleVO> pageList(...)` | 分页 |
 | listActiveByLotId | `List<FeeRuleVO> listActiveByLotId(Long lotId)` | 按车场列生效规则 |
 | getActiveRule | `FeeRuleVO getActiveRule(Long lotId, Long zoneId)` | 取当前生效规则（优先级匹配） |
 | updateStatus | `void updateStatus(Long ruleId, Integer status)` | 启用/禁用 |
@@ -231,11 +231,11 @@
 
 | 类名 | 路径 | 作用 | 关键字段 / 常量 |
 |---|---|---|---|
-| FeeRule | `entity/FeeRule.java` | 收费规则 | `billingMode`(1按时/2按次/3阶梯/4分时段)、`freeMinutes`、`unitMinutes`、`firstPeriodPrice`、`subsequentPrice`、`dailyCap`、`maxAmount`、`nightCap`、`crossDayMode`(1自然日/2连续)、`effectMode`(1立即/2仅新入场/3定时)、`priority`、`status`(1启/2禁)、`version` |
+| FeeRule | `entity/FeeRule.java` | 收费规则 | `billingMode`(1按时/2按次/3阶梯/4分时段)、`vehicleType`(适用车辆类型,逗号分隔)、`plateColor`(适用车牌颜色,逗号分隔)、`description`(规则描述)、`freeMinutes`、`unitMinutes`、`firstPeriodPrice`、`subsequentPrice`、`dailyCap`、`nightCap`、`priority`、`status`(1启/2禁)、`version`<br>注：`firstPeriodMinutes`/`crossDayMode`/`effectMode`/`maxAmount` 为 `@TableField(exist=false)` 预留字段，DB 暂无对应列 |
 | FeeRuleSegment | `entity/FeeRuleSegment.java` | 收费规则时段（辅助表） | `feeRuleId`、`startTime`、`endTime`、`unitMinutes`、`unitPrice`、`capAmount`、`sortOrder` |
 | ParkingSession | `entity/ParkingSession.java` | 在场车辆记录 | `plateNumber`、`parkingLotId`、`entryTime`、`exitTime`、`status`、`feeAmount` |
 | ParkingZone | `entity/ParkingZone.java` | 区域 | `lotId`、`tag`、`level`、`totalSpaces`、`fixedSpaces`、`tempSpaces`、`status`、`version` |
-| ParkingLot | `entity/ParkingLot.java` | 停车场档案 | 管理入口在 `com.jushan.system` |
+| ParkingLot | `entity/ParkingLot.java` | 停车场档案 | 新增 `feeRuleId`(绑定计费规则) |
 | ParkingLane | `entity/ParkingLane.java` | 通道 | `zoneId`、`laneNo`、`status`；管理入口在 `com.jushan.system` |
 | AccessPolicy | `entity/AccessPolicy.java` | 进出策略配置 | `parkingLotId`、`policyType`、`policyKey` |
 | ParkingSpacePolicy | `entity/ParkingSpacePolicy.java` | 车位管控策略 | `parkingLotId`、`zoneId` |

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/fee-rules")
-@Tag(name = "二期计费体系候选(冻结)")
+@Tag(name = "计费规则管理")
 public class FeeRuleController {
 
     private final FeeRuleService feeRuleService;

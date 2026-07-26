@@ -49,6 +49,9 @@ public class UpdateParkingLotRequest {
     @Min(value = 1, message = "数据保存天数至少1天")
     private Integer dataRetentionDays;
 
+    /** 绑定的计费规则 ID */
+    private Long feeRuleId;
+
     /** 缴费后免费离场时间（分钟） */
     @Min(value = 0, message = "免费离场时间不能为负数")
     private Integer freeExitMinutes;
@@ -93,6 +96,9 @@ public class UpdateParkingLotRequest {
 
     public Integer getDataRetentionDays() { return dataRetentionDays; }
     public void setDataRetentionDays(Integer dataRetentionDays) { this.dataRetentionDays = dataRetentionDays; }
+
+    public Long getFeeRuleId() { return feeRuleId; }
+    public void setFeeRuleId(Long feeRuleId) { this.feeRuleId = feeRuleId; }
 
     public Integer getFreeExitMinutes() { return freeExitMinutes; }
     public void setFreeExitMinutes(Integer freeExitMinutes) { this.freeExitMinutes = freeExitMinutes; }

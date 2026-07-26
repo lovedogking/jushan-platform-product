@@ -33,6 +33,10 @@ public class ParkingLotVO {
     private String manualReleasePolicy;
     private String offlinePolicy;
     private String duplicateEntryPolicy;
+
+    /** 绑定的计费规则 ID */
+    private Long feeRuleId;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -103,6 +107,9 @@ public class ParkingLotVO {
 
     public String getDuplicateEntryPolicy() { return duplicateEntryPolicy; }
     public void setDuplicateEntryPolicy(String duplicateEntryPolicy) { this.duplicateEntryPolicy = duplicateEntryPolicy; }
+
+    public Long getFeeRuleId() { return feeRuleId; }
+    public void setFeeRuleId(Long feeRuleId) { this.feeRuleId = feeRuleId; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

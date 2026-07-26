@@ -300,6 +300,10 @@ public class ParkingLotService {
             wrapper.set(ParkingLot::getDuplicateEntryPolicy, request.getDuplicateEntryPolicy().trim());
             hasUpdate = true;
         }
+        if (request.getFeeRuleId() != null) {
+            wrapper.set(ParkingLot::getFeeRuleId, request.getFeeRuleId());
+            hasUpdate = true;
+        }
 
         if (!hasUpdate) {
             return toVO(lot);
@@ -506,6 +510,15 @@ public class ParkingLotService {
             return;
         }
 
+        // 4b. 剩余车位不能超总车位
+        if (FIELD_REMAINING_SPACES.equals(fieldName)) {
+            int totalSpaces = lot.getTotalSpaces() != null ? lot.getTotalSpaces() : 0;
+            if (newValue > totalSpaces) {
+                throw new BusinessException(CommonErrorCode.PARAM_ERROR,
+                        "剩余车位数（" + newValue + "）不能超过总车位数（" + totalSpaces + "）");
+            }
+        }
+
         // 5. 条件更新（使用 beforeValue 乐观锁防止并发覆盖）
         LambdaUpdateWrapper<ParkingLot> wrapper = new LambdaUpdateWrapper<ParkingLot>()
                 .set(ParkingLot::getUpdatedAt, LocalDateTime.now())
@@ -651,6 +664,7 @@ public class ParkingLotService {
         vo.setManualReleasePolicy(lot.getManualReleasePolicy());
         vo.setOfflinePolicy(lot.getOfflinePolicy());
         vo.setDuplicateEntryPolicy(lot.getDuplicateEntryPolicy());
+        vo.setFeeRuleId(lot.getFeeRuleId());
         vo.setCreatedAt(lot.getCreatedAt());
         vo.setUpdatedAt(lot.getUpdatedAt());
 

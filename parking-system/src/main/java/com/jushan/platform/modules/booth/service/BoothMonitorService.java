@@ -322,11 +322,12 @@ public class BoothMonitorService {
         vo.setTenantId(lot.getTenantId());
         vo.setName(lot.getName());
         int totalSpaces = lot.getTotalSpaces() != null ? lot.getTotalSpaces() : 0;
-        // 在场车辆以 parking_session 实时统计为准（parking_lot 计数列不随进出场更新）
+        // 在场车辆以 parking_session 实时统计为准
         int currentVehicles = (int) parkingSessionService.countInByParkingLotIdIgnoreTenant(lot.getId());
         vo.setTotalSpaces(totalSpaces);
         vo.setCurrentVehicles(currentVehicles);
-        vo.setRemainingSpaces(Math.max(0, totalSpaces - currentVehicles));
+        // 余位直接取 parking_lot.remaining_spaces（进场/出场自动 ±1，允许岗亭人工修正）
+        vo.setRemainingSpaces(lot.getRemainingSpaces() != null ? lot.getRemainingSpaces() : Math.max(0, totalSpaces - currentVehicles));
         vo.setStatus(lot.getStatus());
         return vo;
     }

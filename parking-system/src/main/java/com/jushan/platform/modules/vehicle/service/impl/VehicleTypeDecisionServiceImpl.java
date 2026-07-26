@@ -148,7 +148,41 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
             }
         }
 
-        // 0. 优先查询月卡（新体系：任务包 3-1）
+        // 0. 查询 sys_vehicle
+        SysVehicle vehicle = vehicleMapper.selectByPlateNumber(standardizedPlate, tenantId);
+        if (vehicle == null) {
+            vehicle = findByMultiPlate(standardizedPlate, tenantId);
+        }
+
+        // 1. 黑名单最高优先级——无论免费/月租/储值，一律禁止通行
+        if (vehicle != null && SysVehicle.TYPE_BLACKLIST.equals(vehicle.getVehicleType())) {
+            VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
+            result.setPlateNumber(standardizedPlate);
+            result.setVehicleId(vehicle.getId());
+            result.setVehicleType("BLACK");
+            result.setTypeDescription("黑名单车辆");
+            result.setAllowEntry(false);
+            result.setAllowExit(false);
+            result.setNeedCharge(false);
+            result.setDecisionReason("黑名单车辆，禁止通行");
+            return result;
+        }
+
+        // 1. 免费车最高优先级——无论有无月卡，免费车直接放行
+        if (vehicle != null && SysVehicle.TYPE_FREE.equals(vehicle.getVehicleType())) {
+            VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
+            result.setPlateNumber(standardizedPlate);
+            result.setVehicleId(vehicle.getId());
+            result.setVehicleType("FREE");
+            result.setTypeDescription("免费车");
+            result.setAllowEntry(true);
+            result.setAllowExit(true);
+            result.setNeedCharge(false);
+            result.setDecisionReason("免费车，无需缴费");
+            return result;
+        }
+
+        // 2. 月租车——查月卡表 + sys_vehicle MONTHLY 类型
         MonthlyPass monthlyPass = monthlyPassMapper.selectActiveByPlate(
                 tenantId, standardizedPlate, LocalDate.now());
         if (monthlyPass != null) {
@@ -161,44 +195,85 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
             result.setNeedCharge(false);
             result.setValidStartDate(monthlyPass.getValidStartDate());
             result.setValidEndDate(monthlyPass.getValidEndDate());
-            result.setExpired(false);
             result.setDecisionReason("月卡在有效期内，免费通行");
             return result;
         }
-
-        VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
-        result.setPlateNumber(standardizedPlate);
-
-        // 1. 查询主车牌
-        SysVehicle vehicle = vehicleMapper.selectByPlateNumber(standardizedPlate, tenantId);
-
-        // 2. 如果主车牌未找到，查询一位多车绑定
-        if (vehicle == null) {
-            vehicle = findByMultiPlate(standardizedPlate, tenantId);
+        if (vehicle != null && SysVehicle.TYPE_MONTHLY.equals(vehicle.getVehicleType())) {
+            LocalDate now = LocalDate.now();
+            LocalDate validStart = vehicle.getValidStartDate();
+            LocalDate validEnd = vehicle.getValidEndDate();
+            boolean inPeriod = (validStart == null || !validStart.isAfter(now))
+                    && (validEnd == null || !validEnd.isBefore(now));
+            if (inPeriod) {
+                VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
+                result.setPlateNumber(standardizedPlate);
+                result.setVehicleId(vehicle.getId());
+                result.setVehicleType("MONTHLY");
+                result.setTypeDescription("月租车");
+                result.setAllowEntry(true);
+                result.setAllowExit(true);
+                result.setNeedCharge(false);
+                result.setValidStartDate(validStart);
+                result.setValidEndDate(validEnd);
+                result.setDecisionReason("月租车在有效期内，免费通行");
+                return result;
+            } else {
+                // 月租过期：查储值余额，有余额则按储值扣费
+                SysVehicleWallet wallet = walletMapper.selectByVehicleId(vehicle.getId(), tenantId);
+                BigDecimal balance = wallet != null ? wallet.getBalance() : BigDecimal.ZERO;
+                if (balance.compareTo(BigDecimal.ZERO) > 0) {
+                    VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
+                    result.setPlateNumber(standardizedPlate);
+                    result.setVehicleId(vehicle.getId());
+                    result.setVehicleType("PREPAID");
+                    result.setTypeDescription("月租车（已过期，扣储值余额）");
+                    result.setAllowEntry(true);
+                    result.setAllowExit(true);
+                    result.setNeedCharge(true);
+                    result.setBalance(balance);
+                    result.setValidStartDate(validStart);
+                    result.setValidEndDate(validEnd);
+                    result.setDecisionReason("月租车已过期，从储值余额扣费，余额 " + balance + " 元");
+                    return result;
+                }
+                // 无储值余额：按临时车
+                VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
+                result.setPlateNumber(standardizedPlate);
+                result.setVehicleId(vehicle.getId());
+                result.setVehicleType("TEMP");
+                result.setTypeDescription("月租车（已过期）");
+                result.setAllowEntry(true);
+                result.setAllowExit(false);
+                result.setNeedCharge(true);
+                result.setValidStartDate(validStart);
+                result.setValidEndDate(validEnd);
+                result.setDecisionReason("月租车已过期，按临时车计费");
+                return result;
+            }
         }
 
-        // 3. 未找到任何记录 → 临时车（一期：非白名单车辆需岗亭人工放行）
+        // 3. 未找到任何记录 → 临时车
         if (vehicle == null) {
+            VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
+            result.setPlateNumber(standardizedPlate);
             result.setVehicleType("TEMP");
             result.setTypeDescription("临时车");
-            result.setAllowEntry(false); // 一期：非白名单车辆默认不允许自动入场，需岗亭人工放行
-            result.setAllowExit(true);
+            result.setAllowEntry(true);
+            result.setAllowExit(false);
             result.setNeedCharge(true);
-            result.setDecisionReason("非白名单车辆，需岗亭人工放行");
+            result.setDecisionReason("临时车，自动入场，出场需岗亭收费放行");
             return result;
         }
 
-        // 4. 填充基础信息
+        // 4. 填充基础信息并进入优先级链
+        VehicleTypeDecisionVO result = new VehicleTypeDecisionVO();
+        result.setPlateNumber(standardizedPlate);
         result.setVehicleId(vehicle.getId());
         result.setVehicleType(vehicle.getVehicleType());
         result.setValidStartDate(vehicle.getValidStartDate());
         result.setValidEndDate(vehicle.getValidEndDate());
-
-        // 加载一位多车绑定
         List<SysVehicleMultiPlate> binds = multiPlateMapper.selectByVehicleId(vehicle.getId());
         result.setMultiPlates(binds.stream().map(SysVehicleMultiPlate::getPlateNumber).collect(Collectors.toList()));
-
-        // 5. 优先级链式判定
         return applyPriorityChain(vehicle, result, tenantId);
     }
 
@@ -281,6 +356,7 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
                 result.setNeedCharge(false);
                 result.setDecisionReason("贵宾车（旧口径），免费通行");
             }
+            // FREE / MONTHLY 已在 decide() 主方法中提前处理
             case SysVehicle.TYPE_PREPAID -> {
                 // 查询储值车余额
                 SysVehicleWallet wallet = walletMapper.selectByVehicleId(vehicle.getId(), tenantId);
@@ -291,13 +367,6 @@ public class VehicleTypeDecisionServiceImpl implements VehicleTypeDecisionServic
                 result.setAllowExit(true);
                 result.setNeedCharge(true);
                 result.setDecisionReason("储值车，余额 " + balance + " 元，出场时扣费");
-            }
-            case SysVehicle.TYPE_FREE -> {
-                result.setTypeDescription("免费车");
-                result.setAllowEntry(true);
-                result.setAllowExit(true);
-                result.setNeedCharge(false);
-                result.setDecisionReason("免费车，无需缴费");
             }
             default -> {
                 // 未知类型按临时车处理
