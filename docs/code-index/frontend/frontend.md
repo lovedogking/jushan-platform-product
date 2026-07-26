@@ -2,7 +2,7 @@
 
 > **路径**：`frontend/` （独立 `pnpm` 工作区）
 > **技术栈**：Vue 3.4 · TypeScript 5.4 · Vite 5.2 · Pinia 2.1 · ant-design-vue 4.1 · axios
-> **最近更新**：2026-07-26（v2.8：出口人工放行修复——补充 exitImage/exitOperator 写入 + 平台管理员跨租户查询在场记录；识别联动分入场/出场/禁止三场景，垂直卡片布局+实时预览；device 表新增 voice_entry/exit_welcome_template + display_entry/exit_welcome_template；VoiceControlRequest 新增 voiceVolume/voiceMale；前端设备控制面板三标签重构）
+> **最近更新**：2026-07-26（v2.9：人工放行弹窗左右布局+小键盘输入+车牌颜色/车辆类型自动匹配；所有页面车辆类型统一标签（月租车/VIP/固定车/免费车/储值车/黑名单/临时车）；出口放行补充 exitImage/exitOperator；剩余车位实时更新；platform管理员跨租户查询修复）
 
 ---
 

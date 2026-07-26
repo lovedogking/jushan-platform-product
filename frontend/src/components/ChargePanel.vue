@@ -258,20 +258,30 @@ const plateColorHex = computed(() => {
 const vehicleTypeLabel = computed(() => {
   const type: string = store.currentChargeInfo?.vehicleType || ''
   if (!type) return '未知'
+  const t = type.toUpperCase()
   const map: Record<string, string> = {
-    MONTHLY: '月卡车', VIP: 'VIP车', FIXED: '固定车',
-    TEMPORARY: '临时车', VISITOR: '访客车',
+    MONTHLY: '月租车', MONTHLY_PASS: '月租车',
+    VIP: 'VIP车',
+    FIXED: '固定车', FIXED_SPACE: '固定车', WHITE: '固定车', WHITELIST: '固定车',
+    FREE: '免费车',
+    PREPAID: '储值车',
+    BLACKLIST: '黑名单',
+    VISITOR: '访客车',
+    TEMP: '临时车', TEMPORARY: '临时车',
   }
-  return map[type] || type
+  return map[t] || t
 })
 
 const vehicleTypeColor = computed(() => {
   const type: string = store.currentChargeInfo?.vehicleType || ''
-  const map: Record<string, string> = {
-    MONTHLY: 'green', VIP: 'gold', FIXED: 'blue',
-    TEMPORARY: 'default', VISITOR: 'orange',
-  }
-  return map[type] || 'default'
+  const t = type.toUpperCase()
+  if (t === 'VIP') return 'gold'
+  if (t === 'BLACKLIST') return 'red'
+  if (t === 'PREPAID') return 'cyan'
+  if (t === 'FIXED' || t === 'FIXED_SPACE' || t === 'WHITE' || t === 'WHITELIST') return 'blue'
+  if (t === 'MONTHLY' || t === 'MONTHLY_PASS' || t === 'FREE') return 'green'
+  if (t === 'TEMP' || t === 'TEMPORARY') return 'orange'
+  return 'default'
 })
 
 const paymentMethodLabel = computed(() => {

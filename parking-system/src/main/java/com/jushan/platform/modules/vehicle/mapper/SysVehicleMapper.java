@@ -25,6 +25,10 @@ public interface SysVehicleMapper extends BaseMapper<SysVehicle> {
     @Select("SELECT * FROM sys_vehicle WHERE plate_number = UPPER(#{plateNumber}) AND tenant_id = #{tenantId} AND deleted_at IS NULL LIMIT 1")
     SysVehicle selectByPlateNumber(@Param("plateNumber") String plateNumber, @Param("tenantId") Long tenantId);
 
+    /** 按车牌查询车辆（仅用于人工放行时显示车辆类型，不做权限控制） */
+    @Select("SELECT * FROM sys_vehicle WHERE plate_number = UPPER(#{plate}) AND deleted_at IS NULL LIMIT 1")
+    SysVehicle findByPlate(@Param("plate") String plate);
+
     /**
      * 统计指定部门的车辆数量。
      *

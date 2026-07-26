@@ -93,3 +93,8 @@ export function updateVehicle(id: number, data: VehicleUpdateCmd): Promise<Vehic
 export function deleteVehicle(id: number): Promise<void> {
   return request.delete<void>(`/v1/vehicles/${id}`)
 }
+
+/** 按车牌号查询车辆信息 */
+export function queryVehicle(plateNumber: string): Promise<VehicleVO | null> {
+  return request.get(`/v1/vehicles/query`, { params: { plateNumber } })
+}

@@ -301,6 +301,11 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                             plateNumber, laneId, e.getMessage());
                 }
 
+                // 推送车位更新
+                if (lane != null) {
+                    pushSpaceUpdate(lane.getLotId());
+                }
+
                 // 开闸事件落库 + WebSocket 推送：岗亭车道卡片实时显示本次放行车辆与抓拍图
                 if (lane != null) {
                     persistAndPushManualOpenEvent(lane, captureEvent, plateNumber);

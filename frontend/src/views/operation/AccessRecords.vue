@@ -11,8 +11,13 @@
         </a-form-item>
         <a-form-item label="车辆类型">
           <a-select v-model:value="filters.vehicleType" placeholder="全部" allow-clear style="width: 120px">
-            <a-select-option value="WHITE">固定车</a-select-option>
+            <a-select-option value="MONTHLY">月租车</a-select-option>
+            <a-select-option value="FIXED">固定车</a-select-option>
+            <a-select-option value="VIP">VIP车</a-select-option>
+            <a-select-option value="FREE">免费车</a-select-option>
+            <a-select-option value="PREPAID">储值车</a-select-option>
             <a-select-option value="TEMP">临时车</a-select-option>
+            <a-select-option value="BLACKLIST">黑名单</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="状态">
@@ -47,7 +52,7 @@
             <PlateTag :plate-number="record.plateNumber" size="small" />
           </template>
           <template v-if="column.key === 'vehicleType'">
-            <a-tag :color="record.vehicleType === 'WHITE' || record.vehicleType === 'FIXED' ? 'green' : 'orange'" size="small">
+            <a-tag :color="vehicleTypeColor(record.vehicleType)" size="small">
               {{ vehicleTypeLabel(record.vehicleType) }}
             </a-tag>
           </template>
@@ -153,9 +158,28 @@ function getLaneName(laneId: number): string {
 function vehicleTypeLabel(type: string): string {
   if (!type) return '临时车'
   const t = type.toUpperCase()
-  if (t === 'WHITE' || t === 'FIXED' || t === 'FIXED_SPACE' || t === 'MONTHLY' || t === 'MONTHLY_PASS' || t === 'WHITELIST') return '固定车'
-  if (t === 'TEMP' || t === 'TEMPORARY') return '临时车'
-  return '临时车'
+  const map: Record<string, string> = {
+    MONTHLY: '月租车', MONTHLY_PASS: '月租车',
+    VIP: 'VIP车',
+    FIXED: '固定车', FIXED_SPACE: '固定车', WHITE: '固定车', WHITELIST: '固定车',
+    FREE: '免费车',
+    PREPAID: '储值车',
+    BLACKLIST: '黑名单',
+    VISITOR: '访客车',
+    TEMP: '临时车', TEMPORARY: '临时车',
+  }
+  return map[t] || '临时车'
+}
+
+function vehicleTypeColor(type: string): string {
+  if (!type) return 'orange'
+  const t = type.toUpperCase()
+  if (t === 'VIP') return 'gold'
+  if (t === 'BLACKLIST') return 'red'
+  if (t === 'PREPAID') return 'cyan'
+  if (t === 'FIXED' || t === 'FIXED_SPACE' || t === 'WHITE' || t === 'WHITELIST') return 'blue'
+  if (t === 'MONTHLY' || t === 'MONTHLY_PASS' || t === 'FREE') return 'green'
+  return 'orange'
 }
 
 function isFixedVehicle(type: string): boolean {

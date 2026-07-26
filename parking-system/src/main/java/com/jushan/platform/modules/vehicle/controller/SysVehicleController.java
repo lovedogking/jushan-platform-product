@@ -1,5 +1,6 @@
 package com.jushan.platform.modules.vehicle.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jushan.common.R;
@@ -10,6 +11,7 @@ import com.jushan.platform.modules.vehicle.dto.VehicleMultiPlateBindCmd;
 import com.jushan.platform.modules.vehicle.dto.VehicleRenewalCmd;
 import com.jushan.platform.modules.vehicle.dto.VehicleUpdateCmd;
 import com.jushan.platform.modules.vehicle.entity.SysVehicle;
+import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
 import com.jushan.platform.modules.vehicle.service.SysVehicleService;
 import com.jushan.platform.modules.vehicle.service.VehicleRenewalService;
 import com.jushan.platform.modules.vehicle.vo.RenewalOrderVO;
@@ -19,6 +21,7 @@ import com.jushan.platform.modules.parking.entity.ParkingOrder;
 import com.jushan.platform.modules.parking.service.ParkingOrderService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,13 +48,16 @@ public class SysVehicleController {
     private final SysVehicleService sysVehicleService;
     private final VehicleRenewalService renewalService;
     private final ParkingOrderService orderService;
+    private final SysVehicleMapper vehicleMapper;
 
     public SysVehicleController(SysVehicleService sysVehicleService,
                                 VehicleRenewalService renewalService,
-                                ParkingOrderService orderService) {
+                                ParkingOrderService orderService,
+                                SysVehicleMapper vehicleMapper) {
         this.sysVehicleService = sysVehicleService;
         this.renewalService = renewalService;
         this.orderService = orderService;
+        this.vehicleMapper = vehicleMapper;
     }
 
     @PostMapping
@@ -172,5 +178,18 @@ public class SysVehicleController {
                 ? paySerial
                 : ("MANUAL-" + orderId + "-" + System.currentTimeMillis());
         return R.ok(renewalService.applyRenewalEffect(orderId, serial));
+    }
+
+    /**
+     * 按车牌号查询车辆（用于人工放行自动识别车辆类型）。
+     */
+    @GetMapping("/query")
+    public R<VehicleVO> queryByPlate(@RequestParam(required = false) String plateNumber) {
+        if (plateNumber == null || plateNumber.isBlank()) return R.ok();
+        SysVehicle entity = vehicleMapper.findByPlate(plateNumber.toUpperCase());
+        if (entity == null) return R.ok();
+        VehicleVO vo = new VehicleVO();
+        BeanUtils.copyProperties(entity, vo);
+        return R.ok(vo);
     }
 }

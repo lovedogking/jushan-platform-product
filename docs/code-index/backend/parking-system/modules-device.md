@@ -2,7 +2,7 @@
 
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/device/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.device`
-> **职责**：设备台账 CRUD、厂商/型号管理、车道绑定、控闸设备解析、命令下发（开/关/常开/关闸/重启/触发识别/显示/语音/校时/白名单同步）、状态查询、Webhook 事件接入、定时校时、显示屏参数配置、语音参数配置。
+> **职责**：设备台账 CRUD、厂商/型号管理、车道绑定、控闸设备解析、命令下发（开/关/常开/关闸/重启/触发识别/显示/语音/校时/白名单同步）、状态查询、Webhook 事件接入（识别联动分方向模板）、定时校时、显示屏/语音参数配置。
 > **最近更新**：2026-07-25（v2.5：租户岗亭离线修复——device_status_snapshot 加入租户忽略表；手动放行出口写出场记录+查车类型；BoothMonitorService isActive 在线即活跃兜底；识别事件时间 Asia/Shanghai 时区；v2.4：设备语音/显示屏模板字段+识别联动）
 
 **说明**：本模块于 2026-07-24 完成从 `com.jushan.system.*` 到 `com.jushan.platform.modules.device.*` 的完整迁移。旧 `system/entity/Device*.java`、`system/service/DeviceService.java`、`system/controller/DeviceController.java`、`system/dto/CreateDeviceRequest.java` / `UpdateDeviceRequest.java`、`system/vo/DeviceVO.java` / `DeviceStatusVO.java` 均已标 `@Deprecated`。

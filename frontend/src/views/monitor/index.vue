@@ -113,7 +113,7 @@
             </div>
             <div class="detail-info">
               <div class="info-row"><span class="info-label">车牌</span><span class="info-value"><PlateTag :plate-number="displayVehicle.plate" size="small" /></span></div>
-              <div class="info-row"><span class="info-label">类型</span><span class="info-value">{{ displayVehicle.vehicleType || '临时车' }}</span></div>
+              <div class="info-row"><span class="info-label">类型</span><span class="info-value"><a-tag :color="displayVehicle.vehicleTypeColor" size="small">{{ displayVehicle.vehicleType || '临时车' }}</a-tag></span></div>
               <div class="info-row"><span class="info-label">入场时间</span><span class="info-value">{{ displayVehicle.entryTime || '--' }}</span></div>
               <div class="info-row"><span class="info-label">出场时间</span><span class="info-value">{{ displayVehicle.exitTime || '--' }}</span></div>
               <div class="info-row"><span class="info-label">车道</span><span class="info-value">{{ displayVehicle.laneName || '--' }}</span></div>
@@ -148,7 +148,7 @@
                 <PlateTag :plate-number="record.plateNumber" size="small" />
               </template>
               <template v-if="column.key === 'vehicleType'">
-                <a-tag :color="record.vehicleType === 'WHITE' || record.vehicleType === 'FIXED' ? 'green' : 'orange'" size="small">
+                <a-tag :color="vehicleTypeColor(record.vehicleType)" size="small">
                   {{ vehicleTypeLabel(record.vehicleType) }}
                 </a-tag>
               </template>
@@ -406,11 +406,12 @@ const prevRecognition = computed(() => store.recentEvents[1] || null)
 const displayVehicle = computed(() => {
   if (selectedRecord.value) {
     const r = selectedRecord.value
+    const vt = r.vehicleType || ''
     return {
       plate: r.plateNumber || '',
-      direction: r.status === 'IN' ? 'ENTRY' : 'EXIT',
-      vehicleType: r.vehicleType,
-      laneName: r.laneName || '',
+      vehicleType: vehicleTypeLabel(vt),
+      vehicleTypeColor: vehicleTypeColor(vt),
+      laneName: r.entryLaneName || r.exitLaneName || '',
       entryTime: r.entryTime || '',
       exitTime: r.exitTime || '',
       entryImage: r.entryImage || '',
@@ -425,8 +426,8 @@ const displayVehicle = computed(() => {
   if (!e) return null
   return {
     plate: e.correctedPlate || e.plateNumber || '',
-    direction: e.direction || '',
     vehicleType: vehicleType.value || '',
+    vehicleTypeColor: 'orange',
     laneName: e.laneName || '',
     entryTime: store.formatTime(e.eventTime),
     exitTime: '',
@@ -512,9 +513,28 @@ function formatDuration(minutes: number): string {
 function vehicleTypeLabel(type: string): string {
   if (!type) return '临时车'
   const t = type.toUpperCase()
-  if (t === 'WHITE' || t === 'FIXED' || t === 'FIXED_SPACE' || t === 'MONTHLY' || t === 'MONTHLY_PASS' || t === 'WHITELIST') return '固定车'
-  if (t === 'TEMP' || t === 'TEMPORARY') return '临时车'
-  return '临时车'
+  const map: Record<string, string> = {
+    MONTHLY: '月租车', MONTHLY_PASS: '月租车',
+    VIP: 'VIP车',
+    FIXED: '固定车', FIXED_SPACE: '固定车', WHITE: '固定车', WHITELIST: '固定车',
+    FREE: '免费车',
+    PREPAID: '储值车',
+    BLACKLIST: '黑名单',
+    VISITOR: '访客车',
+    TEMP: '临时车', TEMPORARY: '临时车',
+  }
+  return map[t] || '临时车'
+}
+
+function vehicleTypeColor(type: string): string {
+  if (!type) return 'orange'
+  const t = type.toUpperCase()
+  if (t === 'VIP') return 'gold'
+  if (t === 'BLACKLIST') return 'red'
+  if (t === 'PREPAID') return 'cyan'
+  if (t === 'FIXED' || t === 'FIXED_SPACE' || t === 'WHITE' || t === 'WHITELIST') return 'blue'
+  if (t === 'MONTHLY' || t === 'MONTHLY_PASS' || t === 'FREE') return 'green'
+  return 'orange'
 }
 
 // ========== 车位 ==========
