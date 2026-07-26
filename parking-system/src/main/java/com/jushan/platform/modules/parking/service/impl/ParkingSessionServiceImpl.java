@@ -12,6 +12,8 @@ import com.jushan.platform.modules.parking.entity.ParkingSession;
 import com.jushan.platform.modules.parking.mapper.ParkingSessionMapper;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import com.jushan.platform.modules.parking.vo.ParkingSessionVO;
+import com.jushan.platform.modules.parking.entity.ParkingLane;
+import com.jushan.platform.modules.parking.mapper.ParkingLaneMapper;
 import com.jushan.platform.modules.parking.entity.ParkingLot;
 import com.jushan.platform.modules.parking.entity.ParkingOrder;
 import com.jushan.platform.modules.parking.entity.ParkingRecord;
@@ -46,15 +48,18 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
     private final ParkingRecordMapper parkingRecordMapper;
     private final ParkingOrderMapper parkingOrderMapper;
     private final ParkingLotMapper parkingLotMapper;
+    private final ParkingLaneMapper parkingLaneMapper;
     private final AtomicInteger sequence = new AtomicInteger(0);
     private volatile String lastSequenceDate = "";
 
     public ParkingSessionServiceImpl(ParkingRecordMapper parkingRecordMapper,
                                      ParkingOrderMapper parkingOrderMapper,
-                                     ParkingLotMapper parkingLotMapper) {
+                                     ParkingLotMapper parkingLotMapper,
+                                     ParkingLaneMapper parkingLaneMapper) {
         this.parkingRecordMapper = parkingRecordMapper;
         this.parkingOrderMapper = parkingOrderMapper;
         this.parkingLotMapper = parkingLotMapper;
+        this.parkingLaneMapper = parkingLaneMapper;
     }
 
     @Override
@@ -403,6 +408,20 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
             vo.setFeeCents(entity.getFeeAmount().movePointRight(2).intValue());
         } else {
             vo.setFeeCents(0);
+        }
+
+        // 车道名称
+        if (entity.getLaneId() != null) {
+            try {
+                ParkingLane lane = parkingLaneMapper.selectById(entity.getLaneId());
+                if (lane != null) vo.setEntryLaneName(lane.getName());
+            } catch (Exception ignored) {}
+        }
+        if (entity.getExitLaneId() != null) {
+            try {
+                ParkingLane lane = parkingLaneMapper.selectById(entity.getExitLaneId());
+                if (lane != null) vo.setExitLaneName(lane.getName());
+            } catch (Exception ignored) {}
         }
 
         return vo;

@@ -806,31 +806,35 @@ onUnmounted(() => {
 }
 
 // ========== 车辆详情卡片 ==========
-.vehicle-detail-card { padding: 14px; }
+.vehicle-detail-card { padding: 0; }
 
 .detail-layout {
   display: flex;
-  gap: 16px;
+  gap: 0;
   height: 100%;
-  align-items: center;
 }
 
 .detail-thumbs {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
+  width: 48%;
+  padding: 10px;
+  padding-right: 6px;
 }
 
 .thumb-item {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 .detail-thumb {
-  width: 200px;
+  width: 100%;
+  flex: 1;
   background: #f5f6f8;
   border: 1px solid #e5e7eb;
   border-radius: 4px;
@@ -841,18 +845,20 @@ onUnmounted(() => {
 
   :deep(.ant-image) {
     width: 100%;
+    height: 100%;
     .ant-image-img {
       width: 100%;
-      height: auto;
+      height: 100%;
+      object-fit: cover;
       display: block;
     }
   }
 
-  .thumb-placeholder { font-size: 24px; color: #d1d5db; padding: 16px 0; }
+  .thumb-placeholder { font-size: 28px; color: #d1d5db; padding: 16px 0; }
 }
 
 .thumb-label {
-  font-size: 11px;
+  font-size: 12px;
   color: #6b7280;
 }
 
@@ -862,17 +868,19 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: center;
   gap: 0;
+  padding: 10px;
+  padding-left: 6px;
   min-width: 0;
 }
 
 .info-row {
   display: flex;
   align-items: center;
-  padding: 4px 0;
+  padding: 6px 0;
 }
 
-.info-label { font-size: 14px; color: #6b7280; width: 45px; flex-shrink: 0; text-align: right; margin-right: 12px; }
-.info-value { font-size: 15px; color: #1f2937; font-weight: 500; flex: 1; &.fee { color: #dc2626; } }
+.info-label { font-size: 14px; color: #6b7280; width: 64px; flex-shrink: 0; text-align: right; margin-right: 10px; }
+.info-value { font-size: 15px; color: #1f2937; font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; &.fee { color: #dc2626; } }
 
 .detail-empty {
   display: flex; align-items: center; justify-content: center; height: 100%;

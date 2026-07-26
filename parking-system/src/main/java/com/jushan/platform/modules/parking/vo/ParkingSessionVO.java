@@ -44,10 +44,17 @@ public class ParkingSessionVO {
     /** 出场通道ID */
     private Long exitLaneId;
 
+    /** 出场抓拍图片URL */
+    private String exitImage;
+
+    /** 入场通道名称 */
+    private String entryLaneName;
+
+    /** 出场通道名称 */
+    private String exitLaneName;
+
     /** 状态：IN-在场, OUT-已出场, EXCEPTION-异常 */
     private String status;
-
-    /** 应收费用（元） */
     private BigDecimal feeAmount;
 
     /** 应收费用（分），精度安全的整数分表示 */

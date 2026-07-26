@@ -143,6 +143,9 @@ export interface ParkingSessionVO {
   entryImage?: string
   exitTime?: string
   exitLaneId?: number
+  exitImage?: string
+  entryLaneName?: string
+  exitLaneName?: string
   status: string
   feeAmount: number
   feeCents: number
