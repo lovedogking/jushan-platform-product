@@ -201,4 +201,31 @@ public class MockDeviceAccessClient implements DeviceAccessClient {
         dto.setMessage(MOCK_PREFIX + "抓拍成功");
         return dto;
     }
+
+    @Override
+    public CommandResultDTO syncWhitelist(String deviceSn, String action, String plate) {
+        log.info("[MOCK] 白名单同步: deviceSn={}, action={}, plate={}", deviceSn, action, plate);
+        CommandResultDTO dto = new CommandResultDTO();
+        dto.setSuccess(true);
+        dto.setMessage(MOCK_PREFIX + "白名单同步成功");
+        return dto;
+    }
+
+    @Override
+    public CommandResultDTO reboot(String deviceSn) {
+        log.info("[MOCK] 设备重启: deviceSn={}", deviceSn);
+        CommandResultDTO dto = new CommandResultDTO();
+        dto.setSuccess(true);
+        dto.setMessage(MOCK_PREFIX + "重启命令已发送");
+        return dto;
+    }
+
+    @Override
+    public CommandResultDTO triggerRecognition(String deviceSn) {
+        log.info("[MOCK] 手动触发识别: deviceSn={}", deviceSn);
+        CommandResultDTO dto = new CommandResultDTO();
+        dto.setSuccess(true);
+        dto.setMessage(MOCK_PREFIX + "触发识别成功");
+        return dto;
+    }
 }

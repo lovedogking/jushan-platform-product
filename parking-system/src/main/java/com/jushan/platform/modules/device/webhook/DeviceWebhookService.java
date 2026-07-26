@@ -338,6 +338,8 @@ public class DeviceWebhookService {
             eventLog.setDirection(event.getDirection());
             eventLog.setEventTime(parseCaptureTime(event.getCaptureTime()));
             eventLog.setConfidence(confidence);
+            eventLog.setBodyColor(event.getBodyColor());
+            eventLog.setCarLogo(event.getCarLogo());
             eventLog.setImagePath(event.getImageUrl());
             eventLog.setPlateImagePath(event.getPlateImageUrl());
             eventLog.setSource("DEVICE_ACCESS");

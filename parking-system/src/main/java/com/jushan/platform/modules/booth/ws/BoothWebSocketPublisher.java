@@ -314,4 +314,21 @@ public class BoothWebSocketPublisher {
         }
         return dateTime.format(DATE_TIME_FORMATTER);
     }
+
+    /**
+     * 推送道闸状态变化到岗亭端。
+     */
+    public void pushGateStatus(Long parkingLotId, Long laneId, String gateStatus) {
+        try {
+            String dest = "/topic/booth/" + parkingLotId + "/gate-status";
+            Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("type", "GATE_STATUS");
+            payload.put("laneId", laneId);
+            payload.put("gateStatus", gateStatus);
+            payload.put("timestamp", System.currentTimeMillis());
+            messagingTemplate.convertAndSend(dest, payload);
+        } catch (Exception e) {
+            log.warn("道闸状态 WebSocket 推送失败: laneId={}, error={}", laneId, e.getMessage());
+        }
+    }
 }

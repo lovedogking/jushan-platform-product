@@ -4,6 +4,8 @@
     title="人工放行"
     :confirm-loading="releasing"
     :mask-closable="false"
+    ok-text="确认放行"
+    cancel-text="取消放行"
     @ok="handleConfirm"
     @cancel="handleCancel"
   >

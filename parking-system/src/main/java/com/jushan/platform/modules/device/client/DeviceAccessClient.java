@@ -239,4 +239,26 @@ public interface DeviceAccessClient {
      * @since v0.7
      */
     CaptureResultDTO captureImage(String deviceSn);
+
+    /**
+     * 同步设备白名单（单条操作）。
+     * <p>
+     * 对应 {@code POST /api/v1/devices/{deviceSn}/whitelist/sync}。
+     *
+     * @param deviceSn 设备序列号
+     * @param action   操作类型：ADD / DELETE / CLEAR
+     * @param plate    车牌号（DELETE/CLEAR 可为 null）
+     * @return 命令执行结果
+     */
+    CommandResultDTO syncWhitelist(String deviceSn, String action, String plate);
+
+    /**
+     * 重启设备。
+     */
+    CommandResultDTO reboot(String deviceSn);
+
+    /**
+     * 手动触发识别（抓拍+识别）。
+     */
+    CommandResultDTO triggerRecognition(String deviceSn);
 }

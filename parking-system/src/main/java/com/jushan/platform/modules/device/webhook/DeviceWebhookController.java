@@ -159,6 +159,11 @@ public class DeviceWebhookController {
             // 图片 URL
             event.setImageUrl(stringValue(payload, "imagePath"));
             event.setPlateImageUrl(stringValue(payload, "plateImagePath"));
+
+            // 车身颜色 / 车标
+            Object bc = payload.get("carColor");
+            if (bc instanceof Number) event.setBodyColor(((Number) bc).intValue());
+            event.setCarLogo(stringValue(payload, "carLogo"));
         }
 
         return event;

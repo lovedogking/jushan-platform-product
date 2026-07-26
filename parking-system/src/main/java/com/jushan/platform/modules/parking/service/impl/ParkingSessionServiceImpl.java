@@ -14,6 +14,8 @@ import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import com.jushan.platform.modules.parking.vo.ParkingSessionVO;
 import com.jushan.platform.modules.parking.entity.ParkingLane;
 import com.jushan.platform.modules.parking.mapper.ParkingLaneMapper;
+import com.jushan.platform.modules.vehicle.entity.SysVehicle;
+import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
 import com.jushan.platform.modules.parking.entity.ParkingLot;
 import com.jushan.platform.modules.parking.entity.ParkingOrder;
 import com.jushan.platform.modules.parking.entity.ParkingRecord;
@@ -49,17 +51,20 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
     private final ParkingOrderMapper parkingOrderMapper;
     private final ParkingLotMapper parkingLotMapper;
     private final ParkingLaneMapper parkingLaneMapper;
+    private final SysVehicleMapper sysVehicleMapper;
     private final AtomicInteger sequence = new AtomicInteger(0);
     private volatile String lastSequenceDate = "";
 
     public ParkingSessionServiceImpl(ParkingRecordMapper parkingRecordMapper,
                                      ParkingOrderMapper parkingOrderMapper,
                                      ParkingLotMapper parkingLotMapper,
-                                     ParkingLaneMapper parkingLaneMapper) {
+                                     ParkingLaneMapper parkingLaneMapper,
+                                     SysVehicleMapper sysVehicleMapper) {
         this.parkingRecordMapper = parkingRecordMapper;
         this.parkingOrderMapper = parkingOrderMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.parkingLaneMapper = parkingLaneMapper;
+        this.sysVehicleMapper = sysVehicleMapper;
     }
 
     @Override
@@ -421,6 +426,20 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
             try {
                 ParkingLane lane = parkingLaneMapper.selectById(entity.getExitLaneId());
                 if (lane != null) vo.setExitLaneName(lane.getName());
+            } catch (Exception ignored) {}
+        }
+
+        // 车主信息
+        if (entity.getPlateNumber() != null) {
+            try {
+                SysVehicle vehicle = sysVehicleMapper.selectOne(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysVehicle>()
+                        .eq(SysVehicle::getPlateNumber, entity.getPlateNumber())
+                        .last("LIMIT 1"));
+                if (vehicle != null) {
+                    vo.setOwnerName(vehicle.getOwnerName());
+                    vo.setOwnerPhone(vehicle.getOwnerPhone());
+                }
             } catch (Exception ignored) {}
         }
 

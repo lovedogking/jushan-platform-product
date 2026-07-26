@@ -1,6 +1,7 @@
 package com.jushan.platform.modules.device.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -111,6 +112,28 @@ public class Device implements Serializable {
     /** 禁入语音模板，{plate}=车牌占位符，如 "{plate},禁止通行" */
     private String voiceDenyTemplate;
 
+    /** 手动放行语音模板（支持 {plate}, {type} 占位符） */
+    @TableField("voice_release_template")
+    private String voiceReleaseTemplate;
+
+    /** 显示屏文字颜色 0白/1红/2蓝/3绿 */
+    private Integer displayTextColor;
+
+    /** 显示屏翻转方向 0正常/1上下翻转 */
+    private Integer displayRotateMode;
+
+    /** 显示屏亮度 0-5 */
+    private Integer displayBrightness;
+
+    /** 显示屏音量 0-5 */
+    private Integer displayVolume;
+
+    /** 语音音量 1-100 */
+    private Integer voiceVolume;
+
+    /** 语音类型 0男声/1女声 */
+    private Integer voiceMale;
+
     /** 准入显示屏模板，{plate}=车牌占位符，\n=换行 */
     private String displayWelcomeTemplate;
 
@@ -197,6 +220,27 @@ public class Device implements Serializable {
 
     public String getVoiceDenyTemplate() { return voiceDenyTemplate; }
     public void setVoiceDenyTemplate(String voiceDenyTemplate) { this.voiceDenyTemplate = voiceDenyTemplate; }
+
+    public String getVoiceReleaseTemplate() { return voiceReleaseTemplate; }
+    public void setVoiceReleaseTemplate(String voiceReleaseTemplate) { this.voiceReleaseTemplate = voiceReleaseTemplate; }
+
+    public Integer getDisplayTextColor() { return displayTextColor; }
+    public void setDisplayTextColor(Integer displayTextColor) { this.displayTextColor = displayTextColor; }
+
+    public Integer getDisplayRotateMode() { return displayRotateMode; }
+    public void setDisplayRotateMode(Integer displayRotateMode) { this.displayRotateMode = displayRotateMode; }
+
+    public Integer getDisplayBrightness() { return displayBrightness; }
+    public void setDisplayBrightness(Integer displayBrightness) { this.displayBrightness = displayBrightness; }
+
+    public Integer getDisplayVolume() { return displayVolume; }
+    public void setDisplayVolume(Integer displayVolume) { this.displayVolume = displayVolume; }
+
+    public Integer getVoiceVolume() { return voiceVolume; }
+    public void setVoiceVolume(Integer voiceVolume) { this.voiceVolume = voiceVolume; }
+
+    public Integer getVoiceMale() { return voiceMale; }
+    public void setVoiceMale(Integer voiceMale) { this.voiceMale = voiceMale; }
 
     public String getDisplayWelcomeTemplate() { return displayWelcomeTemplate; }
     public void setDisplayWelcomeTemplate(String displayWelcomeTemplate) { this.displayWelcomeTemplate = displayWelcomeTemplate; }

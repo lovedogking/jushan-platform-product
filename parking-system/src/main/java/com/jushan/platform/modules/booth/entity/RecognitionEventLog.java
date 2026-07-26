@@ -103,6 +103,12 @@ public class RecognitionEventLog implements Serializable {
     /** 校正人 ID（sys_user.id，岗亭管理员） */
     private Long correctorId;
 
+    /** 车身颜色（臻识编码 0-12/255未知） */
+    private Integer bodyColor;
+
+    /** 车标品牌 */
+    private String carLogo;
+
     // ==================== getter / setter ====================
 
     public Long getId() { return id; }
@@ -179,4 +185,10 @@ public class RecognitionEventLog implements Serializable {
 
     public Long getCorrectorId() { return correctorId; }
     public void setCorrectorId(Long correctorId) { this.correctorId = correctorId; }
+
+    public Integer getBodyColor() { return bodyColor; }
+    public void setBodyColor(Integer bodyColor) { this.bodyColor = bodyColor; }
+
+    public String getCarLogo() { return carLogo; }
+    public void setCarLogo(String carLogo) { this.carLogo = carLogo; }
 }

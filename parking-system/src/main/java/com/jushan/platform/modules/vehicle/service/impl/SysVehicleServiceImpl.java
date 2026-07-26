@@ -19,6 +19,7 @@ import com.jushan.platform.modules.parking.entity.LanePermission;
 import com.jushan.platform.modules.parking.entity.ParkingLane;
 import com.jushan.platform.modules.parking.mapper.ParkingLaneMapper;
 import com.jushan.platform.modules.parking.service.LanePermissionService;
+import com.jushan.platform.modules.device.service.DeviceWhitelistSyncService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -41,13 +42,16 @@ public class SysVehicleServiceImpl extends ServiceImpl<SysVehicleMapper, SysVehi
     private final SysVehicleMultiPlateMapper multiPlateMapper;
     private final LanePermissionService lanePermissionService;
     private final ParkingLaneMapper laneMapper;
+    private final DeviceWhitelistSyncService whitelistSyncService;
 
     public SysVehicleServiceImpl(SysVehicleMultiPlateMapper multiPlateMapper,
                                   LanePermissionService lanePermissionService,
-                                  ParkingLaneMapper laneMapper) {
+                                  ParkingLaneMapper laneMapper,
+                                  DeviceWhitelistSyncService whitelistSyncService) {
         this.multiPlateMapper = multiPlateMapper;
         this.lanePermissionService = lanePermissionService;
         this.laneMapper = laneMapper;
+        this.whitelistSyncService = whitelistSyncService;
     }
 
     @Override
@@ -120,6 +124,11 @@ public class SysVehicleServiceImpl extends ServiceImpl<SysVehicleMapper, SysVehi
             syncLanePermissions(id, cmd.getLaneIds(), entity.getTenantId());
         }
 
+        // 异步同步白名单到相关设备
+        if (cmd.getLaneIds() != null) {
+            whitelistSyncService.syncVehicleToDevices(entity, cmd.getLaneIds());
+        }
+
         return toVO(entity);
     }
 
@@ -136,8 +145,17 @@ public class SysVehicleServiceImpl extends ServiceImpl<SysVehicleMapper, SysVehi
             throw new BusinessException(CommonErrorCode.FORBIDDEN, "无权删除该车辆");
         }
 
+        // 删除前获取关联车道，用于白名单同步
+        List<Long> laneIds = lanePermissionService.listByVehicleId(id).stream()
+                .map(v -> v.getLaneId()).collect(Collectors.toList());
+
         baseMapper.deleteById(id);
         log.info("删除车辆成功: vehicleId={}", id);
+
+        // 异步从设备移除白名单
+        if (!laneIds.isEmpty()) {
+            whitelistSyncService.removeVehicleFromDevices(entity, laneIds);
+        }
     }
 
     @Override

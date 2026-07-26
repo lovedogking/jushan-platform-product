@@ -293,6 +293,52 @@ public class DeviceController {
     }
 
     /**
+     * 锁定道闸常开（继电器强制吸合保持开启）。
+     */
+    @PostMapping("/{id}/lock-open")
+    @RequirePermission("device:manage")
+    public R<CommandResultDTO> lockOpenGate(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String reason = body != null ? body.getOrDefault("reason", "") : "";
+        CommandResultDTO result = deviceService.lockOpenGate(id, reason);
+        log.info("锁定道闸常开: deviceId={}, success={}", id, result.isSuccessful());
+        return R.ok(result);
+    }
+
+    /**
+     * 解除道闸常开（取消锁定并关闸）。
+     */
+    @PostMapping("/{id}/unlock-open")
+    @RequirePermission("device:manage")
+    public R<CommandResultDTO> unlockOpenGate(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String reason = body != null ? body.getOrDefault("reason", "") : "";
+        CommandResultDTO result = deviceService.unlockOpenGate(id, reason);
+        log.info("解除道闸常开: deviceId={}, success={}", id, result.isSuccessful());
+        return R.ok(result);
+    }
+
+    /**
+     * 重启设备。
+     */
+    @PostMapping("/{id}/reboot")
+    @RequirePermission("device:manage")
+    public R<CommandResultDTO> reboot(@PathVariable Long id) {
+        CommandResultDTO result = deviceService.rebootDevice(id);
+        log.info("设备重启命令已发送: deviceId={}", id);
+        return R.ok(result);
+    }
+
+    /**
+     * 手动触发识别（抓拍+识别）。
+     */
+    @PostMapping("/{id}/trigger")
+    @RequirePermission("device:manage")
+    public R<CommandResultDTO> triggerRecognition(@PathVariable Long id) {
+        CommandResultDTO result = deviceService.triggerRecognition(id);
+        log.info("手动触发识别已发送: deviceId={}", id);
+        return R.ok(result);
+    }
+
+    /**
      * 显示屏实时文字（调用 Device Access v0.4）。
      * <p>
      * 权限：device:manage

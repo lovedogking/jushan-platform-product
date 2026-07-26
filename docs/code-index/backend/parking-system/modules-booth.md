@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/booth/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.booth`
 > **职责**：识别事件处理（入场/出场判定+开闸）、人工入场补录、费用减免、交接班管理、岗亭车辆查询。
-> **最近更新**：2026-07-26（v1.6：新增 GateOperationLog 操作日志表+实体+接口；RecognitionEventController.manualOpenGate 增加 plateColor/vehicleType 参数+语音播报+自动写操作日志）
+> **最近更新**：2026-07-26（v1.6：新增道闸状态 WebSocket 推送 pushGateStatus；新增手动开闸后道闸状态广播）
 
 ---
 

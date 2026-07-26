@@ -40,6 +40,12 @@ public class DeviceWebhookEvent {
     /** 抓拍图片 URL */
     private String imageUrl;
 
+    /** 车身颜色编号（臻识协议 0-12/255未知） */
+    private Integer bodyColor;
+
+    /** 车标品牌 */
+    private String carLogo;
+
     /** 车牌特写图 URL */
     private String plateImageUrl;
 

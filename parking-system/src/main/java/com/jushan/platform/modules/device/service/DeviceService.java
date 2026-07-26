@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import org.springframework.scheduling.annotation.Scheduled;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -360,6 +361,34 @@ public class DeviceService {
         }
         if (request.getDescription() != null) {
             wrapper.set(Device::getDescription, request.getDescription().trim());
+            hasUpdate = true;
+        }
+        if (request.getVoiceReleaseTemplate() != null) {
+            wrapper.set(Device::getVoiceReleaseTemplate, request.getVoiceReleaseTemplate());
+            hasUpdate = true;
+        }
+        if (request.getDisplayTextColor() != null) {
+            wrapper.set(Device::getDisplayTextColor, request.getDisplayTextColor());
+            hasUpdate = true;
+        }
+        if (request.getDisplayRotateMode() != null) {
+            wrapper.set(Device::getDisplayRotateMode, request.getDisplayRotateMode());
+            hasUpdate = true;
+        }
+        if (request.getDisplayBrightness() != null) {
+            wrapper.set(Device::getDisplayBrightness, request.getDisplayBrightness());
+            hasUpdate = true;
+        }
+        if (request.getDisplayVolume() != null) {
+            wrapper.set(Device::getDisplayVolume, request.getDisplayVolume());
+            hasUpdate = true;
+        }
+        if (request.getVoiceVolume() != null) {
+            wrapper.set(Device::getVoiceVolume, request.getVoiceVolume());
+            hasUpdate = true;
+        }
+        if (request.getVoiceMale() != null) {
+            wrapper.set(Device::getVoiceMale, request.getVoiceMale());
             hasUpdate = true;
         }
         if (request.getIpAddress() != null) {
@@ -1332,6 +1361,65 @@ public class DeviceService {
     }
 
     /**
+     * 锁定道闸常开（按设备ID，继电器强制吸合保持开启）。
+     * 用于消防/维护等需要道闸持续保持打开的场景。
+     * 取消常开请使用 {@link #unlockOpenGate(Long, String)}。
+     */
+    @Transactional
+    public CommandResultDTO lockOpenGate(Long deviceId, String reason) {
+        Device device = getDeviceWithAuth(deviceId);
+        if (!STATUS_ENABLED.equals(device.getStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不能操作");
+        }
+        String commandId = UUID.randomUUID().toString();
+        CommandResultDTO result = deviceAccessClient.lockGate(device.getDeviceSn(), commandId);
+        log.info("锁定道闸常开: deviceId={}, success={}", deviceId, result.isSuccessful());
+        return result;
+    }
+
+    /**
+     * 解除道闸常开（取消锁定并关闸，恢复常规 AUTO 模式）。
+     * 与 {@link #lockOpenGate(Long, String)} 对称。
+     */
+    @Transactional
+    public CommandResultDTO unlockOpenGate(Long deviceId, String reason) {
+        Device device = getDeviceWithAuth(deviceId);
+        if (!STATUS_ENABLED.equals(device.getStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不能操作");
+        }
+        String commandId = UUID.randomUUID().toString();
+        CommandResultDTO result = deviceAccessClient.unlockGate(device.getDeviceSn(), commandId);
+        log.info("解除道闸常开: deviceId={}, success={}", deviceId, result.isSuccessful());
+        return result;
+    }
+
+    /**
+     * 重启设备。
+     */
+    public CommandResultDTO rebootDevice(Long deviceId) {
+        Device device = getDeviceWithAuth(deviceId);
+        if (!STATUS_ENABLED.equals(device.getStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不能重启");
+        }
+        CommandResultDTO result = deviceAccessClient.reboot(device.getDeviceSn());
+        log.info("设备重启: deviceId={}, success={}", deviceId, result.isSuccessful());
+        return result;
+    }
+
+    /**
+     * 手动触发识别（抓拍+识别）。
+     */
+    public CommandResultDTO triggerRecognition(Long deviceId) {
+        Device device = getDeviceWithAuth(deviceId);
+        if (!STATUS_ENABLED.equals(device.getStatus())) {
+            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不能触发识别");
+        }
+        CommandResultDTO result = deviceAccessClient.triggerRecognition(device.getDeviceSn());
+        log.info("手动触发识别: deviceId={}, success={}", deviceId, result.isSuccessful());
+        return result;
+    }
+
+    /**
      * 按车道常关（锁定道闸关闭，继电器强制保持关闭）。
      * <p>
      * 与 {@link #lockGateByLane(Long, String)} 对称：常关成功后，
@@ -2201,6 +2289,13 @@ public class DeviceService {
         vo.setVoiceEnabled(device.getVoiceEnabled());
         vo.setVoiceWelcomeTemplate(device.getVoiceWelcomeTemplate());
         vo.setVoiceDenyTemplate(device.getVoiceDenyTemplate());
+        vo.setVoiceReleaseTemplate(device.getVoiceReleaseTemplate());
+        vo.setDisplayTextColor(device.getDisplayTextColor());
+        vo.setDisplayRotateMode(device.getDisplayRotateMode());
+        vo.setDisplayBrightness(device.getDisplayBrightness());
+        vo.setDisplayVolume(device.getDisplayVolume());
+        vo.setVoiceVolume(device.getVoiceVolume());
+        vo.setVoiceMale(device.getVoiceMale());
         vo.setDisplayWelcomeTemplate(device.getDisplayWelcomeTemplate());
         vo.setDisplayDenyTemplate(device.getDisplayDenyTemplate());
         vo.setDisplayIdleText(device.getDisplayIdleText());
@@ -2212,5 +2307,28 @@ public class DeviceService {
 
     private static String defaultString(String value, String defaultValue) {
         return value != null && !value.isBlank() ? value : defaultValue;
+    }
+
+    /**
+     * 定时校时：每天凌晨 2 点对全部启用设备发送校时命令。
+     */
+    @Scheduled(cron = "0 0 2 * * ?")
+    public void scheduledSyncAllDeviceTime() {
+        log.info("定时校时任务开始");
+        List<Device> devices = deviceMapper.selectList(
+            new LambdaQueryWrapper<Device>()
+                .eq(Device::getStatus, STATUS_ENABLED));
+        int success = 0, fail = 0;
+        for (Device device : devices) {
+            try {
+                deviceAccessClient.syncTime(device.getDeviceSn());
+                success++;
+            } catch (Exception e) {
+                log.warn("定时校时失败: deviceId={}, deviceSn={}, error={}",
+                    device.getId(), device.getDeviceSn(), e.getMessage());
+                fail++;
+            }
+        }
+        log.info("定时校时任务完成: total={}, success={}, fail={}", devices.size(), success, fail);
     }
 }

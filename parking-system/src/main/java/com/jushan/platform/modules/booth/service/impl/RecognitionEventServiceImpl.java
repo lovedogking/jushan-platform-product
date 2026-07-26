@@ -16,6 +16,8 @@ import com.jushan.platform.modules.device.client.DeviceAccessClient;
 import com.jushan.platform.modules.device.client.dto.CommandResultDTO;
 import com.jushan.platform.modules.device.entity.Device;
 import com.jushan.platform.modules.booth.entity.RecognitionEventLog;
+import com.jushan.platform.modules.account.entity.SysUser;
+import com.jushan.platform.modules.account.mapper.SysUserMapper;
 import com.jushan.platform.modules.device.mapper.DeviceMapper;
 import com.jushan.platform.modules.booth.mapper.RecognitionEventLogMapper;
 import com.jushan.platform.modules.parking.entity.ParkingLot;
@@ -86,6 +88,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     private final ParkingLotMapper parkingLotMapper;
     private final BoothWebSocketPublisher boothWebSocketPublisher;
     private final RecognitionEventLogMapper recognitionEventLogMapper;
+    private final SysUserMapper sysUserMapper;
     private final GateOperationLogService gateOperationLogService;
 
     public RecognitionEventServiceImpl(VehicleTypeDecisionService vehicleTypeDecisionService,
@@ -99,7 +102,8 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                                        ParkingLotMapper parkingLotMapper,
                                        BoothWebSocketPublisher boothWebSocketPublisher,
                                        RecognitionEventLogMapper recognitionEventLogMapper,
-                                       GateOperationLogService gateOperationLogService) {
+                                       GateOperationLogService gateOperationLogService,
+                                       SysUserMapper sysUserMapper) {
         this.vehicleTypeDecisionService = vehicleTypeDecisionService;
         this.parkingSessionService = parkingSessionService;
         this.billingEngine = billingEngine;
@@ -112,6 +116,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
         this.boothWebSocketPublisher = boothWebSocketPublisher;
         this.recognitionEventLogMapper = recognitionEventLogMapper;
         this.gateOperationLogService = gateOperationLogService;
+        this.sysUserMapper = sysUserMapper;
     }
 
     @Override
@@ -199,11 +204,20 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
 
                 // 开闸成功后播报语音
                 try {
-                    String voiceText = buildVoiceText(plateNumber, vehicleType, plateColor);
+                    String voiceText = buildVoiceText(plateNumber, vehicleType, plateColor, gateDevice.getVoiceReleaseTemplate());
                     deviceService.voiceControl(gateDevice.getId(), "PLAY", voiceText, null);
                     log.info("语音播报已发送: deviceId={}, text={}", gateDevice.getId(), voiceText);
                 } catch (Exception e) {
                     log.warn("语音播报失败（不影响开闸）: deviceId={}, error={}", gateDevice.getId(), e.getMessage());
+                }
+
+                // 推送道闸状态到岗亭
+                try {
+                    boothWebSocketPublisher.pushGateStatus(gateDevice.getParkingLotId(),
+                            laneId, "OPENED");
+                } catch (Exception e) {
+                    log.warn("道闸状态推送失败（不影响开闸）: laneId={}, error={}",
+                            laneId, e.getMessage());
                 }
 
                 ParkingLane lane = null;
@@ -323,7 +337,12 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
             opLog.setPlateNumber(plateNumber);
             opLog.setDirection(direction != null ? (direction == 1 ? "ENTRY" : "EXIT") : null);
             opLog.setOperatorId(operatorId);
-            opLog.setOperatorName(String.valueOf(operatorId));
+            try {
+                SysUser user = sysUserMapper.selectById(operatorId);
+                opLog.setOperatorName(user != null ? user.getUsername() : String.valueOf(operatorId));
+            } catch (Exception ignored) {
+                opLog.setOperatorName(String.valueOf(operatorId));
+            }
             opLog.setFeeCents(isCharge ? (feeCents != null ? feeCents : 0) : 0);
             opLog.setEntryImage(entryImage);
             opLog.setRemark(plateColor != null || vehicleType != null ?
@@ -1091,13 +1110,18 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
     }
 
     /** 构建语音播报文本 */
-    private String buildVoiceText(String plateNumber, String vehicleType, String plateColor) {
+    private String buildVoiceText(String plateNumber, String vehicleType, String plateColor, String template) {
         if (plateNumber == null || plateNumber.isEmpty()) return "请通行";
         String clean = plateNumber.toUpperCase().trim();
         String typeLabel = "临时车";
         if ("MONTHLY".equals(vehicleType)) typeLabel = "月租车";
         else if ("PREPAID".equals(vehicleType)) typeLabel = "储值车";
         else if ("FREE".equals(vehicleType)) typeLabel = "免费车";
+
+        // 如果设备配置了自定义模板，使用模板替换
+        if (template != null && !template.isBlank()) {
+            return template.replace("{plate}", clean).replace("{type}", typeLabel);
+        }
         return clean + "," + typeLabel;
     }
 }

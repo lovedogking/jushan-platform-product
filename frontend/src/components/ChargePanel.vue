@@ -191,7 +191,7 @@ import {
 } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { useMonitorStore } from '@/stores/monitor'
-import { submitCharge, manualOpenGate, submitFeeReduction } from '@/api/charge'
+import { manualOpenGate, submitFeeReduction } from '@/api/charge'
 import ManualReleaseModal from './ManualReleaseModal.vue'
 import PlateTag from '@/components/PlateTag.vue'
 import type { PaymentMethod } from '@/api/monitor-types'
@@ -320,52 +320,35 @@ watch(paymentMethod, async (newVal) => {
 
 // ========== 操作方法 ==========
 
-/** 确认收费 */
+/** 确认收费（模拟成功，直接开闸放行） */
 async function handleConfirmCharge() {
   const info = store.currentChargeInfo
   if (!info) return
 
   submitting.value = true
   try {
-    // 1. 提交收费（调用出场接口）
-    const feeAmount = info.feeAmount
-    await submitCharge({
-      sessionId: info.sessionId,
-      exitLaneId: info.laneId,
-      feeAmount,
-      paidAmount: feeAmount,
-      paymentMethod: paymentMethod.value,
-      authCode: authCode.value || undefined,
-    })
-
-    // 2. 收费成功后自动开闸
-    const reason = `收费放行: ${paymentMethodLabel.value}`
+    const feeDisplay = `¥${(info.feeCents / 100).toFixed(2)}`
+    const reason = `收费放行: ${paymentMethodLabel.value} ${feeDisplay}`
     const gateResult = await manualOpenGate(info.laneId, reason, { direction: 2 })
 
     const success = gateResult.gateOpened === true
-
     store.setChargeResult({
       success,
       message: success
-        ? `${info.plateNumber} 已收费 ¥${(info.feeCents / 100).toFixed(2)}，已放行`
+        ? `${info.plateNumber} 已收费 ${feeDisplay}，已放行`
         : `收费成功但开闸失败: ${gateResult.gateResult || gateResult.resultMessage || '请人工处理'}`,
       gateOpened: gateResult.gateOpened === true,
     })
 
     if (success) {
       message.success(`${info.plateNumber} 收费成功，已放行`)
-      // 刷新车道状态
       store.refreshAllDevices().catch(() => {})
     } else {
       message.warning(`${info.plateNumber} 收费成功，但开闸失败，请人工处理`)
     }
   } catch (e: any) {
-    const errMsg = e?.message || '收费失败'
-    store.setChargeResult({
-      success: false,
-      message: errMsg,
-      gateOpened: false,
-    })
+    const errMsg = e?.message || '操作失败'
+    store.setChargeResult({ success: false, message: errMsg, gateOpened: false })
     message.error(errMsg)
   } finally {
     submitting.value = false

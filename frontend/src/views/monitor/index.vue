@@ -117,6 +117,8 @@
               <div class="info-row"><span class="info-label">入场时间</span><span class="info-value">{{ displayVehicle.entryTime || '--' }}</span></div>
               <div class="info-row"><span class="info-label">出场时间</span><span class="info-value">{{ displayVehicle.exitTime || '--' }}</span></div>
               <div class="info-row"><span class="info-label">车道</span><span class="info-value">{{ displayVehicle.laneName || '--' }}</span></div>
+              <div class="info-row"><span class="info-label">车主</span><span class="info-value">{{ displayVehicle.ownerName || '--' }}</span></div>
+              <div class="info-row"><span class="info-label">电话</span><span class="info-value">{{ displayVehicle.ownerPhone || '--' }}</span></div>
               <div class="info-row"><span class="info-label">金额</span><span class="info-value fee">{{ displayVehicle.feeAmount != null ? `¥${displayVehicle.feeAmount.toFixed(2)}` : '--' }}</span></div>
               <div class="info-row" v-if="displayVehicle.isSelected"><a @click="selectedRecord = null" style="font-size:12px">← 返回实时</a></div>
             </div>
@@ -405,6 +407,8 @@ const displayVehicle = computed(() => {
       exitTime: r.exitTime || '',
       entryImage: r.entryImage || '',
       exitImage: r.exitImage || '',
+      ownerName: r.ownerName || '',
+      ownerPhone: r.ownerPhone || '',
       feeAmount: r.feeAmount,
       isSelected: true,
     }
@@ -420,6 +424,8 @@ const displayVehicle = computed(() => {
     exitTime: '',
     entryImage: e.imagePath || '',
     exitImage: '',
+    ownerName: '',
+    ownerPhone: '',
     feeAmount: e.feeAmount,
     isSelected: false,
   }
@@ -462,8 +468,8 @@ const recordColumns = [
   { title: '车牌号', dataIndex: 'plateNumber', key: 'plateNumber', width: 100 },
   { title: '类型', key: 'vehicleType', width: 65 },
   { title: '入场通道', key: 'entryLane', width: 80 },
-  { title: '出场通道', key: 'exitLane', width: 80 },
   { title: '入场时间', key: 'entryTime', width: 95 },
+  { title: '出场通道', key: 'exitLane', width: 80 },
   { title: '出场时间', key: 'exitTime', width: 95 },
   { title: '状态', key: 'status', width: 60 },
 ]

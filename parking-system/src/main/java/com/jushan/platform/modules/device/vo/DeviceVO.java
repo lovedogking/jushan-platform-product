@@ -43,6 +43,27 @@ public class DeviceVO {
     /** 禁入语音模板，{plate}=车牌占位符 */
     private String voiceDenyTemplate;
 
+    /** 手动放行语音模板，{plate}=车牌, {type}=车辆类型 */
+    private String voiceReleaseTemplate;
+
+    /** 显示屏文字颜色 */
+    private Integer displayTextColor;
+
+    /** 显示屏翻转方向 */
+    private Integer displayRotateMode;
+
+    /** 显示屏亮度 */
+    private Integer displayBrightness;
+
+    /** 显示屏音量 */
+    private Integer displayVolume;
+
+    /** 语音音量 1-100 */
+    private Integer voiceVolume;
+
+    /** 语音类型 0男/1女 */
+    private Integer voiceMale;
+
     /** 准入显示屏模板 */
     private String displayWelcomeTemplate;
 
@@ -129,6 +150,9 @@ public class DeviceVO {
     public String getVoiceDenyTemplate() { return voiceDenyTemplate; }
     public void setVoiceDenyTemplate(String voiceDenyTemplate) { this.voiceDenyTemplate = voiceDenyTemplate; }
 
+    public String getVoiceReleaseTemplate() { return voiceReleaseTemplate; }
+    public void setVoiceReleaseTemplate(String voiceReleaseTemplate) { this.voiceReleaseTemplate = voiceReleaseTemplate; }
+
     public String getDisplayWelcomeTemplate() { return displayWelcomeTemplate; }
     public void setDisplayWelcomeTemplate(String displayWelcomeTemplate) { this.displayWelcomeTemplate = displayWelcomeTemplate; }
 
@@ -146,4 +170,19 @@ public class DeviceVO {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public Integer getDisplayTextColor() { return displayTextColor; }
+    public void setDisplayTextColor(Integer displayTextColor) { this.displayTextColor = displayTextColor; }
+    public Integer getDisplayRotateMode() { return displayRotateMode; }
+    public void setDisplayRotateMode(Integer displayRotateMode) { this.displayRotateMode = displayRotateMode; }
+    public Integer getDisplayBrightness() { return displayBrightness; }
+    public void setDisplayBrightness(Integer displayBrightness) { this.displayBrightness = displayBrightness; }
+    public Integer getDisplayVolume() { return displayVolume; }
+    public void setDisplayVolume(Integer displayVolume) { this.displayVolume = displayVolume; }
+
+    public Integer getVoiceVolume() { return voiceVolume; }
+    public void setVoiceVolume(Integer voiceVolume) { this.voiceVolume = voiceVolume; }
+
+    public Integer getVoiceMale() { return voiceMale; }
+    public void setVoiceMale(Integer voiceMale) { this.voiceMale = voiceMale; }
 }

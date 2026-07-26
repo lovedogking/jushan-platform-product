@@ -68,6 +68,16 @@ public class UpdateDeviceRequest {
     /** 禁入语音模板，{plate}=车牌占位符 */
     private String voiceDenyTemplate;
 
+    private String voiceReleaseTemplate;
+
+    private Integer displayTextColor;
+    private Integer displayRotateMode;
+    private Integer displayBrightness;
+    private Integer displayVolume;
+
+    private Integer voiceVolume;
+    private Integer voiceMale;
+
     /** 准入显示屏模板，{plate}=车牌占位符 */
     private String displayWelcomeTemplate;
 
@@ -133,6 +143,9 @@ public class UpdateDeviceRequest {
     public String getVoiceDenyTemplate() { return voiceDenyTemplate; }
     public void setVoiceDenyTemplate(String voiceDenyTemplate) { this.voiceDenyTemplate = voiceDenyTemplate; }
 
+    public String getVoiceReleaseTemplate() { return voiceReleaseTemplate; }
+    public void setVoiceReleaseTemplate(String voiceReleaseTemplate) { this.voiceReleaseTemplate = voiceReleaseTemplate; }
+
     public String getDisplayWelcomeTemplate() { return displayWelcomeTemplate; }
     public void setDisplayWelcomeTemplate(String displayWelcomeTemplate) { this.displayWelcomeTemplate = displayWelcomeTemplate; }
 
@@ -144,4 +157,22 @@ public class UpdateDeviceRequest {
 
     public Integer getDisplayDurationSec() { return displayDurationSec; }
     public void setDisplayDurationSec(Integer displayDurationSec) { this.displayDurationSec = displayDurationSec; }
+
+    public Integer getDisplayTextColor() { return displayTextColor; }
+    public void setDisplayTextColor(Integer displayTextColor) { this.displayTextColor = displayTextColor; }
+
+    public Integer getDisplayRotateMode() { return displayRotateMode; }
+    public void setDisplayRotateMode(Integer displayRotateMode) { this.displayRotateMode = displayRotateMode; }
+
+    public Integer getDisplayBrightness() { return displayBrightness; }
+    public void setDisplayBrightness(Integer displayBrightness) { this.displayBrightness = displayBrightness; }
+
+    public Integer getDisplayVolume() { return displayVolume; }
+    public void setDisplayVolume(Integer displayVolume) { this.displayVolume = displayVolume; }
+
+    public Integer getVoiceVolume() { return voiceVolume; }
+    public void setVoiceVolume(Integer voiceVolume) { this.voiceVolume = voiceVolume; }
+
+    public Integer getVoiceMale() { return voiceMale; }
+    public void setVoiceMale(Integer voiceMale) { this.voiceMale = voiceMale; }
 }

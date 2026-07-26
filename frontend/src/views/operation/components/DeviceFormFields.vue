@@ -72,6 +72,10 @@ export interface DeviceFormData {
   gateway: string
   deviceType: string
   recognitionDirection: number
+  displayTextColor?: number
+  displayRotateMode?: number
+  displayBrightness?: number
+  displayVolume?: number
 }
 
 // Vue 3.4+ defineModel — 双向绑定自动同步，避免 deep watch 循环

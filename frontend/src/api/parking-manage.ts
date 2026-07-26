@@ -149,6 +149,12 @@ export interface DeviceVO {
   displayDenyTemplate?: string
   displayIdleText?: string
   displayDurationSec?: number
+  displayTextColor?: number
+  displayRotateMode?: number
+  displayBrightness?: number
+  displayVolume?: number
+  voiceVolume?: number
+  voiceMale?: number
   recognitionDirection?: number | null
 }
 
@@ -204,6 +210,12 @@ export interface DeviceUpdateCmd {
   displayDenyTemplate?: string | null
   displayIdleText?: string | null
   displayDurationSec?: number
+  displayTextColor?: number
+  displayRotateMode?: number
+  displayBrightness?: number
+  displayVolume?: number
+  voiceVolume?: number
+  voiceMale?: number
 }
 
 export function createDevice(data: DeviceCreateCmd): Promise<DeviceVO> {
@@ -257,6 +269,10 @@ export function deviceVoiceControl(deviceId: number, data: {
   opt?: number
 }): Promise<{ success: boolean; message?: string }> {
   return request.post(`/admin/devices/${deviceId}/voice-control`, data)
+}
+
+export function deviceReboot(deviceId: number): Promise<{ success: boolean; message?: string }> {
+  return request.post(`/admin/devices/${deviceId}/reboot`)
 }
 
 // ============ Vehicle List ============

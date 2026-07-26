@@ -53,6 +53,12 @@ public class ParkingSessionVO {
     /** 出场通道名称 */
     private String exitLaneName;
 
+    /** 车主姓名 */
+    private String ownerName;
+
+    /** 车主电话 */
+    private String ownerPhone;
+
     /** 状态：IN-在场, OUT-已出场, EXCEPTION-异常 */
     private String status;
     private BigDecimal feeAmount;

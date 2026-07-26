@@ -35,6 +35,8 @@ import org.springframework.web.client.RestTemplate;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -90,6 +92,9 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
     private static final String LOCK_CLOSE_GATE_PATH = "/api/v1/devices/{deviceSn}/gate/lock-close";
     private static final String DISPLAY_TEXT_PATH = "/api/v1/devices/{deviceSn}/display/text";
     private static final String SAVE_DISPLAY_PATH = "/api/v1/devices/{deviceSn}/display/save";
+    private static final String WHITELIST_SYNC_PATH = "/api/v1/devices/{deviceSn}/whitelist/sync";
+    private static final String REBOOT_PATH = "/api/v1/devices/{deviceSn}/reboot";
+    private static final String TRIGGER_PATH = "/api/v1/devices/{deviceSn}/trigger";
     private static final String DISPLAY_CONFIG_PATH = "/api/v1/devices/{deviceSn}/display/config";
     private static final String VOICE_CONTROL_PATH = "/api/v1/devices/{deviceSn}/voice/control";
 
@@ -870,5 +875,70 @@ public class DeviceAccessClientImpl implements DeviceAccessClient {
         consecutiveFailures.set(0);
         lastFailureTime = null;
         log.info("Device Access 降级状态已手动重置");
+    }
+
+    @Override
+    public CommandResultDTO syncWhitelist(String deviceSn, String action, String plate) {
+        log.debug("白名单同步: deviceSn={}, action={}, plate={}", deviceSn, action, plate);
+        checkCircuitBreaker("syncWhitelist");
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+        DeviceAccessResponse<CommandResultDTO> response;
+
+        try {
+            Map<String, Object> body = new HashMap<>();
+            body.put("action", action);
+            if (plate != null) body.put("plate", plate);
+
+            response = execute(
+                    WHITELIST_SYNC_PATH, HttpMethod.POST, deviceSn, body,
+                    new ParameterizedTypeReference<DeviceAccessResponse<CommandResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "syncWhitelist")
+                    .register(meterRegistry));
+        }
+
+        recordSuccess("syncWhitelist");
+        log.info("白名单同步成功: deviceSn={}, action={}, plate={}", deviceSn, action, plate);
+        return response.getData();
+    }
+
+    @Override
+    public CommandResultDTO reboot(String deviceSn) {
+        log.debug("设备重启: deviceSn={}", deviceSn);
+        checkCircuitBreaker("reboot");
+        Timer.Sample sample = Timer.start(meterRegistry);
+        DeviceAccessResponse<CommandResultDTO> response;
+        try {
+            response = execute(
+                    REBOOT_PATH, HttpMethod.POST, deviceSn,
+                    new ParameterizedTypeReference<DeviceAccessResponse<CommandResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "reboot").register(meterRegistry));
+        }
+        recordSuccess("reboot");
+        log.info("设备重启命令已发送: deviceSn={}", deviceSn);
+        return response.getData();
+    }
+
+    @Override
+    public CommandResultDTO triggerRecognition(String deviceSn) {
+        log.debug("手动触发识别: deviceSn={}", deviceSn);
+        checkCircuitBreaker("triggerRecognition");
+        Timer.Sample sample = Timer.start(meterRegistry);
+        DeviceAccessResponse<CommandResultDTO> response;
+        try {
+            response = execute(
+                    TRIGGER_PATH, HttpMethod.POST, deviceSn,
+                    new ParameterizedTypeReference<DeviceAccessResponse<CommandResultDTO>>() {});
+        } finally {
+            sample.stop(Timer.builder(METRIC_PREFIX + ".latency")
+                    .tag("method", "triggerRecognition").register(meterRegistry));
+        }
+        recordSuccess("triggerRecognition");
+        log.info("手动触发识别命令已发送: deviceSn={}", deviceSn);
+        return response.getData();
     }
 }

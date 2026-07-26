@@ -25,6 +25,9 @@
         </template>
         <template v-if="column.key === 'action'">
           <a-button type="link" size="small" @click="showEditModal(record)">编辑</a-button>
+          <a-popconfirm title="确定重启此设备？" @confirm="handleReboot(record.id)">
+            <a-button type="link" size="small">重启</a-button>
+          </a-popconfirm>
           <a-popconfirm title="确定删除此设备？" @confirm="handleDelete(record.id)">
             <a-button type="link" size="small" danger>删除</a-button>
           </a-popconfirm>
@@ -71,6 +74,21 @@
           <!-- 语音播报 -->
           <a-tab-pane key="voice" tab="语音播报">
             <a-form layout="vertical" style="margin-top: 8px">
+              <a-row :gutter="16">
+                <a-col :span="12">
+                  <a-form-item label="默认音量">
+                    <a-slider v-model:value="voiceVolume" :min="1" :max="100" />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="12">
+                  <a-form-item label="语音类型">
+                    <a-radio-group v-model:value="voiceMale">
+                      <a-radio :value="0">男声</a-radio>
+                      <a-radio :value="1">女声</a-radio>
+                    </a-radio-group>
+                  </a-form-item>
+                </a-col>
+              </a-row>
               <a-form-item label="播报文字">
                 <a-textarea
                   v-model:value="voiceText"
@@ -154,6 +172,44 @@
               </a-row>
             </a-form>
           </a-tab-pane>
+
+          <!-- 显示屏参数 -->
+          <a-tab-pane key="displayParams" tab="显示设置">
+            <a-form layout="vertical" style="margin-top: 8px">
+              <a-row :gutter="16">
+                <a-col :span="12">
+                  <a-form-item label="文字颜色">
+                    <a-select v-model:value="displayTextColor">
+                      <a-select-option :value="0">⚪ 白色</a-select-option>
+                      <a-select-option :value="1">🔴 红色</a-select-option>
+                      <a-select-option :value="2">🔵 蓝色</a-select-option>
+                      <a-select-option :value="3">🟢 绿色</a-select-option>
+                    </a-select>
+                  </a-form-item>
+                </a-col>
+                <a-col :span="12">
+                  <a-form-item label="屏幕方向">
+                    <a-select v-model:value="displayRotateMode">
+                      <a-select-option :value="0">正常</a-select-option>
+                      <a-select-option :value="1">上下翻转</a-select-option>
+                    </a-select>
+                  </a-form-item>
+                </a-col>
+              </a-row>
+              <a-row :gutter="16">
+                <a-col :span="12">
+                  <a-form-item label="亮度">
+                    <a-slider v-model:value="displayBrightness" :min="0" :max="5" :marks="{0:'熄',1:'1',2:'2',3:'3',4:'4',5:'最亮'}" />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="12">
+                  <a-form-item label="音量">
+                    <a-slider v-model:value="displayVolume" :min="0" :max="5" :marks="{0:'静',1:'1',2:'2',3:'3',4:'4',5:'最大'}" />
+                  </a-form-item>
+                </a-col>
+              </a-row>
+            </a-form>
+          </a-tab-pane>
         </a-tabs>
       </template>
     </a-modal>
@@ -167,7 +223,7 @@ import { message } from 'ant-design-vue'
 import {
   getDevices, createDevice, updateDevice, updateDeviceStatus, deleteDevice,
   getParkingLanes, bindDeviceLane, unbindDeviceLane,
-  deviceDisplayText, deviceVoiceControl,
+  deviceDisplayText, deviceVoiceControl, deviceReboot,
   type DeviceVO, type ParkingLaneVO
 } from '@/api/parking-manage'
 import DeviceFormFields, { type DeviceFormData } from './DeviceFormFields.vue'
@@ -214,6 +270,14 @@ const displaySending = ref(false)
 const voiceText = ref('')
 const voicePlaying = ref(false)
 const voiceStopping = ref(false)
+
+// 显示屏参数
+const displayTextColor = ref(0)
+const displayRotateMode = ref(0)
+const displayBrightness = ref(3)
+const displayVolume = ref(3)
+const voiceVolume = ref(80)
+const voiceMale = ref(0)
 
 // 识别联动配置
 const voiceEnabled = ref(false)
@@ -365,6 +429,13 @@ function showEditModal(device: DeviceVO) {
   displayDenyMsg.value = extractMsg(device.displayDenyTemplate)
   displayIdleText.value = device.displayIdleText || ''
   displayDurationSec.value = device.displayDurationSec ?? 5
+  // 显示屏参数
+  displayTextColor.value = device.displayTextColor ?? 0
+  displayRotateMode.value = device.displayRotateMode ?? 0
+  displayBrightness.value = device.displayBrightness ?? 3
+  displayVolume.value = device.displayVolume ?? 3
+  voiceVolume.value = device.voiceVolume ?? 80
+  voiceMale.value = device.voiceMale ?? 0
   // 重置控制面板
   displayContent.value = ''
   voiceText.value = ''
@@ -398,6 +469,12 @@ async function handleSave() {
         displayDenyTemplate: displayDenyMsg.value ? `{plate} ${extractMsg(displayDenyMsg.value)}` : null,
         displayIdleText: displayIdleText.value || null,
         displayDurationSec: displayDurationSec.value,
+        displayTextColor: displayTextColor.value,
+        displayRotateMode: displayRotateMode.value,
+        displayBrightness: displayBrightness.value,
+        displayVolume: displayVolume.value,
+        voiceVolume: voiceVolume.value,
+        voiceMale: voiceMale.value,
       })
       // 车道绑定变更走独立接口（后端 update 不处理 laneId）
       const oldLaneId = editing.value.laneId ?? null
@@ -439,6 +516,11 @@ async function handleDelete(id: number) {
   await deleteDevice(id)
   message.success('设备已删除')
   await fetchDevices()
+}
+
+async function handleReboot(id: number) {
+  await deviceReboot(id)
+  message.success('重启命令已发送')
 }
 
 async function fetchLanes() {

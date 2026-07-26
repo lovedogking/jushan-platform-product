@@ -146,6 +146,8 @@ export interface ParkingSessionVO {
   exitImage?: string
   entryLaneName?: string
   exitLaneName?: string
+  ownerName?: string
+  ownerPhone?: string
   status: string
   feeAmount: number
   feeCents: number
@@ -272,3 +274,11 @@ export const RELEASE_REASON_OPTIONS: { value: ReleaseReason; label: string }[] =
   { value: 'EMERGENCY', label: '紧急车辆' },
   { value: 'OTHER', label: '其他' },
 ]
+
+/** 道闸状态推送 */
+export interface GateStatusPayload {
+  type: 'GATE_STATUS'
+  laneId: number
+  gateStatus: string
+  timestamp: number
+}
