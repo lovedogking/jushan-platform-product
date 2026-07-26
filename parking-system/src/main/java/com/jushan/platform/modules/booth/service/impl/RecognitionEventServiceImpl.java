@@ -254,12 +254,17 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                                 ParkingSessionExitCmd exitCmd = new ParkingSessionExitCmd();
                                 exitCmd.setSessionId(inSession.getId());
                                 exitCmd.setExitLaneId(laneId);
+                                exitCmd.setExitOperator(operatorId);
                                 exitCmd.setFeeAmount(isCharge && feeCents != null
                                         ? java.math.BigDecimal.valueOf(feeCents).movePointLeft(2)
                                         : java.math.BigDecimal.ZERO);
+                                if (captureEvent != null) {
+                                    exitCmd.setExitImage(captureEvent.getImagePath());
+                                }
                                 parkingSessionService.exit(exitCmd);
-                                log.info("人工开闸已补写出口记录: plate={}, laneId={}, operatorId={}",
-                                        plateNumber, laneId, operatorId);
+                                log.info("人工开闸已补写出口记录: plate={}, laneId={}, operatorId={}, exitImage={}",
+                                        plateNumber, laneId, operatorId,
+                                        captureEvent != null ? captureEvent.getImagePath() : "无");
                             } else {
                                 log.warn("人工开闸出口无在场记录，仅开闸不写session: plate={}, laneId={}",
                                         plateNumber, laneId);

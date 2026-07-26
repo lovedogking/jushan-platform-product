@@ -2,7 +2,7 @@
 
 > **路径**：`frontend/` （独立 `pnpm` 工作区）
 > **技术栈**：Vue 3.4 · TypeScript 5.4 · Vite 5.2 · Pinia 2.1 · ant-design-vue 4.1 · axios
-> **最近更新**：2026-07-26（v2.7：设备管理页新增显示屏参数（颜色/翻转/亮度/音量）、语音参数（音量/男女声）、重启按钮；开闸后 WebSocket 推送道闸状态；计费面板确认收费改为模拟成功直接放行；人工放行弹窗加取消放行按钮）
+> **最近更新**：2026-07-26（v2.8：出口人工放行修复——补充 exitImage/exitOperator 写入 + 平台管理员跨租户查询在场记录；识别联动分入场/出场/禁止三场景，垂直卡片布局+实时预览；device 表新增 voice_entry/exit_welcome_template + display_entry/exit_welcome_template；VoiceControlRequest 新增 voiceVolume/voiceMale；前端设备控制面板三标签重构）
 
 ---
 

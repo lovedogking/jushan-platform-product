@@ -391,6 +391,22 @@ public class DeviceService {
             wrapper.set(Device::getVoiceMale, request.getVoiceMale());
             hasUpdate = true;
         }
+        if (request.getVoiceEntryWelcomeTemplate() != null) {
+            wrapper.set(Device::getVoiceEntryWelcomeTemplate, request.getVoiceEntryWelcomeTemplate());
+            hasUpdate = true;
+        }
+        if (request.getVoiceExitWelcomeTemplate() != null) {
+            wrapper.set(Device::getVoiceExitWelcomeTemplate, request.getVoiceExitWelcomeTemplate());
+            hasUpdate = true;
+        }
+        if (request.getDisplayEntryWelcomeTemplate() != null) {
+            wrapper.set(Device::getDisplayEntryWelcomeTemplate, request.getDisplayEntryWelcomeTemplate());
+            hasUpdate = true;
+        }
+        if (request.getDisplayExitWelcomeTemplate() != null) {
+            wrapper.set(Device::getDisplayExitWelcomeTemplate, request.getDisplayExitWelcomeTemplate());
+            hasUpdate = true;
+        }
         if (request.getIpAddress() != null) {
             wrapper.set(Device::getIpAddress, request.getIpAddress());
             hasUpdate = true;
@@ -1401,22 +1417,31 @@ public class DeviceService {
         if (!STATUS_ENABLED.equals(device.getStatus())) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不能重启");
         }
-        CommandResultDTO result = deviceAccessClient.reboot(device.getDeviceSn());
-        log.info("设备重启: deviceId={}, success={}", deviceId, result.isSuccessful());
-        return result;
+        try {
+            return deviceAccessClient.reboot(device.getDeviceSn());
+        } catch (BusinessException e) {
+            log.warn("DA不支持重启(404): deviceId={}", deviceId);
+            CommandResultDTO r = new CommandResultDTO();
+            r.setSuccess(false);
+            r.setMessage("DA暂不支持重启，请通过设备Web页面操作");
+            return r;
+        }
     }
 
-    /**
-     * 手动触发识别（抓拍+识别）。
-     */
     public CommandResultDTO triggerRecognition(Long deviceId) {
         Device device = getDeviceWithAuth(deviceId);
         if (!STATUS_ENABLED.equals(device.getStatus())) {
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "已停用的设备不能触发识别");
         }
-        CommandResultDTO result = deviceAccessClient.triggerRecognition(device.getDeviceSn());
-        log.info("手动触发识别: deviceId={}, success={}", deviceId, result.isSuccessful());
-        return result;
+        try {
+            return deviceAccessClient.triggerRecognition(device.getDeviceSn());
+        } catch (BusinessException e) {
+            log.warn("DA不支持触发识别(404): deviceId={}", deviceId);
+            CommandResultDTO r = new CommandResultDTO();
+            r.setSuccess(false);
+            r.setMessage("DA暂不支持触发识别");
+            return r;
+        }
     }
 
     /**
@@ -1792,6 +1817,8 @@ public class DeviceService {
 
         String deviceSn = device.getDeviceSn();
         VoiceControlRequest request = new VoiceControlRequest(action, voiceText, opt);
+        request.setVoiceVolume(device.getVoiceVolume() != null ? device.getVoiceVolume() : 80);
+        request.setVoiceMale(device.getVoiceMale() != null ? device.getVoiceMale() : 0);
 
         ParkingLot lot = getParkingLotWithAuth(device.getParkingLotId());
         Long tenantId = lot.getTenantId();
@@ -2296,6 +2323,10 @@ public class DeviceService {
         vo.setDisplayVolume(device.getDisplayVolume());
         vo.setVoiceVolume(device.getVoiceVolume());
         vo.setVoiceMale(device.getVoiceMale());
+        vo.setVoiceEntryWelcomeTemplate(device.getVoiceEntryWelcomeTemplate());
+        vo.setVoiceExitWelcomeTemplate(device.getVoiceExitWelcomeTemplate());
+        vo.setDisplayEntryWelcomeTemplate(device.getDisplayEntryWelcomeTemplate());
+        vo.setDisplayExitWelcomeTemplate(device.getDisplayExitWelcomeTemplate());
         vo.setDisplayWelcomeTemplate(device.getDisplayWelcomeTemplate());
         vo.setDisplayDenyTemplate(device.getDisplayDenyTemplate());
         vo.setDisplayIdleText(device.getDisplayIdleText());

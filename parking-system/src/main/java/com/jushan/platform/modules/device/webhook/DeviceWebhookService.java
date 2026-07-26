@@ -243,7 +243,7 @@ public class DeviceWebhookService {
             }
 
             // 7c. 自动语音+显示屏联动（设备级可配置）
-            triggerAutoVoiceAndDisplay(device, normalizedPlate, result);
+            triggerAutoVoiceAndDisplay(device, normalizedPlate, result, event.getDirection(), result.getVehicleType());
 
             // 8. 记录处理完成
             log.info("Webhook 事件处理完成: eventId={}, plate={}, allowPass={}, sessionId={}",
@@ -428,18 +428,38 @@ public class DeviceWebhookService {
      * 仅在设备开启 voice_enabled 且有对应模板时触发。
      * 语音和显示屏各自独立，任一失败不影响另一者。
      */
-    private void triggerAutoVoiceAndDisplay(Device device, String plate, RecognitionResultVO result) {
+    private void triggerAutoVoiceAndDisplay(Device device, String plate, RecognitionResultVO result, String direction, String vehicleType) {
         if (device.getVoiceEnabled() == null || device.getVoiceEnabled() != 1) {
             return;
         }
 
         boolean allowPass = Boolean.TRUE.equals(result.getAllowPass());
-        String voiceTemplate = allowPass ? device.getVoiceWelcomeTemplate() : device.getVoiceDenyTemplate();
-        String displayTemplate = allowPass ? device.getDisplayWelcomeTemplate() : device.getDisplayDenyTemplate();
+        boolean isEntry = "ENTRY".equals(direction);
+
+        // 车辆类型中文
+        String typeLabel = vehicleType != null ? vehicleTypeLabel(vehicleType) : "临时车";
+
+        // 优先使用方向特定模板，回退到通用模板
+        String voiceTemplate;
+        String displayTemplate;
+        if (allowPass && isEntry) {
+            voiceTemplate = device.getVoiceEntryWelcomeTemplate() != null
+                    ? device.getVoiceEntryWelcomeTemplate() : device.getVoiceWelcomeTemplate();
+            displayTemplate = device.getDisplayEntryWelcomeTemplate() != null
+                    ? device.getDisplayEntryWelcomeTemplate() : device.getDisplayWelcomeTemplate();
+        } else if (allowPass && !isEntry) {
+            voiceTemplate = device.getVoiceExitWelcomeTemplate() != null
+                    ? device.getVoiceExitWelcomeTemplate() : device.getVoiceWelcomeTemplate();
+            displayTemplate = device.getDisplayExitWelcomeTemplate() != null
+                    ? device.getDisplayExitWelcomeTemplate() : device.getDisplayWelcomeTemplate();
+        } else {
+            voiceTemplate = device.getVoiceDenyTemplate();
+            displayTemplate = device.getDisplayDenyTemplate();
+        }
 
         // 语音
         if (voiceTemplate != null && !voiceTemplate.isBlank()) {
-            String voiceText = voiceTemplate.replace("{plate}", plate);
+            String voiceText = voiceTemplate.replace("{plate}", plate).replace("{type}", typeLabel);
             log.info("自动语音播报: deviceId={}, plate={}, allowPass={}, text=\"{}\"",
                     device.getId(), plate, allowPass, voiceText);
             try {
@@ -453,7 +473,7 @@ public class DeviceWebhookService {
 
         // 显示屏
         if (displayTemplate != null && !displayTemplate.isBlank()) {
-            String displayText = displayTemplate.replace("{plate}", plate)
+            String displayText = displayTemplate.replace("{plate}", plate).replace("{type}", typeLabel)
                     .replace("\\n", " ");  // 兼容旧数据的字面 \n
             log.info("自动显示屏: deviceId={}, plate={}, allowPass={}, text=\"{}\"",
                     device.getId(), plate, allowPass, displayText);
@@ -487,5 +507,16 @@ public class DeviceWebhookService {
                         log.warn("待机显示恢复失败: deviceSn={}, error={}", deviceSn, e.getMessage());
                     }
                 });
+    }
+
+    private String vehicleTypeLabel(String type) {
+        if (type == null) return "临时车";
+        switch (type.toUpperCase()) {
+            case "MONTHLY": case "MONTHLY_PASS": return "月租车";
+            case "VIP": return "VIP车";
+            case "FIXED": case "FIXED_SPACE": case "WHITE": return "固定车";
+            case "FREE": return "免费车";
+            default: return "临时车";
+        }
     }
 }

@@ -36,7 +36,9 @@ public interface ParkingSessionMapper extends BaseMapper<ParkingSession> {
      * @param tenantId    租户ID
      * @return 在场记录
      */
-    @Select("SELECT * FROM parking_session WHERE plate_number = UPPER(#{plateNumber}) AND tenant_id = #{tenantId} AND status = 'IN' AND deleted_at IS NULL ORDER BY entry_time DESC LIMIT 1")
+    @Select("SELECT * FROM parking_session WHERE plate_number = UPPER(#{plateNumber}) AND status = 'IN' AND deleted_at IS NULL"
+            + " AND (tenant_id = #{tenantId} OR #{tenantId} IS NULL)"
+            + " ORDER BY entry_time DESC LIMIT 1")
     ParkingSession selectInByPlateNumber(@Param("plateNumber") String plateNumber, @Param("tenantId") Long tenantId);
 
     /**

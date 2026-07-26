@@ -39,6 +39,7 @@
         :pagination="pagination"
         row-key="id"
         size="small"
+        :scroll="{ x: 1050 }"
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
@@ -69,6 +70,14 @@
           </template>
           <template v-if="column.key === 'exitLane'">
             {{ record.exitLaneId ? getLaneName(record.exitLaneId) : '--' }}
+          </template>
+          <template v-if="column.key === 'entryImage'">
+            <a-image v-if="record.entryImage" :src="record.entryImage" :width="44" />
+            <span v-else style="color:#ccc;font-size:11px">--</span>
+          </template>
+          <template v-if="column.key === 'exitImage'">
+            <a-image v-if="record.exitImage" :src="record.exitImage" :width="44" />
+            <span v-else style="color:#ccc;font-size:11px">--</span>
           </template>
         </template>
       </a-table>
@@ -103,11 +112,12 @@ const columns = [
   { title: '车牌号', dataIndex: 'plateNumber', key: 'plateNumber', width: 120 },
   { title: '车辆类型', key: 'vehicleType', width: 90 },
   { title: '订单状态', key: 'status', width: 80 },
-  { title: '停车区域', key: 'zone', width: 90 },
   { title: '入场时间', key: 'entryTime', width: 160 },
-  { title: '入口车道', key: 'entryLane', width: 120 },
+  { title: '入口车道', key: 'entryLane', width: 100 },
+  { title: '入场图片', key: 'entryImage', width: 70 },
   { title: '出场时间', key: 'exitTime', width: 160 },
-  { title: '出场车道', key: 'exitLane', width: 120 },
+  { title: '出场车道', key: 'exitLane', width: 100 },
+  { title: '出场图片', key: 'exitImage', width: 70 },
   { title: '停车时长', key: 'duration', width: 90 },
 ]
 

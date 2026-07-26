@@ -140,7 +140,7 @@
           <a-table
             :data-source="displayedRecords" :columns="recordColumns" :pagination="false"
             size="small" :locale="{ emptyText: '无数据' }" row-key="key" class="records-table"
-            :scroll="{ x: 580 }"
+            :scroll="{ x: 750 }"
             :custom-row="(r: any) => ({ onClick: () => selectRecord(r), style: { cursor: 'pointer' } })"
           >
             <template #bodyCell="{ column, record }">
@@ -168,6 +168,14 @@
               </template>
               <template v-if="column.key === 'exitLane'">
                 {{ record.exitLaneName || (record.exitTime ? '--' : '') || '--' }}
+              </template>
+              <template v-if="column.key === 'entryImage'">
+                <a-image v-if="record.entryImage" :src="record.entryImage" :width="44" class="table-thumb" />
+                <span v-else style="color:#ccc;font-size:11px">--</span>
+              </template>
+              <template v-if="column.key === 'exitImage'">
+                <a-image v-if="record.exitImage" :src="record.exitImage" :width="44" class="table-thumb" />
+                <span v-else style="color:#ccc;font-size:11px">--</span>
               </template>
             </template>
           </a-table>
@@ -469,8 +477,10 @@ const recordColumns = [
   { title: '类型', key: 'vehicleType', width: 65 },
   { title: '入场通道', key: 'entryLane', width: 80 },
   { title: '入场时间', key: 'entryTime', width: 95 },
+  { title: '入场图片', key: 'entryImage', width: 70 },
   { title: '出场通道', key: 'exitLane', width: 80 },
   { title: '出场时间', key: 'exitTime', width: 95 },
+  { title: '出场图片', key: 'exitImage', width: 70 },
   { title: '状态', key: 'status', width: 60 },
 ]
 

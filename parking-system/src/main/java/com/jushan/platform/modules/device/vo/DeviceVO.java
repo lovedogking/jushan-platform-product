@@ -43,8 +43,17 @@ public class DeviceVO {
     /** 禁入语音模板，{plate}=车牌占位符 */
     private String voiceDenyTemplate;
 
-    /** 手动放行语音模板，{plate}=车牌, {type}=车辆类型 */
+    /** 手动放行语音模板 */
     private String voiceReleaseTemplate;
+
+    /** 入场欢迎语音模板 */
+    private String voiceEntryWelcomeTemplate;
+    /** 出场欢送语音模板 */
+    private String voiceExitWelcomeTemplate;
+    /** 入场欢迎显示模板 */
+    private String displayEntryWelcomeTemplate;
+    /** 出场欢送显示模板 */
+    private String displayExitWelcomeTemplate;
 
     /** 显示屏文字颜色 */
     private Integer displayTextColor;
@@ -185,4 +194,13 @@ public class DeviceVO {
 
     public Integer getVoiceMale() { return voiceMale; }
     public void setVoiceMale(Integer voiceMale) { this.voiceMale = voiceMale; }
+
+    public String getVoiceEntryWelcomeTemplate() { return voiceEntryWelcomeTemplate; }
+    public void setVoiceEntryWelcomeTemplate(String v) { this.voiceEntryWelcomeTemplate = v; }
+    public String getVoiceExitWelcomeTemplate() { return voiceExitWelcomeTemplate; }
+    public void setVoiceExitWelcomeTemplate(String v) { this.voiceExitWelcomeTemplate = v; }
+    public String getDisplayEntryWelcomeTemplate() { return displayEntryWelcomeTemplate; }
+    public void setDisplayEntryWelcomeTemplate(String v) { this.displayEntryWelcomeTemplate = v; }
+    public String getDisplayExitWelcomeTemplate() { return displayExitWelcomeTemplate; }
+    public void setDisplayExitWelcomeTemplate(String v) { this.displayExitWelcomeTemplate = v; }
 }

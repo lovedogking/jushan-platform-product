@@ -12,7 +12,7 @@
       </a-space>
     </div>
 
-    <a-table :columns="cols" :data-source="data" :loading="loading" :pagination="pag" @change="onPage" row-key="id" size="middle">
+    <a-table :columns="cols" :data-source="data" :loading="loading" :pagination="pag" @change="onPage" row-key="id" size="middle" :scroll="{ x: 900 }">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'operationType'">
           <a-tag :color="typeColor(record.operationType)">{{ typeLabel(record.operationType) }}</a-tag>
@@ -56,7 +56,8 @@ const cols = [
   { title: '方向', key: 'direction', width: 60 },
   { title: '操作员', dataIndex: 'operatorName', key: 'operator', width: 80 },
   { title: '金额', key: 'feeCents', width: 80 },
-  { title: '抓拍照片', key: 'entryImage', width: 80 },
+  { title: '入场图', key: 'entryImage', width: 70 },
+  { title: '出场图', key: 'exitImage', width: 70 },
   { title: '原因', dataIndex: 'reason', key: 'reason', ellipsis: true },
 ]
 

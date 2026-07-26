@@ -20,6 +20,12 @@ public class VoiceControlRequest {
     /** 操作选项：0x00=添加到队列不播放, 0x01=添加到队列并播放（默认）, 0x02=清除队列后播放 */
     private Integer opt;
 
+    /** 音量 1-100 */
+    private Integer voiceVolume;
+
+    /** 语音类型：0男声/1女声 */
+    private Integer voiceMale;
+
     public VoiceControlRequest() {}
 
     public VoiceControlRequest(String action, String voiceText, Integer opt) {
@@ -38,4 +44,10 @@ public class VoiceControlRequest {
 
     public Integer getOpt() { return opt; }
     public void setOpt(Integer opt) { this.opt = opt; }
+
+    public Integer getVoiceVolume() { return voiceVolume; }
+    public void setVoiceVolume(Integer voiceVolume) { this.voiceVolume = voiceVolume; }
+
+    public Integer getVoiceMale() { return voiceMale; }
+    public void setVoiceMale(Integer voiceMale) { this.voiceMale = voiceMale; }
 }

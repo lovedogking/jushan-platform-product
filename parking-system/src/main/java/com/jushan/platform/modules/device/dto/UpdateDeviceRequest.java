@@ -78,6 +78,11 @@ public class UpdateDeviceRequest {
     private Integer voiceVolume;
     private Integer voiceMale;
 
+    private String voiceEntryWelcomeTemplate;
+    private String voiceExitWelcomeTemplate;
+    private String displayEntryWelcomeTemplate;
+    private String displayExitWelcomeTemplate;
+
     /** 准入显示屏模板，{plate}=车牌占位符 */
     private String displayWelcomeTemplate;
 
@@ -175,4 +180,13 @@ public class UpdateDeviceRequest {
 
     public Integer getVoiceMale() { return voiceMale; }
     public void setVoiceMale(Integer voiceMale) { this.voiceMale = voiceMale; }
+
+    public String getVoiceEntryWelcomeTemplate() { return voiceEntryWelcomeTemplate; }
+    public void setVoiceEntryWelcomeTemplate(String v) { this.voiceEntryWelcomeTemplate = v; }
+    public String getVoiceExitWelcomeTemplate() { return voiceExitWelcomeTemplate; }
+    public void setVoiceExitWelcomeTemplate(String v) { this.voiceExitWelcomeTemplate = v; }
+    public String getDisplayEntryWelcomeTemplate() { return displayEntryWelcomeTemplate; }
+    public void setDisplayEntryWelcomeTemplate(String v) { this.displayEntryWelcomeTemplate = v; }
+    public String getDisplayExitWelcomeTemplate() { return displayExitWelcomeTemplate; }
+    public void setDisplayExitWelcomeTemplate(String v) { this.displayExitWelcomeTemplate = v; }
 }

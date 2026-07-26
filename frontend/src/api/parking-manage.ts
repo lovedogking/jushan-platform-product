@@ -155,6 +155,10 @@ export interface DeviceVO {
   displayVolume?: number
   voiceVolume?: number
   voiceMale?: number
+  voiceEntryWelcomeTemplate?: string
+  voiceExitWelcomeTemplate?: string
+  displayEntryWelcomeTemplate?: string
+  displayExitWelcomeTemplate?: string
   recognitionDirection?: number | null
 }
 
@@ -273,6 +277,10 @@ export function deviceVoiceControl(deviceId: number, data: {
 
 export function deviceReboot(deviceId: number): Promise<{ success: boolean; message?: string }> {
   return request.post(`/admin/devices/${deviceId}/reboot`)
+}
+
+export function deviceTriggerRecognition(deviceId: number): Promise<{ success: boolean; message?: string }> {
+  return request.post(`/admin/devices/${deviceId}/trigger`)
 }
 
 // ============ Vehicle List ============

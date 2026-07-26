@@ -25,6 +25,9 @@
         </template>
         <template v-if="column.key === 'action'">
           <a-button type="link" size="small" @click="showEditModal(record)">编辑</a-button>
+          <a-popconfirm title="确定触发识别？设备将立即抓拍识别" @confirm="handleTrigger(record.id)">
+            <a-button type="link" size="small">触发识别</a-button>
+          </a-popconfirm>
           <a-popconfirm title="确定重启此设备？" @confirm="handleReboot(record.id)">
             <a-button type="link" size="small">重启</a-button>
           </a-popconfirm>
@@ -53,163 +56,147 @@
       <template v-if="editing">
         <a-divider style="margin: 16px 0 12px">设备控制</a-divider>
         <a-tabs v-model:activeKey="controlTab" size="small">
-          <!-- 显示屏文字 -->
-          <a-tab-pane key="display" tab="显示屏">
-            <a-form layout="vertical" style="margin-top: 8px">
-              <a-form-item label="显示内容">
-                <a-textarea
-                  v-model:value="displayContent"
-                  :rows="3"
-                  placeholder="输入要显示的文字，如：欢迎光临"
-                  :maxlength="200"
-                  show-count
-                />
-              </a-form-item>
-              <a-button type="primary" :loading="displaySending" @click="sendDisplay" block>
-                发送显示
-              </a-button>
-            </a-form>
-          </a-tab-pane>
 
-          <!-- 语音播报 -->
-          <a-tab-pane key="voice" tab="语音播报">
-            <a-form layout="vertical" style="margin-top: 8px">
-              <a-row :gutter="16">
-                <a-col :span="12">
-                  <a-form-item label="默认音量">
-                    <a-slider v-model:value="voiceVolume" :min="1" :max="100" />
-                  </a-form-item>
-                </a-col>
-                <a-col :span="12">
-                  <a-form-item label="语音类型">
-                    <a-radio-group v-model:value="voiceMale">
-                      <a-radio :value="0">男声</a-radio>
-                      <a-radio :value="1">女声</a-radio>
-                    </a-radio-group>
-                  </a-form-item>
-                </a-col>
-              </a-row>
-              <a-form-item label="播报文字">
-                <a-textarea
-                  v-model:value="voiceText"
-                  :rows="2"
-                  placeholder="输入要播报的文字，如：京A12345,欢迎光临"
-                  :maxlength="200"
-                  show-count
-                />
-              </a-form-item>
-              <a-space>
-                <a-button type="primary" :loading="voicePlaying" @click="playVoice">
-                  <SoundOutlined /> 播放
-                </a-button>
-                <a-button danger :loading="voiceStopping" @click="stopVoice">
-                  停止
-                </a-button>
-              </a-space>
-            </a-form>
-          </a-tab-pane>
-
-          <!-- 识别联动配置 -->
+          <!-- Tab 1: 识别联动 -->
           <a-tab-pane key="linkage" tab="识别联动">
-            <a-form layout="vertical" style="margin-top: 8px">
-              <a-form-item label="自动播报">
+            <div style="margin-top: 8px">
+              <a-form-item label="启用自动联动">
                 <a-switch v-model:checked="voiceEnabled" checked-children="开" un-checked-children="关" />
-                <span style="margin-left:8px;color:#888;font-size:12px">识别到车牌后自动播报语音 + 显示文字</span>
+                <span style="margin-left:8px;color:#888;font-size:12px">识别车牌后自动播报语音和显示文字</span>
               </a-form-item>
 
-              <!-- 允许通行 -->
-              <a-card size="small" :title="linkageAllowLabel" style="margin-bottom:12px">
-                <a-row :gutter="12">
-                  <a-col :span="12">
-                    <a-form-item label="播报语音" style="margin-bottom:4px">
-                      <a-input v-model:value="voiceWelcomeMsg" :placeholder="voiceWelcomePlaceholder" size="small" />
-                    </a-form-item>
-                  </a-col>
-                  <a-col :span="12">
-                    <a-form-item label="显示文字" style="margin-bottom:4px">
-                      <a-input v-model:value="displayWelcomeMsg" :placeholder="displayWelcomePlaceholder" size="small" />
-                    </a-form-item>
-                  </a-col>
-                </a-row>
-                <div v-if="voiceWelcomeMsg" style="background:#f6ffed;padding:6px 10px;border-radius:4px;font-size:12px;color:#52c41a">
-                  例：播报「<b>{{ voiceWelcomePreview }}</b>」屏幕显示「<b>{{ displayWelcomePreview }}</b>」
+              <!-- 入场 -->
+              <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:6px;padding:12px;margin-bottom:12px">
+                <div style="font-weight:600;margin-bottom:8px;color:#389e0d">入场</div>
+                <a-input v-model:value="voiceEntryWelcome" :placeholder="voiceEntryWelcomePlaceholder" size="small" style="margin-bottom:6px">
+                  <template #addonBefore>播报</template>
+                </a-input>
+                <a-input v-model:value="displayEntryWelcome" :placeholder="displayEntryWelcomePlaceholder" size="small">
+                  <template #addonBefore>显示</template>
+                </a-input>
+                <div v-if="voiceEntryWelcome || displayEntryWelcome" style="margin-top:6px;font-size:12px;color:#389e0d;line-height:1.6">
+                  预览：播报「<b>{{ entryPreview.voice }}</b>」 屏幕「<b>{{ entryPreview.display }}</b>」
                 </div>
-              </a-card>
+              </div>
+
+              <!-- 出场 -->
+              <div style="background:#e6f7ff;border:1px solid #91d5ff;border-radius:6px;padding:12px;margin-bottom:12px">
+                <div style="font-weight:600;margin-bottom:8px;color:#096dd9">出场</div>
+                <a-input v-model:value="voiceExitWelcome" :placeholder="voiceExitWelcomePlaceholder" size="small" style="margin-bottom:6px">
+                  <template #addonBefore>播报</template>
+                </a-input>
+                <a-input v-model:value="displayExitWelcome" :placeholder="displayExitWelcomePlaceholder" size="small">
+                  <template #addonBefore>显示</template>
+                </a-input>
+                <div v-if="voiceExitWelcome || displayExitWelcome" style="margin-top:6px;font-size:12px;color:#096dd9;line-height:1.6">
+                  预览：播报「<b>{{ exitPreview.voice }}</b>」 屏幕「<b>{{ exitPreview.display }}</b>」
+                </div>
+              </div>
 
               <!-- 禁止通行 -->
-              <a-card size="small" :title="linkageDenyLabel" style="margin-bottom:8px">
-                <a-row :gutter="12">
+              <div style="background:#fff2f0;border:1px solid #ffccc7;border-radius:6px;padding:12px;margin-bottom:12px">
+                <div style="font-weight:600;margin-bottom:8px;color:#cf1322">禁止通行</div>
+                <a-input v-model:value="voiceDenyMsg" :placeholder="voiceDenyPlaceholder" size="small" style="margin-bottom:6px">
+                  <template #addonBefore>播报</template>
+                </a-input>
+                <a-input v-model:value="displayDenyMsg" :placeholder="displayDenyPlaceholder" size="small">
+                  <template #addonBefore>显示</template>
+                </a-input>
+                <div v-if="voiceDenyMsg || displayDenyMsg" style="margin-top:6px;font-size:12px;color:#cf1322;line-height:1.6">
+                  预览：播报「<b>{{ denyPreview.voice }}</b>」 屏幕「<b>{{ denyPreview.display }}</b>」
+                </div>
+              </div>
+
+              <span style="color:#999;font-size:11px">{plate}=车牌号 {type}=车辆类型。留空表示不触发该项。</span>
+
+              <a-divider style="margin:12px 0 8px">待机恢复</a-divider>
+              <a-row :gutter="8">
+                <a-col :span="16">
+                  <a-input v-model:value="displayIdleText" placeholder="识别后显示几秒恢复为此文字（留空不恢复）" size="small">
+                    <template #addonBefore>待机文字</template>
+                  </a-input>
+                </a-col>
+                <a-col :span="8">
+                  <a-input-number v-model:value="displayDurationSec" :min="1" :max="60" size="small" style="width:100%">
+                    <template #addonBefore>停留</template>
+                    <template #addonAfter>秒</template>
+                  </a-input-number>
+                </a-col>
+              </a-row>
+            </div>
+          </a-tab-pane>
+
+          <!-- Tab 2: 设备参数 -->
+          <a-tab-pane key="hardware" tab="设备参数">
+            <a-form layout="vertical" style="margin-top: 8px">
+              <a-card size="small" title="屏幕设置" style="margin-bottom:12px">
+                <a-row :gutter="16">
                   <a-col :span="12">
-                    <a-form-item label="播报语音" style="margin-bottom:4px">
-                      <a-input v-model:value="voiceDenyMsg" :placeholder="voiceDenyPlaceholder" size="small" />
+                    <a-form-item label="文字颜色" style="margin-bottom:8px">
+                      <a-select v-model:value="displayTextColor" size="small">
+                        <a-select-option :value="0">白色</a-select-option>
+                        <a-select-option :value="1">红色</a-select-option>
+                        <a-select-option :value="2">蓝色</a-select-option>
+                        <a-select-option :value="3">绿色</a-select-option>
+                      </a-select>
                     </a-form-item>
                   </a-col>
                   <a-col :span="12">
-                    <a-form-item label="显示文字" style="margin-bottom:4px">
-                      <a-input v-model:value="displayDenyMsg" :placeholder="displayDenyPlaceholder" size="small" />
+                    <a-form-item label="屏幕方向" style="margin-bottom:8px">
+                      <a-select v-model:value="displayRotateMode" size="small">
+                        <a-select-option :value="0">正常</a-select-option>
+                        <a-select-option :value="1">上下翻转</a-select-option>
+                      </a-select>
                     </a-form-item>
                   </a-col>
                 </a-row>
-                <div v-if="voiceDenyMsg" style="background:#fff2f0;padding:6px 10px;border-radius:4px;font-size:12px;color:#ff4d4f">
-                  例：播报「<b>{{ voiceDenyPreview }}</b>」屏幕显示「<b>{{ displayDenyPreview }}</b>」
-                </div>
+                <a-form-item label="亮度" style="margin-bottom:4px">
+                  <a-slider v-model:value="displayBrightness" :min="0" :max="5" :marks="{0:'熄',3:'中',5:'最亮'}" />
+                </a-form-item>
               </a-card>
 
-              <span style="color:#888;font-size:11px">车牌号自动加在最前面，不用填 {plate}。留空则不触发。</span>
-
-              <a-divider style="margin:12px 0 8px">待机恢复</a-divider>
-              <a-row :gutter="12">
-                <a-col :span="16">
-                  <a-form-item label="识别后显示几秒自动恢复为" style="margin-bottom:0">
-                    <a-input v-model:value="displayIdleText" placeholder="飓山智慧停车（留空不自动恢复）" size="small" />
-                  </a-form-item>
-                </a-col>
-                <a-col :span="8">
-                  <a-form-item label="停留秒数" style="margin-bottom:0">
-                    <a-input-number v-model:value="displayDurationSec" :min="1" :max="60" size="small" style="width:100%" />
-                  </a-form-item>
-                </a-col>
-              </a-row>
+              <a-card size="small" title="语音设置">
+                <a-row :gutter="16">
+                  <a-col :span="12">
+                    <a-form-item label="语音类型" style="margin-bottom:8px">
+                      <a-radio-group v-model:value="voiceMale" size="small">
+                        <a-radio :value="0">男声</a-radio>
+                        <a-radio :value="1">女声</a-radio>
+                      </a-radio-group>
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="12">
+                    <a-form-item label="屏显音量" style="margin-bottom:8px">
+                      <a-slider v-model:value="displayVolume" :min="0" :max="5" :marks="{0:'静',5:'最大'}" />
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+                <a-form-item label="语音音量" style="margin-bottom:4px">
+                  <a-slider v-model:value="voiceVolume" :min="1" :max="100" :marks="{20:'20',50:'50',80:'80'}" />
+                </a-form-item>
+              </a-card>
             </a-form>
           </a-tab-pane>
 
-          <!-- 显示屏参数 -->
-          <a-tab-pane key="displayParams" tab="显示设置">
-            <a-form layout="vertical" style="margin-top: 8px">
-              <a-row :gutter="16">
-                <a-col :span="12">
-                  <a-form-item label="文字颜色">
-                    <a-select v-model:value="displayTextColor">
-                      <a-select-option :value="0">⚪ 白色</a-select-option>
-                      <a-select-option :value="1">🔴 红色</a-select-option>
-                      <a-select-option :value="2">🔵 蓝色</a-select-option>
-                      <a-select-option :value="3">🟢 绿色</a-select-option>
-                    </a-select>
-                  </a-form-item>
-                </a-col>
-                <a-col :span="12">
-                  <a-form-item label="屏幕方向">
-                    <a-select v-model:value="displayRotateMode">
-                      <a-select-option :value="0">正常</a-select-option>
-                      <a-select-option :value="1">上下翻转</a-select-option>
-                    </a-select>
-                  </a-form-item>
-                </a-col>
-              </a-row>
-              <a-row :gutter="16">
-                <a-col :span="12">
-                  <a-form-item label="亮度">
-                    <a-slider v-model:value="displayBrightness" :min="0" :max="5" :marks="{0:'熄',1:'1',2:'2',3:'3',4:'4',5:'最亮'}" />
-                  </a-form-item>
-                </a-col>
-                <a-col :span="12">
-                  <a-form-item label="音量">
-                    <a-slider v-model:value="displayVolume" :min="0" :max="5" :marks="{0:'静',1:'1',2:'2',3:'3',4:'4',5:'最大'}" />
-                  </a-form-item>
-                </a-col>
-              </a-row>
-            </a-form>
+          <!-- Tab 3: 手动测试 -->
+          <a-tab-pane key="test" tab="手动测试">
+            <div style="margin-top: 8px">
+              <div style="background:#fafafa;border:1px solid #e8e8e8;border-radius:6px;padding:12px;margin-bottom:12px">
+                <div style="font-weight:600;margin-bottom:8px">测试显示</div>
+                <a-textarea v-model:value="displayContent" :rows="2" placeholder="输入测试文字，如：欢迎光临" :maxlength="200" size="small" />
+                <a-button type="primary" :loading="displaySending" @click="sendDisplay" size="small" block style="margin-top:8px">发送显示</a-button>
+              </div>
+              <div style="background:#fafafa;border:1px solid #e8e8e8;border-radius:6px;padding:12px">
+                <div style="font-weight:600;margin-bottom:8px">测试语音</div>
+                <a-textarea v-model:value="voiceText" :rows="2" placeholder="输入测试文字，如：京A12345,欢迎光临" :maxlength="200" size="small" />
+                <a-space style="margin-top:8px">
+                  <a-button type="primary" :loading="voicePlaying" @click="playVoice" size="small"><SoundOutlined /> 播放</a-button>
+                  <a-button danger :loading="voiceStopping" @click="stopVoice" size="small">停止</a-button>
+                </a-space>
+              </div>
+            </div>
           </a-tab-pane>
+
         </a-tabs>
       </template>
     </a-modal>
@@ -224,6 +211,7 @@ import {
   getDevices, createDevice, updateDevice, updateDeviceStatus, deleteDevice,
   getParkingLanes, bindDeviceLane, unbindDeviceLane,
   deviceDisplayText, deviceVoiceControl, deviceReboot,
+  deviceTriggerRecognition,
   type DeviceVO, type ParkingLaneVO
 } from '@/api/parking-manage'
 import DeviceFormFields, { type DeviceFormData } from './DeviceFormFields.vue'
@@ -264,7 +252,7 @@ const columns = [
 
 // ============ 设备控制（显示屏 / 语音） ============
 
-const controlTab = ref('display')
+const controlTab = ref('linkage')
 const displayContent = ref('')
 const displaySending = ref(false)
 const voiceText = ref('')
@@ -278,6 +266,14 @@ const displayBrightness = ref(3)
 const displayVolume = ref(3)
 const voiceVolume = ref(80)
 const voiceMale = ref(0)
+
+// 入场/出场模板
+const voiceEntryWelcome = ref('')
+const voiceExitWelcome = ref('')
+const displayEntryWelcome = ref('')
+const displayExitWelcome = ref('')
+
+// 旧模板保留用于待机恢复
 
 // 识别联动配置
 const voiceEnabled = ref(false)
@@ -299,8 +295,11 @@ const displayDenyPreview = computed(() => displayDenyMsg.value ? `${samplePlate}
 function extractMsg(template: string | undefined | null): string {
   if (!template) return ''
   let t = template
-  if (t.startsWith('{plate},')) t = t.substring(8)
-  else if (t.startsWith('{plate}\n')) t = t.substring(8)
+  // strip known prefixes
+  if (t.startsWith('{plate},{type},')) t = t.substring(14)
+  else if (t.startsWith('{plate} {type} ')) t = t.substring(14)
+  else if (t.startsWith('{plate},')) t = t.substring(8)
+  else if (t.startsWith('{plate} ')) t = t.substring(8)
   else if (t.startsWith('{plate}')) t = t.substring(7)
   return t
 }
@@ -318,7 +317,27 @@ const voiceWelcomePlaceholder = computed(() => editing.value?.recognitionDirecti
 const displayWelcomePlaceholder = computed(() => editing.value?.recognitionDirection === 2 ? '一路顺风' : '欢迎光临')
 const voiceDenyPlaceholder = computed(() => editing.value?.recognitionDirection === 2 ? '请缴费后出场' : '禁止通行')
 const displayDenyPlaceholder = computed(() => editing.value?.recognitionDirection === 2 ? '请缴费后出场' : '禁止通行')
+const voiceEntryWelcomePlaceholder = '欢迎光临'
+const voiceExitWelcomePlaceholder = '一路平安'
+const displayEntryWelcomePlaceholder = '欢迎光临'
+const displayExitWelcomePlaceholder = '一路平安'
 
+
+// 预览
+const SAMPLE_PLATE = '鲁Q12345'
+const SAMPLE_TYPE = '临时车'
+const entryPreview = computed(() => ({
+  voice: voiceEntryWelcome.value ? `${SAMPLE_PLATE},${SAMPLE_TYPE},${voiceEntryWelcome.value}` : '',
+  display: displayEntryWelcome.value ? `${SAMPLE_PLATE} ${SAMPLE_TYPE} ${displayEntryWelcome.value}` : '',
+}))
+const exitPreview = computed(() => ({
+  voice: voiceExitWelcome.value ? `${SAMPLE_PLATE},${SAMPLE_TYPE},${voiceExitWelcome.value}` : '',
+  display: displayExitWelcome.value ? `${SAMPLE_PLATE} ${SAMPLE_TYPE} ${displayExitWelcome.value}` : '',
+}))
+const denyPreview = computed(() => ({
+  voice: voiceDenyMsg.value ? `${SAMPLE_PLATE},${voiceDenyMsg.value}` : '',
+  display: displayDenyMsg.value ? `${SAMPLE_PLATE} ${displayDenyMsg.value}` : '',
+}))
 
 async function sendDisplay() {
   if (!displayContent.value.trim()) {
@@ -423,6 +442,12 @@ function showEditModal(device: DeviceVO) {
   })
   // 识别联动配置
   voiceEnabled.value = device.voiceEnabled === 1
+  // 入场/出场模板
+  voiceEntryWelcome.value = extractMsg(device.voiceEntryWelcomeTemplate) || extractMsg(device.voiceWelcomeTemplate)
+  voiceExitWelcome.value = extractMsg(device.voiceExitWelcomeTemplate)
+  displayEntryWelcome.value = extractMsg(device.displayEntryWelcomeTemplate) || extractMsg(device.displayWelcomeTemplate)
+  displayExitWelcome.value = extractMsg(device.displayExitWelcomeTemplate)
+  // 旧模板保留兼容
   voiceWelcomeMsg.value = extractMsg(device.voiceWelcomeTemplate)
   voiceDenyMsg.value = extractMsg(device.voiceDenyTemplate)
   displayWelcomeMsg.value = extractMsg(device.displayWelcomeTemplate)
@@ -475,6 +500,10 @@ async function handleSave() {
         displayVolume: displayVolume.value,
         voiceVolume: voiceVolume.value,
         voiceMale: voiceMale.value,
+        voiceEntryWelcomeTemplate: voiceEntryWelcome.value ? `{plate},{type},${voiceEntryWelcome.value}` : null,
+        voiceExitWelcomeTemplate: voiceExitWelcome.value ? `{plate},{type},${voiceExitWelcome.value}` : null,
+        displayEntryWelcomeTemplate: displayEntryWelcome.value ? `{plate} {type} ${displayEntryWelcome.value}` : null,
+        displayExitWelcomeTemplate: displayExitWelcome.value ? `{plate} {type} ${displayExitWelcome.value}` : null,
       })
       // 车道绑定变更走独立接口（后端 update 不处理 laneId）
       const oldLaneId = editing.value.laneId ?? null
@@ -519,8 +548,15 @@ async function handleDelete(id: number) {
 }
 
 async function handleReboot(id: number) {
-  await deviceReboot(id)
-  message.success('重启命令已发送')
+  const r = await deviceReboot(id)
+  if (r.success) { message.success('重启命令已发送') }
+  else { message.info(r.message || '重启失败') }
+}
+
+async function handleTrigger(id: number) {
+  const r = await deviceTriggerRecognition(id)
+  if (r.success) { message.success('触发识别命令已发送') }
+  else { message.info(r.message || '触发识别失败') }
 }
 
 async function fetchLanes() {
