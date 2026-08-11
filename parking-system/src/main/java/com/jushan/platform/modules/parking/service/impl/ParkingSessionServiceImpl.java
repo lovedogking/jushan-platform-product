@@ -10,9 +10,15 @@ import com.jushan.platform.modules.parking.dto.ParkingSessionEntryCmd;
 import com.jushan.platform.modules.parking.dto.ParkingSessionExitCmd;
 import com.jushan.platform.modules.parking.entity.ParkingSession;
 import com.jushan.platform.modules.parking.mapper.ParkingSessionMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jushan.platform.modules.parking.service.FeeCalculationService;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import com.jushan.platform.modules.parking.vo.ParkingSessionVO;
+import com.jushan.platform.modules.parking.entity.FeeRule;
+import com.jushan.platform.modules.parking.entity.FeeRuleSegment;
 import com.jushan.platform.modules.parking.entity.ParkingLane;
+import com.jushan.platform.modules.parking.mapper.FeeRuleSegmentMapper;
 import com.jushan.platform.modules.parking.mapper.ParkingLaneMapper;
 import com.jushan.platform.modules.vehicle.entity.SysVehicle;
 import com.jushan.platform.modules.vehicle.mapper.SysVehicleMapper;
@@ -52,6 +58,9 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
     private final ParkingLotMapper parkingLotMapper;
     private final ParkingLaneMapper parkingLaneMapper;
     private final SysVehicleMapper sysVehicleMapper;
+    private final FeeCalculationService feeCalculationService;
+    private final FeeRuleSegmentMapper feeRuleSegmentMapper;
+    private final ObjectMapper objectMapper;
     private final AtomicInteger sequence = new AtomicInteger(0);
     private volatile String lastSequenceDate = "";
 
@@ -59,12 +68,18 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
                                      ParkingOrderMapper parkingOrderMapper,
                                      ParkingLotMapper parkingLotMapper,
                                      ParkingLaneMapper parkingLaneMapper,
-                                     SysVehicleMapper sysVehicleMapper) {
+                                     SysVehicleMapper sysVehicleMapper,
+                                     FeeCalculationService feeCalculationService,
+                                     FeeRuleSegmentMapper feeRuleSegmentMapper,
+                                     ObjectMapper objectMapper) {
         this.parkingRecordMapper = parkingRecordMapper;
         this.parkingOrderMapper = parkingOrderMapper;
         this.parkingLotMapper = parkingLotMapper;
         this.parkingLaneMapper = parkingLaneMapper;
         this.sysVehicleMapper = sysVehicleMapper;
+        this.feeCalculationService = feeCalculationService;
+        this.feeRuleSegmentMapper = feeRuleSegmentMapper;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -146,6 +161,9 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
         entity.setTenantId(tenantId);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
+
+        // A4：入场时保存生效计费规则快照
+        saveFeeRuleSnapshot(entity, cmd.getLaneId());
 
         baseMapper.insert(entity);
         log.info("车辆入场记录: sessionId={}, plate={}, lotId={}",
@@ -398,9 +416,55 @@ public class ParkingSessionServiceImpl extends ServiceImpl<ParkingSessionMapper,
         return entity != null ? toVO(entity) : null;
     }
 
+    /**
+     * 保存入场时生效的计费规则快照。
+     * <p>
+     * 根据车道解析区域，按车型/颜色/优先级找到生效规则，并把规则 + 时段 JSON 写入 session。
+     */
+    private void saveFeeRuleSnapshot(ParkingSession session, Long laneId) {
+        try {
+            Long zoneId = null;
+            if (laneId != null) {
+                ParkingLane lane = parkingLaneMapper.selectById(laneId);
+                if (lane != null) {
+                    zoneId = lane.getZoneId();
+                }
+            }
+
+            // 复用计费服务内部的规则选择逻辑：取当前生效规则
+            FeeRule rule = feeCalculationService.findActiveRuleForSnapshot(
+                    session.getParkingLotId(), zoneId,
+                    session.getVehicleType(), session.getPlateColor(),
+                    session.getEntryTime(), LocalDateTime.now());
+
+            if (rule == null) {
+                log.warn("入场未找到生效计费规则: lotId={}, plate={}, vehicleType={}",
+                        session.getParkingLotId(), session.getPlateNumber(), session.getVehicleType());
+                return;
+            }
+
+            List<FeeRuleSegment> segments = feeRuleSegmentMapper.selectListByFeeRuleId(rule.getId());
+            java.util.Map<String, Object> snapshot = new java.util.HashMap<>();
+            snapshot.put("rule", rule);
+            snapshot.put("segments", segments);
+
+            session.setFeeRuleId(rule.getId());
+            session.setFeeRuleSnapshot(objectMapper.writeValueAsString(snapshot));
+            log.info("入场计费规则快照已保存: sessionPlate={}, ruleId={}", session.getPlateNumber(), rule.getId());
+        } catch (JsonProcessingException e) {
+            log.error("计费规则快照序列化失败: plate={}", session.getPlateNumber(), e);
+            // 快照失败不影响入场，继续放行
+        } catch (Exception e) {
+            log.error("保存计费规则快照异常: plate={}", session.getPlateNumber(), e);
+        }
+    }
+
     private ParkingSessionVO toVO(ParkingSession entity) {
         ParkingSessionVO vo = new ParkingSessionVO();
         BeanUtils.copyProperties(entity, vo);
+        // BeanUtils 默认会复制 feeRuleId/feeRuleSnapshot，显式保留可读性
+        vo.setFeeRuleId(entity.getFeeRuleId());
+        vo.setFeeRuleSnapshot(entity.getFeeRuleSnapshot());
 
         // 计算在场时长
         if (entity.getEntryTime() != null) {

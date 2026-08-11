@@ -72,6 +72,11 @@ logging:
     com.baomidou.mybatisplus: DEBUG
     org.apache.ibatis: DEBUG
 
+# ---- Tomcat 编码（Windows 本地开发避免 GET 中文参数乱码） ----
+server:
+  tomcat:
+    uri-encoding: UTF-8
+
 # ---- P云支付 Mock 模式（本地开发联调） ----
 pyun:
   mock: true

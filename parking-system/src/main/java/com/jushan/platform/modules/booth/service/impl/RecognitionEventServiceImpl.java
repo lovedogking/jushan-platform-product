@@ -22,7 +22,7 @@ import com.jushan.platform.modules.device.mapper.DeviceMapper;
 import com.jushan.platform.modules.booth.mapper.RecognitionEventLogMapper;
 import com.jushan.platform.modules.parking.entity.ParkingLot;
 import com.jushan.platform.modules.parking.mapper.ParkingLotMapper;
-import com.jushan.platform.modules.parking.service.BillingEngine;
+import com.jushan.platform.modules.parking.service.FeeCalculationService;
 import com.jushan.platform.modules.parking.entity.ParkingLane;
 import com.jushan.platform.modules.parking.mapper.ParkingLaneMapper;
 import com.jushan.platform.modules.device.service.DeviceService;
@@ -79,7 +79,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
 
     private final VehicleTypeDecisionService vehicleTypeDecisionService;
     private final ParkingSessionService parkingSessionService;
-    private final BillingEngine billingEngine;
+    private final FeeCalculationService feeCalculationService;
     private final DeviceMapper deviceMapper;
     private final DeviceAccessClient deviceAccessClient;
     private final MonitorAlertService monitorAlertService;
@@ -93,7 +93,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
 
     public RecognitionEventServiceImpl(VehicleTypeDecisionService vehicleTypeDecisionService,
                                        ParkingSessionService parkingSessionService,
-                                       BillingEngine billingEngine,
+                                       FeeCalculationService feeCalculationService,
                                        DeviceMapper deviceMapper,
                                        DeviceAccessClient deviceAccessClient,
                                        MonitorAlertService monitorAlertService,
@@ -106,7 +106,7 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
                                        SysUserMapper sysUserMapper) {
         this.vehicleTypeDecisionService = vehicleTypeDecisionService;
         this.parkingSessionService = parkingSessionService;
-        this.billingEngine = billingEngine;
+        this.feeCalculationService = feeCalculationService;
         this.deviceMapper = deviceMapper;
         this.deviceAccessClient = deviceAccessClient;
         this.monitorAlertService = monitorAlertService;
@@ -905,14 +905,18 @@ public class RecognitionEventServiceImpl implements RecognitionEventService {
             return result;
         }
 
-        // 计算费用：接入 BillingEngine，替换硬编码 5 元
+        // 计算费用：接入 FeeCalculationService
         BigDecimal feeAmount = BigDecimal.ZERO;
         if (Boolean.TRUE.equals(decision.getNeedCharge())) {
             try {
-                int feeCents = billingEngine.calculateFee(
+                int feeCents = feeCalculationService.calculateFeeCents(
                         cmd.getParkingLotId(),
+                        null,
+                        sessionVO.getVehicleType(),
+                        sessionVO.getPlateColor(),
                         sessionVO.getEntryTime(),
-                        LocalDateTime.now()
+                        LocalDateTime.now(),
+                        sessionVO.getFeeRuleSnapshot()
                 );
                 feeAmount = BigDecimal.valueOf(feeCents).movePointLeft(2);
                 log.info("计费引擎计算费用: plate={}, feeCents={}, feeAmount={}",

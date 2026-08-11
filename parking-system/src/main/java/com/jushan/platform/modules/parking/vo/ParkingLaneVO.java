@@ -29,6 +29,8 @@ public class ParkingLaneVO {
     private Integer status;
     /** 潮汐模式：0=关闭, 1=早高峰入口, 2=晚高峰出口 */
     private Integer tideMode;
+    /** 控闸设备 ID（逻辑外键：device.id，显式指定控闸设备） */
+    private Long gateDeviceId;
     /** 相机配置模式：1=单相机, 2=双相机, 3=主从相机 */
     private Integer cameraMode;
     /** 乐观锁版本号 */
@@ -66,6 +68,9 @@ public class ParkingLaneVO {
 
     public Long getExitCameraId() { return exitCameraId; }
     public void setExitCameraId(Long exitCameraId) { this.exitCameraId = exitCameraId; }
+
+    public Long getGateDeviceId() { return gateDeviceId; }
+    public void setGateDeviceId(Long gateDeviceId) { this.gateDeviceId = gateDeviceId; }
 
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }

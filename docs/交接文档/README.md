@@ -2,7 +2,7 @@
 
 > **交接人**：曾波涵
 > **联系方式**：微信 caihongguo66
-> **交接日期**：2026-07-26
+> **交接日期**：2026-07-26（本文档于 2026-08-11 按代码现状修订：识别链路与 H5 已切换 FeeCalculationService，BillingEngine 仅剩 4 处引用待 A6 清理）
 > **项目仓库**：[gitee.com/zeng-bohan-66/jushan-platform-product](https://gitee.com/zeng-bohan-66/jushan-platform-product)
 > **默认分支**：`develop`（`origin/HEAD → develop`）
 > **其他分支**：`master`（早期主干）、`worktree-v0.4-enhancements`（特性分支）
@@ -33,7 +33,7 @@
 
 ## 一句话项目概况
 
-**飓山智慧停车**是一个基于 Spring Boot 3.5 + Vue 3 + MyBatis-Plus 的多租户停车管理 SaaS 平台。核心能力包括：设备接入（臻识/芊熠/信路通相机识别）、车辆管理（固定车/黑名单/储值/免费/月租/VIP）、计费（按时/按次/阶梯/分时段）、岗亭作业（人工放行/开闸/关闸/常开）、停车会话（入场→计费→出场）、订单支付（P云过渡 + 模拟支付联调）、小程序后端（接口已完备、前端未启动）。
+**飓山智慧停车**是一个基于 Spring Boot 3.5 + Vue 3 + MyBatis-Plus 的多租户停车管理 SaaS 平台。核心能力包括：设备接入（臻识/芊熠/信路通相机识别）、车辆管理（固定车/黑名单/储值/免费/月租/VIP）、计费（按时/按次/阶梯/分时段）、岗亭作业（人工放行/开闸/关闸/常开）、停车会话（入场→计费→出场）、订单支付（P云 OpenAPI + 模拟支付 fallback）、H5 车主端（骨架已搭）、小程序后端（接口已完备、前端未启动）。
 
 ---
 
@@ -68,10 +68,10 @@
   - [ ] 确认「外部账号待确认清单」中各项的归属和权限（见下方）
   - [ ] 修复 `recognition_event_log.plate_number` 无默认值问题（见 [08 P2-7](./08-已知问题与风险.md)）
 - [ ] **P1 — 两周内**
-  - [ ] 决定计费体系二选一（废弃旧 BillingRule 还是解冻新 FeeRule）
+  - [ ] 确认计费体系现状：识别链路与 H5 已切换 FeeCalculationService；推进 A6 清理剩余 `BillingEngine` 引用并删除旧 BillingRule
   - [ ] 修复 DA 数据库 UTF-8 双重编码乱码（见 [08 技术债](./08-已知问题与风险.md#三技术债清单)）
   - [ ] 为 DA 添加健康检查端点（当前 `/actuator/health` 返回 404）
-  - [ ] 评估并启动微信商户号申请（外部流程周期 1-2 月）
+  - [ ] 评估并启动 P云 商户号/接口权限申请
 
 ## 外部账号待确认清单
 

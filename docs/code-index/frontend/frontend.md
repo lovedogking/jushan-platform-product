@@ -21,7 +21,7 @@ frontend/src/
 │   └── vehicle.ts       # 车辆主档 CRUD（v2.4 新增）
 ├── components/     # 业务组件
 │   ├── ChargePanel.vue           # 收费面板（计费/支付/开闸）
-│   ├── FeeRuleEditModal.vue      # 收费规则编辑弹窗
+│   ├── FeeRuleEditModal.vue      # 收费规则编辑弹窗（岗亭端简版，支持首时段时长/价格/日封顶）
 │   ├── ManualReleaseModal.vue    # 人工放行弹窗
 │   ├── PlateCorrectionModal.vue  # 车牌纠正弹窗
 │   ├── SpaceAdjustModal.vue     # 余位调整弹窗（v2.3 新增，SET/ADJUST 两种模式）
@@ -69,4 +69,5 @@ frontend/src/
 | `views/monitor/VehicleQuery.vue` | （遗留）原车辆查询页（在场车辆+历史记录+分页筛选），已从 MonitorTabs 移除引用 |
 | `views/operation/AccessRecords.vue` | 运营端通行记录页。筛选：车牌号/车辆类型(固定车/临时车)/状态(在场/已出场)/入场车道 → 查询/重置。表格列：车牌号+车辆类型(固定车/临时车标签)+订单状态(在场/已出场)+停车区域+入场时间+入口车道(真实名称)+出场时间+出场车道(真实名称)+停车时长。数据源：getParkingSessions + getSnapshot(车道名称映射)。车辆类型覆盖后端所有可能值(WHITE/FIXED/FIXED_SPACE/MONTHLY→固定车, TEMP/null→临时车)。 |
 | `views/operation/Vehicles.vue` | **固定车管理（v2.4 重写）**。左侧侧边栏四分类（黑名单/免费车/月租车/储值车，按优先级排序）+ 搜索 + 新增按钮；右侧表格按分类动态切列；Modal 表单含车辆类型/车牌/生效时间/到期时间/车主姓名/手机号/生效车场/生效车道(必填多选)/备注。调用 `api/vehicle.ts` 走 SysVehicle CRUD。 |
+| `views/operation/FeeRules.vue` | 运营端收费规则管理。支持 4 种计费模式、适用车型/车牌颜色、免费时长/首时段/日封顶/总封顶/夜间封顶、跨天计费规则（自然日/连续24h）、生效方式（立即/仅新入场/定时）、优先级、状态启停。 |
 | `.env.development` / `.env.production` | 环境变量（API base URL / WebSocket） |

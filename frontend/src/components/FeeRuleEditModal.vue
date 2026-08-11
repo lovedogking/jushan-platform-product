@@ -27,6 +27,10 @@
           <a-input-number v-model:value="form.unitMinutes" :min="1" :max="1440" style="width: 100%" />
         </a-form-item>
 
+        <a-form-item label="首时段时长（分钟）">
+          <a-input-number v-model:value="form.firstPeriodMinutes" :min="0" style="width: 100%" placeholder="0=无首时段" />
+        </a-form-item>
+
         <a-form-item label="首时段价格（元）">
           <a-input-number v-model:value="form.firstPeriodPrice" :min="0" :precision="2" style="width: 100%" />
         </a-form-item>
@@ -81,6 +85,7 @@ const form = ref({
   name: '',
   freeMinutes: 15,
   unitMinutes: 30,
+  firstPeriodMinutes: 0,
   firstPeriodPrice: 5,
   subsequentPrice: 2,
   dailyCap: 50,
@@ -95,6 +100,7 @@ watch(
         name: rule.name || '',
         freeMinutes: rule.freeMinutes ?? 15,
         unitMinutes: rule.unitMinutes ?? 30,
+        firstPeriodMinutes: rule.firstPeriodMinutes ?? 0,
         firstPeriodPrice: rule.firstPeriodPrice ?? 5,
         subsequentPrice: rule.subsequentPrice ?? 2,
         dailyCap: rule.dailyCap ?? 50,
@@ -113,6 +119,7 @@ function handleOk() {
     name: form.value.name,
     freeMinutes: form.value.freeMinutes,
     unitMinutes: form.value.unitMinutes,
+    firstPeriodMinutes: form.value.firstPeriodMinutes,
     firstPeriodPrice: form.value.firstPeriodPrice,
     subsequentPrice: form.value.subsequentPrice,
     dailyCap: form.value.dailyCap,

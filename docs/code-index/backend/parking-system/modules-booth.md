@@ -3,7 +3,7 @@
 > **包路径**：`parking-system/src/main/java/com/jushan/platform/modules/booth/`
 > **所属**：`parking-system` · `com.jushan.platform.modules.booth`
 > **职责**：识别事件处理（入场/出场判定+开闸）、人工入场补录、费用减免、交接班管理、岗亭车辆查询。
-> **最近更新**：2026-07-26（v1.7：手动开闸后推送剩余车位更新 pushSpaceUpdate；exitImage/exitOperator 写入出场记录；selectInByPlateNumber 平台管理员跨租户查询）
+> **最近更新**：2026-07-27（A5：识别链路计费入口从 `BillingEngine` 切换为 `FeeCalculationService`；`EntryService` 删除旧 BillingRule 快照逻辑；`ExitService`/`TempPlateService`/`RecognitionEventServiceImpl` 出场计费走 `FeeCalculationService` 并读取 `ParkingSession.feeRuleSnapshot`）
 
 ---
 
@@ -135,6 +135,8 @@
 
 ## 五、跨模块依赖
 
-- `RecognitionEventService.handleEvent` → `VehicleTypeDecisionService.decide(...)`（车辆类型判定）→ `FeeCalculationService.calculateFeeCents(...)`（计费）→ `DeviceService.resolveGateDevice(laneId)`（控闸设备解析，4级优先级：gate_device_id→GATE→CAMERA+OPEN_GATE→报错）→ `DeviceAccessClient.openGate(...)`（开闸）。
+- `RecognitionEventServiceImpl.handleEvent` → `VehicleTypeDecisionService.decide(...)`（车辆类型判定）→ `FeeCalculationService.calculateFeeCents(...)`（计费，读取 `ParkingSession.feeRuleSnapshot`）→ `DeviceService.resolveGateDevice(laneId)`（控闸设备解析）→ `DeviceAccessClient.openGate(...)`（开闸）。
+- `EntryService.handleEntry`：入场时通过 `ParkingSessionService.entry` 保存 `FeeRule` 快照；已删除旧 `BillingEngine`/`BillingRule` 快照逻辑。
+- `ExitService.handleExit` / `TempPlateService.handleTempPlateExit`：出场计费调用 `FeeCalculationService.calculateFeeCents(..., snapshotJson)`，优先使用 `ParkingSession.feeRuleSnapshot`。
 - 手动开闸/关闸/自动开闸均统一走 `DeviceService.resolveGateDevice(laneId)`，停车场级回退已删除。
 - 前端按钮按 `GET /api/v1/booth/recognition/gate-capabilities?laneId=` 返回的能力列表动态渲染（Q3=开闸/常开，C5=开/关/常开/常关），MIXED 车道按方向拆分为两张独立卡片。

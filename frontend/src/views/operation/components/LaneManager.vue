@@ -64,6 +64,21 @@
             </a-form-item>
           </a-col>
         </a-row>
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="控闸设备">
+              <a-select
+                v-model:value="laneForm.gateDeviceId"
+                :options="gateDeviceOptions"
+                placeholder="自动检测（可不选）"
+                allow-clear
+              />
+              <div style="color: #999; font-size: 11px">
+                不选则由系统自动按设备能力和类型查找控闸设备
+              </div>
+            </a-form-item>
+          </a-col>
+        </a-row>
 
         <!-- 设备配置区域 -->
         <a-divider>设备配置</a-divider>
@@ -94,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import {
@@ -130,7 +145,18 @@ const laneForm = reactive({
   laneNo: '',
   type: undefined as number | undefined,
   gateMode: 'AUTO' as string,
+  gateDeviceId: undefined as number | undefined,
 })
+
+// 当前车场所有设备（用于控闸设备下拉）
+const allLotDevices = ref<DeviceVO[]>([])
+
+const gateDeviceOptions = computed(() =>
+  allLotDevices.value.map(d => ({
+    value: d.id,
+    label: `${d.name} (${d.deviceSn})`,
+  }))
+)
 
 // 设备表单数据（使用 ref 兼容 DeviceFormFields 的 defineModel）
 const entryDeviceForm = ref<DeviceFormData>(getDefaultDeviceForm(1))
@@ -183,6 +209,9 @@ async function fetchLanes() {
   try {
     const res = await getParkingLanes({ page: 1, size: 100, parkingLotId: props.lotId })
     lanes.value = res.records
+    // 同时加载车场所有设备（用于控闸设备下拉）
+    const devRes = await getDevices({ page: 1, size: 500, parkingLotId: props.lotId })
+    allLotDevices.value = devRes.records
   } finally {
     loading.value = false
   }
@@ -194,6 +223,7 @@ function showCreateModal() {
   laneForm.laneNo = ''
   laneForm.type = undefined
   laneForm.gateMode = 'AUTO'
+  laneForm.gateDeviceId = undefined
   deviceTab.value = 'entry'
   resetDeviceForms()
   modalVisible.value = true
@@ -205,6 +235,7 @@ async function showEditModal(lane: ParkingLaneVO) {
   laneForm.laneNo = lane.laneNo
   laneForm.type = lane.type
   laneForm.gateMode = lane.gateMode
+  laneForm.gateDeviceId = lane.gateDeviceId
   deviceTab.value = lane.type === 2 ? 'exit' : 'entry'
   resetDeviceForms()
   await loadLaneDevices(lane)
@@ -280,6 +311,7 @@ async function handleSave() {
         laneNo: laneForm.laneNo,
         type: laneForm.type,
         gateMode: laneForm.gateMode,
+        gateDeviceId: laneForm.gateDeviceId,
       })
       laneId = updated.id
     } else {
@@ -289,6 +321,7 @@ async function handleSave() {
         laneNo: laneForm.laneNo,
         type: laneForm.type,
         gateMode: laneForm.gateMode,
+        gateDeviceId: laneForm.gateDeviceId,
       })
       laneId = created.id
     }
@@ -327,6 +360,7 @@ async function syncDeviceForLane(form: DeviceFormData, existing: DeviceVO | null
     code: form.deviceSn,
     deviceSn: form.deviceSn,
     deviceType: 'CAMERA',
+    capabilities: 'OPEN_GATE,KEEP_OPEN',
     laneId,
     recognitionDirection: form.recognitionDirection,
     ipAddress: form.ipAddress,

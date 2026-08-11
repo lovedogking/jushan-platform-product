@@ -83,4 +83,10 @@ public class ParkingSessionVO {
 
     /** 更新时间 */
     private LocalDateTime updatedAt;
+
+    /** 入场时生效的收费规则 ID */
+    private Long feeRuleId;
+
+    /** 入场时生效的收费规则快照 */
+    private String feeRuleSnapshot;
 }

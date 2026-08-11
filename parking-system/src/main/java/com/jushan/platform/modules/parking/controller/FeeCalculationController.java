@@ -38,7 +38,7 @@ public class FeeCalculationController {
     public R<FeeCalculateResultVO> calculate(@Valid @RequestBody FeeCalculateCmd cmd) {
         FeeCalculateResultVO result = feeCalculationService.calculate(
                 cmd.getLotId(), cmd.getZoneId(), cmd.getPlateNumber(), cmd.getVehicleType(),
-                cmd.getEntryTime(), cmd.getExitTime());
+                cmd.getPlateColor(), cmd.getEntryTime(), cmd.getExitTime());
         log.info("费用试算: lotId={}, plateNumber={}, amount={}分",
                 cmd.getLotId(), cmd.getPlateNumber(), result.getPayableAmount());
         return R.ok(result);

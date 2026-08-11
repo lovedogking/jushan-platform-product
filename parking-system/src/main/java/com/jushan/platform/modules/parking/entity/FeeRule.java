@@ -62,8 +62,7 @@ public class FeeRule extends BaseEntity {
     /** 计费单位（分钟） */
     private Integer unitMinutes;
 
-    /** 首时段时长（分钟），0 表示无首时段优惠<br>注意：DB fee_rule 表暂无此列，字段通过 MyBatis-Plus 忽略映射 */
-    @TableField(exist = false)
+    /** 首时段时长（分钟），0 表示无首时段优惠 */
     private Integer firstPeriodMinutes;
 
     /** 首时段价格 */
@@ -78,20 +77,17 @@ public class FeeRule extends BaseEntity {
     @TableField(exist = true)
     private BigDecimal dailyCap;
 
-    /** 最大封顶金额（NULL 表示不封顶），整单封顶<br>注意：DB fee_rule 表暂无此列 */
-    @TableField(exist = false)
+    /** 最大封顶金额（NULL 表示不封顶），整单封顶 */
     private BigDecimal maxAmount;
 
     /** 夜间封顶金额（NULL 表示不封顶） */
     @TableField(exist = true)
     private BigDecimal nightCap;
 
-    /** 跨天计费规则：1按自然日分段（每天0点重置） 2连续计费（按总时长，每24小时一个封顶窗口）<br>注意：DB fee_rule 表暂无此列 */
-    @TableField(exist = false)
+    /** 跨天计费规则：1按自然日分段（每天0点重置） 2连续计费（按总时长，每24小时一个封顶窗口） */
     private Integer crossDayMode;
 
-    /** 生效方式：1立即生效 2仅新入场生效 3定时生效（配合 effectiveStart）<br>注意：DB fee_rule 表暂无此列 */
-    @TableField(exist = false)
+    /** 生效方式：1立即生效 2仅新入场生效 3定时生效（配合 effectiveStart） */
     private Integer effectMode;
 
     /** 优先级，数字越大优先级越高 */

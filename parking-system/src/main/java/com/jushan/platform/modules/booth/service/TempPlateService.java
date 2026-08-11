@@ -1,5 +1,5 @@
 package com.jushan.platform.modules.booth.service;
-import com.jushan.platform.modules.device.service.DeviceService;import com.jushan.platform.modules.parking.service.MockPaymentService;import com.jushan.platform.modules.parking.service.ParkingOrderService;import com.jushan.platform.modules.parking.service.BillingEngine;
+import com.jushan.platform.modules.device.service.DeviceService;import com.jushan.platform.modules.parking.service.MockPaymentService;import com.jushan.platform.modules.parking.service.ParkingOrderService;import com.jushan.platform.modules.parking.service.FeeCalculationService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
@@ -42,7 +42,7 @@ public class TempPlateService {
     private final ParkingOrderMapper orderMapper;
     private final ParkingOrderService parkingOrderService;
     private final ExitRecordMapper exitRecordMapper;
-    private final BillingEngine billingEngine;
+    private final FeeCalculationService feeCalculationService;
     private final DeviceService deviceService;
     private final MockPaymentService mockPaymentService;
     private final com.jushan.platform.modules.parking.service.ParkingSessionService parkingSessionService;
@@ -52,7 +52,7 @@ public class TempPlateService {
                              ParkingOrderMapper orderMapper,
                              ParkingOrderService parkingOrderService,
                              ExitRecordMapper exitRecordMapper,
-                             BillingEngine billingEngine,
+                             FeeCalculationService feeCalculationService,
                              DeviceService deviceService,
                              MockPaymentService mockPaymentService,
                              com.jushan.platform.modules.parking.service.ParkingSessionService parkingSessionService) {
@@ -61,7 +61,7 @@ public class TempPlateService {
         this.orderMapper = orderMapper;
         this.parkingOrderService = parkingOrderService;
         this.exitRecordMapper = exitRecordMapper;
-        this.billingEngine = billingEngine;
+        this.feeCalculationService = feeCalculationService;
         this.deviceService = deviceService;
         this.mockPaymentService = mockPaymentService;
         this.parkingSessionService = parkingSessionService;
@@ -189,17 +189,18 @@ public class TempPlateService {
         // 3. 计算费用
         LocalDateTime exitTime = LocalDateTime.now();
         int feeCents;
-        if (record.getRuleSnapshot() != null && !record.getRuleSnapshot().isBlank()) {
-            try {
-                feeCents = billingEngine.calculateFeeFromSnapshot(
-                        record.getRuleSnapshot(), record.getEntryTime(), exitTime);
-            } catch (BusinessException e) {
-                feeCents = billingEngine.calculateFee(
-                        parkingLotId, record.getEntryTime(), exitTime);
-            }
-        } else {
-            feeCents = billingEngine.calculateFee(
-                    parkingLotId, record.getEntryTime(), exitTime);
+        com.jushan.platform.modules.parking.vo.ParkingSessionVO feeSessionVO =
+                parkingSessionService.getInByPlateAndLot(tempPlate, parkingLotId);
+        String snapshotJson = feeSessionVO != null ? feeSessionVO.getFeeRuleSnapshot() : null;
+        try {
+            feeCents = feeCalculationService.calculateFeeCents(
+                    parkingLotId, null,
+                    feeSessionVO != null ? feeSessionVO.getVehicleType() : null,
+                    feeSessionVO != null ? feeSessionVO.getPlateColor() : null,
+                    record.getEntryTime(), exitTime, snapshotJson);
+        } catch (BusinessException e) {
+            log.warn("临时车牌出场计费失败，按0费放行: recordId={} error={}", record.getId(), e.getMessage());
+            feeCents = 0;
         }
 
         // 4. 创建订单（PENDING_PAY, payScene=AT_EXIT, payChannel=CASH）

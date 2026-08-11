@@ -5,9 +5,13 @@ import com.jushan.common.R;
 import com.jushan.platform.infra.security.RequirePermission;
 import com.jushan.platform.modules.parking.dto.FeeRuleCreateCmd;
 import com.jushan.platform.modules.parking.dto.FeeRuleUpdateCmd;
+import com.jushan.platform.modules.parking.service.FeeRuleHistoryService;
 import com.jushan.platform.modules.parking.service.FeeRuleService;
+import com.jushan.platform.modules.parking.vo.FeeRuleHistoryVO;
 import com.jushan.platform.modules.parking.vo.FeeRuleVO;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
+import java.util.List;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -27,9 +31,11 @@ import org.springframework.web.bind.annotation.*;
 public class FeeRuleController {
 
     private final FeeRuleService feeRuleService;
+    private final FeeRuleHistoryService feeRuleHistoryService;
 
-    public FeeRuleController(FeeRuleService feeRuleService) {
+    public FeeRuleController(FeeRuleService feeRuleService, FeeRuleHistoryService feeRuleHistoryService) {
         this.feeRuleService = feeRuleService;
+        this.feeRuleHistoryService = feeRuleHistoryService;
     }
 
     /**
@@ -110,5 +116,26 @@ public class FeeRuleController {
         feeRuleService.updateStatus(id, status);
         log.info("更新收费规则状态成功: ruleId={}, status={}", id, status);
         return R.ok();
+    }
+
+    /**
+     * 查询收费规则历史版本列表。
+     */
+    @GetMapping("/{id}/history")
+    @RequirePermission("fee:read")
+    public R<List<FeeRuleHistoryVO>> history(@PathVariable Long id) {
+        return R.ok(feeRuleHistoryService.listByFeeRuleId(id));
+    }
+
+    /**
+     * 回退到指定历史版本。
+     */
+    @PostMapping("/history/{historyId}/rollback")
+    @RequirePermission("fee:write")
+    public R<FeeRuleVO> rollback(@PathVariable Long historyId) {
+        com.jushan.platform.modules.parking.entity.FeeRule rule = feeRuleHistoryService.rollback(historyId);
+        FeeRuleVO vo = feeRuleService.detail(rule.getId());
+        log.info("收费规则回退成功: historyId={}, ruleId={}", historyId, vo.getId());
+        return R.ok(vo);
     }
 }

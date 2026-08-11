@@ -23,6 +23,9 @@ public class UpdateLaneRequest {
     /** 通道类型：1-入口, 2-出口, 3-双向 */
     private Integer type;
 
+    /** 控闸设备 ID（可选，显式指定本车道用哪台设备控闸） */
+    private Long gateDeviceId;
+
     /** 入口相机 ID（可选） */
     private Long entryCameraId;
 
@@ -39,6 +42,9 @@ public class UpdateLaneRequest {
     private Integer status;
 
     // ==================== getter / setter ====================
+
+    public Long getGateDeviceId() { return gateDeviceId; }
+    public void setGateDeviceId(Long gateDeviceId) { this.gateDeviceId = gateDeviceId; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }

@@ -1,5 +1,7 @@
 package com.jushan.platform.modules.parking.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.platform.modules.parking.entity.FeeRule;
@@ -48,11 +50,14 @@ public class FeeCalculationService {
 
     private final FeeRuleMapper feeRuleMapper;
     private final FeeRuleSegmentMapper feeRuleSegmentMapper;
+    private final ObjectMapper objectMapper;
 
     public FeeCalculationService(FeeRuleMapper feeRuleMapper,
-                                  FeeRuleSegmentMapper feeRuleSegmentMapper) {
+                                  FeeRuleSegmentMapper feeRuleSegmentMapper,
+                                  ObjectMapper objectMapper) {
         this.feeRuleMapper = feeRuleMapper;
         this.feeRuleSegmentMapper = feeRuleSegmentMapper;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -68,7 +73,8 @@ public class FeeCalculationService {
      * @throws BusinessException 无生效规则、负金额、时间异常
      */
     public FeeCalculateResultVO calculate(Long lotId, Long zoneId, String plateNumber,
-                                           String vehicleType, LocalDateTime entryTime, LocalDateTime exitTime) {
+                                           String vehicleType, String plateColor,
+                                           LocalDateTime entryTime, LocalDateTime exitTime) {
         if (entryTime == null || exitTime == null) {
             throw new BusinessException(CommonErrorCode.PARAM_ERROR, "入场时间和出场时间不能为空");
         }
@@ -76,52 +82,24 @@ public class FeeCalculationService {
             throw new BusinessException(CommonErrorCode.PARAM_ERROR, "出场时间必须晚于入场时间");
         }
 
-        // 1. 查找生效规则
-        FeeRule rule = findActiveRule(lotId, zoneId);
-        if (rule == null) {
-            log.warn("停车场无生效收费规则，计费失败: lotId={}, zoneId={}", lotId, zoneId);
-            throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "停车场未配置生效的收费规则");
-        }
+        // 统一复用整数分核心计算
+        int feeCents = calculateFeeCents(lotId, zoneId, vehicleType, plateColor, entryTime, exitTime);
+        FeeRule rule = findActiveRuleForBilling(lotId, zoneId, vehicleType, plateColor, entryTime, LocalDateTime.now());
 
-        // 2. 计算停车时长（分钟）
         long parkingDurationMinutes = Duration.between(entryTime, exitTime).toMinutes();
         if (parkingDurationMinutes <= 0) {
-            parkingDurationMinutes = 1; // 最少按1分钟计
+            parkingDurationMinutes = 1;
         }
 
-        // 3. 按计费模式计算
-        BigDecimal originalAmount;
+        // 元展示（保留两位）
+        BigDecimal originalAmount = BigDecimal.valueOf(feeCents).movePointLeft(2).setScale(SCALE, ROUNDING_MODE);
         List<FeeCalculateResultVO.BreakdownItem> breakdown = new ArrayList<>();
+        breakdown.add(new FeeCalculateResultVO.BreakdownItem(
+                billingModeLabel(rule.getBillingMode()),
+                (int) parkingDurationMinutes,
+                1,
+                originalAmount));
 
-        switch (rule.getBillingMode()) {
-            case FeeRule.BILLING_MODE_TIME:
-                originalAmount = calculateTimeBased(rule, parkingDurationMinutes, breakdown);
-                break;
-            case FeeRule.BILLING_MODE_PER_ENTRY:
-                originalAmount = calculatePerEntry(rule, breakdown);
-                break;
-            case FeeRule.BILLING_MODE_TIERED:
-                originalAmount = calculateTiered(rule, parkingDurationMinutes, breakdown);
-                break;
-            case FeeRule.BILLING_MODE_TIME_SEGMENT:
-                originalAmount = calculateTimeSegment(rule, entryTime, exitTime, breakdown);
-                break;
-            default:
-                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "不支持的计费模式: " + rule.getBillingMode());
-        }
-
-        // 4. 应用封顶
-        originalAmount = applyCap(rule, originalAmount, parkingDurationMinutes);
-
-        // 5. 确保非负
-        if (originalAmount.compareTo(ZERO) < 0) {
-            originalAmount = ZERO;
-        }
-
-        // 6. 分位四舍五入（转为整数分）
-        BigDecimal payableAmount = originalAmount.setScale(0, ROUNDING_MODE);
-
-        // 7. 构建结果
         FeeCalculateResultVO result = new FeeCalculateResultVO();
         result.setLotId(lotId);
         result.setZoneId(zoneId);
@@ -132,13 +110,13 @@ public class FeeCalculationService {
         result.setBillingDuration((int) Math.max(0, parkingDurationMinutes - result.getFreeMinutes()));
         result.setOriginalAmount(originalAmount);
         result.setDiscountAmount(ZERO);
-        result.setPayableAmount(payableAmount);
+        result.setPayableAmount(originalAmount);
         result.setFeeRuleId(rule.getId());
         result.setFeeRuleName(rule.getName());
         result.setBreakdown(breakdown);
 
         log.info("费用计算完成: lotId={}, plateNumber={}, duration={}min, amount={}分, rule={}",
-                lotId, plateNumber, parkingDurationMinutes, payableAmount, rule.getName());
+                lotId, plateNumber, parkingDurationMinutes, feeCents, rule.getName());
 
         return result;
     }
@@ -182,6 +160,42 @@ public class FeeCalculationService {
      * @return 费用（分），非负
      */
     public int calculateFeeCents(Long lotId, Long zoneId, LocalDateTime entryTime, LocalDateTime exitTime) {
+        return calculateFeeCents(lotId, zoneId, null, null, entryTime, exitTime);
+    }
+
+    /**
+     * 计算停车费用（整数分，可指定区域、车型、车牌颜色）。
+     *
+     * @param lotId       车场 ID
+     * @param zoneId      区域 ID（可选）
+     * @param vehicleType 车辆类型（可选）
+     * @param plateColor  车牌颜色（可选）
+     * @param entryTime   入场时间
+     * @param exitTime    出场时间
+     * @return 费用（分），非负
+     */
+    public int calculateFeeCents(Long lotId, Long zoneId, String vehicleType, String plateColor,
+                                  LocalDateTime entryTime, LocalDateTime exitTime) {
+        return calculateFeeCents(lotId, zoneId, vehicleType, plateColor, entryTime, exitTime, null);
+    }
+
+    /**
+     * 计算停车费用（整数分，支持传入入场快照）。
+     * <p>
+     * 当 snapshotJson 不为空且规则 effectMode 为"仅新入场生效"时，使用快照规则计费；
+     * 其他情况使用当前生效规则。
+     *
+     * @param lotId        车场 ID
+     * @param zoneId       区域 ID（可选）
+     * @param vehicleType  车辆类型（可选）
+     * @param plateColor   车牌颜色（可选）
+     * @param entryTime    入场时间
+     * @param exitTime     出场时间
+     * @param snapshotJson 入场快照 JSON（可选）
+     * @return 费用（分），非负
+     */
+    public int calculateFeeCents(Long lotId, Long zoneId, String vehicleType, String plateColor,
+                                  LocalDateTime entryTime, LocalDateTime exitTime, String snapshotJson) {
         if (entryTime == null || exitTime == null) {
             throw new BusinessException(CommonErrorCode.PARAM_ERROR, "入场时间或出场时间为空");
         }
@@ -189,9 +203,21 @@ public class FeeCalculationService {
             throw new BusinessException(CommonErrorCode.PARAM_ERROR, "出场时间早于入场时间");
         }
 
-        FeeRule rule = findActiveRuleForBilling(lotId, zoneId, entryTime, LocalDateTime.now());
+        FeeRule rule;
+        if (snapshotJson != null && !snapshotJson.isBlank()) {
+            rule = resolveSnapshotRule(snapshotJson, entryTime);
+        } else {
+            rule = null;
+        }
+
+        // 未使用快照或快照解析失败，回退到当前生效规则
         if (rule == null) {
-            log.warn("停车场无生效收费规则，计费失败: lotId={}, zoneId={}", lotId, zoneId);
+            rule = findActiveRuleForBilling(lotId, zoneId, vehicleType, plateColor, entryTime, LocalDateTime.now());
+        }
+
+        if (rule == null) {
+            log.warn("停车场无生效收费规则，计费失败: lotId={}, zoneId={}, vehicleType={}, plateColor={}",
+                    lotId, zoneId, vehicleType, plateColor);
             throw new BusinessException(CommonErrorCode.BUSINESS_ERROR, "停车场未配置生效的收费规则");
         }
 
@@ -215,6 +241,31 @@ public class FeeCalculationService {
 
         log.info("计费完成(分): lotId={} ruleId={} feeCents={}", lotId, rule.getId(), fee);
         return fee;
+    }
+
+    /**
+     * 从入场快照中解析规则。
+     * <p>
+     * 仅当快照规则的 effectMode 为 {@link FeeRule#EFFECT_NEW_ENTRY_ONLY} 时返回快照规则；
+     * 其他情况返回 null，由调用方回退到当前生效规则。
+     */
+    private FeeRule resolveSnapshotRule(String snapshotJson, LocalDateTime entryTime) {
+        try {
+            Map<String, Object> snapshot = objectMapper.readValue(snapshotJson, Map.class);
+            FeeRule snapshotRule = objectMapper.convertValue(snapshot.get("rule"), FeeRule.class);
+            if (snapshotRule == null) {
+                return null;
+            }
+            Integer effectMode = snapshotRule.getEffectMode();
+            if (effectMode != null && effectMode == FeeRule.EFFECT_NEW_ENTRY_ONLY) {
+                return snapshotRule;
+            }
+            // 立即生效/定时生效：按当前规则（快照仅作记录）
+            return null;
+        } catch (JsonProcessingException e) {
+            log.warn("计费规则快照解析失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -285,10 +336,11 @@ public class FeeCalculationService {
         }
 
         int dailyCap = toCents(rule.getDailyCap());
+        int nightCap = toCents(rule.getNightCap());
         if (rule.getCrossDayMode() != null && rule.getCrossDayMode() == FeeRule.CROSS_DAY_CONTINUOUS) {
-            return applyRollingWindowCap(intervals, dailyCap, chargeStart);
+            return applyRollingWindowCap(intervals, dailyCap, nightCap, chargeStart);
         }
-        return applyDailyCapCents(intervals, dailyCap);
+        return applyDailyCapCents(intervals, dailyCap, nightCap);
     }
 
     /**
@@ -299,11 +351,21 @@ public class FeeCalculationService {
      *   <li>定时生效：当前时间须已到达 effectiveStart</li>
      * </ul>
      */
-    private FeeRule findActiveRuleForBilling(Long lotId, Long zoneId, LocalDateTime entryTime, LocalDateTime now) {
+    /**
+     * 查找当前生效规则（供入场快照、出场计费使用）。
+     */
+    public FeeRule findActiveRuleForSnapshot(Long lotId, Long zoneId, String vehicleType, String plateColor,
+                                              LocalDateTime entryTime, LocalDateTime now) {
+        return findActiveRuleForBilling(lotId, zoneId, vehicleType, plateColor, entryTime, now);
+    }
+
+    private FeeRule findActiveRuleForBilling(Long lotId, Long zoneId, String vehicleType, String plateColor,
+                                              LocalDateTime entryTime, LocalDateTime now) {
         if (zoneId != null) {
             List<FeeRule> zoneRules = feeRuleMapper.selectByLotIdAndZoneId(lotId, zoneId);
             FeeRule active = zoneRules.stream()
                     .filter(r -> isRuleActiveForBilling(r, entryTime, now))
+                    .filter(r -> matchesVehicleDimensions(r, vehicleType, plateColor))
                     .max((a, b) -> Integer.compare(
                             a.getPriority() != null ? a.getPriority() : 0,
                             b.getPriority() != null ? b.getPriority() : 0))
@@ -315,10 +377,41 @@ public class FeeCalculationService {
         List<FeeRule> lotRules = feeRuleMapper.selectByLotIdAndZoneId(lotId, null);
         return lotRules.stream()
                 .filter(r -> isRuleActiveForBilling(r, entryTime, now))
+                .filter(r -> matchesVehicleDimensions(r, vehicleType, plateColor))
                 .max((a, b) -> Integer.compare(
                         a.getPriority() != null ? a.getPriority() : 0,
                         b.getPriority() != null ? b.getPriority() : 0))
                 .orElse(null);
+    }
+
+    /**
+     * 判断规则是否匹配车型/车牌颜色维度。
+     * <p>
+     * 规则字段为 NULL 或空字符串表示适用所有；否则要求传入值在规则值列表中。
+     */
+    private boolean matchesVehicleDimensions(FeeRule rule, String vehicleType, String plateColor) {
+        if (rule == null) {
+            return false;
+        }
+        if (rule.getVehicleType() != null && !rule.getVehicleType().isBlank()) {
+            if (vehicleType == null || vehicleType.isBlank()) {
+                return false;
+            }
+            List<String> allowedTypes = List.of(rule.getVehicleType().split(","));
+            if (allowedTypes.stream().map(String::trim).noneMatch(vehicleType::equalsIgnoreCase)) {
+                return false;
+            }
+        }
+        if (rule.getPlateColor() != null && !rule.getPlateColor().isBlank()) {
+            if (plateColor == null || plateColor.isBlank()) {
+                return false;
+            }
+            List<String> allowedColors = List.of(rule.getPlateColor().split(","));
+            if (allowedColors.stream().map(String::trim).noneMatch(plateColor::equalsIgnoreCase)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -401,10 +494,11 @@ public class FeeCalculationService {
     }
 
     /**
-     * 按自然日分段封顶（0点重置）：费用按午夜拆分，每日费用 capped at dailyCap。
+     * 按自然日分段封顶（0点重置）：费用按午夜拆分，每日费用 capped at dailyCap；
+     * 若该日包含夜间时段（22:00-06:00），则取 min(dailyCap, nightCap)。
      */
-    private int applyDailyCapCents(List<ChargeInterval> intervals, int dailyCap) {
-        if (dailyCap <= 0) {
+    private int applyDailyCapCents(List<ChargeInterval> intervals, int dailyCap, int nightCap) {
+        if (dailyCap <= 0 && nightCap <= 0) {
             return sumIntervalCosts(intervals);
         }
         Map<LocalDate, Long> dayCosts = new HashMap<>();
@@ -413,17 +507,24 @@ public class FeeCalculationService {
                     (date, cost) -> dayCosts.merge(date, (long) cost, Long::sum));
         }
         long total = 0;
-        for (long dayCost : dayCosts.values()) {
-            total += Math.min(dayCost, dailyCap);
+        for (Map.Entry<LocalDate, Long> entry : dayCosts.entrySet()) {
+            LocalDate date = entry.getKey();
+            long dayCost = entry.getValue();
+            int cap = dailyCap;
+            if (nightCap > 0 && dayContainsNight(date)) {
+                cap = cap > 0 ? Math.min(cap, nightCap) : nightCap;
+            }
+            total += cap > 0 ? Math.min(dayCost, cap) : dayCost;
         }
         return (int) total;
     }
 
     /**
-     * 连续计费封顶：从计费起点每 24 小时一个窗口，每窗费用 capped at dailyCap。
+     * 连续计费封顶：从计费起点每 24 小时一个窗口，每窗费用 capped at dailyCap；
+     * 若该窗口包含夜间时段，则取 min(dailyCap, nightCap)。
      */
-    private int applyRollingWindowCap(List<ChargeInterval> intervals, int dailyCap, LocalDateTime chargeStart) {
-        if (dailyCap <= 0) {
+    private int applyRollingWindowCap(List<ChargeInterval> intervals, int dailyCap, int nightCap, LocalDateTime chargeStart) {
+        if (dailyCap <= 0 && nightCap <= 0) {
             return sumIntervalCosts(intervals);
         }
         Map<Integer, Long> windowCosts = new HashMap<>();
@@ -452,10 +553,35 @@ public class FeeCalculationService {
             }
         }
         long total = 0;
-        for (long windowCost : windowCosts.values()) {
-            total += Math.min(windowCost, dailyCap);
+        for (Map.Entry<Integer, Long> entry : windowCosts.entrySet()) {
+            int windowIndex = entry.getKey();
+            long windowCost = entry.getValue();
+            int cap = dailyCap;
+            if (nightCap > 0 && windowContainsNight(chargeStart, windowIndex)) {
+                cap = cap > 0 ? Math.min(cap, nightCap) : nightCap;
+            }
+            total += cap > 0 ? Math.min(windowCost, cap) : windowCost;
         }
         return (int) total;
+    }
+
+    /**
+     * 判断某自然日是否包含夜间计费时段（22:00-06:00）。
+     */
+    private boolean dayContainsNight(LocalDate date) {
+        // 自然日 22:00 到次日 06:00 跨越两天，这里认为每天都包含夜间
+        return true;
+    }
+
+    /**
+     * 判断连续计费窗口是否包含夜间时段（22:00-06:00）。
+     */
+    private boolean windowContainsNight(LocalDateTime chargeStart, int windowIndex) {
+        LocalDateTime windowStart = chargeStart.plusMinutes((long) windowIndex * 24 * 60);
+        LocalDateTime windowEnd = windowStart.plusMinutes(24 * 60);
+        LocalDateTime nightStart = windowStart.toLocalDate().atTime(22, 0);
+        LocalDateTime nightEnd = windowStart.toLocalDate().plusDays(1).atTime(6, 0);
+        return nightStart.isBefore(windowEnd) && nightEnd.isAfter(windowStart);
     }
 
     private int windowIndexOf(LocalDateTime time, LocalDateTime chargeStart) {
@@ -499,6 +625,19 @@ public class FeeCalculationService {
 
     private LocalDateTime minTime(LocalDateTime a, LocalDateTime b) {
         return a.isBefore(b) ? a : b;
+    }
+
+    private String billingModeLabel(Integer billingMode) {
+        if (billingMode == null) {
+            return "计费";
+        }
+        return switch (billingMode) {
+            case FeeRule.BILLING_MODE_TIME -> "按时计费";
+            case FeeRule.BILLING_MODE_PER_ENTRY -> "按次计费";
+            case FeeRule.BILLING_MODE_TIERED -> "阶梯计费";
+            case FeeRule.BILLING_MODE_TIME_SEGMENT -> "分时段计费";
+            default -> "计费";
+        };
     }
 
     private int positiveOrZero(Integer value) {

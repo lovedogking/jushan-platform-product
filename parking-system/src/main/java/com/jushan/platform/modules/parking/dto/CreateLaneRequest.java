@@ -36,6 +36,9 @@ public class CreateLaneRequest {
     /** 出口相机 ID（可选） */
     private Long exitCameraId;
 
+    /** 控闸设备 ID（可选，显式指定本车道用哪台设备控闸） */
+    private Long gateDeviceId;
+
     /** 潮汐模式（可选，双向通道时有效） */
     private Integer tideMode;
 
@@ -58,6 +61,9 @@ public class CreateLaneRequest {
 
     public Integer getType() { return type; }
     public void setType(Integer type) { this.type = type; }
+
+    public Long getGateDeviceId() { return gateDeviceId; }
+    public void setGateDeviceId(Long gateDeviceId) { this.gateDeviceId = gateDeviceId; }
 
     public Long getEntryCameraId() { return entryCameraId; }
     public void setEntryCameraId(Long entryCameraId) { this.entryCameraId = entryCameraId; }

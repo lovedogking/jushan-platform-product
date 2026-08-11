@@ -178,6 +178,7 @@ public class ParkingLaneService {
         lane.setName(request.getName().trim());
         lane.setLaneNo(laneNo);
         lane.setType(request.getType());
+        lane.setGateDeviceId(request.getGateDeviceId());
         lane.setEntryCameraId(request.getEntryCameraId());
         lane.setExitCameraId(request.getExitCameraId());
         lane.setTideMode(request.getTideMode());
@@ -240,6 +241,10 @@ public class ParkingLaneService {
         }
         if (request.getExitCameraId() != null) {
             wrapper.set(ParkingLane::getExitCameraId, request.getExitCameraId());
+            hasUpdate = true;
+        }
+        if (request.getGateDeviceId() != null) {
+            wrapper.set(ParkingLane::getGateDeviceId, request.getGateDeviceId());
             hasUpdate = true;
         }
         if (request.getTideMode() != null) {
@@ -427,6 +432,7 @@ public class ParkingLaneService {
         vo.setType(lane.getType());
         vo.setEntryCameraId(lane.getEntryCameraId());
         vo.setExitCameraId(lane.getExitCameraId());
+        vo.setGateDeviceId(lane.getGateDeviceId());
         vo.setStatus(lane.getStatus());
         vo.setTideMode(lane.getTideMode());
         vo.setCameraMode(lane.getCameraMode());

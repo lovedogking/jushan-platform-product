@@ -2,7 +2,9 @@ package com.jushan.platform.modules.h5.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jushan.common.R;
+import com.jushan.common.auth.TenantContext;
 import com.jushan.platform.modules.booth.event.PlateStandardizer;
+import com.jushan.platform.modules.h5.dto.H5FeeQueryRequest;
 import com.jushan.platform.modules.h5.vo.H5FeeVO;
 import com.jushan.platform.modules.parking.entity.ParkingLot;
 import com.jushan.platform.modules.parking.entity.ParkingOrder;
@@ -10,11 +12,15 @@ import com.jushan.platform.modules.parking.entity.ParkingRecord;
 import com.jushan.platform.modules.parking.mapper.ParkingLotMapper;
 import com.jushan.platform.modules.parking.mapper.ParkingOrderMapper;
 import com.jushan.platform.modules.parking.mapper.ParkingRecordMapper;
-import com.jushan.platform.modules.parking.service.BillingEngine;
+import com.jushan.platform.modules.parking.service.FeeCalculationService;
 import com.jushan.platform.modules.parking.service.ParkingOrderService;
+import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,18 +48,21 @@ public class H5FeeController {
     private final ParkingLotMapper lotMapper;
     private final ParkingOrderMapper orderMapper;
     private final ParkingOrderService orderService;
-    private final BillingEngine billingEngine;
+    private final FeeCalculationService feeCalculationService;
+    private final ParkingSessionService parkingSessionService;
 
     public H5FeeController(ParkingRecordMapper recordMapper,
                            ParkingLotMapper lotMapper,
                            ParkingOrderMapper orderMapper,
                            ParkingOrderService orderService,
-                           BillingEngine billingEngine) {
+                           FeeCalculationService feeCalculationService,
+                           ParkingSessionService parkingSessionService) {
         this.recordMapper = recordMapper;
         this.lotMapper = lotMapper;
         this.orderMapper = orderMapper;
         this.orderService = orderService;
-        this.billingEngine = billingEngine;
+        this.feeCalculationService = feeCalculationService;
+        this.parkingSessionService = parkingSessionService;
     }
 
     /**
@@ -67,6 +76,33 @@ public class H5FeeController {
      */
     @GetMapping("/query")
     public R<List<H5FeeVO>> queryByPlate(@RequestParam("plate") String rawPlate) {
+        return queryByPlateInternal(rawPlate);
+    }
+
+    /**
+     * 按车牌查询停车费用（POST，避免部分环境 GET 中文参数乱码）。
+     */
+    @PostMapping("/query")
+    public R<List<H5FeeVO>> queryByPlatePost(@Valid @RequestBody H5FeeQueryRequest request) {
+        return queryByPlateInternal(request.getPlate());
+    }
+
+    private R<List<H5FeeVO>> queryByPlateInternal(String rawPlate) {
+        // H5 免登录接口：临时以平台用户身份执行，跳过租户行级过滤
+        TenantContext.Snapshot previous = TenantContext.get();
+        TenantContext.set(new TenantContext.Snapshot(null, null, TenantContext.USER_TYPE_PLATFORM, null, null));
+        try {
+            return doQueryByPlate(rawPlate);
+        } finally {
+            if (previous != null) {
+                TenantContext.set(previous);
+            } else {
+                TenantContext.clear();
+            }
+        }
+    }
+
+    private R<List<H5FeeVO>> doQueryByPlate(String rawPlate) {
         // 1. 标准化车牌
         String plate = PlateStandardizer.normalize(rawPlate);
         if (plate == null || plate.isEmpty()) {
@@ -100,9 +136,15 @@ public class H5FeeController {
     // ==================== 私有方法 ====================
 
     private H5FeeVO buildFeeVo(ParkingRecord record, LocalDateTime now) {
-        // 计费
-        int feeCents = billingEngine.calculateFee(
-                record.getParkingLotId(), record.getEntryTime(), now);
+        // 计费（优先使用 ParkingSession 快照）
+        com.jushan.platform.modules.parking.vo.ParkingSessionVO sessionVO =
+                parkingSessionService.getInByPlateAndLot(record.getStandardizedPlate(), record.getParkingLotId());
+        String snapshotJson = sessionVO != null ? sessionVO.getFeeRuleSnapshot() : null;
+        int feeCents = feeCalculationService.calculateFeeCents(
+                record.getParkingLotId(), null,
+                sessionVO != null ? sessionVO.getVehicleType() : null,
+                sessionVO != null ? sessionVO.getPlateColor() : null,
+                record.getEntryTime(), now, snapshotJson);
         long durationMinutes = Duration.between(record.getEntryTime(), now).toMinutes();
 
         // 查车场名称

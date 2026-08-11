@@ -90,7 +90,7 @@ export function updateParkingLotCapacity(id: number, data: {
 export interface ParkingLaneVO {
   id: number; name: string; laneNo: string; lotId: number; lotName: string
   type: number; typeLabel?: string; gateMode: string; gateModeLabel?: string
-  status: number; createdAt: string
+  status: number; gateDeviceId?: number; createdAt: string
 }
 
 export interface LanePageQuery {
@@ -107,6 +107,7 @@ export interface ParkingLaneCreateCmd {
   laneNo: string
   type: number
   gateMode?: string
+  gateDeviceId?: number
 }
 
 export interface ParkingLaneUpdateCmd {
@@ -114,6 +115,7 @@ export interface ParkingLaneUpdateCmd {
   laneNo?: string
   type?: number
   gateMode?: string
+  gateDeviceId?: number
 }
 
 export function createParkingLane(data: ParkingLaneCreateCmd): Promise<ParkingLaneVO> {
@@ -186,6 +188,7 @@ export interface DeviceCreateCmd {
   code: string
   deviceSn: string
   deviceType: string
+  capabilities?: string
   laneId?: number | null
   recognitionDirection?: number
   ipAddress?: string
@@ -201,6 +204,7 @@ export interface DeviceUpdateCmd {
   modelId?: number
   deviceSn?: string
   deviceType?: string
+  capabilities?: string
   laneId?: number | null
   recognitionDirection?: number
   ipAddress?: string

@@ -17,6 +17,7 @@ Jushan Platform 停车管理平台，采用「多模块单体后端 + 独立设�
 | `parking-boot` | 应用启动与全局配置 |
 | `device-access` | 设备接入服务（独立多模块 Maven：adapter/api/common/event/mqtt/registry/starter） |
 | `frontend` | 岗亭端前端（Vue3 + TS + Vite） |
+| `h5-user` | H5 车主端（Vue3 + TS + Vite + Vant）：查费/缴费 |
 | `miniapp` | 小程序端（预留） |
 
 **技术栈**：Java 21 · Spring Boot 3.5.16 · MyBatis-Plus 3.5.9 · Flyway · MySQL · Hutool；前端 Vue 3.4 · TypeScript 5.4 · Vite 5.2 · Pinia · ant-design-vue 4.1 · axios。

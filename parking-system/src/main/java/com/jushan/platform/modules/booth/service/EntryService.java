@@ -1,15 +1,13 @@
 package com.jushan.platform.modules.booth.service;
-import com.jushan.platform.modules.miniapp.service.FixedSpaceService;import com.jushan.platform.modules.parking.service.ParkingOrderService;import com.jushan.platform.modules.parking.service.BillingEngine;
+import com.jushan.platform.modules.miniapp.service.FixedSpaceService;
+import com.jushan.platform.modules.parking.service.ParkingOrderService;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
-import com.jushan.platform.modules.parking.entity.BillingRule;
-import com.jushan.platform.modules.parking.entity.BillingRuleVersion;
 import com.jushan.platform.modules.parking.entity.ParkingLot;
 import com.jushan.platform.modules.parking.entity.ParkingOrder;
 import com.jushan.platform.modules.parking.entity.ParkingRecord;
 import com.jushan.platform.modules.booth.event.RecognitionEventPayload;
-import com.jushan.platform.modules.parking.mapper.BillingRuleMapper;
 import com.jushan.platform.modules.parking.mapper.ParkingLotMapper;
 import com.jushan.platform.modules.parking.mapper.ParkingRecordMapper;
 import com.jushan.platform.modules.device.service.MonitorAlertService;
@@ -61,39 +59,33 @@ public class EntryService {
 
     private final ParkingRecordMapper recordMapper;
     private final ParkingLotMapper parkingLotMapper;
-    private final BillingRuleMapper ruleMapper;
     private final DuplicateEntryHandler duplicateEntryHandler;
     private final BoothWebSocketPublisher boothWebSocketPublisher;
     private final ParkingSessionService parkingSessionService;
     private final FixedSpaceService fixedSpaceService;
     private final ParkingOrderService parkingOrderService;
     private final VehicleTypeDecisionService vehicleTypeDecisionService;
-    private final BillingEngine billingEngine;
     private final VehicleListService vehicleListService;
     private final MonitorAlertService monitorAlertService;
 
     public EntryService(ParkingRecordMapper recordMapper,
                         ParkingLotMapper parkingLotMapper,
-                        BillingRuleMapper ruleMapper,
                         DuplicateEntryHandler duplicateEntryHandler,
                         BoothWebSocketPublisher boothWebSocketPublisher,
                         ParkingSessionService parkingSessionService,
                         FixedSpaceService fixedSpaceService,
                         ParkingOrderService parkingOrderService,
                         VehicleTypeDecisionService vehicleTypeDecisionService,
-                        BillingEngine billingEngine,
                         VehicleListService vehicleListService,
                         MonitorAlertService monitorAlertService) {
         this.recordMapper = recordMapper;
         this.parkingLotMapper = parkingLotMapper;
-        this.ruleMapper = ruleMapper;
         this.duplicateEntryHandler = duplicateEntryHandler;
         this.boothWebSocketPublisher = boothWebSocketPublisher;
         this.parkingSessionService = parkingSessionService;
         this.fixedSpaceService = fixedSpaceService;
         this.parkingOrderService = parkingOrderService;
         this.vehicleTypeDecisionService = vehicleTypeDecisionService;
-        this.billingEngine = billingEngine;
         this.vehicleListService = vehicleListService;
         this.monitorAlertService = monitorAlertService;
     }
@@ -139,11 +131,6 @@ public class EntryService {
         } else {
             // 2b. 无活跃记录 → 正常创建
             record = createParkingRecord(payload, standardizedPlate);
-        }
-
-        // 2d. 新记录入场时快照当前生效的计费规则（NEW_ENTRY_ONLY 使用）
-        if (isNewRecordCreated(record, existingRecord)) {
-            snapshotRuleOnEntry(record);
         }
 
         // 2c. 检查固定车位绑定（MQ 消费者路径无车辆类型判定服务）
@@ -366,29 +353,4 @@ public class EntryService {
         return !result.getId().equals(existingRecord.getId());
     }
 
-    /**
-     * 入场时快照当前生效的计费规则。
-     * <p>
-     * 若当前激活规则为 NEW_ENTRY_ONLY，则保存规则快照到 parking_record，
-     * 供出场计费时使用（已在场车辆按入场时的规则计算）。
-     */
-    private void snapshotRuleOnEntry(ParkingRecord record) {
-        try {
-            BillingRuleVersion activeVersion = billingEngine.findActiveVersion(record.getParkingLotId());
-            if (activeVersion == null) {
-                log.info("入场无生效计费规则，跳过快照: recordId={}", record.getId());
-                return;
-            }
-            BillingRule rule = ruleMapper.selectById(activeVersion.getRuleId());
-            if (rule == null) {
-                return;
-            }
-            String snapshot = billingEngine.buildSnapshot(activeVersion, rule.getRuleType());
-            record.setRuleSnapshot(snapshot);
-            recordMapper.updateById(record);
-            log.info("入场规则快照已保存: recordId={} effectType={}", record.getId(), rule.getEffectType());
-        } catch (Exception e) {
-            log.warn("入场规则快照失败（不影响入场）: recordId={} error={}", record.getId(), e.getMessage());
-        }
-    }
 }

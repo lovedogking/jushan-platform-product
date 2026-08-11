@@ -26,6 +26,9 @@ public class FeeCalculateCmd {
     @NotBlank(message = "车辆类型不能为空")
     private String vehicleType;
 
+    /** 车牌颜色：BLUE/GREEN/YELLOW/BLACK/WHITE */
+    private String plateColor;
+
     @NotNull(message = "入场时间不能为空")
     private LocalDateTime entryTime;
 

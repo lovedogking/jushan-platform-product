@@ -117,12 +117,31 @@
           </a-row>
         </template>
         <a-row :gutter="16">
-          <a-col :span="8">
+          <a-col :span="6">
             <a-form-item label="生效开始时间"><a-date-picker v-model:value="form.effectiveStart" show-time style="width:100%" placeholder="选填" /></a-form-item>
           </a-col>
-          <a-col :span="8">
+          <a-col :span="6">
             <a-form-item label="生效结束时间"><a-date-picker v-model:value="form.effectiveEnd" show-time style="width:100%" placeholder="选填" /></a-form-item>
           </a-col>
+          <a-col :span="6">
+            <a-form-item label="跨天计费规则">
+              <a-select v-model:value="form.crossDayMode">
+                <a-select-option :value="1">按自然日分段</a-select-option>
+                <a-select-option :value="2">连续计费（24h窗口）</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="6">
+            <a-form-item label="生效方式">
+              <a-select v-model:value="form.effectMode">
+                <a-select-option :value="1">立即生效</a-select-option>
+                <a-select-option :value="2">仅新入场生效</a-select-option>
+                <a-select-option :value="3">定时生效</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-row :gutter="16">
           <a-col :span="8">
             <a-form-item label="优先级"><a-input-number v-model:value="form.priority" :min="0" style="width:100%" placeholder="越大越优先" /></a-form-item>
           </a-col>
@@ -237,6 +256,7 @@ const form = reactive({
   freeMinutes: 0, unitMinutes: 60, firstPeriodMinutes: 0,
   firstPeriodPrice: undefined as number | undefined, subsequentPrice: undefined as number | undefined,
   dailyCap: undefined as number | undefined, maxAmount: undefined as number | undefined, nightCap: undefined as number | undefined,
+  crossDayMode: 1, effectMode: 1,
   priority: 0, effectiveStart: null as Dayjs | null, effectiveEnd: null as Dayjs | null,
 })
 
@@ -248,6 +268,7 @@ function showAddModal() {
     freeMinutes: 0, unitMinutes: 60, firstPeriodMinutes: 0,
     firstPeriodPrice: undefined, subsequentPrice: undefined,
     dailyCap: undefined, maxAmount: undefined, nightCap: undefined,
+    crossDayMode: 1, effectMode: 1,
     priority: 0, effectiveStart: null, effectiveEnd: null,
   })
   formVisible.value = true
@@ -262,6 +283,7 @@ function showEditModal(record: any) {
     freeMinutes: record.freeMinutes, unitMinutes: record.unitMinutes, firstPeriodMinutes: record.firstPeriodMinutes || 0,
     firstPeriodPrice: record.firstPeriodPrice, subsequentPrice: record.subsequentPrice,
     dailyCap: record.dailyCap, maxAmount: record.maxAmount, nightCap: record.nightCap,
+    crossDayMode: record.crossDayMode ?? 1, effectMode: record.effectMode ?? 1,
     priority: record.priority || 0,
     effectiveStart: record.effectiveStart ? dayjs(record.effectiveStart) : null,
     effectiveEnd: record.effectiveEnd ? dayjs(record.effectiveEnd) : null,
@@ -290,6 +312,8 @@ async function handleSave() {
       dailyCap: form.dailyCap,
       maxAmount: form.maxAmount,
       nightCap: form.nightCap,
+      crossDayMode: form.crossDayMode,
+      effectMode: form.effectMode,
       priority: form.priority,
       status: 1,
       effectiveStart: form.effectiveStart ? dayjs(form.effectiveStart).format('YYYY-MM-DD HH:mm:ss') : undefined,

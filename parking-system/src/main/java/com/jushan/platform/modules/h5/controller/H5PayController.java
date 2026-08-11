@@ -1,6 +1,7 @@
 package com.jushan.platform.modules.h5.controller;
 
 import com.jushan.common.R;
+import com.jushan.common.auth.TenantContext;
 import com.jushan.platform.modules.h5.dto.H5PayNotifyRequest;
 import com.jushan.platform.modules.h5.dto.H5PayPrepareRequest;
 import com.jushan.platform.modules.h5.vo.H5PayResultVO;
@@ -10,9 +11,10 @@ import com.jushan.platform.modules.parking.entity.ParkingRecord;
 import com.jushan.platform.modules.parking.mapper.ParkingLotMapper;
 import com.jushan.platform.modules.parking.mapper.ParkingOrderMapper;
 import com.jushan.platform.modules.parking.mapper.ParkingRecordMapper;
-import com.jushan.platform.modules.parking.service.BillingEngine;
+import com.jushan.platform.modules.parking.service.FeeCalculationService;
 import com.jushan.platform.modules.parking.service.MockPaymentService;
 import com.jushan.platform.modules.parking.service.ParkingOrderService;
+import com.jushan.platform.modules.parking.service.ParkingSessionService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,12 +28,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * H5 支付控制器。
  * <p>
  * 提供 H5 停车缴费的预下单、状态查询和模拟支付确认能力。
- * 100% 复用现有 ParkingOrderService / MockPaymentService / BillingEngine。
+ * 复用现有 ParkingOrderService / MockPaymentService，计费走 FeeCalculationService（BillingEngine 已移除）。
  *
  * @author Jushan Platform
  * @since 1.0.0
@@ -53,20 +56,23 @@ public class H5PayController {
     private final ParkingLotMapper lotMapper;
     private final ParkingOrderService orderService;
     private final MockPaymentService mockPaymentService;
-    private final BillingEngine billingEngine;
+    private final FeeCalculationService feeCalculationService;
+    private final ParkingSessionService parkingSessionService;
 
     public H5PayController(ParkingOrderMapper orderMapper,
                            ParkingRecordMapper recordMapper,
                            ParkingLotMapper lotMapper,
                            ParkingOrderService orderService,
                            MockPaymentService mockPaymentService,
-                           BillingEngine billingEngine) {
+                           FeeCalculationService feeCalculationService,
+                           ParkingSessionService parkingSessionService) {
         this.orderMapper = orderMapper;
         this.recordMapper = recordMapper;
         this.lotMapper = lotMapper;
         this.orderService = orderService;
         this.mockPaymentService = mockPaymentService;
-        this.billingEngine = billingEngine;
+        this.feeCalculationService = feeCalculationService;
+        this.parkingSessionService = parkingSessionService;
     }
 
     /**
@@ -79,6 +85,10 @@ public class H5PayController {
      */
     @PostMapping("/prepare")
     public R<H5PayResultVO> prepare(@Valid @RequestBody H5PayPrepareRequest request) {
+        return withPlatformContext(() -> doPrepare(request));
+    }
+
+    private R<H5PayResultVO> doPrepare(H5PayPrepareRequest request) {
         // 1. 查询订单
         ParkingOrder order = orderMapper.selectById(request.getOrderId());
         if (order == null) {
@@ -106,8 +116,14 @@ public class H5PayController {
 
         // 4. 重新计费（防止费用过期）
         LocalDateTime now = LocalDateTime.now();
-        int feeCents = billingEngine.calculateFee(
-                record.getParkingLotId(), record.getEntryTime(), now);
+        com.jushan.platform.modules.parking.vo.ParkingSessionVO sessionVO =
+                parkingSessionService.getInByPlateAndLot(record.getStandardizedPlate(), record.getParkingLotId());
+        String snapshotJson = sessionVO != null ? sessionVO.getFeeRuleSnapshot() : null;
+        int feeCents = feeCalculationService.calculateFeeCents(
+                record.getParkingLotId(), null,
+                sessionVO != null ? sessionVO.getVehicleType() : null,
+                sessionVO != null ? sessionVO.getPlateColor() : null,
+                record.getEntryTime(), now, snapshotJson);
 
         if (feeCents <= 0) {
             return R.fail(4002, "当前仍在免费时段内，无需支付");
@@ -136,6 +152,20 @@ public class H5PayController {
         return R.ok(buildResult(order));
     }
 
+    private <T> T withPlatformContext(Supplier<T> action) {
+        TenantContext.Snapshot previous = TenantContext.get();
+        TenantContext.set(new TenantContext.Snapshot(null, null, TenantContext.USER_TYPE_PLATFORM, null, null));
+        try {
+            return action.get();
+        } finally {
+            if (previous != null) {
+                TenantContext.set(previous);
+            } else {
+                TenantContext.clear();
+            }
+        }
+    }
+
     /**
      * 查询支付状态。
      *
@@ -144,6 +174,10 @@ public class H5PayController {
      */
     @GetMapping("/query")
     public R<H5PayResultVO> query(@RequestParam("orderId") Long orderId) {
+        return withPlatformContext(() -> doQuery(orderId));
+    }
+
+    private R<H5PayResultVO> doQuery(Long orderId) {
         ParkingOrder order = orderMapper.selectById(orderId);
         if (order == null) {
             return R.fail(1003, "订单不存在");
@@ -161,6 +195,10 @@ public class H5PayController {
      */
     @PostMapping("/notify")
     public R<?> notify(@Valid @RequestBody H5PayNotifyRequest request) {
+        return withPlatformContext(() -> doNotify(request));
+    }
+
+    private R<?> doNotify(H5PayNotifyRequest request) {
         if (!mockEnabled) {
             return R.fail(4002, "模拟支付未启用");
         }

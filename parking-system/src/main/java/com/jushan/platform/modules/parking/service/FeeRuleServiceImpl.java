@@ -40,10 +40,14 @@ public class FeeRuleServiceImpl extends ServiceImpl<FeeRuleMapper, FeeRule> impl
 
     private final FeeRuleSegmentMapper feeRuleSegmentMapper;
     private final ParkingLotMapper parkingLotMapper;
+    private final FeeRuleHistoryService feeRuleHistoryService;
 
-    public FeeRuleServiceImpl(FeeRuleSegmentMapper feeRuleSegmentMapper, ParkingLotMapper parkingLotMapper) {
+    public FeeRuleServiceImpl(FeeRuleSegmentMapper feeRuleSegmentMapper,
+                              ParkingLotMapper parkingLotMapper,
+                              FeeRuleHistoryService feeRuleHistoryService) {
         this.feeRuleSegmentMapper = feeRuleSegmentMapper;
         this.parkingLotMapper = parkingLotMapper;
+        this.feeRuleHistoryService = feeRuleHistoryService;
     }
 
     /**
@@ -188,6 +192,9 @@ public class FeeRuleServiceImpl extends ServiceImpl<FeeRuleMapper, FeeRule> impl
         if (tenantId == null) {
             tenantId = resolveEffectiveTenantId(existing.getLotId());
         }
+
+        // 保存修改前快照
+        feeRuleHistoryService.saveSnapshot(existing);
 
         // 校验生效时间
         if (effectiveStart != null && effectiveEnd != null && !effectiveStart.isBefore(effectiveEnd)) {

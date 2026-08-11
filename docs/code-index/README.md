@@ -29,6 +29,7 @@
 | 模块 | 职责 | 类数 | 索引 | 状态 |
 |---|---|---|---|---|
 | parking | 停车会话、计费规则、费用计算、通行/车位/车道策略、分析 | 68 | [modules-parking.md](backend/parking-system/modules-parking.md) | ✅ |
+| h5 | H5 车主端：免登录查费、支付预下单、模拟支付 | 7 | [modules-h5.md](backend/parking-system/modules-h5.md) | ✅ |
 | vehicle | 车辆档案、钱包、审核 | 40 | `backend/parking-system/modules-vehicle.md` | ✅ |
 | account | 管理账号、角色、权限 | 27 | `backend/parking-system/modules-account.md` | ✅ |
 | miniapp | 小程序用户、支付、访客、消息 | 25 | `backend/parking-system/modules-miniapp.md` | ✅ |
@@ -59,7 +60,7 @@
 | parking-common | R / BaseEntity / 异常 / 租户上下文 | 8 | `backend/parking-common.md` | ✅ |
 | parking-framework | 框架层通用能力 | 27 | `backend/parking-framework.md` | ✅ |
 | parking-infrastructure | 安全 / 日志 / MyBatis / Web | 19 | `backend/parking-infrastructure.md` | ✅ |
-| parking-boot | 启动与全局配置 | 8 | `backend/parking-boot.md` | ✅ |
+| parking-boot | 启动与全局配置 | 9 | `backend/parking-boot.md` | ✅ |
 | device-access | 设备接入（adapter/api/mqtt/event/registry/starter） | 111 | `backend/device-access.md` | ✅ |
 
 ### 前端
@@ -67,6 +68,7 @@
 | 模块 | 职责 | 文件 | 索引 | 状态 |
 |---|---|---|---|---|
 | frontend | 岗亭端（api/components/stores/views） | 23 vue + 18 ts | `frontend/frontend.md` | ✅ |
+| h5-user | H5 车主端（查费/支付/结果页） | 约 7 vue + 7 ts | `frontend/h5-user.md` | ✅ |
 | miniapp | 小程序（预留） | — | `frontend/miniapp.md` | ✅ |
 
 ---

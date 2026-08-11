@@ -1,10 +1,11 @@
 package com.jushan.platform.modules.booth.service;
-import com.jushan.platform.modules.miniapp.service.FixedSpaceService;import com.jushan.platform.modules.device.service.DeviceService;import com.jushan.platform.modules.parking.service.PrepaidDeductionService;import com.jushan.platform.modules.parking.service.ParkingOrderService;import com.jushan.platform.modules.parking.service.BillingEngine;
+import com.jushan.platform.modules.miniapp.service.FixedSpaceService;import com.jushan.platform.modules.device.service.DeviceService;import com.jushan.platform.modules.parking.service.PrepaidDeductionService;import com.jushan.platform.modules.parking.service.ParkingOrderService;import com.jushan.platform.modules.parking.service.FeeCalculationService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.jushan.common.BusinessException;
 import com.jushan.common.CommonErrorCode;
 import com.jushan.platform.modules.parking.service.ParkingSessionService;
+import com.jushan.platform.modules.parking.entity.ParkingSession;
 import com.jushan.platform.modules.parking.entity.ExitRecord;
 import com.jushan.platform.modules.parking.entity.ParkingLot;
 import com.jushan.platform.modules.parking.entity.ParkingOrder;
@@ -68,7 +69,7 @@ public class ExitService {
     private final ExitRecordMapper exitRecordMapper;
     private final ParkingOrderService parkingOrderService;
     private final ParkingLotMapper parkingLotMapper;
-    private final BillingEngine billingEngine;
+    private final FeeCalculationService feeCalculationService;
     private final BoothWebSocketPublisher boothWebSocketPublisher;
     private final ParkingSessionService parkingSessionService;
     private final PrepaidDeductionService prepaidDeductionService;
@@ -84,7 +85,7 @@ public class ExitService {
                         ExitRecordMapper exitRecordMapper,
                         ParkingOrderService parkingOrderService,
                         ParkingLotMapper parkingLotMapper,
-                        BillingEngine billingEngine,
+                        FeeCalculationService feeCalculationService,
                         BoothWebSocketPublisher boothWebSocketPublisher,
                         ParkingSessionService parkingSessionService,
                         PrepaidDeductionService prepaidDeductionService,
@@ -99,7 +100,7 @@ public class ExitService {
         this.exitRecordMapper = exitRecordMapper;
         this.parkingOrderService = parkingOrderService;
         this.parkingLotMapper = parkingLotMapper;
-        this.billingEngine = billingEngine;
+        this.feeCalculationService = feeCalculationService;
         this.boothWebSocketPublisher = boothWebSocketPublisher;
         this.parkingSessionService = parkingSessionService;
         this.prepaidDeductionService = prepaidDeductionService;
@@ -142,24 +143,28 @@ public class ExitService {
         boolean isFixedSpace = record.getTenantId() != null
                 && fixedSpaceService.hasActiveBinding(standardizedPlate, parkingLotId, record.getTenantId());
 
-        // 2b. 计算费用（NEW_ENTRY_ONLY 优先使用入场快照）
+        // 2b. 计算费用（优先使用 ParkingSession 的 fee_rule_snapshot）
         int feeCents;
+        com.jushan.platform.modules.parking.vo.ParkingSessionVO sessionVO =
+                parkingSessionService.getInByPlateAndLot(standardizedPlate, parkingLotId);
         if (isFixedSpace) {
             feeCents = 0;
             log.info("固定车位车辆出场，跳过计费: plate={} parkingLotId={}", standardizedPlate, parkingLotId);
-        } else if (record.getRuleSnapshot() != null && !record.getRuleSnapshot().isBlank()) {
-            try {
-                feeCents = billingEngine.calculateFeeFromSnapshot(
-                        record.getRuleSnapshot(), record.getEntryTime(), exitTime);
-                log.info("使用入场规则快照计费: recordId={} snapshotHash={}",
-                        record.getId(), record.getRuleSnapshot().hashCode());
-            } catch (BusinessException e) {
-                log.warn("规则快照计费失败，回退到当前规则: recordId={} error={}",
-                        record.getId(), e.getMessage());
-                feeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
-            }
         } else {
-            feeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+            String snapshotJson = sessionVO != null ? sessionVO.getFeeRuleSnapshot() : null;
+            try {
+                feeCents = feeCalculationService.calculateFeeCents(
+                        parkingLotId, null,
+                        sessionVO != null ? sessionVO.getVehicleType() : null,
+                        sessionVO != null ? sessionVO.getPlateColor() : null,
+                        record.getEntryTime(), exitTime, snapshotJson);
+                log.info("使用FeeRule计费: recordId={} useSnapshot={}",
+                        record.getId(), snapshotJson != null && !snapshotJson.isBlank());
+            } catch (BusinessException e) {
+                log.warn("FeeRule计费失败，按0费放行: recordId={} error={}",
+                        record.getId(), e.getMessage());
+                feeCents = 0;
+            }
         }
 
         // 黑白名单出场判定（任务包 3-3 新增）
@@ -239,16 +244,17 @@ public class ExitService {
                             || ParkingOrder.STATUS_PAYING.equals(existing.getStatus()))) {
                         int originalAmount = existing.getAmountCents() != null ? existing.getAmountCents() : 0;
                         // 以实际停车时长重新计费
+                        String snapshotJson = sessionVO != null ? sessionVO.getFeeRuleSnapshot() : null;
                         int recalcFeeCents;
-                        if (record.getRuleSnapshot() != null && !record.getRuleSnapshot().isBlank()) {
-                            try {
-                                recalcFeeCents = billingEngine.calculateFeeFromSnapshot(
-                                        record.getRuleSnapshot(), record.getEntryTime(), exitTime);
-                            } catch (BusinessException e) {
-                                recalcFeeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
-                            }
-                        } else {
-                            recalcFeeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+                        try {
+                            recalcFeeCents = feeCalculationService.calculateFeeCents(
+                                    parkingLotId, null,
+                                    sessionVO != null ? sessionVO.getVehicleType() : null,
+                                    sessionVO != null ? sessionVO.getPlateColor() : null,
+                                    record.getEntryTime(), exitTime, snapshotJson);
+                        } catch (BusinessException e) {
+                            log.warn("出场重识别计费失败，按原金额保留: recordId={} error={}", record.getId(), e.getMessage());
+                            recalcFeeCents = originalAmount;
                         }
                         parkingOrderService.updatePendingOrderAmount(existing.getId(), recalcFeeCents,
                                 LocalDateTime.now().plusMinutes(15));
@@ -265,16 +271,17 @@ public class ExitService {
                         if (cancelled != null) {
                             int cancelledAmount = cancelled.getAmountCents() != null ? cancelled.getAmountCents() : 0;
                             // 以实际停车时长重新计费
+                            String snapshotJson = sessionVO != null ? sessionVO.getFeeRuleSnapshot() : null;
                             int recalcFeeCents;
-                            if (record.getRuleSnapshot() != null && !record.getRuleSnapshot().isBlank()) {
-                                try {
-                                    recalcFeeCents = billingEngine.calculateFeeFromSnapshot(
-                                            record.getRuleSnapshot(), record.getEntryTime(), exitTime);
-                                } catch (BusinessException e) {
-                                    recalcFeeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
-                                }
-                            } else {
-                                recalcFeeCents = billingEngine.calculateFee(parkingLotId, record.getEntryTime(), exitTime);
+                            try {
+                                recalcFeeCents = feeCalculationService.calculateFeeCents(
+                                        parkingLotId, null,
+                                        sessionVO != null ? sessionVO.getVehicleType() : null,
+                                        sessionVO != null ? sessionVO.getPlateColor() : null,
+                                        record.getEntryTime(), exitTime, snapshotJson);
+                            } catch (BusinessException e) {
+                                log.warn("超时关单后重算计费失败，按0费: recordId={} error={}", record.getId(), e.getMessage());
+                                recalcFeeCents = 0;
                             }
                             order = parkingOrderService.createOrderInternal(record, recalcFeeCents, null,
                                     ParkingOrder.PAY_SCENE_AT_EXIT, payload.getLaneId(), cancelled.getId(),

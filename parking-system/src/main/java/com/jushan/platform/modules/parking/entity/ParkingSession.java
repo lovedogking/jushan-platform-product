@@ -80,6 +80,12 @@ public class ParkingSession extends BaseEntity {
     /** 备注 */
     private String remark;
 
+    /** 入场时生效的收费规则 ID */
+    private Long feeRuleId;
+
+    /** 入场时生效的收费规则完整快照（含时段列表） */
+    private String feeRuleSnapshot;
+
     // ==================== 常量定义 ====================
 
     public static final String STATUS_IN = "IN";

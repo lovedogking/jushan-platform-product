@@ -1231,7 +1231,8 @@ public class DeviceService {
             return gateDevices.get(0);
         }
 
-        // 2. 本车道 CAMERA + OPEN_GATE 能力（必须唯一；多候选报错）
+        // 2. 本车道 CAMERA + OPEN_GATE 能力
+        //    双向车道天然有两台相机（入口+出口），它们控制同一台闸机，多候选直接取第一台即可
         List<Device> cameras = deviceMapper.selectList(
                 new LambdaQueryWrapper<Device>()
                         .eq(Device::getLaneId, laneId)
@@ -1242,12 +1243,8 @@ public class DeviceService {
                 .collect(Collectors.toList());
         if (!openGateCameras.isEmpty()) {
             if (openGateCameras.size() > 1) {
-                String sns = openGateCameras.stream().map(Device::getDeviceSn).collect(Collectors.joining(", "));
-                log.error("车道绑定多台含 OPEN_GATE 能力的 CAMERA，无法确定控闸目标: laneId={}, count={}, devices={}",
-                        laneId, openGateCameras.size(), sns);
-                throw new BusinessException(CommonErrorCode.BUSINESS_ERROR,
-                        "车道绑定了多台可开闸相机，无法自动确定控闸目标，请配置 gate_device_id: laneId="
-                        + laneId + " laneName=" + lane.getName() + " candidates=" + sns);
+                log.info("车道绑定多台含 OPEN_GATE 的 CAMERA（双向车道正常现象），取第一台: laneId={}, count={}, chosen={}",
+                        laneId, openGateCameras.size(), openGateCameras.get(0).getDeviceSn());
             }
             log.debug("按 CAMERA+OPEN_GATE 解析控闸: laneId={}, deviceId={}, deviceSn={}",
                     laneId, openGateCameras.get(0).getId(), openGateCameras.get(0).getDeviceSn());
